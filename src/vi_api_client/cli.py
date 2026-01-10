@@ -138,13 +138,23 @@ async def cmd_list_features(args):
 
             
             if args.values:
-                # Use library helper for formatted values
-                features_with_values = await client.get_features_with_values(
-                    inst_id, gw_serial, dev_id, only_enabled=args.enabled
-                )
-                print(f"Found {len(features_with_values)} Features for device {dev_id}:")
-                for item in features_with_values:
-                    print(f"- {item['name']}: {item['value']}")
+                # Use model-based fetching to show flat/expanded features
+                # accessible to the end user (simulating HA behavior)
+                features_models = await client.get_features_models(inst_id, gw_serial, dev_id)
+                # We create a dummy device to leverage the property (or just call expand manually)
+                # But to fully verify, let's just iterate and expand
+                
+                print(f"Found {len(features_models)} Raw Features for device {dev_id}:")
+                
+                flat_list = []
+                for f in features_models:
+                    if args.enabled and not f.is_enabled:
+                        continue
+                    flat_list.extend(f.expand())
+                    
+                print(f"Expanded to {len(flat_list)} Flat Features:")
+                for item in flat_list:
+                     print(f"- {item.name}: {item.formatted_value}")
             
             else:
                 # Standard listing (names only)

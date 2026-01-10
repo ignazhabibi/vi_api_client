@@ -209,8 +209,15 @@ class TestClient:
                         "feature": "heating.nested.complex",
                         "isEnabled": True,
                         "properties": {
-                            "day": {"type": "array", "value": [1.1, 2.2]},
-                            "total": {"type": "number", "value": 100, "unit": "kWh"}
+                            "currentDay": {"type": "number", "value": 1.1, "unit": "kWh"},
+                            "lastMonth": {"type": "number", "value": 100, "unit": "kWh"}
+                        }
+                    },
+                    {
+                        "feature": "heating.small.list",
+                        "isEnabled": True,
+                        "properties": {
+                            "day": {"type": "array", "value": [1, 2, 3]}
                         }
                     },
                     {
@@ -231,19 +238,28 @@ class TestClient:
                 
                 # Test 1: Only enabled
                 features = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=True)
-                assert len(features) == 2
+                # heating.sensors.temperature.outside -> 1
+                # heating.nested.complex -> expands to .currentDay and .lastMonth -> 2
+                # heating.small.list -> 1
+                # Total = 4
+                assert len(features) == 4
                 
                 f1 = next(f for f in features if f["name"] == "heating.sensors.temperature.outside")
-                # 'value' and 'status' should be combined cleanly
                 assert "12.5 celsius" in f1["value"]
-                assert "connected" in f1["value"]
                 
-                f2 = next(f for f in features if f["name"] == "heating.nested.complex")
-                # Nested keys should be prefixed
-                assert "day: [1.1, 2.2]" in f2["value"]
-                assert "total: 100 kWh" in f2["value"]
+                # Check expanded features
+                f2_day = next(f for f in features if f["name"] == "heating.nested.complex.currentDay")
+                assert "1.1 kWh" in f2_day["value"]
+                
+                f2_total = next(f for f in features if f["name"] == "heating.nested.complex.lastMonth")
+                assert "100 kWh" in f2_total["value"]
+
+                # Check short list formatting
+                f3_list = next(f for f in features if f["name"] == "heating.small.list")
+                assert "[1, 2, 3]" in f3_list["value"]
 
                 # Test 2: All features
                 features_all = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=False)
-                assert len(features_all) == 3
+                # 4 enabled + 1 disabled = 5
+                assert len(features_all) == 5
                 assert any(f["name"] == "heating.disabled.feature" for f in features_all)

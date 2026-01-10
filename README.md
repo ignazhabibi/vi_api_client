@@ -104,6 +104,27 @@ for f in features:
 # Output: heating.sensors.temperature.outside: 12.5 celsius
 ```
 
+### Feature Flattening & Expansion
+
+The library automatically handles complex API features (heating curves, statistics, summaries) by "flattening" them into simple, scalar features. This is ideal for integrations like Home Assistant.
+
+Instead of iterating `device.features`, use `device.features_flat`:
+
+```python
+devices = await client.get_full_installation_status(inst_id)
+device = devices[0]
+
+for feature in device.features_flat:
+    # Now you get scalar values for everything:
+    # - heating.curve (Complex) -> heating.curve.slope: 0.8
+    #                              heating.curve.shift: 3
+    #
+    # - statistics (Complex)    -> statistics.starts: 350
+    #                              statistics.hours: 50
+    
+    print(f"{feature.name}: {feature.value}")
+```
+
 ### Custom Authentication
 For integrations like Home Assistant, you can implement the `AbstractAuth` class to handle tokens your own way, rather than using `OAuth`.
 

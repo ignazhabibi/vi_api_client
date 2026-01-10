@@ -90,21 +90,13 @@ class Client:
             
         results = []
         for f in features:
-            name = f.get("feature")
-            props = f.get("properties", {})
-            found_vals = []
-            
-            for key, val_item in props.items():
-                if isinstance(val_item, dict) and "value" in val_item:
-                    v = val_item.get("value")
-                    u = val_item.get("unit", "")
-                    if key == "value" or key == "status":
-                        found_vals.append(f"{v} {u}".strip())
-                    else:
-                        found_vals.append(f"{key}: {v} {u}".strip())
-                        
-            val_str = ", ".join(found_vals)
-            results.append({"name": name, "value": val_str})
+            feature_model = Feature.from_api(f)
+            # Expand potentially complex features
+            for flat_f in feature_model.expand():
+                results.append({
+                    "name": flat_f.name, 
+                    "value": flat_f.formatted_value
+                })
             
         return results
 
