@@ -1,7 +1,7 @@
 """Tests for data models."""
 
 import pytest
-from vitoclient.models import Feature, Device
+from vi_api_client.models import Feature, Device
 
 class TestModels:
     

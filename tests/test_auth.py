@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from aioresponses import aioresponses
 import aiohttp
 
-from vitoclient.auth import AbstractAuth, OAuth
-from vitoclient.const import ENDPOINT_TOKEN, AUTH_BASE_URL
-from vitoclient.exceptions import VitoAuthError
+from vi_api_client.auth import AbstractAuth, OAuth
+from vi_api_client.const import ENDPOINT_TOKEN, AUTH_BASE_URL
+from vi_api_client.exceptions import VitoAuthError
 
 
 class TestAbstractAuth:

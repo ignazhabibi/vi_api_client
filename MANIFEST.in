@@ -3,7 +3,7 @@ include README.md
 include pyproject.toml
 include setup.py
 
-recursive-include src/vitoclient *.py
+recursive-include src/vi_api_client *.py
 
 # Exclude documentation and local config
 exclude tokens.json

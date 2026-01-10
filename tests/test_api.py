@@ -4,10 +4,10 @@ import pytest
 from aioresponses import aioresponses
 import aiohttp
 
-from vitoclient.api import Client
-from vitoclient.auth import AbstractAuth
-from vitoclient.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS
-from vitoclient.exceptions import VitoConnectionError
+from vi_api_client.api import Client
+from vi_api_client.auth import AbstractAuth
+from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS
+from vi_api_client.exceptions import VitoConnectionError
 
 
 class MockAuth(AbstractAuth):

@@ -17,7 +17,7 @@ This is currently a local development package.
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd vitoclient
+cd vi_api_client
 
 # Create virtual env
 python3 -m venv .venv
@@ -54,7 +54,7 @@ Here is how to use the library in your own async code:
 ```python
 import asyncio
 import aiohttp
-from vitoclient import OAuth, Client
+from vi_api_client import OAuth, Client
 
 CLIENT_ID = "YOUR_CLIENT_ID"
 REDIRECT_URI = "http://localhost:4200/"
@@ -109,7 +109,7 @@ For integrations like Home Assistant, you can implement the `AbstractAuth` class
 
 ## CLI Tool Usage
 
-The package includes a `vitoclient` command line tool for testing authentication and exploring the API.
+The package includes a `vi_api_client` command line tool for testing authentication and exploring the API.
 
 > **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file!
 
@@ -117,10 +117,10 @@ The package includes a `vitoclient` command line tool for testing authentication
 Initiate the OAuth2 flow. You need your Client ID from the Viessmann Developer Portal.
 
 ```bash
-vitoclient login --client-id <YOUR_CLIENT_ID>
+vi_api_client login --client-id <YOUR_CLIENT_ID>
 # Or use environment variable:
 # export VIESSMANN_CLIENT_ID=<YOUR_CLIENT_ID>
-# vitoclient login
+# vi_api_client login
 ```
 Follow the URL, log in, and paste the code back into the terminal.
 
@@ -128,7 +128,7 @@ Follow the URL, log in, and paste the code back into the terminal.
 View all installations, gateways, and devices available to your account.
 
 ```bash
-vitoclient list-devices
+vi_api_client list-devices
 ```
 
 ### 3. List Features
@@ -136,13 +136,13 @@ Feature names vary by device model (e.g., heat pumps vs gas boilers). Use this t
 
 ```bash
 # List all features (names only)
-vitoclient list-features
+vi_api_client list-features
 
 # List only enabled features (names only)
-vitoclient list-features --enabled
+vi_api_client list-features --enabled
 
 # List enabled features WITH values
-vitoclient list-features --enabled --values
+vi_api_client list-features --enabled --values
 ```
 *Note: This auto-detects the first device. You can specify `--gateway-serial` and `--device-id` if needed.*
 
@@ -150,13 +150,13 @@ vitoclient list-features --enabled --values
 Get the current value of a specific feature.
 
 ```bash
-vitoclient get-feature "heating.sensors.temperature.outside"
+vi_api_client get-feature "heating.sensors.temperature.outside"
 ```
 
 ### Corporate Proxy / SSL Issues
 If you are testing from a corporate network that intercepts SSL (e.g., Zscaler), you may encounter certificate errors. Use the `--insecure` flag to bypass verification:
 
 ```bash
-vitoclient list-devices --insecure
-vitoclient get-feature "heating.circuits.0" --insecure
+vi_api_client list-devices --insecure
+vi_api_client get-feature "heating.circuits.0" --insecure
 ```

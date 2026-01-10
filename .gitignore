@@ -9,8 +9,6 @@ venv/
 # Project specific
 tokens.json
 
-
-
 # Testing & Build
 .coverage
 htmlcov/

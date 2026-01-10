@@ -16,7 +16,7 @@ import aiohttp
 # Ensure we can import the local package
 sys.path.insert(0, os.path.abspath("src"))
 
-from vitoclient import Client, OAuth
+from vi_api_client import Client, OAuth
 
 # Configuration
 # Best practice: Load from environment variable, fallback to placeholder
@@ -53,7 +53,7 @@ async def main():
             print("✅ Authentication successful (cached tokens found).")
         except Exception:
             print("⚠️  No valid tokens found.")
-            print(f"Please use the CLI tool to login first: 'vitoclient login --client-id {CLIENT_ID}'")
+            print(f"Please use the CLI tool to login first: 'vi_api_client login --client-id {CLIENT_ID}'")
             return
 
         # 3. Initialize Client

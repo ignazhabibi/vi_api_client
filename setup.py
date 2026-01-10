@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="vitoclient",
+    name="vi_api_client",
     version="0.1.0",
     description="Async Python client for Viessmann Climate Solutions API",
     author="Michael",
@@ -13,7 +13,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "vitoclient=vitoclient.cli:main",
+            "vi_api_client=vi_api_client.cli:main",
         ],
     },
     python_requires=">=3.9",

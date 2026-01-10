@@ -9,7 +9,7 @@ import sys
 from typing import Optional, Dict, Any
 
 import aiohttp
-from vitoclient import Client, OAuth
+from vi_api_client import Client, OAuth
 
 # Default file to store tokens and config
 TOKEN_FILE = "tokens.json"
