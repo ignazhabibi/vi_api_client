@@ -11,6 +11,7 @@ setup(
         "aiohttp>=3.8.1",
         "pkce>=1.0.3",
     ],
+    include_package_data=True,
     entry_points={
         "console_scripts": [
             "vi-client=vi_api_client.cli:main",
