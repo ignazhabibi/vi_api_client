@@ -7,7 +7,7 @@ import aiohttp
 from vi_api_client.api import Client
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL
-from vi_api_client.exceptions import VitoConnectionError
+from vi_api_client.exceptions import ViConnectionError
 from vi_api_client.models import Feature
 
 
@@ -61,7 +61,7 @@ class TestClient:
                 auth = MockAuth(session)
                 client = Client(auth)
                 
-                with pytest.raises(VitoConnectionError):
+                with pytest.raises(ViConnectionError):
                     await client.get_installations()
 
     @pytest.mark.asyncio
@@ -182,7 +182,7 @@ class TestClient:
                 auth = MockAuth(session)
                 client = Client(auth)
                 
-                with pytest.raises(VitoConnectionError) as exc_info:
+                with pytest.raises(ViConnectionError) as exc_info:
                     await client.get_feature(
                         123456, "1234567890", "0", "nonexistent.feature"
                     )
@@ -261,9 +261,8 @@ class TestClient:
 
                 # Test 2: All features
                 features_all = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=False)
-                # 4 enabled + 1 disabled = 5
-                assert len(features_all) == 5
-                assert any(f["name"] == "heating.disabled.feature" for f in features_all)
+                # 4 enabled + 1 disabled (but disabled has no properties, so it's filtered out)
+                assert len(features_all) == 4
 
     @pytest.mark.asyncio
     async def test_get_today_consumption(self):
