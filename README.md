@@ -13,16 +13,6 @@ Designed for integration with Home Assistant and other async Python applications
 - **Analytics API**: Fetch historical energy consumption data (gas/electricity).
 - **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
 
-## Documentation
-
-Full documentation is available in the `docs/` directory:
-
-1.  **[Getting Started](docs/01_getting_started.md)**: Installation and First Steps.
-2.  **[Models Reference](docs/02_models.md)**: Devices, Features, and Commands.
-3.  **[Client Reference](docs/03_api.md)**: The `ViCareClient` class.
-4.  **[CLI Reference](docs/04_cli.md)**: Using the command line interface.
-5.  **[Exceptions Reference](docs/05_exceptions.md)**: Handling errors.
-
 ## Installation
 
 This is currently a local development package.
@@ -53,8 +43,8 @@ vi-client login --client-id <YOUR_CLIENT_ID>
 # 2. List Devices
 vi-client list-devices
 
-# 3. Get a specific feature
-vi-client get-feature "heating.sensors.temperature.outside"
+# 3. List only enabled Features with values (auto-detects first device)
+vi-client list-features --enabled --values
 ```
 
 See [CLI Reference](docs/05_cli_reference.md) for more details.
