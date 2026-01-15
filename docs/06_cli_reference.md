@@ -1,4 +1,4 @@
-# CLI Usage
+# CLI Reference
 
 The package includes a command-line interface `vi-client` for testing authentication and exploring the API.
 

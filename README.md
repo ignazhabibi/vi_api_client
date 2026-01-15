@@ -17,12 +17,11 @@ Designed for integration with Home Assistant and other async Python applications
 
 Full documentation is available in the `docs/` directory:
 
-1.  [Authentication & Setup](docs/01_auth.md)
-2.  [Data Models (Device, Feature)](docs/02_models.md)
-3.  [API Client Usage](docs/03_api.md)
-4.  [Commands & parameters](docs/04_commands.md)
-5.  [CLI Tool Usage](docs/05_cli.md)
-6.  [Error Handling](docs/06_error_handling.md)
+1.  **[Getting Started](docs/01_getting_started.md)**: Installation and First Steps.
+2.  **[Models Reference](docs/02_models.md)**: Devices, Features, and Commands.
+3.  **[Client Reference](docs/03_api.md)**: The `ViCareClient` class.
+4.  **[CLI Reference](docs/04_cli.md)**: Using the command line interface.
+5.  **[Exceptions Reference](docs/05_exceptions.md)**: Handling errors.
 
 ## Installation
 
@@ -58,7 +57,7 @@ vi-client list-devices
 vi-client get-feature "heating.sensors.temperature.outside"
 ```
 
-See [CLI Documentation](docs/05_cli.md) for more details.
+See [CLI Reference](docs/05_cli_reference.md) for more details.
 
 ### Python Code
 
@@ -98,3 +97,15 @@ if __name__ == "__main__":
 
 - `demo_mock.py`: Run offline without credentials using the Mock Client.
 - `demo_live.py`: Connect to the real API.
+
+## Documentation
+
+The detailed documentation is available in the `docs/` directory:
+
+1.  **[Getting Started](docs/01_getting_started.md)**: Installation and First Steps.
+2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the data-driven design.
+3.  **[Authentication & Connection](docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
+4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Commands.
+5.  **[Client Reference](docs/05_client_reference.md)**: The `ViCareClient` class.
+6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
+7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.

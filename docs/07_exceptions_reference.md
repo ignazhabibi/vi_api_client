@@ -1,4 +1,4 @@
-# Error Handling
+# Exceptions Reference
 
 The library simplifies Viessmann API error handling by mapping HTTP status codes and API error payloads to specific Python exceptions.
 
