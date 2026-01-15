@@ -12,14 +12,24 @@ from vi_api_client import ViCareClient
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `PKCEAuth`). |
+| `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `OAuth`). |
 
 ### Methods
 
-#### `get_transposed_devices() -> List[Dict]`
-Discovers all installations, gateways, and devices available to the user.
-*   **Returns**: A list of dictionaries containing flattened ID information (`installation_id`, `gateway_serial`, `device_id`, `model`, `status`).
-*   **Best for**: Initial discovery in CLI or scripts.
+#### `get_installations() -> List[Dict]`
+Fetches all available installations.
+*   **Returns**: List of dictionaries (containing `id`, `alias`, etc.).
+
+#### `get_gateways() -> List[Dict]`
+Fetches all gateways (automatically linked to installations).
+
+#### `get_devices(installation_id, gateway_serial) -> List[Dict]`
+Fetches devices attached to a specific gateway.
+
+#### `get_full_installation_status(installation_id) -> List[Device]`
+Deep fetch of a whole installation.
+*   **Returns**: A list of `Device` objects, each populated with all its `Feature`s.
+*   **Best for**: Getting a complete snapshot of the system state.
 
 #### `get_features_models(inst_id, gw_serial, dev_id) -> List[Feature]`
 Fetches all features for a specific device.

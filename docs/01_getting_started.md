@@ -18,7 +18,7 @@ The easiest way to start is using the CLI to generate a token, or using the `ViC
 import asyncio
 import os
 from vi_api_client import ViCareClient
-from vi_api_client.auth import PKCEAuth
+from vi_api_client.auth import OAuth
 
 # Configuration
 CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID")
@@ -26,7 +26,7 @@ TOKEN_FILE = "token.json"
 
 async def main():
     # 1. Setup Authentication (auto-handles token refresh)
-    auth = PKCEAuth(
+    auth = OAuth(
         client_id=CLIENT_ID,
         token_file=TOKEN_FILE
     )
@@ -34,22 +34,32 @@ async def main():
     # 2. Initialize Client
     client = ViCareClient(auth)
 
-    # 3. List Devices
-    # Discovery gives you installation, gateway, and device IDs
-    devices = await client.get_transposed_devices() 
+    # 3. Discovery: Installation -> Gateway -> Device
+    installations = await client.get_installations()
+    if not installations:
+        print("No installations found.")
+        return
+        
+    inst_id = installations[0]["id"]
+    print(f"Using Installation: {inst_id}")
     
+    gateways = await client.get_gateways()
+    if not gateways:
+        print("No gateways found.")
+        return
+        
+    gw_serial = gateways[0]["serial"]
+    print(f"Using Gateway: {gw_serial}")
+    
+    devices = await client.get_devices(inst_id, gw_serial)
     if not devices:
         print("No devices found.")
         return
-
-    # Pick the first device found
+        
+    # Pick the first device (usually id="0")
     device_info = devices[0]
-    print(f"Using Device: {device_info['device_id']} ({device_info['model']})")
-    
-    # IDs for further calls
-    inst_id = device_info["installation_id"]
-    gw_serial = device_info["gateway_serial"]
-    dev_id = device_info["device_id"]
+    dev_id = device_info["id"]
+    print(f"Using Device: {dev_id} ({device_info['modelId']})")
     
     # Continued below...
     await read_features(client, inst_id, gw_serial, dev_id)

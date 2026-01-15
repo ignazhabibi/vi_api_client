@@ -10,11 +10,11 @@ All Auth classes accept an optional `websession` argument (an `aiohttp.ClientSes
 
 ```python
 import aiohttp
-from vi_api_client import PKCEAuth, ViCareClient
+from vi_api_client import OAuth, ViCareClient
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        auth = PKCEAuth(..., websession=session)
+        auth = OAuth(..., websession=session)
         client = ViCareClient(auth)
         # requests reuse the `session` pool
 ```
@@ -28,12 +28,12 @@ The abstract base class for all authentication providers. It handles the core lo
 #### `get_access_token() -> str`
 Returns a valid access token. If the current token is expired, it automatically triggers a refresh.
 
-## `PKCEAuth`
+## `OAuth`
 
 Implements the OAuth2 PKCE flow (Proof Key for Code Exchange). This is the standard flow for Viessmann API.
 
 ```python
-from vi_api_client import PKCEAuth
+from vi_api_client import OAuth
 ```
 
 ### Constructor
@@ -52,8 +52,7 @@ If `token_file` is provided, the class automatically:
 
 This ensures persistent authentication across restarts.
 
-## `OAuth` (Legacy)
-A standard OAuth2 implementation (without PKCE specifics). Use `PKCEAuth` for modern Viessmann apps.
+(The `OAuth` class implements the PKCE flow internally).
 
 ## Token Format
 Tokens are stored in `token_file` as:
