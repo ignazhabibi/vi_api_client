@@ -5,6 +5,7 @@ from aioresponses import aioresponses
 import aiohttp
 from vi_api_client.cli import setup_client_context, CLIContext
 from vi_api_client.const import API_BASE_URL, ENDPOINT_GATEWAYS, ENDPOINT_INSTALLATIONS
+from vi_api_client.models import Gateway, Device
 
 @pytest.mark.asyncio
 async def test_cli_context_mock_mode():
@@ -22,7 +23,7 @@ async def test_cli_context_mock_mode():
     
     async with setup_client_context(args) as ctx:
         assert isinstance(ctx, CLIContext)
-        assert ctx.inst_id == 99999
+        assert ctx.inst_id == "99999"
         assert ctx.gw_serial == "MOCK_GATEWAY"
         assert ctx.dev_id == "0"
         
@@ -35,7 +36,7 @@ async def test_cli_context_explicit_ids():
         redirect_uri="http://localhost",
         token_file="tokens.json",
         insecure=False,
-        installation_id=123,
+        installation_id="123",
         gateway_serial="serial",
         device_id="dev1"
     )
@@ -48,7 +49,7 @@ async def test_cli_context_explicit_ids():
         mock_create_session.return_value.__aenter__.return_value = mock_session
         
         async with setup_client_context(args) as ctx:
-            assert ctx.inst_id == 123
+            assert ctx.inst_id == "123"
             assert ctx.gw_serial == "serial"
             assert ctx.dev_id == "dev1"
             # Should NOT define autodiscovery
@@ -68,7 +69,7 @@ async def test_cli_context_autodiscovery():
     )
     
     # We patch Client so we don't need real Auth or Network
-    with patch("vi_api_client.cli.Client") as MockClientCls, \
+    with patch("vi_api_client.cli.ViClient") as MockClientCls, \
          patch("vi_api_client.cli.OAuth"), \
          patch("vi_api_client.cli.load_config", return_value={}):
          
@@ -77,18 +78,18 @@ async def test_cli_context_autodiscovery():
         
         # Configure async methods
         mock_client.get_gateways = AsyncMock(return_value=[
-            {"serial": "GW123", "installationId": 100}
+            Gateway(serial="GW123", version="1", status="ok", installation_id="100")
         ])
         mock_client.get_devices = AsyncMock(return_value=[
-            {"id": "0", "deviceType": "heating"}
+            Device(id="0", gateway_serial="GW123", installation_id="100", model_id="m1", device_type="heating", status="ok")
         ])
         
         async with setup_client_context(args) as ctx:
             # Verify context values derived from mock client responses
-            assert ctx.inst_id == 100
+            assert ctx.inst_id == "100"
             assert ctx.gw_serial == "GW123"
             assert ctx.dev_id == "0"
             
             # Verify client method calls
             mock_client.get_gateways.assert_called_once()
-            mock_client.get_devices.assert_called_once_with(100, "GW123")
+            mock_client.get_devices.assert_called_once_with("100", "GW123")

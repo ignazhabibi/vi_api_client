@@ -12,12 +12,12 @@ pip install vi_api_client
 
 ### 1. Simple Authentication & Device List
 
-The easiest way to start is using the CLI to generate a token, or using the `Client` with an existing token.
+The easiest way to start is using the CLI to generate a token, or using the `ViClient` with an existing token.
 
 ```python
 import asyncio
 import os
-from vi_api_client import Client
+from vi_api_client import ViClient
 from vi_api_client.auth import OAuth
 
 # Configuration
@@ -32,7 +32,7 @@ async def main():
     )
     
     # 2. Initialize Client
-    client = Client(auth)
+    client = ViClient(auth)
 
     # 3. Discovery: Installation -> Gateway -> Device
     installations = await client.get_installations()
@@ -57,12 +57,11 @@ async def main():
         return
         
     # Pick the first device (usually id="0")
-    device_info = devices[0]
-    dev_id = device_info.id
-    print(f"Using Device: {dev_id} ({device_info.model_id})")
+    device = devices[0]
+    print(f"Using Device: {device.id} ({device.model_id})")
     
     # Continued below...
-    await read_features(client, inst_id, gw_serial, dev_id)
+    await read_features(client, device)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -70,22 +69,23 @@ if __name__ == "__main__":
 
 ### 2. Reading Features
 
-Once you have the `installation_id`, `gateway_serial`, and `device_id`, you can query features.
+Once you have a `Device` object, you can query its features.
 
 ```python
-async def read_features(client, inst_id, gw_serial, dev_id):
-    # Fetch all features
-    features = await client.get_features(inst_id, gw_serial, dev_id)
+from vi_api_client.utils import format_feature
+
+async def read_features(client, device):
+    # Fetch all features for the device
+    features = await client.get_features(device)
     
     print(f"Found {len(features)} features.")
     
     # Access a specific feature
-    # Note: Features are typically named like 'heating.circuits.0.operating.modes.active'
     outside_temp = next((f for f in features if f.name == "heating.sensors.temperature.outside"), None)
     
     if outside_temp:
-        # formatted_value provides a string with unit (e.g., "12.5 celsius")
-        print(f"Outside Temperature: {outside_temp.formatted_value}")
+        # format_feature provides a string with unit (e.g., "12.5 celsius")
+        print(f"Outside Temperature: {format_feature(outside_temp)}")
         # .value gives the raw scalar (e.g., 12.5)
         print(f"Raw Value: {outside_temp.value}")
 ```
@@ -95,13 +95,11 @@ async def read_features(client, inst_id, gw_serial, dev_id):
 To change settings (e.g., set heating mode), you execute commands on a feature.
 
 ```python
-async def set_heating_mode(client, inst_id, gw_serial, dev_id):
+async def set_heating_mode(client, device):
     feature_name = "heating.circuits.0.operating.modes.active"
     
-    # 1. Fetch the feature to inspect available commands
-    feature_data = await client.get_feature(inst_id, gw_serial, dev_id, feature_name)
-    from vi_api_client.models import Feature
-    feature = Feature.from_api(feature_data)
+    # 1. Fetch the feature
+    feature = await client.get_feature(device, feature_name)
     
     # 2. Check if a command exists and is executable
     cmd_name = "setMode"
@@ -111,15 +109,17 @@ async def set_heating_mode(client, inst_id, gw_serial, dev_id):
             print(f"Executing {cmd_name}...")
             
             # 3. Execute with parameters
-            # Parameters must match the API definition (see list-commands CLI)
             result = await client.execute_command(
                 feature, 
                 cmd_name, 
                 {"mode": "heating"}
             )
-            print("Command executed successfully!")
+            if result.success:
+                print("Command executed successfully!")
+            else:
+                print(f"Command failed: {result.reason}")
         else:
-            print(f"Command {cmd_name} is currently not executable (maybe wrong state?).")
+            print(f"Command {cmd_name} is currently not executable.")
     else:
         print(f"Command {cmd_name} not found on this feature.")
 ```
@@ -129,5 +129,5 @@ async def set_heating_mode(client, inst_id, gw_serial, dev_id):
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
 - **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
-- **[Client Reference](05_client_reference.md)**: methods on `Client`.
+- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.

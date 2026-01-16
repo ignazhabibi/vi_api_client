@@ -54,7 +54,8 @@ See [CLI Reference](docs/05_cli_reference.md) for more details.
 ```python
 import asyncio
 import aiohttp
-from vi_api_client import OAuth, Client
+from vi_api_client import OAuth, ViClient
+from vi_api_client.utils import format_feature
 
 async def main():
     async with aiohttp.ClientSession() as session:
@@ -66,9 +67,9 @@ async def main():
             websession=session
         )
 
-        client = Client(auth)
+        client = ViClient(auth)
 
-        # distinct "get_installations" etc.
+        # Get installations
         installations = await client.get_installations()
         print(f"Found {len(installations)} installations")
         
@@ -77,7 +78,7 @@ async def main():
         device = devices[0]
         
         for feature in device.features_flat:
-             print(f"{feature.name}: {feature.formatted_value}")
+             print(f"{feature.name}: {format_feature(feature)}")
              
 if __name__ == "__main__":
     asyncio.run(main())
@@ -96,6 +97,6 @@ The detailed documentation is available in the `docs/` directory:
 2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the data-driven design.
 3.  **[Authentication & Connection](docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
 4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Commands.
-5.  **[Client Reference](docs/05_client_reference.md)**: The `Client` class.
+5.  **[Client Reference](docs/05_client_reference.md)**: The `ViClient` class.
 6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
 7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.

@@ -3,10 +3,10 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from .api import Client
+from .api import ViClient
 from .auth import AbstractAuth
 from .exceptions import ViNotFoundError
-from .models import Feature, Device, Installation, Gateway
+from .models import Feature, Device, Installation, Gateway, CommandResponse
 
 
 class MockAuth(AbstractAuth):
@@ -19,7 +19,7 @@ class MockAuth(AbstractAuth):
         # Standard AbstractAuth expects a websession, but we don't use it in Mock
         super().__init__(websession)
 
-class MockViClient(Client):
+class MockViClient(ViClient):
     """
     A mock client that returns static responses from JSON files.
     Useful for testing, CLI usage without credentials, and development.
@@ -83,10 +83,10 @@ class MockViClient(Client):
             serial="MOCK_GATEWAY_SERIAL",
             version="1.0.0",
             status="connected",
-            installation_id=99999
+            installation_id="99999"
         )]
 
-    async def get_devices(self, installation_id: int, gateway_serial: str) -> List[Device]:
+    async def get_devices(self, installation_id: str, gateway_serial: str) -> List[Device]:
         """Return the mocked device as a typed model."""
         # In the real API, get_devices returns a list of device summaries.
         # Here we just wrap our single mock device data into a Device model
@@ -112,9 +112,7 @@ class MockViClient(Client):
 
     async def get_features(
         self, 
-        installation_id: int, 
-        gateway_serial: str, 
-        device_id: str,
+        device: Device,
         only_enabled: bool = False,
         feature_names: List[str] = None
     ) -> List[Feature]:
@@ -140,13 +138,13 @@ class MockViClient(Client):
     # We should override it to query our local list.
     
     async def get_feature(
-        self, installation_id: int, gateway_serial: str, device_id: str, feature_name: str
-    ) -> Dict[str, Any]:
-        """Get a specific feature from the local list (Return RAW Dict)."""
+        self, device: Device, feature_name: str
+    ) -> Feature:
+        """Get a specific feature from the local list (Return Feature Model)."""
         data = self._load_data().get("data", [])
         for f in data:
             if f.get("feature") == feature_name:
-                return f
+                return Feature.from_api(f)
         
         raise ViNotFoundError(f"Feature '{feature_name}' not found in mock device.")
 
@@ -192,4 +190,4 @@ class MockViClient(Client):
         print(f"[MOCK] Executing command '{command_name}' on feature '{feature.name}' with params: {final_params}")
         # In a real mock, we could update the local JSON/cache to reflect the change.
         # For now, just return success.
-        return {"success": True, "reason": "Mock Execution"}
+        return CommandResponse(success=True, reason="Mock Execution")

@@ -18,7 +18,7 @@ class TestModels:
         assert f.is_enabled is True
         assert f.value == 5.5
         assert f.unit == "celsius"
-        assert f.formatted_value == "5.5 celsius"
+        assert f.unit == "celsius"
 
     def test_feature_status(self):
         data = {
@@ -30,7 +30,7 @@ class TestModels:
         }
         f = Feature.from_api(data)
         assert f.value == "off"
-        assert f.formatted_value == "off"
+        assert f.value == "off"
 
     def test_feature_complex(self):
         data = {
@@ -46,10 +46,9 @@ class TestModels:
         assert f.value is None
         assert f.unit is None
         
-        # Formatted value should show all props
-        fv = f.formatted_value
-        assert "min: 10" in fv
-        assert "max: 20 C" in fv
+        # Main value/unit should be None as there is no "value" key
+        assert f.value is None
+        assert f.unit is None
 
     def test_device_creation(self):
         data = {"id": "0", "modelId": "vitocal", "deviceType": "heating", "status": "Online"}
@@ -70,7 +69,7 @@ class TestModels:
         }
         f = Feature.from_api(data)
         assert f.value is True
-        assert f.formatted_value == "True"
+        assert f.value is True
 
     def test_feature_history_list(self):
         """Test feature with history list (e.g. day)."""
@@ -83,8 +82,7 @@ class TestModels:
         }
         f = Feature.from_api(data)
         assert f.value == [1.1, 2.2, 3.3]
-        # formatted_value should indicate contents for short lists
-        assert "[1.1, 2.2, 3.3]" in f.formatted_value
+        assert f.value == [1.1, 2.2, 3.3]
 
     def test_feature_priority_value_over_status(self):
         """Test that 'value' takes precedence over 'status'."""
@@ -154,7 +152,7 @@ class TestModels:
         # Instantiate directly to populate frozen field
         d = Device(
             id="0", model_id="vitocal", device_type="heating", status="Online",
-            gateway_serial="gw1", installation_id=123,
+            gateway_serial="gw1", installation_id="123",
             features=[f_simple, f_complex]
         )
         

@@ -57,7 +57,7 @@ Feature names use dot convention (e.g., `heating.circuits.0.heating.schedule`), 
 The library wraps this in a `Feature` object:
 *   `feature.name`: `"heating.sensors.temperature.outside"`
 *   `feature.value`: `12.5` (Automatic extraction of the primary value)
-*   `feature.formatted_value`: `"12.5 celsius"`
+*   Use `format_feature(feature)` from `vi_api_client.utils` to get `"12.5 celsius"`
 
 ### Example: Heating Curve (Complex Feature)
 

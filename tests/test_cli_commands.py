@@ -35,16 +35,19 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
     )
 
     # Mock get_feature return
-    mock_cli_context.client.get_feature.return_value = {
-        "feature": "heating.curve",
-        "commands": {
-            "setCurve": {
-                "uri": "uri",
-                "params": {"slope": {"type": "number"}}
-            }
-        }
+    mock_feature = MagicMock(spec=Feature)
+    mock_feature.name = "heating.curve"
+    mock_feature.commands = {
+        "setCurve": MagicMock(uri="uri", is_executable=True, params={"slope": {"type": "number"}})
     }
-    mock_cli_context.client.execute_command.return_value = {"success": True}
+    # Mock return value call validation
+    mock_cli_context.client.get_feature.return_value = mock_feature
+    # Mock CommandResponse object
+    mock_response = MagicMock()
+    mock_response.success = True
+    mock_response.message = "OK"
+    mock_response.reason = None
+    mock_cli_context.client.execute_command.return_value = mock_response
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -52,13 +55,18 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
         await cmd_exec(args)
         
         # Verify calls
-        mock_cli_context.client.get_feature.assert_called_with(99, "GW1", "DEV1", "heating.curve")
+        # Use property check for Device
+        assert mock_cli_context.client.get_feature.called
+        # Check first argument (Device)
+        args_list = mock_cli_context.client.get_feature.call_args[0]
+        # args_list is (device, feature_name)
+        assert args_list[0].id == "DEV1"
+        assert args_list[1] == "heating.curve"
         mock_cli_context.client.execute_command.assert_called()
         
         # Verify output
         captured = capsys.readouterr()
         assert "Success!" in captured.out
-        assert "true" in captured.out.lower()
 
 @pytest.mark.asyncio
 async def test_cmd_exec_validation_error(mock_cli_context, capsys):
@@ -77,10 +85,11 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     # cmd_exec catches ValueError at the start.
     
     # Let's test ViValidationError raised by client.execute_command
-    mock_cli_context.client.get_feature.return_value = {
-        "feature": "heating.curve",
-        "commands": {"setCurve": {"uri": "uri", "params": {}}}
-    }
+    # Let's test ViValidationError raised by client.execute_command
+    mock_feature = MagicMock(spec=Feature)
+    mock_feature.name = "heating.curve"
+    mock_feature.commands = {"setCurve": MagicMock(uri="uri", params={})}
+    mock_cli_context.client.get_feature.return_value = mock_feature
     
     error = ViValidationError("Simulated Validation Error")
     mock_cli_context.client.execute_command.side_effect = error
@@ -157,7 +166,45 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
         
         await cmd_list_features(args)
         
-        # Verify call used only_enabled=True
-        mock_cli_context.client.get_features.assert_called_with(
-            99, "GW1", "DEV1", only_enabled=True
-        )
+        # Verify call used only_enabled=True and passes Device
+        assert mock_cli_context.client.get_features.called
+        call_args = mock_cli_context.client.get_features.call_args
+        # Arg 0 is Device object
+        assert call_args[0][0].id == "DEV1"
+        assert call_args[1]["only_enabled"] is True
+
+@pytest.mark.asyncio
+async def test_cmd_list_devices(mock_cli_context, capsys):
+    """Test listing installations, gateways, and devices."""
+    from vi_api_client.models import Installation, Gateway
+
+    args = Namespace(
+        token_file="tokens.json",
+        client_id=None, redirect_uri=None, insecure=False, mock_device=None,
+        installation_id=None, gateway_serial=None, device_id=None
+    )
+
+    # Mock Data (Objects)
+    inst = Installation(id=123, description="Home", alias="MyHome", address={})
+    gw = Gateway(serial="GW1", version="1.0", status="ok", installation_id="123")
+    dev = Device(id="0", gateway_serial="GW1", installation_id="123", model_id="Test", device_type="heating", status="ok")
+
+    mock_cli_context.client.get_installations.return_value = [inst]
+    mock_cli_context.client.get_gateways.return_value = [gw]
+    mock_cli_context.client.get_devices.return_value = [dev]
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+        
+        from vi_api_client.cli import cmd_list_devices
+        await cmd_list_devices(args)
+        
+        captured = capsys.readouterr()
+        
+        # Verify Output
+        assert "Found 1 installations" in captured.out
+        assert "ID: 123" in captured.out
+        assert "Found 1 gateways" in captured.out
+        assert "Serial: GW1" in captured.out
+        assert "Found 1 devices" in captured.out
+        assert "ID: 0" in captured.out

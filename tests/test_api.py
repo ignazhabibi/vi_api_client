@@ -4,11 +4,11 @@ import pytest
 from aioresponses import aioresponses
 import aiohttp
 
-from vi_api_client.api import Client
+from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL
 from vi_api_client.exceptions import ViConnectionError, ViNotFoundError, ViServerInternalError
-from vi_api_client.models import Feature
+from vi_api_client.models import Feature, Device
 
 
 class MockAuth(AbstractAuth):
@@ -22,8 +22,8 @@ class MockAuth(AbstractAuth):
         return self._access_token
 
 
-class TestClient:
-    """Tests for Client."""
+class TestViClient:
+    """Tests for ViClient."""
 
     @pytest.mark.asyncio
     async def test_get_installations(self):
@@ -42,13 +42,13 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
                 installations = await client.get_installations()
                 
                 assert len(installations) == 2
-                assert installations[0].id == 123456
-                assert installations[1].id == 789012
+                assert installations[0].id == "123456"
+                assert installations[1].id == "789012"
 
     @pytest.mark.asyncio
     async def test_get_installations_error(self):
@@ -59,7 +59,7 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
                 # Should still raise ViServerInternalError for 500
                 with pytest.raises(ViServerInternalError):
@@ -81,7 +81,7 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
                 gateways = await client.get_gateways()
                 
@@ -105,7 +105,7 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
                 devices = await client.get_devices(123456, "1234567890")
                 
@@ -117,8 +117,8 @@ class TestClient:
     async def test_get_features(self):
         """Test fetching all features for a device."""
         with aioresponses() as m:
-            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features"
-            m.get(
+            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
+            m.post(
                 url,
                 payload={
                     "data": [
@@ -130,9 +130,17 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
-                features = await client.get_features(123456, "1234567890", "0")
+                device = Device(
+                    id="0",
+                    gateway_serial="1234567890",
+                    installation_id="123456",
+                    model_id="test",
+                    device_type="heating",
+                    status="ok"
+                )
+                features = await client.get_features(device)
                 
                 assert len(features) == 2
                 assert features[0].name == "heating.sensors.temperature.outside"
@@ -156,40 +164,56 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
+                device = Device(
+                    id="0",
+                    gateway_serial="1234567890",
+                    installation_id="123456",
+                    model_id="test",
+                    device_type="heating",
+                    status="ok"
+                )
                 feature = await client.get_feature(
-                    123456, "1234567890", "0", "heating.sensors.temperature.outside"
+                    device, "heating.sensors.temperature.outside"
                 )
                 
-                assert feature["feature"] == "heating.sensors.temperature.outside"
-                assert feature["properties"]["value"]["value"] == 5.5
+                assert feature.name == "heating.sensors.temperature.outside"
+                assert feature.properties["value"]["value"] == 5.5
 
     @pytest.mark.asyncio
     async def test_get_feature_not_found(self):
-        """Test error handling when feature is not found."""
+        """Test fetching a non-existent feature."""
         with aioresponses() as m:
             url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/nonexistent.feature"
+            # Mock 404 from API
             m.get(
                 url,
                 status=404,
                 payload={
-                    "errorType": "FEATURE_NOT_FOUND",
-                    "message": "Feature not found"
+                     "viErrorId": "iot.feature-not-found",
+                     "errorType": "DEVICE_LEVEL_ERROR",
+                     "message": "Feature not found",
+                     "reason": "NOT_FOUND" 
                 }
             )
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
+                device = Device(
+                     id="0", gateway_serial="1234567890", installation_id="123456", 
+                     model_id="test", device_type="heating", status="ok"
+                )
                 # Update expectation to ViNotFoundError
                 with pytest.raises(ViNotFoundError) as exc_info:
                     await client.get_feature(
-                        123456, "1234567890", "0", "nonexistent.feature"
+                        device, "nonexistent.feature"
                     )
                 
-                assert "Feature not found" in str(exc_info.value)
+                # API message is "Feature not found", wrapped in ViNotFoundError
+                assert "not found" in str(exc_info.value).lower()
 
 
     @pytest.mark.asyncio
@@ -217,7 +241,7 @@ class TestClient:
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
-                client = Client(auth)
+                client = ViClient(auth)
                 
                 # 1. Summary (Default) -> List[Feature]
                 result_summary = await client.get_today_consumption("gw", "dev", metric="summary")
@@ -248,7 +272,7 @@ class TestClient:
             dev = Device(
                 id="0", 
                 gateway_serial="GW1", 
-                installation_id=123, 
+                installation_id="123", 
                 model_id="TestModel", 
                 device_type="heating", 
                 status="ok"
@@ -259,7 +283,7 @@ class TestClient:
             m.post(url, payload={"data": [{"feature": "new.feature", "isEnabled": True}]})
             
             async with aiohttp.ClientSession() as session:
-                client = Client(MockAuth(session))
+                client = ViClient(MockAuth(session))
                 
                 updated_dev = await client.update_device(dev)
                 

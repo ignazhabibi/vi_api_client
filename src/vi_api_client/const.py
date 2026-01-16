@@ -9,6 +9,7 @@ ENDPOINT_TOKEN = f"{AUTH_BASE_URL}/token"
 
 ENDPOINT_INSTALLATIONS = "/iot/v2/equipment/installations"
 ENDPOINT_GATEWAYS = "/iot/v2/equipment/gateways"
+ENDPOINT_FEATURES = "/iot/v2/features/installations"
 ENDPOINT_ANALYTICS_THERMAL = "/iot/v1/analytics-api/dataLake/chronos/v0/thermal_energy"
 
 # Scopes

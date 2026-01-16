@@ -1,7 +1,7 @@
 """Viessmann API Client."""
 
 from .auth import AbstractAuth, OAuth
-from .api import Client
+from .api import ViClient
 from .mock_client import MockViClient
 from .exceptions import (
     ViError, 
@@ -16,7 +16,7 @@ from .models import Device, Feature
 
 __all__ = [
     "AbstractAuth",
-    "Client",
+    "ViClient",
     "Device",
     "Feature",
     "MockViClient",

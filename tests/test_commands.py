@@ -29,13 +29,13 @@ async def test_execute_command_success_kwargs(feature_with_commands):
     client = MockViClient("Vitodens200W", auth=None)
     
     # Test valid kwargs execution
-    result = await client.execute_command(
+    response = await client.execute_command(
         feature_with_commands, 
         "setCurve", 
-        slope=1.4, 
-        shift=0
+        shift=5, 
+        slope=1.2
     )
-    assert result["success"] is True
+    assert response.success is True
 
 @pytest.mark.asyncio
 async def test_execute_command_success_mixed(feature_with_commands):
@@ -43,13 +43,13 @@ async def test_execute_command_success_mixed(feature_with_commands):
     
     # Test mixed params (dict) and kwargs
     params = {"slope": 1.4}
-    result = await client.execute_command(
+    response = await client.execute_command(
         feature_with_commands, 
         "setCurve", 
         params=params,
         shift=5
     )
-    assert result["success"] is True
+    assert response.success is True
 
 @pytest.mark.asyncio
 async def test_validation_missing_param(feature_with_commands):

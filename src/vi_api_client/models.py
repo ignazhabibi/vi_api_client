@@ -1,4 +1,5 @@
 """Data models for Viessmann API objects."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
@@ -26,13 +27,31 @@ class Command:
         validate_command_params(self.name, self.params, params)
 
     @classmethod
-    def from_api(cls, name: str, data: Dict[str, Any]) -> "Command":
+    def from_api(cls, name: str, data: Dict[str, Any]) -> Command:
         return cls(
             name=name,
             uri=data.get("uri", ""),
             is_executable=data.get("isExecutable", True),
             params=data.get("params", {})
         )
+
+@dataclass(frozen=True)
+class Installation:
+    """Representation of an installation."""
+    id: str
+    description: str
+    alias: str
+    address: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> Installation:
+        return cls(
+            id=str(data.get("id", "")),
+            description=data.get("description", ""),
+            alias=data.get("alias", ""),
+            address=data.get("address", {})
+        )
+
 
 @dataclass(frozen=True)
 class Feature:
@@ -44,21 +63,6 @@ class Feature:
     is_ready: bool
     commands: Dict[str, Command] = field(default_factory=dict)
     
-    @property
-    def _primary_data(self) -> Union[Dict[str, Any], Any, None]:
-        """
-        Internal Helper: Finds the 'main' data object based on priority.
-        Used by both .value and .unit to avoid double-looping.
-        """
-        if not self.properties:
-            return None
-        
-        # Search for primary value key in properties.
-        for key in VALUE_PRIORITY_KEYS:
-            if key in self.properties:
-                return self.properties[key]
-        return None
-
     @property
     def value(self) -> Union[str, int, float, bool, list, None]:
         """Extract the main value."""
@@ -90,32 +94,6 @@ class Feature:
             
         return None
 
-    @property
-    def formatted_value(self) -> str:
-        """Return value with unit string representation."""
-        val = self.value
-        u = self.unit
-        
-        if val is None:
-            return self._format_dump_properties()
-            
-        # Formatting for Lists (History Data)
-        if isinstance(val, list):
-            content = str(val) if len(val) <= 10 else f"List[{len(val)} items]"
-            return f"{content} {u}".strip() if u else content
-            
-        return f"{val} {u}".strip() if u else str(val)
-
-    def _format_dump_properties(self) -> str:
-        """Fallback: dump all properties nicely."""
-        parts = []
-        for k, v in self.properties.items():
-            if isinstance(v, dict) and "value" in v:
-                parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
-            else:
-                parts.append(f"{k}: {v}")
-        return ", ".join(parts)
-
     def expand(self) -> List["Feature"]:
         """Expand complex features into a list of simple scalar features."""
         ignore_keys = {"unit", "type", "displayValue", "links"}
@@ -139,7 +117,37 @@ class Feature:
             
         return flattened
 
-    def _create_sub_feature(self, suffix: str, val_obj: Any) -> "Feature":
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> Feature:
+        return cls(
+            name=data.get("feature", ""),
+            properties=data.get("properties", {}),
+            is_enabled=data.get("isEnabled", False),
+            is_ready=data.get("isReady", False),
+            commands={
+                name: Command.from_api(name, cmd_data) 
+                for name, cmd_data in data.get("commands", {}).items()
+            }
+        )
+
+    # --- Private / Internal Helpers ---
+
+    @property
+    def _primary_data(self) -> Union[Dict[str, Any], Any, None]:
+        """
+        Internal Helper: Finds the 'main' data object based on priority.
+        Used by both .value and .unit to avoid double-looping.
+        """
+        if not self.properties:
+            return None
+        
+        # Search for primary value key in properties.
+        for key in VALUE_PRIORITY_KEYS:
+            if key in self.properties:
+                return self.properties[key]
+        return None
+
+    def _create_sub_feature(self, suffix: str, val_obj: Any) -> Feature:
         """Helper to create a virtual sub-feature."""
         # Normalize val_obj to be a dict with a 'value' key
         # Handle cases where val_obj is a dict but doesn't have 'value' (e.g. raw dict)
@@ -163,25 +171,12 @@ class Feature:
             commands={} 
         )
 
-    @classmethod
-    def from_api(cls, data: Dict[str, Any]) -> "Feature":
-        return cls(
-            name=data.get("feature", ""),
-            properties=data.get("properties", {}),
-            is_enabled=data.get("isEnabled", False),
-            is_ready=data.get("isReady", False),
-            commands={
-                name: Command.from_api(name, cmd_data) 
-                for name, cmd_data in data.get("commands", {}).items()
-            }
-        )
-
 @dataclass(frozen=True)
 class Device:
     """Representation of a Viessmann device."""
     id: str
     gateway_serial: str
-    installation_id: int
+    installation_id: str
     model_id: str
     device_type: str
     status: str
@@ -202,7 +197,7 @@ class Device:
         return None
 
     @classmethod
-    def from_api(cls, data: Dict[str, Any], gateway_serial: str, installation_id: int) -> "Device":
+    def from_api(cls, data: Dict[str, Any], gateway_serial: str, installation_id: str) -> Device:
         return cls(
             id=data.get("id", ""),
             gateway_serial=gateway_serial,
@@ -211,21 +206,31 @@ class Device:
             device_type=data.get("deviceType", ""),
             status=data.get("status", "")
         )
+
 @dataclass(frozen=True)
-class Installation:
-    """Representation of an installation."""
-    id: int
-    description: str
-    alias: str
-    address: Dict[str, Any] = field(default_factory=dict)
+class CommandResponse:
+    """Response from a command execution."""
+    success: bool
+    message: Optional[str] = None
+    reason: Optional[str] = None
 
     @classmethod
-    def from_api(cls, data: Dict[str, Any]) -> "Installation":
+    def from_api(cls, data: Dict[str, Any]) -> CommandResponse:
+        """Create from API response."""
+        # API response is strictly {"data": {"success": ..., "message": ..., "reason": ...}}
+        # but sometimes might be distinct. We handle the inner 'data' block or root.
+        root = data.get("data", data)
+        # Handle string "True"/"False" or boolean
+        success_raw = root.get("success")
+        if isinstance(success_raw, str):
+            success = success_raw.lower() == "true"
+        else:
+            success = bool(success_raw)
+            
         return cls(
-            id=data.get("id", 0),
-            description=data.get("description", ""),
-            alias=data.get("alias", ""),
-            address=data.get("address", {})
+            success=success,
+            message=root.get("message"),
+            reason=root.get("reason")
         )
 
 @dataclass(frozen=True)
@@ -234,13 +239,13 @@ class Gateway:
     serial: str
     version: str
     status: str
-    installation_id: int
+    installation_id: str
 
     @classmethod
-    def from_api(cls, data: Dict[str, Any]) -> "Gateway":
+    def from_api(cls, data: Dict[str, Any]) -> Gateway:
         return cls(
             serial=data.get("serial", ""),
             version=data.get("version", ""),
             status=data.get("status", ""),
-            installation_id=data.get("installationId", 0) 
+            installation_id=str(data.get("installationId", "")) 
         )

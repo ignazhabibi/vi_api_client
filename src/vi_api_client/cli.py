@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, Union, AsyncGenerator
 
 import aiohttp
 from vi_api_client import (
-    Client, 
+    ViClient, 
     MockViClient, 
     OAuth,
     ViValidationError,
@@ -30,9 +30,9 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class CLIContext:
     session: aiohttp.ClientSession
-    client: Union[Client, MockViClient]
+    client: Union[ViClient, MockViClient]
     # Found IDs (either from args or auto-discovery)
-    inst_id: int
+    inst_id: str
     gw_serial: str
     dev_id: str
 
@@ -107,12 +107,12 @@ async def setup_client_context(args, discover: bool = True) -> AsyncGenerator[CL
         if args.mock_device:
             client = MockViClient(args.mock_device, auth)
             # Default mock IDs
-            inst_id = getattr(args, "installation_id", None) or 99999
+            inst_id = getattr(args, "installation_id", None) or "99999"
             gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
             dev_id = getattr(args, "device_id", None) or "0"
             print(f"Using Mock Device: {args.mock_device}")
         else:
-            client = Client(auth)
+            client = ViClient(auth)
             inst_id = getattr(args, "installation_id", None)
             gw_serial = getattr(args, "gateway_serial", None)
             dev_id = getattr(args, "device_id", None)
@@ -155,8 +155,7 @@ async def cmd_list_devices(args):
             gateways = await ctx.client.get_gateways()
             print(f"\nFound {len(gateways)} gateways:")
             for gw in gateways:
-                print(f"- Serial: {gw.serial}, Version: {gw.version}, Status: {gw.status}")
-                print(f"- Gateway: {gw.serial} (Inst: {gw.installation_id})")
+                print(f"- Serial: {gw.serial} (Inst: {gw.installation_id}), Version: {gw.version}, Status: {gw.status}")
                 
                 devices = await ctx.client.get_devices(gw.installation_id, gw.serial)
                 print(f"Found {len(devices)} devices:")
@@ -170,9 +169,20 @@ async def cmd_list_features(args):
     """List all features for a device."""
     try:
         async with setup_client_context(args) as ctx:
+            # Transient Device for API call
+            from vi_api_client.models import Device
+            device = Device(
+                id=ctx.dev_id, 
+                gateway_serial=ctx.gw_serial, 
+                installation_id=ctx.inst_id, 
+                model_id="transient", 
+                device_type="unknown", 
+                status="online"
+            )
+
             if args.values:
                 features_models = await ctx.client.get_features(
-                    ctx.inst_id, ctx.gw_serial, ctx.dev_id,
+                    device,
                     only_enabled=args.enabled
                 )
                 
@@ -183,21 +193,31 @@ async def cmd_list_features(args):
                 
                 if args.json:
                      # Output clean JSON list of objects
-                     out_data = [{"name": item.name, "value": item.value, "unit": item.unit, "formatted": item.formatted_value} for item in flat_list]
+                     from vi_api_client.utils import format_feature
+                     out_data = [{"name": item.name, "value": item.value, "unit": item.unit, "formatted": format_feature(item)} for item in flat_list]
                      print(json.dumps(out_data))
                 else:
                     print(f"Found {len(features_models)} Raw Features for device {ctx.dev_id} (expanded to {len(flat_list)}):")
+                    from vi_api_client.utils import format_feature
                     for item in flat_list:
-                         val = item.formatted_value
-                         if len(val) > 80:
-                             val = val[:77] + "..."
-                         print(f"- {item.name:<75}: {val}")
+                        val = format_feature(item)
+                        if len(val) > 80:
+                            val = val[:77] + "..."
+                        print(f"- {item.name:<75}: {val}")
             
             else:
                 # Simple Listing
                 only_enabled = args.enabled
+                # Transient Device reuse if possible or new
+                if 'device' not in locals():
+                     from vi_api_client.models import Device
+                     device = Device(
+                        id=ctx.dev_id, gateway_serial=ctx.gw_serial, installation_id=ctx.inst_id, 
+                        model_id="transient", device_type="unknown", status="online"
+                     )
+                     
                 features = await ctx.client.get_features(
-                     ctx.inst_id, ctx.gw_serial, ctx.dev_id, only_enabled=only_enabled
+                     device, only_enabled=only_enabled
                 )
                 
                 if args.json:
@@ -216,21 +236,32 @@ async def cmd_get_feature(args):
     """Get a specific feature."""
     try:
         async with setup_client_context(args) as ctx:
-            feature_data = await ctx.client.get_feature(ctx.inst_id, ctx.gw_serial, ctx.dev_id, args.feature_name)
+            from vi_api_client.models import Device
+            device = Device(
+                id=ctx.dev_id, gateway_serial=ctx.gw_serial, installation_id=ctx.inst_id, 
+                model_id="transient", device_type="unknown", status="online"
+            )
+            feature = await ctx.client.get_feature(device, args.feature_name)
             
             if args.raw:
-                print(json.dumps(feature_data, indent=2))
+                # We need to access underlying properties/structure if user wants raw
+                # But feature is now an object. 
+                # We can't return raw JSON easily unless we keep a raw dict or implement to_dict
+                # However, args.raw is rarely used except for debugging.
+                # Let's check api.py implementation. It just does Feature.from_api(data).
+                # The data is lost unless stored.
+                # Actually, Feature has properties field. We can reconstruct basic structure.
+                print(json.dumps({"feature": feature.name, "properties": feature.properties, "isEnabled": feature.is_enabled}, indent=2))
             else:
-                from vi_api_client.models import Feature
-                f_model = Feature.from_api(feature_data)
-                expanded = f_model.expand()
+                expanded = feature.expand()
                 
                 if not expanded:
                      print(f"Feature '{args.feature_name}' exists but has no scalar values (Structural).")
                      print("Use --raw to see underlying structure.")
                 
                 for item in expanded:
-                    print(f"- {item.name}: {item.formatted_value}")
+                    from vi_api_client.utils import format_feature
+                    print(f"- {item.name}: {format_feature(item)}")
     except ViNotFoundError:
         print(f"Feature '{args.feature_name}' not found.")
     except Exception as e:
@@ -242,19 +273,22 @@ async def cmd_get_consumption(args):
         async with setup_client_context(args) as ctx:
             print(f"Fetching consumption (Metric: {args.metric})...")
             result = await ctx.client.get_today_consumption(ctx.gw_serial, ctx.dev_id, metric=args.metric)
-            
             if isinstance(result, list):
-                for f in result:
-                     print(f"- {f.name}: {f.formatted_value}")
+                 print(f"Feature expanded to {len(result)} items:")
+                 from vi_api_client.utils import format_feature
+                 for f in result:
+                     print(f"- {f.name}: {format_feature(f)}")
             else:
-                print(f"- {result.name}: {result.formatted_value}")
+                 from vi_api_client.utils import format_feature
+                 print(f"Feature: {result.name}")
+                 print(f"Value: {format_feature(result)}")
     except Exception as e:
         _LOGGER.error("Error fetching consumption: %s", e)
 
 async def cmd_exec(args):
     """Execute a command."""
     try:
-        from .parsers import parse_cli_params
+        from vi_api_client.utils import parse_cli_params
         params = parse_cli_params(args.params)
     except ValueError as e:
         print(f"Error parsing parameters: {e}")
@@ -263,16 +297,36 @@ async def cmd_exec(args):
     try:
         async with setup_client_context(args) as ctx:
             print(f"Fetching feature '{args.feature_name}'...")
-            feature_data = await ctx.client.get_feature(ctx.inst_id, ctx.gw_serial, ctx.dev_id, args.feature_name)
-            
-            from vi_api_client.models import Feature
-            feature = Feature.from_api(feature_data)
+            from vi_api_client.models import Device
+            from vi_api_client.utils import format_feature, parse_cli_params
+
+            if args.params:
+                try:
+                    params = parse_cli_params(args.params)
+                except ValueError as e:
+                    print(f"Error parsing parameters: {e}")
+                    return
+            else:
+                params = {}
+
+            device = Device(
+                id=ctx.dev_id, gateway_serial=ctx.gw_serial, installation_id=ctx.inst_id, 
+                model_id="transient", device_type="unknown", status="online"
+            )
+            feature = await ctx.client.get_feature(device, args.feature_name)
             
             print(f"Executing '{args.command_name}' with {params}...")
             result = await ctx.client.execute_command(feature, args.command_name, params)
             
-            print("Success!")
-            print(json.dumps(result, indent=2))
+            if result.success:
+                print("✅ Success!")
+            else:
+                print("❌ Failed!")
+            
+            if result.message:
+                print(f"Message: {result.message}")
+            if result.reason:
+                print(f"Reason: {result.reason}")
     except ViValidationError as e:
         print(f"Validation failed: {e}")
     except ViNotFoundError as e:
@@ -285,7 +339,12 @@ async def cmd_list_commands(args):
     try:
         async with setup_client_context(args) as ctx:
             # Fetch all features to introspect commands
-            features = await ctx.client.get_features(ctx.inst_id, ctx.gw_serial, ctx.dev_id)
+            from vi_api_client.models import Device
+            device = Device(
+                id=ctx.dev_id, gateway_serial=ctx.gw_serial, installation_id=ctx.inst_id, 
+                model_id="transient", device_type="unknown", status="online"
+            )
+            features = await ctx.client.get_features(device)
             
             commandable_features = [f for f in features if f.commands]
             

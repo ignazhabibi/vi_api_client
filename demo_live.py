@@ -16,7 +16,7 @@ import aiohttp
 # Ensure we can import the local package
 sys.path.insert(0, os.path.abspath("src"))
 
-from vi_api_client import Client, OAuth
+from vi_api_client import ViClient, OAuth
 
 # Configuration
 # Best practice: Load from environment variable, fallback to placeholder
@@ -58,7 +58,7 @@ async def main():
 
         # 3. Initialize Client
         # --------------------
-        client = Client(auth)
+        client = ViClient(auth)
 
         # 4. Discover Installations
         # -------------------------
@@ -69,7 +69,7 @@ async def main():
             print("No installations found.")
             return
 
-        inst_id = installations[0]["id"]
+        inst_id = installations[0].id
         print(f"   Found Installation ID: {inst_id}")
 
         # 5. Fetch Full System Status
@@ -95,8 +95,9 @@ async def main():
                 
                 # Print first 10 as sample
                 for feature in enabled_features[:10]:
-                    # The 'formatted_value' property handles units and types automatically
-                    val = feature.formatted_value
+                    # Use format_feature for display
+                    from vi_api_client.utils import format_feature
+                    val = format_feature(feature)
                     if len(val) > 80:
                         val = val[:77] + "..."
                     print(f"     - {feature.name:<75} : {val}")

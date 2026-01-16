@@ -20,6 +20,8 @@ import aiohttp
 sys.path.insert(0, os.path.abspath("src"))
 
 from vi_api_client import MockViClient, OAuth
+from vi_api_client.models import Device
+from vi_api_client.utils import format_feature
 
 # Configure formatted logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -33,35 +35,38 @@ async def main():
     auth = OAuth("client_id", "redirect_url", "tokens.json") 
     client = MockViClient("Vitodens200W", auth)
     
-    inst_id = 123
+    inst_id = "123"
     gw_serial = "1234567890123456"
     dev_id = "0"
     TARGET_FEATURE = "heating.circuits.0.heating.curve"
+    
+    # Create a Device object for API calls
+    device = Device(
+        id=dev_id, 
+        gateway_serial=gw_serial, 
+        installation_id=inst_id,
+        model_id="Vitodens200W",
+        device_type="heating",
+        status="Online"
+    )
 
     print("\n[PART 1] Understanding Data Layers (Single Feature)")
     print("---------------------------------------------------")
     print(f"Target: {TARGET_FEATURE}")
 
-    # Layer 1: RAW
-    print(f"\n1. RAW Layer (get_feature)")
-    print("   -> Returns the raw JSON dictionary exactly as the API delivers it.")
-    raw_json = await client.get_feature(inst_id, gw_serial, dev_id, TARGET_FEATURE)
-    print(f"   Type: {type(raw_json)}")
-    
-    # Layer 2: MODEL
-    print(f"\n2. MODEL Layer (Feature.from_api)")
-    print("   -> Returns a Python object encapsulating the data and logic.")
-    from vi_api_client.models import Feature
-    feature_model = Feature.from_api(raw_json)
+    # Layer 1: MODEL (get_feature now returns Feature object)
+    print(f"\n1. MODEL Layer (get_feature)")
+    print("   -> Returns a Feature object directly.")
+    feature_model = await client.get_feature(device, TARGET_FEATURE)
     print(f"   Object: {feature_model.name}")
     print(f"   Properties: {list(feature_model.properties.keys())}")
 
-    # Layer 3: FLAT / EXPECTED
-    print(f"\n3. FLAT Layer (expand())")
+    # Layer 2: FLAT / EXPANDED
+    print(f"\n2. FLAT Layer (expand())")
     print("   -> Returns simple, scalar features (Sensors) for Home Assistant.")
     flat_features = feature_model.expand()
     for f in flat_features:
-        print(f"   - Entity: {f.name:<45} | Value: {f.formatted_value}")
+        print(f"   - Entity: {f.name:<45} | Value: {format_feature(f)}")
 
     # Layer 4: COMMAND
     print(f"\n4. COMMAND Layer (Inspection & Execution)")

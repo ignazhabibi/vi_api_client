@@ -1,6 +1,6 @@
 """Unit tests for CLI parsers."""
 import pytest
-from vi_api_client.parsers import parse_cli_params
+from vi_api_client.utils import parse_cli_params
 
 def test_parse_key_value():
     """Test standard key=value parsing."""

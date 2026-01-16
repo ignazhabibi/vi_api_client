@@ -1,7 +1,10 @@
-"""Parsers for CLI arguments and other string inputs."""
+"""Utility functions for Viessmann API Client."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .models import Feature
 
 def parse_cli_params(params_list: List[str]) -> Dict[str, Any]:
     """Parse a list of CLI parameter strings into a dictionary.
@@ -28,13 +31,6 @@ def parse_cli_params(params_list: List[str]) -> Dict[str, Any]:
          try:
              return json.loads(params_list[0])
          except json.JSONDecodeError:
-             # Fallback: maybe it's just a weird key=value that starts with {? 
-             # No, let's treat it as an error or try key=value parsing if it fails?
-             # For now, print error logic is handled by caller, but we can just raise or return empty/partial
-             # The original code caught it. Let's start clean.
-             # If it looks like JSON but fails, we probably shouldn't try key=value interpretation 
-             # unless the user accidentally put spaces in a JSON string?
-             # Let's assume strict JSON if it looks like JSON.
              raise ValueError("Example appears to be JSON but could not be parsed.")
 
     # Case 2: Key=Value pairs
@@ -67,3 +63,28 @@ def parse_cli_params(params_list: List[str]) -> Dict[str, Any]:
         params[key] = value
         
     return params
+
+def format_feature(feature: "Feature") -> str:
+    """Format a feature's value for display (CLI/Logs)."""
+    val = feature.value
+    u = feature.unit
+    
+    if val is None:
+        return _format_dump_properties(feature.properties)
+        
+    # Formatting for Lists (History Data)
+    if isinstance(val, list):
+        content = str(val) if len(val) <= 10 else f"List[{len(val)} items]"
+        return f"{content} {u}".strip() if u else content
+        
+    return f"{val} {u}".strip() if u else str(val)
+
+def _format_dump_properties(properties: Dict[str, Any]) -> str:
+    """Fallback: dump all properties nicely."""
+    parts = []
+    for k, v in properties.items():
+        if isinstance(v, dict) and "value" in v:
+            parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
+        else:
+            parts.append(f"{k}: {v}")
+    return ", ".join(parts)
