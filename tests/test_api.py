@@ -47,8 +47,8 @@ class TestClient:
                 installations = await client.get_installations()
                 
                 assert len(installations) == 2
-                assert installations[0]["id"] == 123456
-                assert installations[1]["id"] == 789012
+                assert installations[0].id == 123456
+                assert installations[1].id == 789012
 
     @pytest.mark.asyncio
     async def test_get_installations_error(self):
@@ -86,7 +86,7 @@ class TestClient:
                 gateways = await client.get_gateways()
                 
                 assert len(gateways) == 1
-                assert gateways[0]["serial"] == "1234567890"
+                assert gateways[0].serial == "1234567890"
 
     @pytest.mark.asyncio
     async def test_get_devices(self):
@@ -110,8 +110,8 @@ class TestClient:
                 devices = await client.get_devices(123456, "1234567890")
                 
                 assert len(devices) == 2
-                assert devices[0]["id"] == "0"
-                assert devices[0]["deviceType"] == "heating"
+                assert devices[0].id == "0"
+                assert devices[0].device_type == "heating"
 
     @pytest.mark.asyncio
     async def test_get_features(self):
@@ -135,7 +135,7 @@ class TestClient:
                 features = await client.get_features(123456, "1234567890", "0")
                 
                 assert len(features) == 2
-                assert features[0]["feature"] == "heating.sensors.temperature.outside"
+                assert features[0].name == "heating.sensors.temperature.outside"
 
     @pytest.mark.asyncio
     async def test_get_feature(self):
@@ -191,81 +191,6 @@ class TestClient:
                 
                 assert "Feature not found" in str(exc_info.value)
 
-    @pytest.mark.asyncio
-    async def test_get_features_with_values(self):
-        """Test getting features with formatted values."""
-        with aioresponses() as m:
-            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features"
-            
-            # Reponse with simulated features
-            mock_data = {
-                "data": [
-                    {
-                        "feature": "heating.sensors.temperature.outside",
-                        "isEnabled": True,
-                        "properties": {
-                            "value": {"type": "number", "value": 12.5, "unit": "celsius"},
-                            "status": {"type": "string", "value": "connected"}
-                        }
-                    },
-                    {
-                        "feature": "heating.nested.complex",
-                        "isEnabled": True,
-                        "properties": {
-                            "currentDay": {"type": "number", "value": 1.1, "unit": "kWh"},
-                            "lastMonth": {"type": "number", "value": 100, "unit": "kWh"}
-                        }
-                    },
-                    {
-                        "feature": "heating.small.list",
-                        "isEnabled": True,
-                        "properties": {
-                            "day": {"type": "array", "value": [1, 2, 3]}
-                        }
-                    },
-                    {
-                        "feature": "heating.disabled.feature",
-                        "isEnabled": False,
-                        "properties": {}
-                    }
-                ]
-            }
-            
-            m.get(url, payload=mock_data)
-            # Second call for the !only_enabled case
-            m.get(url, payload=mock_data)
-            
-            async with aiohttp.ClientSession() as session:
-                auth = MockAuth(session)
-                client = Client(auth)
-                
-                # Test 1: Only enabled
-                features = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=True)
-                # heating.sensors.temperature.outside -> 1 (value + status are both primary keys -> no expansion)
-                # heating.nested.complex -> expands to .currentDay and .lastMonth -> 2
-                # heating.small.list -> 1
-                # Total = 4
-                assert len(features) == 4
-                
-                # Check that outside is NOT split
-                f1 = next(f for f in features if f["name"] == "heating.sensors.temperature.outside")
-                assert "12.5 celsius" in f1["value"]
-                
-                # Check expanded features
-                f2_day = next(f for f in features if f["name"] == "heating.nested.complex.currentDay")
-                assert "1.1 kWh" in f2_day["value"]
-                
-                f2_total = next(f for f in features if f["name"] == "heating.nested.complex.lastMonth")
-                assert "100 kWh" in f2_total["value"]
-
-                # Check short list formatting
-                f3_list = next(f for f in features if f["name"] == "heating.small.list")
-                assert "[1, 2, 3]" in f3_list["value"]
-
-                # Test 2: All features
-                features_all = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=False)
-                # 4 enabled + 1 disabled (but disabled has no properties, so it's filtered out)
-                assert len(features_all) == 4
 
     @pytest.mark.asyncio
     async def test_get_today_consumption(self):
@@ -312,3 +237,32 @@ class TestClient:
                 # 3. Invalid Metric
                 with pytest.raises(ValueError):
                     await client.get_today_consumption("gw", "dev", metric="invalid")
+
+    @pytest.mark.asyncio
+    async def test_update_device(self):
+        """Test efficient device update."""
+        from vi_api_client.models import Device
+        
+        with aioresponses() as m:
+            # Device has context
+            dev = Device(
+                id="0", 
+                gateway_serial="GW1", 
+                installation_id=123, 
+                model_id="TestModel", 
+                device_type="heating", 
+                status="ok"
+            )
+            
+            # Expect Post call
+            url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
+            m.post(url, payload={"data": [{"feature": "new.feature", "isEnabled": True}]})
+            
+            async with aiohttp.ClientSession() as session:
+                client = Client(MockAuth(session))
+                
+                updated_dev = await client.update_device(dev)
+                
+                assert updated_dev.id == "0"
+                assert len(updated_dev.features) == 1
+                assert updated_dev.features[0].name == "new.feature"

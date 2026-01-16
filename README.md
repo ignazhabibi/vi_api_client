@@ -73,7 +73,7 @@ async def main():
         print(f"Found {len(installations)} installations")
         
         # Access nested structures flattened
-        devices = await client.get_full_installation_status(installations[0]["id"])
+        devices = await client.get_full_installation_status(installations[0].id)
         device = devices[0]
         
         for feature in device.features_flat:

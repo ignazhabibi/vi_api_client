@@ -10,18 +10,14 @@ async def test_mock_client_parsing(available_mock_devices):
     for device_name in available_mock_devices:
         client = MockViClient(device_name)
         
-        # Test 1: Get Features (Raw)
+        # Test: Get Features (Returns Models now)
         features = await client.get_features(0, "mock", "0")
         assert len(features) > 0, f"{device_name}: No features found"
-        
-        # Test 2: Get Features (Models)
-        features_models = await client.get_features_models(0, "mock", "0")
-        assert len(features_models) == len(features), f"{device_name}: Model count mismatch"
         
         # Test 3: Flattening
         # Ensure expand() works without crashing on any feature of any device
         flat_count = 0
-        for f in features_models:
+        for f in features:
             expanded = f.expand()
             flat_count += len(expanded)
             # Basic sanity check on values
@@ -29,7 +25,7 @@ async def test_mock_client_parsing(available_mock_devices):
                 # Accessing formatted_value triggers value/unit logic
                 assert isinstance(item.formatted_value, str)
                 
-        print(f"Device {device_name}: {len(features)} raw features -> {flat_count} flat features")
+        print(f"Device {device_name}: {len(features)} feature models -> {flat_count} flat features")
 
 @pytest.mark.asyncio
 async def test_mock_specific_feature():
@@ -52,13 +48,13 @@ async def test_mock_device_list():
     devices = await client.get_devices(0, "mock")
     
     assert len(devices) == 1
-    assert devices[0]["modelId"] == "Vitocal200"
+    assert devices[0].model_id == "Vitocal200"
 
 @pytest.mark.asyncio
 async def test_feature_filtering_and_expansion():
     """Test that empty features are filtered and schedules are expanded."""
     client = MockViClient("Vitodens200W")
-    features_models = await client.get_features_models(0, "mock", "0")
+    features_models = await client.get_features(0, "mock", "0")
     
     # Flatten features manually to inspect
     flat_features = []
@@ -88,7 +84,7 @@ async def test_redundant_suffix_removal():
     """Test that redundant suffixes (e.g. name.name) are removed."""
     # Vitocal252 has 'heating.circuits.0.name' with property 'name'
     client = MockViClient("Vitocal252")
-    features_models = await client.get_features_models(0, "mock", "0")
+    features_models = await client.get_features(0, "mock", "0")
     
     flat_features = []
     for f in features_models:

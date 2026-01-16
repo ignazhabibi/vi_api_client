@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from .api import Client
 from .auth import AbstractAuth
 from .exceptions import ViNotFoundError
+from .models import Feature, Device, Installation, Gateway
 
 
 class MockAuth(AbstractAuth):
@@ -67,62 +68,83 @@ class MockViClient(Client):
         
         return self._data_cache
 
-    async def get_installations(self) -> List[Dict[str, Any]]:
+    async def get_installations(self) -> List[Installation]:
         """Return a mock installation."""
-        return [{
-            "id": 99999,
-            "description": f"Mock Installation ({self.device_name})",
-            "address": {"city": "Mock City"}
-        }]
+        return [Installation(
+            id=99999,
+            description=f"Mock Installation ({self.device_name})",
+            alias="Mock Home",
+            address={"city": "Mock City"}
+        )]
 
-    async def get_gateways(self) -> List[Dict[str, Any]]:
+    async def get_gateways(self) -> List[Gateway]:
         """Return a mock gateway."""
-        return [{
-            "serial": "MOCK_GATEWAY_SERIAL",
-            "version": "1.0.0",
-            "status": "connected"
-        }]
+        return [Gateway(
+            serial="MOCK_GATEWAY_SERIAL",
+            version="1.0.0",
+            status="connected",
+            installation_id=99999
+        )]
 
-    async def get_devices(self, installation_id: int, gateway_serial: str) -> List[Dict[str, Any]]:
-        """
-        Return the list of devices from the JSON file. 
-        The JSON root usually has "data": [ {feature...}, {feature...} ]
-        We need to reconstruct "device" objects from the features, or 
-        provide a simplified device list if the JSON is just features.
-        
-        The sample files provided seem to be a FLAT list of all features for a device.
-        So we will fake a single device that possesses all these features.
-        """
+    async def get_devices(self, installation_id: int, gateway_serial: str) -> List[Device]:
+        """Return the mocked device as a typed model."""
         # In the real API, get_devices returns a list of device summaries.
-        # Since our JSON is a dump of features for ONE device, we return one device.
-        return [{
-            "id": "0",
-            "modelId": self.device_name,
-            "deviceType": "heating", # Generic default
-            "status": "online"
-        }]
+        # Here we just wrap our single mock device data into a Device model
+        
+        # We need the base JSON to be loaded, but Device.from_api expects the 'entities' payload usually?
+        # Actually in api.py: Device.from_api(d, ...) where d is from /devices endpoint.
+        # But MockClient loads 'data' which is usually the FEATURES list or full response?
+        # A typical 'devices' response is different from 'features' response.
+        # But for MOCK simplicity, we construct a fake Device object using the known name/id.
+        
+        # NOTE: self._load_data() gives us FEATURES in the current mock setup (it loads vitodens...json).
+        # We don't have a specific "device list" mock file yet.
+        # So we fabricate a Device object based on the filename we loaded.
+        
+        return [Device(
+            id="0", # Using a fixed mock device ID
+            gateway_serial=gateway_serial,
+            installation_id=installation_id,
+            model_id=self.device_name, # Use the model name passed to constructor
+            device_type="heating" if "heating" in self.device_name.lower() or "vitodens" in self.device_name.lower() else "unknown",
+            status="connected"
+        )]
 
-    async def get_features(self, installation_id: int, gateway_serial: str, device_id: str) -> List[Dict[str, Any]]:
+    async def get_features(
+        self, 
+        installation_id: int, 
+        gateway_serial: str, 
+        device_id: str,
+        only_enabled: bool = False,
+        feature_names: List[str] = None
+    ) -> List[Feature]:
         """Return the list of features from the loaded JSON file."""
         data = self._load_data()
-        # The JSON structure in the samples is { "data": [ ...features... ] }
-        return data.get("data", [])
+        raw_features = data.get("data", [])
+        
+        # Apply filters to mimic server behavior
+        if only_enabled:
+            raw_features = [f for f in raw_features if f.get("isEnabled")]
+            
+        if feature_names:
+            raw_features = [f for f in raw_features if f.get("feature") in feature_names]
+            
+        return [Feature.from_api(f) for f in raw_features]
     
     # We can rely on the superclass implementation for:
     # - get_feature (it might be inefficient as it calls get_features, but fine for mock)
-    # - get_enabled_features
     # - get_features_with_values
-    # - get_features_models
-    #
+    # - get_features_models (inherited as now deleted or just uses new get_features?)
+    # Wait, api.py deleted get_features_models. So we are good.    #
     # However, get_feature in the base class does a specific request. 
     # We should override it to query our local list.
     
     async def get_feature(
         self, installation_id: int, gateway_serial: str, device_id: str, feature_name: str
     ) -> Dict[str, Any]:
-        """Get a specific feature from the local list."""
-        features = await self.get_features(installation_id, gateway_serial, device_id)
-        for f in features:
+        """Get a specific feature from the local list (Return RAW Dict)."""
+        data = self._load_data().get("data", [])
+        for f in data:
             if f.get("feature") == feature_name:
                 return f
         

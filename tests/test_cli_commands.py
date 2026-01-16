@@ -5,7 +5,7 @@ from argparse import Namespace
 import json
 
 from vi_api_client.cli import cmd_exec, cmd_get_feature, cmd_list_features
-from vi_api_client.models import Feature
+from vi_api_client.models import Feature, Device
 from vi_api_client.exceptions import ViValidationError, ViNotFoundError
 
 @pytest.fixture
@@ -125,7 +125,8 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
     )
 
     mock_cli_context.client.get_features.return_value = [
-        {"feature": "f1"}, {"feature": "f2"}
+        Feature(name="f1", is_enabled=True, is_ready=True, properties={}),
+        Feature(name="f2", is_enabled=True, is_ready=True, properties={})
     ]
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
@@ -136,3 +137,27 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
         captured = capsys.readouterr()
         output = json.loads(captured.out)
         assert output == ["f1", "f2"]
+
+@pytest.mark.asyncio
+async def test_cmd_list_features_enabled(mock_cli_context, capsys):
+    """Test listing only enabled features (should use only_enabled=True)."""
+    args = Namespace(
+        token_file="tokens.json",
+        client_id=None, redirect_uri=None, insecure=False, mock_device=None,
+        installation_id=None, gateway_serial=None, device_id=None,
+        enabled=True, values=False, json=True
+    )
+
+    mock_cli_context.client.get_features.return_value = [
+        Feature(name="f_enabled", is_enabled=True, is_ready=True, properties={})
+    ]
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+        
+        await cmd_list_features(args)
+        
+        # Verify call used only_enabled=True
+        mock_cli_context.client.get_features.assert_called_with(
+            99, "GW1", "DEV1", only_enabled=True
+        )

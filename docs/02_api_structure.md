@@ -6,12 +6,12 @@ This document explains the underlying structure of the Viessmann API and why `vi
 
 The API groups data into a strict hierarchy:
 
-1.  **Installation**: A physical location (e.g., "Home").
-2.  **Gateway**: The communication module (e.g., Vitoconnect).
-3.  **Device**: The actual heating appliance (e.g., Vitodens, Heat Pump).
-4.  **Feature**: A specific data point (Sensor) or configuration (Parameter).
+1.  **Installation**: When connecting your heating system, you are registering a new installation. The installations contains your gateway and the device, which is the heating system itself.
+2.  **Gateway**: (aka. wi-fi module) device that connects an HVAC installation to the cloud.
+3.  **Device**: Device that is a part of the installation. A device is for example the heating system itself or room control elements.
+4.  **Feature**: Object representing some part of gateway/device state. The feature contains commands.
 
-The client automatically navigates this hierarchy. When you call `client.get_features_models()`, it has already resolved the Installation and Gateway.
+The client automatically navigates this hierarchy. When you call `client.get_features()`, it resolves features for a specific device.
 
 ## 2. The "Data-Driven" Approach
 
@@ -34,7 +34,11 @@ This means if your new Heat Pump has a feature `heating.compressors.0.statistics
 
 ## 3. Anatomy of a Feature
 
-A `Feature` is more than just a value. It is a self-contained object describing a specific aspect of the device.
+A `Feature` is more than just a value. It is a self-contained object describing a specific aspect of the gateway or device state.
+    
+### Feature Components
+Feature names use dot convention (e.g., `heating.circuits.0.heating.schedule`), which is similar to namespaces. This means features can contain components.
+*   **Heating Circuit**: The heating circuit ensures that all rooms in a house are comfortably warm. They are enumerated, beginning with 0, 1... (e.g., `heating.circuits.0`, `heating.circuits.1`).
 
 ### Example: Outside Temperature
 

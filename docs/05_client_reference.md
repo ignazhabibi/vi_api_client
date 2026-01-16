@@ -16,32 +16,37 @@ from vi_api_client import Client
 
 ### Methods
 
-#### `get_installations() -> List[Dict]`
+#### `get_installations() -> List[Installation]`
 Fetches all available installations.
-*   **Returns**: List of dictionaries (containing `id`, `alias`, etc.).
+*   **Returns**: List of `Installation` objects.
 
-#### `get_gateways() -> List[Dict]`
+#### `get_gateways() -> List[Gateway]`
 Fetches all gateways (automatically linked to installations).
+*   **Returns**: List of `Gateway` objects.
 
-#### `get_devices(installation_id, gateway_serial) -> List[Dict]`
-Fetches devices attached to a specific gateway.
+#### `get_devices(installation_id, gateway_serial) -> List[Device]`
+Fetches devices attached to a specific gateway as typed objects.
 
 #### `get_full_installation_status(installation_id) -> List[Device]`
 Deep fetch of a whole installation.
 *   **Returns**: A list of `Device` objects, each populated with all its `Feature`s.
 *   **Best for**: Getting a complete snapshot of the system state.
 
-#### `get_features_models(inst_id, gw_serial, dev_id) -> List[Feature]`
-Fetches all features for a specific device.
-*   **Returns**: A list of `Feature` objects, automatically expanded if they contain complex data (unless raw is requested).
+#### `update_device(device, only_enabled=True) -> Device`
+Refreshes a single device.
+*   **Best for**: Efficient polling (e.g. every 60s). Reuses IDs from the device object to minimize API calls.
+*   **Returns**: A new `Device` instance with fresh features.
+
+#### `get_features(inst_id, gw_serial, dev_id, only_enabled=False) -> List[Feature]`
+Fetches features for a specific device.
+*   **Parameters**:
+    *   `only_enabled`: if `True`, uses the optimized server-side filter to fetch only active features.
+*   **Returns**: List of `Feature` objects.
 
 #### `get_feature(inst_id, gw_serial, dev_id, feature_name) -> Dict`
 Fetches the raw JSON data for a specific feature.
 *   **Returns**: Dictionary containing the raw API response for that feature.
 
-#### `get_enabled_features(inst_id, gw_serial, dev_id) -> List[Dict]`
-Fetches the list of all feature *names* that are currently enabled on the device.
-*   **Returns**: List of dictionaries with metadata (lighter payload than full feature list).
 
 #### `execute_command(feature, command_name, params) -> Dict`
 Executes a command on a feature.

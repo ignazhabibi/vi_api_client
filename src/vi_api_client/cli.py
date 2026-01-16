@@ -125,9 +125,9 @@ async def setup_client_context(args, discover: bool = True) -> AsyncGenerator[CL
                     raise ValueError("No gateways found.")
                 
                 if not gw_serial:
-                    gw_serial = gateways[0]["serial"]
+                    gw_serial = gateways[0].serial
                 if not inst_id:
-                    inst_id = gateways[0]["installationId"]
+                    inst_id = gateways[0].installation_id
                 
                 if not dev_id:
                     devices = await client.get_devices(inst_id, gw_serial)
@@ -135,8 +135,9 @@ async def setup_client_context(args, discover: bool = True) -> AsyncGenerator[CL
                         raise ValueError("No devices found.")
                     
                     # Prefer Device "0" (Heating System)
-                    target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                    dev_id = target_dev["id"]
+                    # Prefer Device "0" (Heating System)
+                    target_dev = next((d for d in devices if d.id == "0"), devices[0])
+                    dev_id = target_dev.id
                     print(f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, Dev={dev_id}")
 
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
@@ -147,25 +148,20 @@ async def cmd_list_devices(args):
     async with setup_client_context(args, discover=False) as ctx:
         try:
             installations = await ctx.client.get_installations()
-            print(f"Found {len(installations)} Installations:")
+            print(f"Found {len(installations)} installations:")
             for inst in installations:
-                inst_id = inst.get("id")
-                print(f"- Installation ID: {inst_id}")
+                print(f"- ID: {inst.id}, Description: {inst.description}, Alias: {inst.alias}")
                 
             gateways = await ctx.client.get_gateways()
-            print(f"\nFound {len(gateways)} Gateways:")
+            print(f"\nFound {len(gateways)} gateways:")
             for gw in gateways:
-                gw_serial = gw.get("serial")
-                inst_id = gw.get("installationId")
-                print(f"- Gateway: {gw_serial} (Inst: {inst_id})")
+                print(f"- Serial: {gw.serial}, Version: {gw.version}, Status: {gw.status}")
+                print(f"- Gateway: {gw.serial} (Inst: {gw.installation_id})")
                 
-                devices = await ctx.client.get_devices(inst_id, gw_serial)
-                print(f"  Devices ({len(devices)}):")
-                for dev in devices:
-                    dev_id = dev.get("id")
-                    dev_type = dev.get("deviceType")
-                    model = dev.get("modelId")
-                    print(f"  - Device: {dev_id} (Type: {dev_type}, Model: {model})")
+                devices = await ctx.client.get_devices(gw.installation_id, gw.serial)
+                print(f"Found {len(devices)} devices:")
+                for device in devices:
+                    print(f"- ID: {device.id}, Model: {device.model_id}, Type: {device.device_type}, Status: {device.status}")
                     
         except Exception as e:
             _LOGGER.error("Error listing devices: %s", e)
@@ -175,15 +171,14 @@ async def cmd_list_features(args):
     try:
         async with setup_client_context(args) as ctx:
             if args.values:
-                features_models = await ctx.client.get_features_models(
-                    ctx.inst_id, ctx.gw_serial, ctx.dev_id
+                features_models = await ctx.client.get_features(
+                    ctx.inst_id, ctx.gw_serial, ctx.dev_id,
+                    only_enabled=args.enabled
                 )
                 
                 # Expand features
                 flat_list = []
                 for f in features_models:
-                    if args.enabled and not f.is_enabled:
-                        continue
                     flat_list.extend(f.expand())
                 
                 if args.json:
@@ -200,22 +195,18 @@ async def cmd_list_features(args):
             
             else:
                 # Simple Listing
-                if args.enabled:
-                    features = await ctx.client.get_enabled_features(
-                        ctx.inst_id, ctx.gw_serial, ctx.dev_id
-                    )
-                else:
-                    features = await ctx.client.get_features(
-                        ctx.inst_id, ctx.gw_serial, ctx.dev_id
-                    )
+                only_enabled = args.enabled
+                features = await ctx.client.get_features(
+                     ctx.inst_id, ctx.gw_serial, ctx.dev_id, only_enabled=only_enabled
+                )
                 
                 if args.json:
                     # Depending on structure, but simple list of names for piping
-                    print(json.dumps([f.get("feature") for f in features]))
+                    print(json.dumps([f.name for f in features]))
                 else: 
                      print(f"Found {len(features)} Features for device {ctx.dev_id}:")
                      for f in features:
-                        print(f"- {f.get('feature')}")
+                        print(f"- {f.name}")
                         
     except Exception as e:
         _LOGGER.error("Error listing features: %s", e)
@@ -294,7 +285,7 @@ async def cmd_list_commands(args):
     try:
         async with setup_client_context(args) as ctx:
             # Fetch all features to introspect commands
-            features = await ctx.client.get_features_models(ctx.inst_id, ctx.gw_serial, ctx.dev_id)
+            features = await ctx.client.get_features(ctx.inst_id, ctx.gw_serial, ctx.dev_id)
             
             commandable_features = [f for f in features if f.commands]
             

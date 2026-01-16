@@ -211,3 +211,36 @@ class Device:
             device_type=data.get("deviceType", ""),
             status=data.get("status", "")
         )
+@dataclass(frozen=True)
+class Installation:
+    """Representation of an installation."""
+    id: int
+    description: str
+    alias: str
+    address: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "Installation":
+        return cls(
+            id=data.get("id", 0),
+            description=data.get("description", ""),
+            alias=data.get("alias", ""),
+            address=data.get("address", {})
+        )
+
+@dataclass(frozen=True)
+class Gateway:
+    """Representation of a gateway."""
+    serial: str
+    version: str
+    status: str
+    installation_id: int
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "Gateway":
+        return cls(
+            serial=data.get("serial", ""),
+            version=data.get("version", ""),
+            status=data.get("status", ""),
+            installation_id=data.get("installationId", 0) 
+        )

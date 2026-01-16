@@ -40,7 +40,7 @@ async def main():
         print("No installations found.")
         return
         
-    inst_id = installations[0]["id"]
+    inst_id = installations[0].id
     print(f"Using Installation: {inst_id}")
     
     gateways = await client.get_gateways()
@@ -48,7 +48,7 @@ async def main():
         print("No gateways found.")
         return
         
-    gw_serial = gateways[0]["serial"]
+    gw_serial = gateways[0].serial
     print(f"Using Gateway: {gw_serial}")
     
     devices = await client.get_devices(inst_id, gw_serial)
@@ -58,8 +58,8 @@ async def main():
         
     # Pick the first device (usually id="0")
     device_info = devices[0]
-    dev_id = device_info["id"]
-    print(f"Using Device: {dev_id} ({device_info['modelId']})")
+    dev_id = device_info.id
+    print(f"Using Device: {dev_id} ({device_info.model_id})")
     
     # Continued below...
     await read_features(client, inst_id, gw_serial, dev_id)
@@ -75,7 +75,7 @@ Once you have the `installation_id`, `gateway_serial`, and `device_id`, you can 
 ```python
 async def read_features(client, inst_id, gw_serial, dev_id):
     # Fetch all features
-    features = await client.get_features_models(inst_id, gw_serial, dev_id)
+    features = await client.get_features(inst_id, gw_serial, dev_id)
     
     print(f"Found {len(features)} features.")
     
