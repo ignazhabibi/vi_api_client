@@ -65,10 +65,11 @@ Executes a command on a feature.
 *   **Returns**: `CommandResponse` object with `success`, `message`, and `reason` fields.
 *   **Raises**: `ViValidationError` if parameters are invalid.
 
-#### `get_today_consumption(gateway_serial: str, device_id: str, metric: str = "summary") -> Union[Feature, List[Feature]]`
-Fetches today's energy consumption data.
+#### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary") -> List[Feature]`
+Fetches energy consumption usage for a time range.
 *   **Parameters**:
-    *   `gateway_serial`: Gateway serial number.
-    *   `device_id`: Device ID.
-    *   `metric`: One of `"total"`, `"heating"`, `"dhw"`, or `"summary"` (all three).
-*   **Returns**: Single `Feature` or list of `Feature` objects.
+    *   `device`: A `Device` object.
+    *   `start_dt`: Start date (format: ISO8601 string or datetime).
+    *   `end_dt`: End date (format: ISO8601 string or datetime).
+    *   `metric`: One of `"total"`, `"heating"`, `"dhw"`, or `"summary"`.
+*   **Returns**: List of `Feature` objects containing consumption values.

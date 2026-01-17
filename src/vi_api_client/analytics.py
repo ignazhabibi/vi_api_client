@@ -11,12 +11,6 @@ METRIC_MAPPING = {
     "dhw": "heating.power.consumption.dhw"
 }
 
-def get_today_timerange() -> Tuple[str, str]:
-    """Calculate ISO start and end times for the current day."""
-    now = datetime.now()
-    start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    end_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
-    return start_dt, end_dt
 
 def resolve_properties(metric: str) -> List[str]:
     """Resolve the requested metric to a list of API property strings."""

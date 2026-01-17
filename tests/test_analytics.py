@@ -1,16 +1,8 @@
 """Unit tests for Analytics logic."""
 import pytest
 from datetime import datetime
-from vi_api_client.analytics import get_today_timerange, resolve_properties, parse_consumption_response
+from vi_api_client.analytics import resolve_properties, parse_consumption_response
 
-def test_get_today_timerange():
-    """Test time range generation."""
-    start, end = get_today_timerange()
-    assert "T00:00:00" in start
-    assert "T23:59:59" in end
-    # Basic ISO format check
-    assert datetime.fromisoformat(start)
-    assert datetime.fromisoformat(end)
 
 def test_resolve_properties():
     """Test metric mapping."""

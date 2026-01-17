@@ -272,7 +272,22 @@ async def cmd_get_consumption(args):
     try:
         async with setup_client_context(args) as ctx:
             print(f"Fetching consumption (Metric: {args.metric})...")
-            result = await ctx.client.get_today_consumption(ctx.gw_serial, ctx.dev_id, metric=args.metric)
+            from vi_api_client.models import Device
+            from datetime import datetime
+             
+            device = Device(
+                id=ctx.dev_id, gateway_serial=ctx.gw_serial, installation_id=ctx.inst_id, 
+                model_id="transient", device_type="unknown", status="online"
+            )
+            
+            # Helper for CLI "today"
+            now = datetime.now()
+            start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            end_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+
+            result = await ctx.client.get_consumption(
+                device, start_dt, end_dt, metric=args.metric
+            )
             if isinstance(result, list):
                  print(f"Feature expanded to {len(result)} items:")
                  from vi_api_client.utils import format_feature

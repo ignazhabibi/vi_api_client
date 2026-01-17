@@ -1,7 +1,8 @@
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+from datetime import datetime
 
 from .api import ViClient
 from .auth import AbstractAuth
@@ -151,9 +152,14 @@ class MockViClient(ViClient):
     # get_today_consumption depends on Analytics API.
     # We don't have analytics samples yet, so we can return empty or mock data.
     # For now, let's log a warning or return empty.
-    async def get_today_consumption(
-        self, gateway_serial: str, device_id: str, metric: str = "summary"
-    ) -> Any:
+    async def get_consumption(
+        self,
+        device: Device,
+        start_dt: Union[datetime, str],
+        end_dt: Union[datetime, str],
+        metric: str = "summary",
+        resolution: str = "1d"
+    ) -> List[Feature]:
         # Mock analytics support could be added later.
         # Returning empty list or None is safer than crashing.
         return []

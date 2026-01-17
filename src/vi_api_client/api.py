@@ -1,6 +1,8 @@
 """Viessmann API Client."""
 
 from typing import Any, Dict, List, Union
+from datetime import datetime
+from dataclasses import replace
 
 
 from .auth import AbstractAuth
@@ -8,6 +10,7 @@ from .connection import ViConnector
 from .const import ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_FEATURES, ENDPOINT_ANALYTICS_THERMAL, API_BASE_URL
 from .exceptions import ViConnectionError, ViNotFoundError
 from .models import Device, Feature, Installation, Gateway, CommandResponse
+from .analytics import resolve_properties, parse_consumption_response
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,7 +87,7 @@ class ViClient:
                 # Only fetch enabled features for full status
                 features = await self.get_features(device, only_enabled=only_enabled)
                 # Create a new Device instance with populated features (Device is immutable)
-                from dataclasses import replace
+                # Create a new Device instance with populated features (Device is immutable)
                 device = replace(device, features=features)
                 all_devices.append(device)
 
@@ -95,7 +98,6 @@ class ViClient:
         features = await self.get_features(device, only_enabled=only_enabled)
         
         # Return new device instance (immutable update)
-        from dataclasses import replace
         return replace(device, features=features)
     
     async def execute_command(
@@ -129,46 +131,41 @@ class ViClient:
         response_data = await self.connector.post(cmd.uri, final_params)
         return CommandResponse.from_api(response_data)
 
-    async def get_today_consumption(
+    async def get_consumption(
         self,
-        gateway_serial: str,
-        device_id: str,
+        device: Device,
+        start_dt: Union[datetime, str],
+        end_dt: Union[datetime, str],
         metric: str = "summary",
-    ) -> Union[Feature, List[Feature]]:
-        """Fetch energy consumption for the current day."""
-        from .analytics import get_today_timerange, resolve_properties, parse_consumption_response
+        resolution: str = "1d"
+    ) -> List[Feature]:
+        """
+        Fetch aggregated energy consumption.
         
-        start_dt, end_dt = get_today_timerange()
+        :param device: The target Device.
+        :param start_dt: Start time (datetime or ISO string).
+        :param end_dt: End time (datetime or ISO string).
+        :param metric: 'summary', 'total', 'heating', or 'dhw'.
+        :param resolution: Data resolution (default: '1d').
+        :return: List of analytics Features.
+        """
+        
+        # Ensure string format
+        if isinstance(start_dt, datetime):
+            start_dt = start_dt.isoformat()
+        if isinstance(end_dt, datetime):
+            end_dt = end_dt.isoformat()
+            
         properties = resolve_properties(metric)
         
-        consumption_data = await self.get_aggregated_consumption(
-            gateway_serial, device_id, start_dt, end_dt, properties, resolution="1d"
-        )
-        
-        features = parse_consumption_response(consumption_data, properties)
-            
-        if metric != "summary" and len(features) == 1:
-            return features[0]
-            
-        return features
-
-    async def get_aggregated_consumption(
-        self,
-        gateway_serial: str,
-        device_id: str,
-        start_dt: str,
-        end_dt: str,
-        properties: List[str],
-        resolution: str = "1d"
-    ) -> Dict[str, Any]:
-        """Fetch aggregated energy data from the Analytics API."""
         payload = {
-            "gateway_id": gateway_serial,
-            "device_id": str(device_id),
+            "gateway_id": device.gateway_serial,
+            "device_id": str(device.id),
             "start_datetime": start_dt,
             "end_datetime": end_dt,
             "properties": properties,
             "resolution": resolution
         }
         
-        return await self.connector.post(ENDPOINT_ANALYTICS_THERMAL, payload)
+        data = await self.connector.post(ENDPOINT_ANALYTICS_THERMAL, payload)
+        return parse_consumption_response(data, properties)

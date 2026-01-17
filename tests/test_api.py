@@ -217,11 +217,10 @@ class TestViClient:
 
 
     @pytest.mark.asyncio
-    async def test_get_today_consumption(self):
-        """Test the get_today_consumption helper with metrics."""
+    async def test_get_consumption(self):
+        """Test the get_consumption method with various metrics."""
         with aioresponses() as m:
             url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
-            
             
             mock_data = {
                 "data": {
@@ -235,16 +234,28 @@ class TestViClient:
                 }
             }
             
-            # We expect multiple calls (one for summary, one for individual)
-            # aioresponses matches by method/url, we can just queue the responses
             m.post(url, payload=mock_data, repeat=True)
             
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
                 
+                device = Device(
+                    id="dev",
+                    gateway_serial="gw",
+                    installation_id="inst",
+                    model_id="model",
+                    device_type="heating",
+                    status="ok"
+                )
+                
+                start = "2023-01-01T00:00:00"
+                end = "2023-01-01T23:59:59"
+
                 # 1. Summary (Default) -> List[Feature]
-                result_summary = await client.get_today_consumption("gw", "dev", metric="summary")
+                result_summary = await client.get_consumption(
+                    device, start, end, metric="summary"
+                )
                 assert isinstance(result_summary, list)
                 assert len(result_summary) == 3
                 
@@ -252,15 +263,20 @@ class TestViClient:
                 assert f_total.value == 15.5
                 assert f_total.unit == "kilowattHour"
 
-                # 2. Individual Metric -> Single Feature
-                result_total = await client.get_today_consumption("gw", "dev", metric="total")
-                assert isinstance(result_total, Feature)
-                assert result_total.name == "analytics.heating.power.consumption.total"
-                assert result_total.value == 15.5
+                # 2. Individual Metric -> List[Feature] (always returns list now)
+                result_total = await client.get_consumption(
+                    device, start, end, metric="total"
+                )
+                assert isinstance(result_total, list)
+                assert len(result_total) == 1
+                assert result_total[0].name == "analytics.heating.power.consumption.total"
+                assert result_total[0].value == 15.5
                 
                 # 3. Invalid Metric
                 with pytest.raises(ValueError):
-                    await client.get_today_consumption("gw", "dev", metric="invalid")
+                    await client.get_consumption(
+                        device, start, end, metric="invalid"
+                    )
 
     @pytest.mark.asyncio
     async def test_update_device(self):
