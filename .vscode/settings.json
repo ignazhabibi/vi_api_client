@@ -4,5 +4,14 @@
     "python.testing.pytestArgs": [
         "tests"
     ],
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        }
+    },
+    "ruff.configuration": "pyproject.toml"
 }

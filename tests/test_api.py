@@ -1,23 +1,31 @@
 """Tests for vitoclient.api module."""
 
+import aiohttp
 import pytest
 from aioresponses import aioresponses
-import aiohttp
 
 from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
-from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL
-from vi_api_client.exceptions import ViConnectionError, ViNotFoundError, ViServerInternalError
-from vi_api_client.models import Feature, Device
+from vi_api_client.const import (
+    API_BASE_URL,
+    ENDPOINT_ANALYTICS_THERMAL,
+    ENDPOINT_GATEWAYS,
+    ENDPOINT_INSTALLATIONS,
+)
+from vi_api_client.exceptions import (
+    ViNotFoundError,
+    ViServerInternalError,
+)
+from vi_api_client.models import Device
 
 
 class MockAuth(AbstractAuth):
     """Mock implementation of AbstractAuth for testing."""
-    
+
     def __init__(self, session: aiohttp.ClientSession):
         super().__init__(session)
         self._access_token = "mock_access_token"
-    
+
     async def async_get_access_token(self) -> str:
         return self._access_token
 
@@ -35,17 +43,17 @@ class TestViClient:
                 payload={
                     "data": [
                         {"id": 123456, "description": "Home"},
-                        {"id": 789012, "description": "Office"}
+                        {"id": 789012, "description": "Office"},
                     ]
-                }
+                },
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 installations = await client.get_installations()
-                
+
                 assert len(installations) == 2
                 assert installations[0].id == "123456"
                 assert installations[1].id == "789012"
@@ -56,11 +64,11 @@ class TestViClient:
         with aioresponses() as m:
             url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
             m.get(url, status=500)
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 # Should still raise ViServerInternalError for 500
                 with pytest.raises(ViServerInternalError):
                     await client.get_installations()
@@ -72,19 +80,15 @@ class TestViClient:
             url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
             m.get(
                 url,
-                payload={
-                    "data": [
-                        {"serial": "1234567890", "installationId": 123456}
-                    ]
-                }
+                payload={"data": [{"serial": "1234567890", "installationId": 123456}]},
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 gateways = await client.get_gateways()
-                
+
                 assert len(gateways) == 1
                 assert gateways[0].serial == "1234567890"
 
@@ -98,17 +102,17 @@ class TestViClient:
                 payload={
                     "data": [
                         {"id": "0", "deviceType": "heating", "modelId": "E3_Vitocal"},
-                        {"id": "gateway", "deviceType": "tcu", "modelId": "E3_TCU"}
+                        {"id": "gateway", "deviceType": "tcu", "modelId": "E3_TCU"},
                     ]
-                }
+                },
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 devices = await client.get_devices(123456, "1234567890")
-                
+
                 assert len(devices) == 2
                 assert devices[0].id == "0"
                 assert devices[0].device_type == "heating"
@@ -123,25 +127,25 @@ class TestViClient:
                 payload={
                     "data": [
                         {"feature": "heating.sensors.temperature.outside"},
-                        {"feature": "heating.circuits.0"}
+                        {"feature": "heating.circuits.0"},
                     ]
-                }
+                },
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 device = Device(
                     id="0",
                     gateway_serial="1234567890",
                     installation_id="123456",
                     model_id="test",
                     device_type="heating",
-                    status="ok"
+                    status="ok",
                 )
                 features = await client.get_features(device)
-                
+
                 assert len(features) == 2
                 assert features[0].name == "heating.sensors.temperature.outside"
 
@@ -157,27 +161,27 @@ class TestViClient:
                         "feature": "heating.sensors.temperature.outside",
                         "properties": {
                             "value": {"type": "number", "value": 5.5, "unit": "celsius"}
-                        }
+                        },
                     }
-                }
+                },
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 device = Device(
                     id="0",
                     gateway_serial="1234567890",
                     installation_id="123456",
                     model_id="test",
                     device_type="heating",
-                    status="ok"
+                    status="ok",
                 )
                 feature = await client.get_feature(
                     device, "heating.sensors.temperature.outside"
                 )
-                
+
                 assert feature.name == "heating.sensors.temperature.outside"
                 assert feature.properties["value"]["value"] == 5.5
 
@@ -191,64 +195,65 @@ class TestViClient:
                 url,
                 status=404,
                 payload={
-                     "viErrorId": "iot.feature-not-found",
-                     "errorType": "DEVICE_LEVEL_ERROR",
-                     "message": "Feature not found",
-                     "reason": "NOT_FOUND" 
-                }
+                    "viErrorId": "iot.feature-not-found",
+                    "errorType": "DEVICE_LEVEL_ERROR",
+                    "message": "Feature not found",
+                    "reason": "NOT_FOUND",
+                },
             )
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 device = Device(
-                     id="0", gateway_serial="1234567890", installation_id="123456", 
-                     model_id="test", device_type="heating", status="ok"
+                    id="0",
+                    gateway_serial="1234567890",
+                    installation_id="123456",
+                    model_id="test",
+                    device_type="heating",
+                    status="ok",
                 )
                 # Update expectation to ViNotFoundError
                 with pytest.raises(ViNotFoundError) as exc_info:
-                    await client.get_feature(
-                        device, "nonexistent.feature"
-                    )
-                
+                    await client.get_feature(device, "nonexistent.feature")
+
                 # API message is "Feature not found", wrapped in ViNotFoundError
                 assert "not found" in str(exc_info.value).lower()
-
 
     @pytest.mark.asyncio
     async def test_get_consumption(self):
         """Test the get_consumption method with various metrics."""
         with aioresponses() as m:
             url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
-            
+
             mock_data = {
                 "data": {
                     "data": {
                         "summary": {
                             "heating.power.consumption.total": 15.5,
                             "heating.power.consumption.heating": 10.0,
-                            "heating.power.consumption.dhw": 5.5
+                            "heating.power.consumption.dhw": 5.5,
                         }
                     }
                 }
             }
-            
+
             m.post(url, payload=mock_data, repeat=True)
-            
+
             async with aiohttp.ClientSession() as session:
                 auth = MockAuth(session)
                 client = ViClient(auth)
-                
+
                 device = Device(
                     id="dev",
                     gateway_serial="gw",
                     installation_id="inst",
                     model_id="model",
                     device_type="heating",
-                    status="ok"
+                    status="ok",
                 )
-                
+
                 start = "2023-01-01T00:00:00"
                 end = "2023-01-01T23:59:59"
 
@@ -258,8 +263,12 @@ class TestViClient:
                 )
                 assert isinstance(result_summary, list)
                 assert len(result_summary) == 3
-                
-                f_total = next(f for f in result_summary if f.name == "analytics.heating.power.consumption.total")
+
+                f_total = next(
+                    f
+                    for f in result_summary
+                    if f.name == "analytics.heating.power.consumption.total"
+                )
                 assert f_total.value == 15.5
                 assert f_total.unit == "kilowattHour"
 
@@ -269,40 +278,41 @@ class TestViClient:
                 )
                 assert isinstance(result_total, list)
                 assert len(result_total) == 1
-                assert result_total[0].name == "analytics.heating.power.consumption.total"
+                assert (
+                    result_total[0].name == "analytics.heating.power.consumption.total"
+                )
                 assert result_total[0].value == 15.5
-                
+
                 # 3. Invalid Metric
                 with pytest.raises(ValueError):
-                    await client.get_consumption(
-                        device, start, end, metric="invalid"
-                    )
+                    await client.get_consumption(device, start, end, metric="invalid")
 
     @pytest.mark.asyncio
     async def test_update_device(self):
         """Test efficient device update."""
-        from vi_api_client.models import Device
-        
+
         with aioresponses() as m:
             # Device has context
             dev = Device(
-                id="0", 
-                gateway_serial="GW1", 
-                installation_id="123", 
-                model_id="TestModel", 
-                device_type="heating", 
-                status="ok"
+                id="0",
+                gateway_serial="GW1",
+                installation_id="123",
+                model_id="TestModel",
+                device_type="heating",
+                status="ok",
             )
-            
+
             # Expect Post call
             url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
-            m.post(url, payload={"data": [{"feature": "new.feature", "isEnabled": True}]})
-            
+            m.post(
+                url, payload={"data": [{"feature": "new.feature", "isEnabled": True}]}
+            )
+
             async with aiohttp.ClientSession() as session:
                 client = ViClient(MockAuth(session))
-                
+
                 updated_dev = await client.update_device(dev)
-                
+
                 assert updated_dev.id == "0"
                 assert len(updated_dev.features) == 1
                 assert updated_dev.features[0].name == "new.feature"
