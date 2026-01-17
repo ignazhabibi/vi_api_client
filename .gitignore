@@ -13,6 +13,8 @@ tokens.json
 .coverage
 htmlcov/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 build/
 dist/
 *.egg-info/
@@ -20,4 +22,3 @@ dist/
 # Misc
 .DS_Store
 HA_INTEGRATION_HANDOVER.md
-
