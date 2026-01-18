@@ -76,6 +76,18 @@ def format_feature(feature: "Feature") -> str:
     if val is None:
         return _format_dump_properties(feature.properties)
 
+    # Check if value is a schedule dict (has day keys like 'mon', 'tue', etc.)
+    if isinstance(val, dict) and {"mon", "tue", "wed"}.issubset(val.keys()):
+        return _format_schedule(val)
+
+    # Special handling: if value is bool but we also have schedule entries
+    if isinstance(val, bool) and "entries" in feature.properties:
+        entries_prop = feature.properties["entries"]
+        if isinstance(entries_prop, dict) and entries_prop.get("type") == "Schedule":
+            schedule_val = entries_prop.get("value", {})
+            schedule_str = _format_schedule(schedule_val)
+            return f"{val} | {schedule_str}"
+
     # Formatting for Lists (History Data)
     if isinstance(val, list):
         content = str(val) if len(val) <= 10 else f"List[{len(val)} items]"
@@ -89,10 +101,35 @@ def _format_dump_properties(properties: dict[str, Any]) -> str:
     parts = []
     for k, v in properties.items():
         if isinstance(v, dict) and "value" in v:
-            parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
+            # Check for Schedule type
+            if v.get("type") == "Schedule" and isinstance(v.get("value"), dict):
+                schedule_str = _format_schedule(v["value"])
+                parts.append(f"{k}: {schedule_str}")
+            else:
+                parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
         else:
             parts.append(f"{k}: {v}")
     return ", ".join(parts)
+
+
+def _format_schedule(schedule: dict[str, list]) -> str:
+    """Format a schedule object (day -> list of time slots)."""
+    day_abbr = {
+        "mon": "Mo",
+        "tue": "Tu",
+        "wed": "We",
+        "thu": "Th",
+        "fri": "Fr",
+        "sat": "Sa",
+        "sun": "Su",
+    }
+    parts = []
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+        slots = schedule.get(day, [])
+        if slots:
+            slot_strs = [f"{s.get('start', '?')}-{s.get('end', '?')}" for s in slots]
+            parts.append(f"{day_abbr[day]}[{', '.join(slot_strs)}]")
+    return " ".join(parts) if parts else "(empty)"
 
 
 def mask_pii(text: str) -> str:
