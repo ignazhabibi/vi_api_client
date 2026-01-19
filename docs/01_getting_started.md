@@ -4,8 +4,19 @@ This guide covers the first steps to get up and running with the `vi_api_client`
 
 ## Installation
 
+This is currently a local development package.
+
 ```bash
-pip install vi_api_client
+# Clone the repository
+git clone https://github.com/ignazhabibi/vi_api_client.git
+cd vi_api_client
+
+# Create virtual env
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install in editable mode
+pip install -e .
 ```
 
 ## First Steps
