@@ -20,5 +20,5 @@ dist/
 *.egg-info/
 
 # Misc
-.DS_Store
+**/.DS_Store
 HA_INTEGRATION_HANDOVER.md
