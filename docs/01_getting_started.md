@@ -17,51 +17,58 @@ The easiest way to start is using the CLI to generate a token, or using the `ViC
 ```python
 import asyncio
 import os
+
+import aiohttp
+
 from vi_api_client import ViClient
 from vi_api_client.auth import OAuth
 
 # Configuration
 CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID")
-TOKEN_FILE = "token.json"
+REDIRECT_URI = "http://localhost:4200/"
+TOKEN_FILE = "tokens.json"
 
 async def main():
-    # 1. Setup Authentication (auto-handles token refresh)
-    auth = OAuth(
-        client_id=CLIENT_ID,
-        token_file=TOKEN_FILE
-    )
-    
-    # 2. Initialize Client
-    client = ViClient(auth)
+    async with aiohttp.ClientSession() as session:
+        # 1. Setup Authentication (auto-handles token refresh)
+        auth = OAuth(
+            client_id=CLIENT_ID,
+            redirect_uri=REDIRECT_URI,
+            token_file=TOKEN_FILE,
+            websession=session,
+        )
 
-    # 3. Discovery: Installation -> Gateway -> Device
-    installations = await client.get_installations()
-    if not installations:
-        print("No installations found.")
-        return
-        
-    inst_id = installations[0].id
-    print(f"Using Installation: {inst_id}")
-    
-    gateways = await client.get_gateways()
-    if not gateways:
-        print("No gateways found.")
-        return
-        
-    gw_serial = gateways[0].serial
-    print(f"Using Gateway: {gw_serial}")
-    
-    devices = await client.get_devices(inst_id, gw_serial)
-    if not devices:
-        print("No devices found.")
-        return
-        
-    # Pick the first device (usually id="0")
-    device = devices[0]
-    print(f"Using Device: {device.id} ({device.model_id})")
-    
-    # Continued below...
-    await read_features(client, device)
+        # 2. Initialize Client
+        client = ViClient(auth)
+
+        # 3. Discovery: Installation -> Gateway -> Device
+        installations = await client.get_installations()
+        if not installations:
+            print("No installations found.")
+            return
+
+        inst_id = installations[0].id
+        print(f"Using Installation: {inst_id}")
+
+        gateways = await client.get_gateways()
+        if not gateways:
+            print("No gateways found.")
+            return
+
+        gw_serial = gateways[0].serial
+        print(f"Using Gateway: {gw_serial}")
+
+        devices = await client.get_devices(inst_id, gw_serial)
+        if not devices:
+            print("No devices found.")
+            return
+
+        # Pick the first device (usually id="0")
+        device = devices[0]
+        print(f"Using Device: {device.id} ({device.model_id})")
+
+        # Continued below...
+        await read_features(client, device)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -77,12 +84,12 @@ from vi_api_client.utils import format_feature
 async def read_features(client, device):
     # Fetch all features for the device
     features = await client.get_features(device)
-    
+
     print(f"Found {len(features)} features.")
-    
+
     # Access a specific feature
     outside_temp = next((f for f in features if f.name == "heating.sensors.temperature.outside"), None)
-    
+
     if outside_temp:
         # format_feature provides a string with unit (e.g., "12.5 celsius")
         print(f"Outside Temperature: {format_feature(outside_temp)}")
@@ -97,21 +104,21 @@ To change settings (e.g., set heating mode), you execute commands on a feature.
 ```python
 async def set_heating_mode(client, device):
     feature_name = "heating.circuits.0.operating.modes.active"
-    
+
     # 1. Fetch the feature
     feature = await client.get_feature(device, feature_name)
-    
+
     # 2. Check if a command exists and is executable
     cmd_name = "setMode"
     if cmd_name in feature.commands:
         cmd = feature.commands[cmd_name]
         if cmd.is_executable:
             print(f"Executing {cmd_name}...")
-            
+
             # 3. Execute with parameters
             result = await client.execute_command(
-                feature, 
-                cmd_name, 
+                feature,
+                cmd_name,
                 {"mode": "heating"}
             )
             if result.success:

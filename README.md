@@ -1,6 +1,6 @@
 # Viessmann API Python Client
 
-A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann.com/).  
+A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann-climatesolutions.com/start.html).
 Designed for integration with Home Assistant and other async Python applications.
 
 ## Features
@@ -47,7 +47,7 @@ vi-client list-devices
 vi-client list-features --enabled --values
 ```
 
-See [CLI Reference](docs/05_cli_reference.md) for more details.
+See [CLI Reference](docs/06_cli_reference.md) for more details.
 
 ### Python Code
 
@@ -72,14 +72,14 @@ async def main():
         # Get installations
         installations = await client.get_installations()
         print(f"Found {len(installations)} installations")
-        
+
         # Access nested structures flattened
         devices = await client.get_full_installation_status(installations[0].id)
         device = devices[0]
-        
+
         for feature in device.features_flat:
              print(f"{feature.name}: {format_feature(feature)}")
-             
+
 if __name__ == "__main__":
     asyncio.run(main())
 ```

@@ -6,12 +6,14 @@ import pytest
 
 from vi_api_client.cli import (
     cmd_exec,
+    cmd_get_consumption,
     cmd_get_feature,
+    cmd_list_commands,
     cmd_list_devices,
     cmd_list_features,
 )
 from vi_api_client.exceptions import ViNotFoundError, ViValidationError
-from vi_api_client.models import Device, Feature, Gateway, Installation
+from vi_api_client.models import Command, Device, Feature, Gateway, Installation
 
 
 @pytest.fixture
@@ -260,3 +262,94 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
         assert "Serial: GW1" in captured.out
         assert "Found 1 devices" in captured.out
         assert "ID: 0" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_commands(mock_cli_context, capsys):
+    """Test listing available commands for a device."""
+
+    args = Namespace(
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    # Create a feature with commands
+    cmd = Command(
+        name="setCurve",
+        uri="https://api/setCurve",
+        is_executable=True,
+        params={
+            "slope": {
+                "type": "number",
+                "required": True,
+                "constraints": {"min": 0.2, "max": 3.5, "stepping": 0.1},
+            }
+        },
+    )
+    feature = Feature(
+        name="heating.circuits.0.heating.curve",
+        is_enabled=True,
+        is_ready=True,
+        properties={},
+        commands={"setCurve": cmd},
+    )
+    mock_cli_context.client.get_features.return_value = [feature]
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        await cmd_list_commands(args)
+
+        captured = capsys.readouterr()
+        assert "heating.circuits.0.heating.curve" in captured.out
+        assert "setCurve" in captured.out
+        assert "slope" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_get_consumption(mock_cli_context, capsys):
+    """Test getting consumption data."""
+
+    args = Namespace(
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+        metric="summary",
+    )
+
+    # Mock consumption features
+    consumption_features = [
+        Feature(
+            name="analytics.heating.power.consumption.total",
+            is_enabled=True,
+            is_ready=True,
+            properties={"value": {"value": 15.5, "unit": "kilowattHour"}},
+        ),
+        Feature(
+            name="analytics.heating.power.consumption.heating",
+            is_enabled=True,
+            is_ready=True,
+            properties={"value": {"value": 10.0, "unit": "kilowattHour"}},
+        ),
+    ]
+    mock_cli_context.client.get_consumption.return_value = consumption_features
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        await cmd_get_consumption(args)
+
+        captured = capsys.readouterr()
+        assert "analytics.heating.power.consumption.total" in captured.out
+        assert "15.5" in captured.out
