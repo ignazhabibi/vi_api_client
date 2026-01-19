@@ -2,23 +2,50 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+*.env
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+*.manifest
+*.spec
+
+# Virtual Environment
 .venv/
 venv/
-*.env
+ENV/
+env/
 
-# Project specific
-tokens.json
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Testing & Build
+# Testing
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
+.tox/
+.nox/
+
+# Linting
 .ruff_cache/
 .mypy_cache/
-build/
-dist/
-*.egg-info/
 
-# Misc
-**/.DS_Store
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Project-specific (not for distribution)
+tokens.json
 HA_INTEGRATION_HANDOVER.md
+MOCK_COVERAGE.md
+
+# Logs
+*.log
