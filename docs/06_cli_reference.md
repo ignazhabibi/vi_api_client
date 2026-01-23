@@ -32,7 +32,7 @@ vi-client list-features
 # List only enabled features (names only)
 vi-client list-features --enabled
 
-# List enabled features WITH values
+# List enabled features WITH values - THIS IS THE MOST USEFUL COMMAND!
 vi-client list-features --enabled --values
 
 # Output as JSON
@@ -47,30 +47,37 @@ Get the current value of a specific feature.
 vi-client get-feature "heating.sensors.temperature.outside"
 ```
 
-## 5. Discover Commands (Control)
-List all features that accept commands, including their parameters and constraints.
+## 5. Discover Writable Features (Control)
+List all features that can be changed, including their parameters and constraints.
 
 ```bash
-vi-client list-commands
+vi-client list-writable
 # Output example:
-# Feature: heating.circuits.0.heating.curve
-#   Command: setCurve
-#     - slope* (number) [min=0.2, max=3.5, step=0.1]
-#     - shift* (number) [min=-13, max=40, step=1]
+# Feature: heating.circuits.0.heating.curve.slope
+#   Command: setCurve, Param: slope
+#   Constraints: min=0.2, max=3.5, step=0.1
 ```
 
-## 6. Execute Commands (Write)
-Execute a command on a feature (e.g. setting heating curve).
+## 6. Set Feature Value (Write)
+Set a new value for a specific feature.
 
 ```bash
-# Easy key=value inputs (auto-converted to numbers/bools)
-vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
+# Set heating curve slope to 1.4
+vi-client set heating.circuits.0.heating.curve.slope 1.4
 
-# The tool automatically validates your input before sending:
-# > ValueError: Parameter 'slope' (5.0) is greater than maximum (3.5)
+# Set operating mode
+vi-client set heating.circuits.0.operating.modes.active heating
+```
+The CLI automatically handles type conversion (string "1.4" -> float 1.4) and validation against constraints.
+
+## 7. Advanced: Execute Raw Command
+If you need to execute a command with multiple parameters at once (rare), you can use `exec`.
+
+```bash
+vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
-## 7. Get Consumption (Analytics)
+## 8. Get Consumption (Analytics)
 Fetch gas/electricity consumption (summary per day/week/month/year).
 
 - **Arguments**:
@@ -79,10 +86,10 @@ Fetch gas/electricity consumption (summary per day/week/month/year).
 ```bash
 vi-client get-consumption --metric summary
 ```
-*   Returns flattened features prefixed with `analytics.` (e.g. `analytics.heating.power.consumption.total`).
+*   Returns features prefixed with `analytics.` (e.g. `analytics.heating.power.consumption.total`).
 *   Data is fetched from the Viessmann Analytics API (not live data).
 
-## 8. Mock Devices (Offline Mode)
+## 9. Mock Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
 
 ```bash

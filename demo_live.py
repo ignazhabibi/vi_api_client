@@ -1,9 +1,6 @@
 """Viessmann Library Demo Application (Live API).
 
-This script demonstrates how to use the 'vitoclient' library to:
-1. Authenticate against the Viessmann API.
-2. Discover installations and devices.
-3. Fetch data using strongly-typed models.
+Demonstrates authentication, discovery, and feature fetching.
 """
 
 import asyncio
@@ -14,123 +11,115 @@ import sys
 
 import aiohttp
 
-# Ensure we can import the local package
 sys.path.insert(0, os.path.abspath("src"))
 
 from vi_api_client import OAuth, ViClient
 from vi_api_client.utils import format_feature
 
-# Configuration
-# Best practice: Load from environment variable, fallback to placeholder
 CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID", "YOUR_CLIENT_ID")
 REDIRECT_URI = os.getenv("VIESSMANN_REDIRECT_URI", "http://localhost:4200/")
 TOKEN_FILE = os.getenv("VIESSMANN_TOKEN_FILE", "tokens.json")
 
-# Configure formatted logging
 logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
+
+
+def print_sample_features(features, limit=25):
+    """Print a sample of features."""
+    print(f"\n📋 Sample Features (first {limit}):")
+    for feature in features[:limit]:
+        val = format_feature(feature)
+        if len(val) > 60:
+            val = val[:57] + "..."
+        marker = " ✏️" if feature.is_writable else ""
+        print(f"      {feature.name:<55} : {val}{marker}")
+
+    if len(features) > limit:
+        print(f"   ... and {len(features) - limit} more.")
+
+
+def print_writable_features(features, limit=10):
+    """Print writable features with constraints."""
+    writable = [f for f in features if f.is_writable]
+    print(f"\n🛠  Writable Features ({len(writable)}):")
+
+    for feature in writable[:limit]:
+        ctrl = feature.control
+
+        constraint_attrs = [
+            ("min", ctrl.min),
+            ("max", ctrl.max),
+            ("step", ctrl.step),
+            ("options", ctrl.options),
+            ("pattern", ctrl.pattern),
+            ("min_length", ctrl.min_length),
+            ("max_length", ctrl.max_length),
+        ]
+
+        constraints = [
+            f"{name}={value}" for name, value in constraint_attrs if value is not None
+        ]
+
+        constraint_str = f" ({', '.join(constraints)})" if constraints else ""
+        print(f"   - {feature.name}")
+        print(
+            f"       Cmd: {ctrl.command_name}, Param: {ctrl.param_name}{constraint_str}"
+        )
+
+    if len(writable) > limit:
+        print(f"   ... and {len(writable) - limit} more.")
+
+
+async def discover_device(client):
+    """Discover and return the first heating device."""
+    gateways = await client.get_gateways()
+    if not gateways:
+        print("No gateways found.")
+        return None
+
+    gw = gateways[0]
+    devices = await client.get_devices(gw.installation_id, gw.serial)
+    if not devices:
+        print("No devices found.")
+        return None
+
+    device = next((d for d in devices if d.id == "0"), devices[0])
+    print(f"   Using Device: {device.id} ({device.model_id})")
+    return device
 
 
 async def main():
     """Run the live demo."""
     print("🚀 Viessmann Library Demo (Live)")
-    print("==============================\n")
+    print("=" * 40 + "\n")
 
-    # 1. Setup Authentication
-    # -----------------------
-    # Use the --insecure flag context for corporate/proxy environments if needed
-    # For this demo, we'll try to detect if we need it (simple check)
-    # or just default to standard.
     connector = aiohttp.TCPConnector(ssl=False)
 
     async with aiohttp.ClientSession(connector=connector) as session:
-        auth = OAuth(
-            client_id=CLIENT_ID,
-            redirect_uri=REDIRECT_URI,
-            token_file=TOKEN_FILE,
-            websession=session,
-        )
+        auth = OAuth(CLIENT_ID, REDIRECT_URI, TOKEN_FILE, websession=session)
 
-        # 2. Check Authentication
-        # -----------------------
         try:
-            # Attempt to get a token. If this fails, we need to login.
             await auth.async_get_access_token()
-            print("✅ Authentication successful (cached tokens found).")
+            print("✅ Authentication successful.\n")
         except Exception:
             print("⚠️  No valid tokens found.")
-            print(
-                "Please use the CLI tool to login first: "
-                f"'vi-client login --client-id {CLIENT_ID}'"
-            )
+            print(f"Run: 'vi-client login --client-id {CLIENT_ID}'")
             return
 
-        # 3. Initialize Client
-        # --------------------
         client = ViClient(auth)
 
-        # 4. Discover Installations
-        # -------------------------
-        print("\n🔍 Discovering Installations...")
-        installations = await client.get_installations()
-
-        if not installations:
-            print("No installations found.")
+        print("🔍 Discovering...")
+        device = await discover_device(client)
+        if not device:
             return
 
-        inst_id = installations[0].id
-        print(f"   Found Installation ID: {inst_id}")
+        print("\n📥 Fetching features...")
+        features = await client.get_features(device, only_enabled=True)
+        print(f"   Found {len(features)} enabled features.")
 
-        # 5. Fetch Full System Status
-        # ---------------------------
-        # We use the helper method designed for Home Assistant (Coordinator Pattern).
-        # It fetches Gateways -> Devices -> Features in one optimized flow.
-        print("\n📥 Fetching full system status (this may take a moment)...")
+        print_sample_features(features)
+        print_writable_features(features)
 
-        try:
-            devices = await client.get_full_installation_status(inst_id)
-            print(f"   Success! Received data for {len(devices)} devices.")
-
-            # 6. Display Data
-            # ---------------
-            for device in devices:
-                print(f"\n📱 Device: {device.device_type} (Model: {device.model_id})")
-                print(f"   ID: {device.id} | Status: {device.status}")
-                print(f"   Available Features: {len(device.features)}")
-
-                # Show only enabled features with values
-                enabled_features = [f for f in device.features if f.is_enabled]
-                print(f"   Enabled Features ({len(enabled_features)}):")
-
-                # Print first 10 as sample
-                for feature in enabled_features[:10]:
-                    # Use format_feature for display
-
-                    val = format_feature(feature)
-                    if len(val) > 80:
-                        val = val[:77] + "..."
-                    print(f"     - {feature.name:<75} : {val}")
-
-                if len(enabled_features) > 10:
-                    print(f"     ... and {len(enabled_features) - 10} more.")
-
-                # Show commands
-                commandable_features = [f for f in device.features if f.commands]
-                if commandable_features:
-                    print(
-                        f"\n   🛠  Available Commands "
-                        f"({len(commandable_features)} features):"
-                    )
-                    for feature in commandable_features:
-                        # Show command name and execution status
-                        cmd_list = []
-                        for cmd_name, cmd in feature.commands.items():
-                            is_exec = "✅" if cmd.is_executable else "❌"
-                            cmd_list.append(f"{is_exec} {cmd_name}")
-
-                        print(f"     - {feature.name:<75} : {', '.join(cmd_list)}")
-
-        except Exception as e:
-            print(f"❌ Error fetching data: {e}")
+        print("\n✅ Demo complete!")
 
 
 if __name__ == "__main__":

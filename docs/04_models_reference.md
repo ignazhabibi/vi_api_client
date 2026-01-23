@@ -4,9 +4,7 @@ This section details the core data models used in the `vi_api_client` library.
 
 ## Installation
 
-Represents an installation site.
-
-### Properties
+Represents an installation site (House).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
@@ -17,9 +15,7 @@ Represents an installation site.
 
 ## Gateway
 
-Represents a communication gateway.
-
-### Properties
+Represents a communication gateway (Connectivity Device).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
@@ -30,9 +26,7 @@ Represents a communication gateway.
 
 ## Device
 
-Represents a physical device attached to a gateway.
-
-### Properties
+Represents a physical device attached to a gateway (e.g. Heating System).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
@@ -42,77 +36,57 @@ Represents a physical device attached to a gateway.
 | `model_id` | `str` | Model name (e.g., "E3_Vitocal_16"). |
 | `device_type` | `str` | Device type (e.g., "heating", "tcu"). |
 | `status` | `str` | Connection status (e.g., "Online"). |
-| `features` | `List[Feature]` | List of features attached to this device. |
+| `features` | `List[Feature]` | List of features supported by this device. |
 
-### Properties (Computed)
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `features_flat` | `List[Feature]` | Flattened list of all features (expanded). |
+**Note**: In previous versions, there was a distinction between `features` and `features_flat`. In the new Flat Architecture, `features` is always a flat list of simple properties.
 
 ## Feature
 
-The core unit of information in the Viessmann API. A feature represents a sensor, a status, or a configuration setting.
-
-### Properties
+The core unit of information. A feature represents a single property (Sensor) or a single setting (Control).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `name` | `str` | Unique feature name (e.g., `heating.sensors.temperature.outside`). |
-| `value` | `Any` | Primary scalar value of the feature (if applicable). |
+| `name` | `str` | Unique flat feature name (e.g., `heating.sensors.temperature.outside`). |
+| `value` | `Any` | Primary value of the feature (scalar: number, string, boolean). |
 | `unit` | `str` | Unit of measurement (e.g., "celsius", "kilowattHour"). |
-| `properties` | `Dict` | Raw dictionary of all properties returned by the API. |
-| `is_ready` | `bool` | Whether the datum is currently available. |
-| `is_enabled` | `bool` | Whether this feature is supported by the device. |
-| `commands` | `Dict[str, Command]` | Dictionary of available commands for this feature. |
-
-### Methods
-
-#### `expand() -> List[Feature]`
-Expands a complex feature (one with multiple properties, like heating curve slope & shift) into a list of simple scalar features.
-*   **Returns**: A list of `Feature` objects, each representing a single property.
-*   **Use Case**: Essential for Home Assistant integration where one entity should track only one value.
+| `is_ready` | `bool` | Whether the data point is currently valid. |
+| `is_enabled` | `bool` | Whether this feature is supported by the device configuration. |
+| `is_writable` | `bool` | `True` if this feature can be modified (has a `control` block). |
+| `control` | `Optional[FeatureControl]` | Metadata for writing to this feature (if writable). |
 
 ### Formatting Values
 
-To format a feature value for display, use the utility function:
+To format a feature value for display with units:
 
 ```python
 from vi_api_client.utils import format_feature
-
-formatted = format_feature(feature)  # Returns "25.5 celsius"
+print(format_feature(feature))  # "25.5 celsius"
 ```
 
-## Command
+## FeatureControl
 
-Represents an executable action on a Feature (e.g., `setTemperature`).
+If a `Feature` is writable (`is_writable=True`), it contains a `control` object describing how to modify it.
 
-### Properties
+This object abstracts away the complexity of Viessmann Commands. You rarely interact with it directly, but it's useful for introspection (e.g. building a UI).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `name` | `str` | Command name (e.g., `setMode`). |
-| `uri` | `str` | API URI for execution. |
-| `is_executable` | `bool` | Whether the command can currently be executed. |
-| `params` | `Dict` | Definition of required parameters and constraints. |
-
-### Parameter Constraints
-
-Parameters often have constraints defined in `params`. The library ensures these are met before sending a request.
-
-*   `min` / `max`: Minimum and maximum numeric values.
-*   `step`: Allowed step size/increment.
-*   `enum`: List of allowed string values.
-*   `regex`: Regular expression pattern for string validation.
+| `command_name` | `str` | The internal command name (e.g., `setCurve`). |
+| `param_name` | `str` | The parameter name this feature maps to (e.g., `slope`). |
+| `min` | `float` | Minimum allowed value (numeric). |
+| `max` | `float` | Maximum allowed value (numeric). |
+| `step` | `float` | Step increment (numeric). |
+| `options` | `List[str]` | List of valid options (enum). |
+| `pattern` | `str` | Regex pattern for validation (string). |
+| `min_length` | `int` | Minimum string length. |
+| `max_length` | `int` | Maximum string length. |
 
 ## CommandResponse
 
-Result of a command execution.
-
-### Properties
+Result of a command execution (returned by `set_feature`).
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `success` | `bool` | Whether the command succeeded. |
+| `success` | `bool` | `True` if the command succeeded. |
 | `message` | `str` | Optional message from the API. |
-| `reason` | `str` | Optional reason (e.g., for failures). |
+| `reason` | `str` | Optional failure reason or details. |

@@ -23,6 +23,9 @@ def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
 
     Returns:
         Dictionary of parsed parameters.
+
+    Raises:
+        ValueError: If JSON parsing fails or format is invalid.
     """
     params = {}
 
@@ -69,24 +72,23 @@ def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
 
 
 def format_feature(feature: "Feature") -> str:
-    """Format a feature's value for display (CLI/Logs)."""
+    """Format a feature's value for display (CLI/Logs).
+
+    Args:
+        feature: The feature object to format.
+
+    Returns:
+        A formatted string representation of the value and unit.
+    """
     val = feature.value
     u = feature.unit
 
     if val is None:
-        return _format_dump_properties(feature.properties)
+        return "-"
 
     # Check if value is a schedule dict (has day keys like 'mon', 'tue', etc.)
     if isinstance(val, dict) and {"mon", "tue", "wed"}.issubset(val.keys()):
         return _format_schedule(val)
-
-    # Special handling: if value is bool but we also have schedule entries
-    if isinstance(val, bool) and "entries" in feature.properties:
-        entries_prop = feature.properties["entries"]
-        if isinstance(entries_prop, dict) and entries_prop.get("type") == "Schedule":
-            schedule_val = entries_prop.get("value", {})
-            schedule_str = _format_schedule(schedule_val)
-            return f"{val} | {schedule_str}"
 
     # Formatting for Lists (History Data)
     if isinstance(val, list):
@@ -96,24 +98,15 @@ def format_feature(feature: "Feature") -> str:
     return f"{val} {u}".strip() if u else str(val)
 
 
-def _format_dump_properties(properties: dict[str, Any]) -> str:
-    """Fallback: dump all properties nicely."""
-    parts = []
-    for k, v in properties.items():
-        if isinstance(v, dict) and "value" in v:
-            # Check for Schedule type
-            if v.get("type") == "Schedule" and isinstance(v.get("value"), dict):
-                schedule_str = _format_schedule(v["value"])
-                parts.append(f"{k}: {schedule_str}")
-            else:
-                parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
-        else:
-            parts.append(f"{k}: {v}")
-    return ", ".join(parts)
-
-
 def _format_schedule(schedule: dict[str, list]) -> str:
-    """Format a schedule object (day -> list of time slots)."""
+    """Format a schedule object (day -> list of time slots).
+
+    Args:
+        schedule: Dictionary mapping days ('mon', 'tue'...) to list of time slots.
+
+    Returns:
+        A concise string representation of the schedule.
+    """
     day_abbr = {
         "mon": "Mo",
         "tue": "Tu",
@@ -133,7 +126,14 @@ def _format_schedule(schedule: dict[str, list]) -> str:
 
 
 def mask_pii(text: str) -> str:
-    """Mask sensitive data (Serials, IDs, Tokens) in a string."""
+    """Mask sensitive data (Serials, IDs, Tokens) in a string.
+
+    Args:
+        text: The input string containing potential PII.
+
+    Returns:
+        The masked string.
+    """
     if not text:
         return text
 

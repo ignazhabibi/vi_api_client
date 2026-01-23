@@ -14,62 +14,79 @@ from vi_api_client import ViClient
 | :--- | :--- | :--- |
 | `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `OAuth`). |
 
-### Methods
+## Discovery Methods
 
-#### `get_installations() -> List[Installation]`
+Methods to discover the structure of your heating system.
+
+### `get_installations() -> List[Installation]`
 Fetches all available installations.
 *   **Returns**: List of `Installation` objects.
 
-#### `get_gateways() -> List[Gateway]`
+### `get_gateways() -> List[Gateway]`
 Fetches all gateways (automatically linked to installations).
 *   **Returns**: List of `Gateway` objects.
 
-#### `get_devices(installation_id: str, gateway_serial: str) -> List[Device]`
-Fetches devices attached to a specific gateway as typed objects.
+### `get_devices(installation_id: str, gateway_serial: str) -> List[Device]`
+Fetches devices attached to a specific gateway.
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
 *   **Returns**: List of `Device` objects.
 
-#### `get_full_installation_status(installation_id: str) -> List[Device]`
-Deep fetch of a whole installation.
-*   **Returns**: A list of `Device` objects, each populated with all its `Feature`s.
-*   **Best for**: Getting a complete snapshot of the system state.
+### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> List[Device]`
+Fetches the complete status of an installation, including all devices and their features.
 
-#### `update_device(device: Device, only_enabled: bool = True) -> Device`
-Refreshes a single device.
-*   **Best for**: Efficient polling (e.g. every 60s). Reuses IDs from the device object to minimize API calls.
-*   **Returns**: A new `Device` instance with fresh features.
+*   **Parameters**:
+    *   `installation_id`: The ID of the installation to scan.
+    *   `only_enabled`: if `True` (default), only fetches active features.
+*   **Returns**: List of `Device` objects, where each device has its `features` attribute fully populated.
+*   **Use Case**: Initial startup (e.g., Home Assistant integration load) to populate the entire entity registry at once.
 
-#### `get_features(device: Device, only_enabled: bool = False) -> List[Feature]`
-Fetches features for a specific device.
+## Feature Methods
+
+Methods to read data and control the device.
+
+### `get_features(device: Device, feature_names: List[str] = None, only_enabled: bool = False) -> List[Feature]`
+Fetches features for a specific device. This is the primary method to read data.
+
 *   **Parameters**:
     *   `device`: A `Device` object.
-    *   `only_enabled`: if `True`, uses the optimized server-side filter to fetch only active features.
+    *   `feature_names`: Optional list of feature names to fetch (e.g. `["heating.sensors.temperature.outside"]`). If None, fetches all features.
+    *   `only_enabled`: if `True`, only returns features that are enabled by the device configuration.
 *   **Returns**: List of `Feature` objects.
+*   **Performance**: If `feature_names` is provided, the request is optimized to fetch only those specific features.
 
-#### `get_feature(device: Device, feature_name: str) -> Feature`
-Fetches a specific feature by name.
-*   **Parameters**:
-    *   `device`: A `Device` object.
-    *   `feature_name`: Name of the feature (e.g. `heating.circuits.0.heating.curve`).
-*   **Returns**: A `Feature` object.
-*   **Raises**: `ViNotFoundError` if the feature does not exist.
+### `update_device(device: Device, only_enabled: bool = True) -> Device`
+Refreshes a specific device by refetching all its features.
 
-#### `execute_command(feature: Feature, command_name: str, params: Dict = {}) -> CommandResponse`
-Executes a command on a feature.
 *   **Parameters**:
-    *   `feature`: The `Feature` object (containing command definitions).
-    *   `command_name`: Name of the command to execute (e.g. `setMode`).
-    *   `params`: Dictionary of parameters (e.g. `{"mode": "heating"}`).
+    *   `device`: The `Device` object to update.
+    *   `only_enabled`: if `True`, only fetches active features (Performance optimization).
+*   **Returns**: A new `Device` instance with updated features.
+*   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
+
+### `set_feature(device: Device, feature: Feature, value: Any) -> CommandResponse`
+Sets a new value for a writable feature.
+
+*   **Parameters**:
+    *   `device`: The `Device` object.
+    *   `feature`: The `Feature` object you want to change (must be writable).
+    *   `value`: The new value you want to set.
 *   **Returns**: `CommandResponse` object with `success`, `message`, and `reason` fields.
-*   **Raises**: `ViValidationError` if parameters are invalid.
+*   **Raises**:
+    *   `ViValidationError` if the value violates constraints (min/max/options).
+    *   `ViConnectionError` if the API call fails.
+*   **Magic**: This method automatically resolves the correct command name and parameter name from the feature's definition.
 
-#### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary") -> List[Feature]`
+## Analytics Methods
+
+### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary", resolution: str = "day") -> List[Feature]`
 Fetches energy consumption usage for a time range.
+
 *   **Parameters**:
     *   `device`: A `Device` object.
-    *   `start_dt`: Start date (format: ISO8601 string or datetime).
-    *   `end_dt`: End date (format: ISO8601 string or datetime).
+    *   `start_dt`: Start date (datetime or ISO string).
+    *   `end_dt`: End date (datetime or ISO string).
     *   `metric`: One of `"total"`, `"heating"`, `"dhw"`, or `"summary"`.
+    *   `resolution`: Resolution of data (`"day"`, `"month"`, `"year"`).
 *   **Returns**: List of `Feature` objects containing consumption values.

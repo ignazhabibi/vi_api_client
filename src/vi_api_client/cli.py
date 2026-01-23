@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -22,7 +22,7 @@ from vi_api_client import (
     ViValidationError,
 )
 
-from .models import Device
+from .models import CommandResponse, Device
 from .utils import format_feature, parse_cli_params
 
 # Default file to store tokens and config
@@ -35,6 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class CLIContext:
     """Context for CLI commands."""
+
     session: aiohttp.ClientSession
     client: ViClient | MockViClient
     # Found IDs (either from args or auto-discovery)
@@ -44,7 +45,14 @@ class CLIContext:
 
 
 def load_config(token_file: str) -> dict[str, Any]:
-    """Load configuration from token file."""
+    """Load configuration from token file.
+
+    Args:
+        token_file: Path to the JSON token file.
+
+    Returns:
+        Dictionary containing tokens and config, or empty dict if missing.
+    """
     try:
         with open(token_file) as f:
             return json.load(f)
@@ -53,7 +61,14 @@ def load_config(token_file: str) -> dict[str, Any]:
 
 
 async def create_session(args) -> aiohttp.ClientSession:
-    """Create aiohttp session with optional insecure SSL."""
+    """Create aiohttp session with optional insecure SSL.
+
+    Args:
+        args: Parsed command line arguments.
+
+    Returns:
+        An aiohttp ClientSession configured according to args.
+    """
     if args.insecure:
         print("WARNING: SSL verification disabled via --insecure")
         connector = aiohttp.TCPConnector(ssl=False)
@@ -61,8 +76,14 @@ async def create_session(args) -> aiohttp.ClientSession:
     return aiohttp.ClientSession()
 
 
-async def cmd_login(args):
-    """Handle login command."""
+async def cmd_login(args) -> None:
+    """Handle login command.
+
+    Guides the user through OAuth authorization flow.
+
+    Args:
+        args: Parsed command line arguments including client_id and redirect_uri.
+    """
     client_id = args.client_id
     redirect_uri = args.redirect_uri
 
@@ -104,8 +125,15 @@ def get_client_config(args) -> tuple[str, str]:
     return client_id, redirect_uri
 
 
-def get_client_config_safe(args) -> tuple[str, str]:
-    """Get config but return empty strings if missing (for mock mode)."""
+def get_client_config_safe(args: argparse.Namespace) -> tuple[str, str]:
+    """Get config but return empty strings if missing (for mock mode).
+
+    Args:
+        args: Parsed command line arguments.
+
+    Returns:
+        Tuple of (client_id, redirect_uri).
+    """
     # For mock mode, we don't strictly need client_id, so we can be lenient.
     if args.mock_device:
         return "mock_id", "mock_uri"
@@ -165,8 +193,14 @@ async def setup_client_context(
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
 
 
-async def cmd_list_devices(args):
-    """List installations and devices."""
+async def cmd_list_devices(args) -> None:
+    """List installations and devices.
+
+    Fetches and prints all installations, gateways, and devices.
+
+    Args:
+        args: Parsed command line arguments.
+    """
     # Does not use full context discovery, just client
     async with setup_client_context(args, discover=False) as ctx:
         try:
@@ -198,146 +232,130 @@ async def cmd_list_devices(args):
             _LOGGER.error("Error listing devices: %s", e)
 
 
-async def cmd_list_features(args):
-    """List all features for a device."""
+async def cmd_list_features(args) -> None:
+    """List all features for a device.
+
+    Supports filtering and formatting options.
+
+    Args:
+        args: Parsed command line arguments including enabled, values, json flags.
+    """
     try:
         async with setup_client_context(args) as ctx:
             # Transient Device for API call
+            device = _transient_device(ctx)
 
-            device = Device(
-                id=ctx.dev_id,
-                gateway_serial=ctx.gw_serial,
-                installation_id=ctx.inst_id,
-                model_id="transient",
-                device_type="unknown",
-                status="online",
-            )
+            # NOTE: get_features now returns FLATTENED features directly.
+            features = await ctx.client.get_features(device, only_enabled=args.enabled)
 
             if args.values:
-                features_models = await ctx.client.get_features(
-                    device, only_enabled=args.enabled
-                )
-
-                # Expand features
-                flat_list = []
-                for f in features_models:
-                    flat_list.extend(f.expand())
-
                 if args.json:
                     # Output clean JSON list of objects
-
                     out_data = [
                         {
                             "name": item.name,
                             "value": item.value,
                             "unit": item.unit,
                             "formatted": format_feature(item),
+                            "writable": item.is_writable,
                         }
-                        for item in flat_list
+                        for item in features
                     ]
                     print(json.dumps(out_data))
                 else:
-                    print(
-                        f"Found {len(features_models)} Raw Features for device "
-                        f"{ctx.dev_id} (expanded to {len(flat_list)}):"
-                    )
+                    print(f"Found {len(features)} Features for device {ctx.dev_id}:")
 
-                    for item in flat_list:
+                    for item in features:
                         val = format_feature(item)
                         if len(val) > 80:
                             val = val[:77] + "..."
-                        print(f"- {item.name:<75}: {val}")
+                        writable_mark = "*" if item.is_writable else " "
+                        print(f"{writable_mark} {item.name:<75}: {val}")
+                    print("(* = writable)")
 
+            # Simple Listing
+            elif args.json:
+                print(json.dumps([f.name for f in features]))
             else:
-                # Simple Listing
-                only_enabled = args.enabled
-                # Transient Device reuse if possible or new
-                if "device" not in locals():
-                    device = Device(
-                        id=ctx.dev_id,
-                        gateway_serial=ctx.gw_serial,
-                        installation_id=ctx.inst_id,
-                        model_id="transient",
-                        device_type="unknown",
-                        status="online",
-                    )
-
-                features = await ctx.client.get_features(
-                    device, only_enabled=only_enabled
-                )
-
-                if args.json:
-                    # Depending on structure, but simple list of names for piping
-                    print(json.dumps([f.name for f in features]))
-                else:
-                    print(f"Found {len(features)} Features for device {ctx.dev_id}:")
-                    for f in features:
-                        print(f"- {f.name}")
+                _print_simple_feature_list(features, ctx.dev_id)
 
     except Exception as e:
         _LOGGER.error("Error listing features: %s", e)
 
 
-async def cmd_get_feature(args):
-    """Get a specific feature."""
+def _print_simple_feature_list(features: list[Any], dev_id: str) -> None:
+    """Print a simple list of feature names."""
+    print(f"Found {len(features)} Features for device {dev_id}:")
+    for f in features:
+        print(f"- {f.name}")
+
+
+async def cmd_get_feature(args) -> None:
+    """Get a specific feature.
+
+    Fetches and displays details for a single feature by name.
+
+    Args:
+        args: Parsed command line arguments including feature_name and raw flag.
+    """
     try:
         async with setup_client_context(args) as ctx:
-            device = Device(
-                id=ctx.dev_id,
-                gateway_serial=ctx.gw_serial,
-                installation_id=ctx.inst_id,
-                model_id="transient",
-                device_type="unknown",
-                status="online",
+            device = _transient_device(ctx)
+            features = await ctx.client.get_features(
+                device, feature_names=[args.feature_name]
             )
-            feature = await ctx.client.get_feature(device, args.feature_name)
+            if not features:
+                raise ViNotFoundError(f"Feature '{args.feature_name}' not found.")
+            feature = features[0]
 
             if args.raw:
-                # Feature is now an object. Structure lost unless we reconstruct.
-                # args.raw is rarely used except for debugging.
-                # We can reconstruct basic structure from properties.
+                # Show internal object structure
                 print(
                     json.dumps(
                         {
-                            "feature": feature.name,
-                            "properties": feature.properties,
-                            "isEnabled": feature.is_enabled,
+                            "name": feature.name,
+                            "value": feature.value,
+                            "unit": feature.unit,
+                            "control": str(feature.control)
+                            if feature.control
+                            else None,
                         },
                         indent=2,
+                        default=str,
                     )
                 )
             else:
-                expanded = feature.expand()
+                print(f"- {feature.name}: {format_feature(feature)}")
+                if feature.control:
+                    ctrl = feature.control
+                    print(f"  Writable via command: {ctrl.command_name}")
+                    print(f"  Target param: {ctrl.param_name}")
+                    if ctrl.min is not None:
+                        print(
+                            f"  Constraints: min={ctrl.min}, max={ctrl.max}, "
+                            f"step={ctrl.step}"
+                        )
+                    if ctrl.options:
+                        print(f"  Options: {ctrl.options}")
 
-                if not expanded:
-                    print(
-                        f"Feature '{args.feature_name}' exists but has no "
-                        "scalar values (Structural)."
-                    )
-                    print("Use --raw to see underlying structure.")
-
-                for item in expanded:
-
-                    print(f"- {item.name}: {format_feature(item)}")
-    except ViNotFoundError:
+    except ViNotFoundError:  # Catch before Exception
         print(f"Feature '{args.feature_name}' not found.")
     except Exception as e:
         _LOGGER.error("Error fetching feature: %s", e)
 
 
-async def cmd_get_consumption(args):
-    """Get consumption data."""
+async def cmd_get_consumption(args) -> None:
+    """Get consumption data.
+
+    Fetches energy consumption for today based on the selected metric.
+
+    Args:
+        args: Parsed command line arguments including metric (summary, total, etc.).
+    """
     try:
         async with setup_client_context(args) as ctx:
             print(f"Fetching consumption (Metric: {args.metric})...")
-            device = Device(
-                id=ctx.dev_id,
-                gateway_serial=ctx.gw_serial,
-                installation_id=ctx.inst_id,
-                model_id="transient",
-                device_type="unknown",
-                status="online",
-            )
+            device = _transient_device(ctx)
 
             # Helper for CLI "today"
             now = datetime.now()
@@ -357,58 +375,125 @@ async def cmd_get_consumption(args):
                 for f in result:
                     print(f"- {f.name}: {format_feature(f)}")
             else:
-
                 print(f"Feature: {result.name}")
                 print(f"Value: {format_feature(result)}")
     except Exception as e:
         _LOGGER.error("Error fetching consumption: %s", e)
 
 
-async def cmd_exec(args):
-    """Execute a command."""
+async def cmd_set(args) -> None:
+    """Set a feature value (User Friendly).
+
+    Sets a feature to a new value using the high-level set_feature API.
+
+    Args:
+        args: Parsed command line arguments including feature_name and value.
+    """
     try:
-        params = parse_cli_params(args.params)
+        async with setup_client_context(args) as ctx:
+            device = _transient_device(ctx)
+            features = await ctx.client.get_features(
+                device, feature_names=[args.feature_name]
+            )
+            if not features:
+                print(f"Error: Feature '{args.feature_name}' not found.")
+                return
+            feature = features[0]
+
+            if not feature.control:
+                print(f"Error: Feature '{feature.name}' is read-only (no control).")
+                return
+
+            print(f"Setting '{feature.name}' to '{args.value}'...")
+            # We show this for transparency but it's not needed by user
+            print(
+                f"  (Command: {feature.control.command_name}, "
+                f"Param: {feature.control.param_name})"
+            )
+
+            # Simple type conversion
+            target_val = args.value
+            with suppress(ValueError):
+                target_val = float(args.value)
+
+            result = await ctx.client.set_feature(device, feature, target_val)
+
+            if result.success:
+                print("✅ Success!")
+            else:
+                print("❌ Failed!")
+                if result.message:
+                    print(f"Message: {result.message}")
+                if result.reason:
+                    print(f"Reason: {result.reason}")
+
+    except ViValidationError as e:
+        print(f"Validation failed: {e}")
+    except ViNotFoundError as e:
+        print(f"Not found: {e}")
+    except Exception as e:
+        _LOGGER.error("Error setting feature: %s", e)
+
+
+async def cmd_exec(args) -> None:
+    """Execute a command (Advanced).
+
+    Executes a raw command with parameters. For advanced users.
+
+    Args:
+        args: Parsed command line arguments including feature_name,
+            command_name, and params.
+    """
+    # 1. Parse params
+    try:
+        params_dict = parse_cli_params(args.params) if args.params else {}
     except ValueError as e:
         print(f"Error parsing parameters: {e}")
         return
 
     try:
         async with setup_client_context(args) as ctx:
-            print(f"Fetching feature '{args.feature_name}'...")
+            # 2. Find Feature
+            feature = await _fetch_target_feature(ctx, args.feature_name)
+            if not feature:
+                return
 
-            if args.params:
-                try:
-                    params = parse_cli_params(args.params)
-                except ValueError as e:
-                    print(f"Error parsing parameters: {e}")
-                    return
+            if not feature.control:
+                print(f"Error: Feature '{feature.name}' is read-only (no control).")
+                return
+
+            # 3. Validate Command Name
+            if feature.control.command_name != args.command_name:
+                print(
+                    f"Warning: Feature expects command '{feature.control.command_name}'"
+                    f", but you specified '{args.command_name}'."
+                )
+                print("Error: Features only expose their primary control command.")
+                return
+
+            print(f"Executing '{args.command_name}' on {feature.name}...")
+
+            # 4. Determine Value
+            target_val = _determine_target_value(args.params, params_dict, feature)
+
+            # 5. Execute
+            if target_val is not None:
+                print(f"Using high-level set_feature(target={target_val})...")
+                result = await ctx.client.set_feature(
+                    # Reconstruct transient device if needed, or use ctx
+                    _transient_device(ctx),
+                    feature,
+                    target_val,
+                )
             else:
-                params = {}
+                print(f"Using low-level POST with params: {params_dict}")
+                result = await ctx.client.connector.post(
+                    feature.control.uri, params_dict
+                )
+                result = CommandResponse.from_api(result)
 
-            device = Device(
-                id=ctx.dev_id,
-                gateway_serial=ctx.gw_serial,
-                installation_id=ctx.inst_id,
-                model_id="transient",
-                device_type="unknown",
-                status="online",
-            )
-            feature = await ctx.client.get_feature(device, args.feature_name)
+            _print_command_result(result)
 
-            print(f"Executing '{args.command_name}' with {params}...")
-            result = await ctx.client.execute_command(
-                feature, args.command_name, params
-            )
-
-            if result.success:
-                print("✅ Success!")
-            else:
-                print("❌ Failed!")
-
-            if result.message:
-                print(f"Message: {result.message}")
-            if result.reason:
-                print(f"Reason: {result.reason}")
     except ViValidationError as e:
         print(f"Validation failed: {e}")
     except ViNotFoundError as e:
@@ -417,76 +502,133 @@ async def cmd_exec(args):
         _LOGGER.error("Error executing command: %s", e)
 
 
-async def cmd_list_commands(args):  # noqa: PLR0912
-    """List all available commands for a device."""
+async def _fetch_target_feature(ctx: CLIContext, name: str) -> Any | None:
+    """Helper to fetch a single feature by name."""
+    device = _transient_device(ctx)
+    features = await ctx.client.get_features(device, feature_names=[name])
+    if not features:
+        print(f"Error: Feature '{name}' not found.")
+        return None
+    return features[0]
+
+
+def _transient_device(ctx: CLIContext) -> Device:
+    """Create a transient device object from context."""
+    return Device(
+        id=ctx.dev_id,
+        gateway_serial=ctx.gw_serial,
+        installation_id=ctx.inst_id,
+        model_id="transient",
+        device_type="unknown",
+        status="online",
+    )
+
+
+def _determine_target_value(
+    raw_params: list[str], params_dict: dict[str, Any], feature: Any
+) -> Any | None:
+    """Determine the target value from CLI params."""
+    # Try from dict
+    val = params_dict.get(feature.control.param_name)
+    if val is not None:
+        return val
+
+    # Try raw scalar
+    if raw_params and len(raw_params) == 1 and "=" not in raw_params[0]:
+        raw_arg = raw_params[0]
+        with suppress(ValueError):
+            return float(raw_arg)
+        return raw_arg
+
+    return None
+
+
+def _print_command_result(result: CommandResponse) -> None:
+    """Print the result of a command execution."""
+    if result.success:
+        print("✅ Success!")
+    else:
+        print("❌ Failed!")
+
+    if result.message:
+        print(f"Message: {result.message}")
+    if result.reason:
+        print(f"Reason: {result.reason}")
+
+
+async def cmd_list_writable(args) -> None:
+    """List all writable features for a device.
+
+    Displays features that have a control block (can be modified).
+
+    Args:
+        args: Parsed command line arguments.
+    """
     try:
         async with setup_client_context(args) as ctx:
             # Fetch all features to introspect commands
 
-            device = Device(
-                id=ctx.dev_id,
-                gateway_serial=ctx.gw_serial,
-                installation_id=ctx.inst_id,
-                model_id="transient",
-                device_type="unknown",
-                status="online",
-            )
+            device = _transient_device(ctx)
             features = await ctx.client.get_features(device)
 
-            commandable_features = [f for f in features if f.commands]
+            writable_features = [f for f in features if f.is_writable]
 
-            print(f"\nFound {len(commandable_features)} features with commands:\n")
+            print(f"\nFound {len(writable_features)} writable features:\n")
 
-            for f in commandable_features:
+            for f in writable_features:
+                ctrl = f.control
                 print(f"- {f.name}")
-                for cmd_name, cmd in f.commands.items():
-                    is_exec = "✅" if cmd.is_executable else "❌"
-                    print(f"    Command: {cmd_name} {is_exec}")
-
-                    params = cmd.params
-                    if params:
-                        for p_name, p_def in params.items():
-                            req_str = "*" if p_def.get("required") else ""
-                            type_str = p_def.get("type", "unknown")
-
-                            c_def = p_def.get("constraints", {})
-                            constraints = []
-                            if "min" in c_def:
-                                constraints.append(f"min: {c_def['min']}")
-                            if "max" in c_def:
-                                constraints.append(f"max: {c_def['max']}")
-                            if "stepping" in c_def:
-                                constraints.append(f"step: {c_def['stepping']}")
-                            if "enum" in c_def:
-                                constraints.append(f"enum: {c_def['enum']}")
-                            if "regEx" in c_def:
-                                constraints.append(f"regex: {c_def['regEx']}")
-                            if "minLength" in c_def:
-                                constraints.append(f"minLength: {c_def['minLength']}")
-                            if "maxLength" in c_def:
-                                constraints.append(f"maxLength: {c_def['maxLength']}")
-
-                            print(f"      - {p_name}{req_str} ({type_str})")
-                            if constraints:
-                                print(
-                                    f"          Constraints: {', '.join(constraints)}"
-                                )
-                    else:
-                        print("      (No parameters)")
+                print(f"    Param:   {ctrl.param_name} (via {ctrl.command_name})")
+                _print_feature_constraints(ctrl)
                 print("")
+
     except Exception as e:
-        _LOGGER.error("Error listing commands: %s", e)
+        _LOGGER.error("Error listing writable features: %s", e)
 
 
-def cmd_list_mock_devices(args):
-    """List available mock devices."""
+def _print_feature_constraints(ctrl: Any) -> None:
+    """Helper to print constraints for a feature control.
+
+    Args:
+        ctrl: The FeatureControl object containing constraint metadata.
+    """
+    constraints = []
+    if ctrl.min is not None:
+        constraints.append(f"min: {ctrl.min}")
+    if ctrl.max is not None:
+        constraints.append(f"max: {ctrl.max}")
+    if ctrl.step is not None:
+        constraints.append(f"step: {ctrl.step}")
+    if ctrl.options:
+        constraints.append(f"options: {ctrl.options}")
+
+    # String Constraints
+    if hasattr(ctrl, "min_length") and ctrl.min_length is not None:
+        constraints.append(f"min_length: {ctrl.min_length}")
+    if hasattr(ctrl, "max_length") and ctrl.max_length is not None:
+        constraints.append(f"max_length: {ctrl.max_length}")
+    if hasattr(ctrl, "pattern") and ctrl.pattern is not None:
+        constraints.append(f"pattern: {ctrl.pattern}")
+
+    if constraints:
+        print(f"    Constraints: {', '.join(constraints)}")
+
+
+async def cmd_list_mock_devices(args) -> None:
+    """List available mock devices.
+
+    Lists fixture files that can be used for offline testing.
+
+    Args:
+        args: Parsed command line arguments (unused but required for dispatch).
+    """
     devices = MockViClient.get_available_mock_devices()
     print("Available Mock Devices:")
     for d in devices:
         print(f"- {d}")
 
 
-def main():  # noqa: PLR0915
+async def main() -> None:  # noqa: PLR0915
     """Main CLI entrypoint."""
     # Parent parser for common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -579,10 +721,10 @@ def main():  # noqa: PLR0915
         "list-mock-devices", help="List available mock devices", parents=[common_parser]
     )
 
-    # List Commands
+    # List Writable Features
     parser_cmds = subparsers.add_parser(
-        "list-commands",
-        help="List all available commands for a device",
+        "list-writable",
+        help="List all writable features (commands)",
         parents=[common_parser],
     )
     parser_cmds.add_argument(
@@ -591,19 +733,32 @@ def main():  # noqa: PLR0915
     parser_cmds.add_argument("--gateway-serial", help="Gateway Serial (optional)")
     parser_cmds.add_argument("--device-id", help="Device ID (optional)")
 
-    # Exec Command
-    parser_exec = subparsers.add_parser(
-        "exec",
-        help="Execute a command on a feature (e.g. set curve)",
+    # Set Value
+    parser_set = subparsers.add_parser(
+        "set",
+        help="Set a feature value",
         parents=[common_parser],
     )
-    parser_exec.add_argument(
-        "feature_name", help="Feature Name (e.g. heating.circuits.0.heating.curve)"
+    parser_set.add_argument(
+        "feature_name",
+        help="Feature Name (e.g. heating.circuits.0.heating.curve.slope)",
     )
-    parser_exec.add_argument("command_name", help="Command Name (e.g. setCurve)")
-    parser_exec.add_argument(
-        "params", nargs="*", help="Parameters (key=value OR single JSON string)"
+    parser_set.add_argument("value", help="Value to set")
+    parser_set.add_argument(
+        "--installation-id", type=int, help="Installation ID (optional)"
     )
+    parser_set.add_argument("--gateway-serial", help="Gateway Serial (optional)")
+    parser_set.add_argument("--device-id", help="Device ID (optional)")
+
+    # Exec Command (Advanced)
+    parser_exec = subparsers.add_parser(
+        "exec",
+        help="Execute a raw command (Advanced)",
+        parents=[common_parser],
+    )
+    parser_exec.add_argument("feature_name", help="Feature Name")
+    parser_exec.add_argument("command_name", help="Command Name")
+    parser_exec.add_argument("params", nargs="*", help="Parameters (key=value)")
     parser_exec.add_argument(
         "--installation-id", type=int, help="Installation ID (optional)"
     )
@@ -616,35 +771,41 @@ def main():  # noqa: PLR0915
         parser.print_help()
         return
 
-    try:
-        if args.command == "login":
-            if not args.client_id and not os.getenv("VIESSMANN_CLIENT_ID"):
-                # Check config one last time before failing
-                config = load_config(args.token_file)
-                if not config.get("client_id"):
-                    print(
-                        "Error: --client-id is required for initial login "
-                        "(or use VIESSMANN_CLIENT_ID env var)."
-                    )
-                    sys.exit(1)
-            asyncio.run(cmd_login(args))
-        elif args.command == "list-devices":
-            asyncio.run(cmd_list_devices(args))
-        elif args.command == "list-features":
-            asyncio.run(cmd_list_features(args))
-        elif args.command == "get-feature":
-            asyncio.run(cmd_get_feature(args))
-        elif args.command == "get-consumption":
-            asyncio.run(cmd_get_consumption(args))
-        elif args.command == "list-mock-devices":
-            cmd_list_mock_devices(args)
-        elif args.command == "list-commands":
-            asyncio.run(cmd_list_commands(args))
-        elif args.command == "exec":
-            asyncio.run(cmd_exec(args))
-    except KeyboardInterrupt:
-        pass
+    with suppress(KeyboardInterrupt):
+        await _dispatch_command(args)
+
+
+async def _dispatch_command(args: argparse.Namespace) -> None:
+    """Dispatch command to appropriate handler."""
+    # Pre-checks for login
+    if args.command == "login" and (
+        not args.client_id and not os.getenv("VIESSMANN_CLIENT_ID")
+    ):
+        # Check config one last time before failing
+        config = load_config(args.token_file)
+        if not config.get("client_id"):
+            print(
+                "Error: --client-id is required for initial login "
+                "(or use VIESSMANN_CLIENT_ID env var)."
+            )
+            sys.exit(1)
+
+    handlers = {
+        "login": cmd_login,
+        "list-devices": cmd_list_devices,
+        "list-features": cmd_list_features,
+        "get-feature": cmd_get_feature,
+        "get-consumption": cmd_get_consumption,
+        "list-mock-devices": cmd_list_mock_devices,
+        "list-writable": cmd_list_writable,
+        "set": cmd_set,
+        "exec": cmd_exec,
+    }
+
+    handler = handlers.get(args.command)
+    if handler:
+        await handler(args)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

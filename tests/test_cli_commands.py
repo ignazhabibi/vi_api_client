@@ -8,12 +8,14 @@ from vi_api_client.cli import (
     cmd_exec,
     cmd_get_consumption,
     cmd_get_feature,
-    cmd_list_commands,
     cmd_list_devices,
     cmd_list_features,
+    cmd_list_mock_devices,
+    cmd_list_writable,
+    cmd_set,
 )
-from vi_api_client.exceptions import ViNotFoundError, ViValidationError
-from vi_api_client.models import Command, Device, Feature, Gateway, Installation
+from vi_api_client.exceptions import ViValidationError
+from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
 
 
 @pytest.fixture
@@ -29,10 +31,69 @@ def mock_cli_context():
 
 
 @pytest.mark.asyncio
-async def test_cmd_exec_success(mock_cli_context, capsys):
-    """Test successful command execution via CLI."""
+async def test_cmd_set_success(mock_cli_context, capsys):
+    """Test successful feature setting via CLI."""
     args = Namespace(
-        feature_name="heating.curve",
+        feature_name="heating.curve.slope",
+        value="1.4",
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    # Mock get_feature return
+    mock_control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+    )
+    mock_feature = Feature(
+        name="heating.curve.slope",
+        value=1.0,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=mock_control,
+    )
+
+    # Mock return value call validation
+    mock_cli_context.client.get_features.return_value = [mock_feature]
+    mock_response = MagicMock()
+    mock_response.success = True
+    mock_response.message = "OK"
+    mock_response.reason = None
+    mock_cli_context.client.set_feature.return_value = mock_response
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        await cmd_set(args)
+
+        # Verify calls
+        assert mock_cli_context.client.get_features.called
+        # Should call set_feature
+        mock_cli_context.client.set_feature.assert_called()
+        # Verify call args for set_feature: (device, feature, value)
+        call_args_set = mock_cli_context.client.set_feature.call_args[0]
+        assert call_args_set[2] == 1.4  # Value parsed from float
+
+        # Verify output
+        captured = capsys.readouterr()
+        assert "Success!" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_exec_success(mock_cli_context, capsys):
+    """Test successful command execution via CLI (Legacy/Advanced)."""
+    args = Namespace(
+        feature_name="heating.curve.slope",
         command_name="setCurve",
         params=["slope=1.4"],
         token_file="tokens.json",
@@ -46,21 +107,30 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
     )
 
     # Mock get_feature return
-    mock_feature = MagicMock(spec=Feature)
-    mock_feature.name = "heating.curve"
-    mock_feature.commands = {
-        "setCurve": MagicMock(
-            uri="uri", is_executable=True, params={"slope": {"type": "number"}}
-        )
-    }
+    mock_control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+    )
+    mock_feature = Feature(
+        name="heating.curve.slope",
+        value=1.0,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=mock_control,
+    )
+
     # Mock return value call validation
-    mock_cli_context.client.get_feature.return_value = mock_feature
+    mock_cli_context.client.get_features.return_value = [mock_feature]
     # Mock CommandResponse object
     mock_response = MagicMock()
     mock_response.success = True
     mock_response.message = "OK"
     mock_response.reason = None
-    mock_cli_context.client.execute_command.return_value = mock_response
+    mock_cli_context.client.set_feature.return_value = mock_response
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -68,14 +138,19 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
         await cmd_exec(args)
 
         # Verify calls
-        # Use property check for Device
-        assert mock_cli_context.client.get_feature.called
+        assert mock_cli_context.client.get_features.called
         # Check first argument (Device)
-        args_list = mock_cli_context.client.get_feature.call_args[0]
-        # args_list is (device, feature_name)
+        args_list = mock_cli_context.client.get_features.call_args[0]
+        kwargs_list = mock_cli_context.client.get_features.call_args[1]
+        # args_list is (device,)
         assert args_list[0].id == "DEV1"
-        assert args_list[1] == "heating.curve"
-        mock_cli_context.client.execute_command.assert_called()
+        assert kwargs_list["feature_names"] == ["heating.curve.slope"]
+
+        # Should call set_feature
+        mock_cli_context.client.set_feature.assert_called()
+        # Verify call args for set_feature: (device, feature, value)
+        call_args_set = mock_cli_context.client.set_feature.call_args[0]
+        assert call_args_set[2] == 1.4  # Value parsed from float
 
         # Verify output
         captured = capsys.readouterr()
@@ -86,7 +161,7 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
 async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     """Test that ValidationErrors are printed nicely."""
     args = Namespace(
-        feature_name="heating.curve",
+        feature_name="heating.curve.slope",
         command_name="setCurve",
         params=["slope=invalid"],
         token_file="tokens.json",
@@ -99,19 +174,29 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
         device_id=None,
     )
 
-    # The exception is raised during parsing or execution.
-    # If parsing fails inside cmd_exec (it does 'from .parsers import parse_cli_params'), that raises ValueError.
-    # cmd_exec catches ValueError at the start.
-
-    # Let's test ViValidationError raised by client.execute_command
-    # Let's test ViValidationError raised by client.execute_command
-    mock_feature = MagicMock(spec=Feature)
-    mock_feature.name = "heating.curve"
-    mock_feature.commands = {"setCurve": MagicMock(uri="uri", params={})}
-    mock_cli_context.client.get_feature.return_value = mock_feature
+    # Mock Feature
+    mock_control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+    )
+    mock_feature = Feature(
+        name="heating.curve.slope",
+        value=1.0,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=mock_control,
+    )
+    mock_cli_context.client.get_features.return_value = [mock_feature]
 
     error = ViValidationError("Simulated Validation Error")
-    mock_cli_context.client.execute_command.side_effect = error
+    # If parsing fails to produce float, it might pass string to set_feature if logic allows,
+    # OR if parse_cli_params works (it does strings).
+    # "slope=invalid" -> params_dict={"slope": "invalid"} -> target_val="invalid"
+    mock_cli_context.client.set_feature.side_effect = error
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -119,6 +204,8 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
         await cmd_exec(args)
 
         captured = capsys.readouterr()
+        # The logic might catch validation error or print it.
+        # "Validation failed: ..."
         assert "Validation failed: Simulated Validation Error" in captured.out
 
 
@@ -138,7 +225,7 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
         raw=False,
     )
 
-    mock_cli_context.client.get_feature.side_effect = ViNotFoundError("Feature missing")
+    mock_cli_context.client.get_features.return_value = []
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -167,8 +254,8 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
     )
 
     mock_cli_context.client.get_features.return_value = [
-        Feature(name="f1", is_enabled=True, is_ready=True, properties={}),
-        Feature(name="f2", is_enabled=True, is_ready=True, properties={}),
+        Feature(name="f1", value=1, unit=None, is_enabled=True, is_ready=True),
+        Feature(name="f2", value=2, unit=None, is_enabled=True, is_ready=True),
     ]
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
@@ -199,7 +286,7 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
     )
 
     mock_cli_context.client.get_features.return_value = [
-        Feature(name="f_enabled", is_enabled=True, is_ready=True, properties={})
+        Feature(name="f_enabled", value=1, unit=None, is_enabled=True, is_ready=True)
     ]
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
@@ -265,8 +352,8 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_commands(mock_cli_context, capsys):
-    """Test listing available commands for a device."""
+async def test_cmd_list_writable(mock_cli_context, capsys):
+    """Test listing available writable features for a device."""
 
     args = Namespace(
         token_file="tokens.json",
@@ -279,37 +366,38 @@ async def test_cmd_list_commands(mock_cli_context, capsys):
         device_id=None,
     )
 
-    # Create a feature with commands
-    cmd = Command(
-        name="setCurve",
-        uri="https://api/setCurve",
-        is_executable=True,
-        params={
-            "slope": {
-                "type": "number",
-                "required": True,
-                "constraints": {"min": 0.2, "max": 3.5, "stepping": 0.1},
-            }
-        },
+    # Create a feature with control
+    control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+        min=0.2,
+        max=3.5,
+        step=0.1,
     )
     feature = Feature(
-        name="heating.circuits.0.heating.curve",
+        name="heating.circuits.0.heating.curve.slope",
+        value=1.0,
+        unit=None,
         is_enabled=True,
         is_ready=True,
-        properties={},
-        commands={"setCurve": cmd},
+        control=control,
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
-        await cmd_list_commands(args)
+        await cmd_list_writable(args)
 
         captured = capsys.readouterr()
-        assert "heating.circuits.0.heating.curve" in captured.out
+        # Should now list the flatter feature name
+        assert "heating.circuits.0.heating.curve.slope" in captured.out
         assert "setCurve" in captured.out
         assert "slope" in captured.out
+        assert "min: 0.2" in captured.out
 
 
 @pytest.mark.asyncio
@@ -332,15 +420,17 @@ async def test_cmd_get_consumption(mock_cli_context, capsys):
     consumption_features = [
         Feature(
             name="analytics.heating.power.consumption.total",
+            value=15.5,
+            unit="kilowattHour",
             is_enabled=True,
             is_ready=True,
-            properties={"value": {"value": 15.5, "unit": "kilowattHour"}},
         ),
         Feature(
             name="analytics.heating.power.consumption.heating",
+            value=10.0,
+            unit="kilowattHour",
             is_enabled=True,
             is_ready=True,
-            properties={"value": {"value": 10.0, "unit": "kilowattHour"}},
         ),
     ]
     mock_cli_context.client.get_consumption.return_value = consumption_features
@@ -353,3 +443,26 @@ async def test_cmd_get_consumption(mock_cli_context, capsys):
         captured = capsys.readouterr()
         assert "analytics.heating.power.consumption.total" in captured.out
         assert "15.5" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_mock_devices(capsys):
+    """Test listing mock devices."""
+
+    args = Namespace(
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+    )
+
+    with patch("vi_api_client.cli.MockViClient.get_available_mock_devices") as mock_get:
+        mock_get.return_value = ["MockDev1", "MockDev2"]
+
+        await cmd_list_mock_devices(args)
+
+        captured = capsys.readouterr()
+        assert "Available Mock Devices:" in captured.out
+        assert "- MockDev1" in captured.out
+        assert "- MockDev2" in captured.out

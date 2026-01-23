@@ -74,8 +74,8 @@ async def main():
             print("No devices found.")
             return
 
-        # Pick the first device (usually id="0")
-        device = devices[0]
+        # Pick the heating device (usually id="0")
+        device = next((d for d in devices if d.id == "0"), devices[0])
         print(f"Using Device: {device.id} ({device.model_id})")
 
         # Continued below...
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
 ### 2. Reading Features
 
-Once you have a `Device` object, you can query its features.
+Once you have a `Device` object, you can query its features properly.
 
 ```python
 from vi_api_client.utils import format_feature
@@ -110,36 +110,39 @@ async def read_features(client, device):
 
 ### 3. Executing Commands
 
-To change settings (e.g., set heating mode), you execute commands on a feature.
+To change settings (e.g., set heating mode), you use the high-level `set_feature` method.
 
 ```python
 async def set_heating_mode(client, device):
     feature_name = "heating.circuits.0.operating.modes.active"
 
     # 1. Fetch the feature
-    feature = await client.get_feature(device, feature_name)
+    # We use get_features with feature_names list for efficiency
+    features = await client.get_features(device, feature_names=[feature_name])
+    if not features:
+        print("Feature not found")
+        return
 
-    # 2. Check if a command exists and is executable
-    cmd_name = "setMode"
-    if cmd_name in feature.commands:
-        cmd = feature.commands[cmd_name]
-        if cmd.is_executable:
-            print(f"Executing {cmd_name}...")
+    feature = features[0]
 
-            # 3. Execute with parameters
-            result = await client.execute_command(
-                feature,
-                cmd_name,
-                {"mode": "heating"}
-            )
-            if result.success:
-                print("Command executed successfully!")
-            else:
-                print(f"Command failed: {result.reason}")
+    # 2. Check if writable
+    if feature.is_writable:
+        print(f"Setting mode to 'heating'...")
+
+        # 3. Execute High-Level Set
+        # This handles validations, parameter resolving, and API calls automatically
+        result = await client.set_feature(
+            device,
+            feature,
+            "heating"
+        )
+
+        if result.success:
+            print("Command executed successfully!")
         else:
-            print(f"Command {cmd_name} is currently not executable.")
+            print(f"Command failed: {result.reason}")
     else:
-        print(f"Command {cmd_name} not found on this feature.")
+        print(f"Feature '{feature.name}' is read-only.")
 ```
 
 ## Next Steps

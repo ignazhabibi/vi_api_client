@@ -1,215 +1,74 @@
-"""Tests for data models."""
+"""Tests for data models (Flat Architecture)."""
 
-from vi_api_client.models import Device, Feature
+from vi_api_client.models import Device, Feature, FeatureControl
 
 
 class TestModels:
-    def test_feature_simple_value(self):
-        data = {
-            "feature": "heating.sensors.temperature.outside",
-            "isEnabled": True,
-            "properties": {
-                "value": {"type": "number", "value": 5.5, "unit": "celsius"}
-            },
-        }
-        f = Feature.from_api(data)
-        assert f.name == "heating.sensors.temperature.outside"
-        assert f.is_enabled is True
-        assert f.value == 5.5
-        assert f.unit == "celsius"
-        assert f.unit == "celsius"
-
-    def test_feature_status(self):
-        data = {
-            "feature": "heating.compressor",
-            "isEnabled": True,
-            "properties": {"status": {"type": "string", "value": "off"}},
-        }
-        f = Feature.from_api(data)
-        assert f.value == "off"
-        assert f.value == "off"
-
-    def test_feature_complex(self):
-        data = {
-            "feature": "heating.nested",
-            "isEnabled": True,
-            "properties": {
-                "min": {"type": "number", "value": 10},
-                "max": {"type": "number", "value": 20, "unit": "C"},
-            },
-        }
-        f = Feature.from_api(data)
-        # Main value/unit should be None as there is no "value" key
-        assert f.value is None
-        assert f.unit is None
-
-        # Main value/unit should be None as there is no "value" key
-        assert f.value is None
-        assert f.unit is None
-
-    def test_device_creation(self):
-        data = {
-            "id": "0",
-            "modelId": "vitocal",
-            "deviceType": "heating",
-            "status": "Online",
-        }
-        d = Device.from_api(data, "gw1", 123)
-        assert d.id == "0"
-        assert d.gateway_serial == "gw1"
-        assert d.installation_id == 123
-        assert d.model_id == "vitocal"
-
-    def test_feature_boolean_active(self):
-        """Test feature with 'active' property (common for switches)."""
-        data = {
-            "feature": "heating.circuits.0.operating.modes.active",
-            "isEnabled": True,
-            "properties": {"active": {"type": "boolean", "value": True}},
-        }
-        f = Feature.from_api(data)
-        assert f.value is True
-        assert f.value is True
-
-    def test_feature_history_list(self):
-        """Test feature with history list (e.g. day)."""
-        data = {
-            "feature": "heating.power.consumption",
-            "isEnabled": True,
-            "properties": {"day": {"type": "array", "value": [1.1, 2.2, 3.3]}},
-        }
-        f = Feature.from_api(data)
-        assert f.value == [1.1, 2.2, 3.3]
-        assert f.value == [1.1, 2.2, 3.3]
-
-    def test_feature_priority_value_over_status(self):
-        """Test that 'value' takes precedence over 'status'."""
-        data = {
-            "feature": "mixed.feature",
-            "isEnabled": True,
-            "properties": {
-                "value": {"type": "number", "value": 42},
-                "status": {"type": "string", "value": "error"},
-            },
-        }
-        Feature.from_api(data)
-
-    def test_feature_expand_curve(self):
-        """Test expanding a heating curve feature."""
-        data = {
-            "feature": "heating.circuits.0.heating.curve",
-            "isEnabled": True,
-            "properties": {
-                "slope": {"type": "number", "value": 1.2},
-                "shift": {"type": "number", "value": 5},
-            },
-        }
-        f = Feature.from_api(data)
-        expanded = f.expand()
-
-        assert len(expanded) == 2
-
-        f_slope = next(sub for sub in expanded if sub.name.endswith(".slope"))
-        assert f_slope.name == "heating.circuits.0.heating.curve.slope"
-        assert f_slope.value == 1.2
-
-        f_shift = next(sub for sub in expanded if sub.name.endswith(".shift"))
-        assert f_shift.name == "heating.circuits.0.heating.curve.shift"
-        assert f_shift.value == 5
-
-    def test_feature_expand_summary(self):
-        """Test expanding a summary feature."""
-        data = {
-            "feature": "heating.power.consumption.summary.dhw",
-            "isEnabled": True,
-            "properties": {
-                "currentDay": {"type": "number", "value": 5.5, "unit": "kWh"},
-                "lastMonth": {"type": "number", "value": 100, "unit": "kWh"},
-            },
-        }
-        f = Feature.from_api(data)
-        expanded = f.expand()
-
-        assert len(expanded) == 2
-        f_day = next(sub for sub in expanded if sub.name.endswith(".currentDay"))
-        assert f_day.value == 5.5
-        assert f_day.unit == "kWh"
-
-    def test_device_flat_features(self):
-        """Test device flattening."""
-        data = {
-            "id": "0",
-            "modelId": "vitocal",
-            "deviceType": "heating",
-            "status": "Online",
-        }
-        d = Device.from_api(data, "gw1", 123)
-
-        # Add a mix of simple and complex features
-        f_simple = Feature.from_api(
-            {
-                "feature": "simple",
-                "isEnabled": True,
-                "properties": {"value": {"value": 1}},
-            }
+    def test_feature_dataclass(self):
+        """Test Feature dataclass creation and properties."""
+        f = Feature(
+            name="test.feature", value=10, unit="C", is_enabled=True, is_ready=True
         )
-        f_complex = Feature.from_api(
-            {
-                "feature": "complex",
-                "isEnabled": True,
-                "properties": {"slope": {"value": 1}, "shift": {"value": 2}},
-            }
-        )
+        assert f.name == "test.feature"
+        assert f.value == 10
+        assert f.unit == "C"
+        assert f.is_writable is False
 
-        # Instantiate directly to populate frozen field
+    def test_feature_writable(self):
+        """Test Feature with control."""
+        ctrl = FeatureControl(
+            command_name="set",
+            param_name="target",
+            required_params=["target"],
+            parent_feature_name="parent",
+            uri="url",
+            min=0,
+            max=100,
+            step=1,
+            options=[1, 2],
+        )
+        f = Feature(
+            name="test.writable",
+            value=50,
+            unit="%",
+            is_enabled=True,
+            is_ready=True,
+            control=ctrl,
+        )
+        assert f.is_writable is True
+        assert f.control.min == 0
+        assert f.control.max == 100
+        assert f.control.options == [1, 2]
+
+    def test_device_dataclass(self):
+        """Test Device creation and feature cache."""
+        f1 = Feature(name="f1", value=1, unit=None, is_enabled=True, is_ready=True)
+        f2 = Feature(name="f2", value=2, unit=None, is_enabled=True, is_ready=True)
+
         d = Device(
-            id="0",
-            model_id="vitocal",
-            device_type="heating",
-            status="Online",
-            gateway_serial="gw1",
-            installation_id="123",
-            features=[f_simple, f_complex],
+            id="1",
+            gateway_serial="gw",
+            installation_id="inst",
+            model_id="m",
+            device_type="t",
+            status="ok",
+            features=[f1, f2],
         )
 
-        flat = d.features_flat
-        assert len(flat) == 3  # 1 simple + 2 from complex
-        assert any(f.name == "simple" for f in flat)
-        assert any(f.name == "complex.shift" for f in flat)
+        assert len(d.features) == 2
+        # Test O(1) cache access
+        assert d.get_feature("f1") == f1
+        assert d.get_feature("f2") == f2
+        assert d.get_feature("missing") is None
 
-    def test_feature_expand_metrics(self):
-        """Test expanding generic metrics (e.g. statistics)."""
+    def test_device_from_api(self):
+        """Test Device.from_api."""
         data = {
-            "feature": "heating.heatingRod.statistics",
-            "isEnabled": True,
-            "properties": {
-                "starts": {"type": "number", "value": 347},
-                "hours": {"type": "number", "value": 43, "unit": "hour"},
-            },
+            "id": "dev1",
+            "modelId": "complex_model",
+            "deviceType": "heatpump",
+            "status": "Online",
         }
-        f = Feature.from_api(data)
-        expanded = f.expand()
-
-        assert len(expanded) == 2
-        f_starts = next(sub for sub in expanded if sub.name.endswith(".starts"))
-        assert f_starts.value == 347
-
-        f_hours = next(sub for sub in expanded if sub.name.endswith(".hours"))
-        assert f_hours.value == 43
-        assert f_hours.unit == "hour"
-
-    def test_feature_expand_levels(self):
-        """Test expanding levels key-value pairs."""
-        data = {
-            "feature": "heating.circuits.0.temperature.levels",
-            "isEnabled": True,
-            "properties": {
-                "min": {"type": "number", "value": 20},
-                "max": {"type": "number", "value": 60},
-            },
-        }
-        f = Feature.from_api(data)
-        expanded = f.expand()
-        assert len(expanded) == 2
-        assert any(sub.value == 20 for sub in expanded)
-        assert any(sub.value == 60 for sub in expanded)
+        d = Device.from_api(data, "gw1", "inst1")
+        assert d.id == "dev1"
+        assert d.model_id == "complex_model"

@@ -1,144 +1,110 @@
-"""Viessmann Library Demo Application.
+"""Viessmann Library Demo Application (Mock).
 
-This script demonstrates:
-1. The **Data Layers** (Raw -> Model -> Flat -> Command) for deep understanding.
-2. The **Full Installation Status** fetch (Coordinator Pattern) used by Home Assistant.
-
-Usage:
-    python demo_mock.py
+Demonstrates the Flat Architecture with offline mock data.
 """
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import sys
 
-# Ensure we can import the local package
 sys.path.insert(0, os.path.abspath("src"))
 
-from vi_api_client import MockViClient, OAuth
+from vi_api_client import MockViClient
 from vi_api_client.models import Device
 from vi_api_client.utils import format_feature
 
-# Configure formatted logging
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 
-async def main():  # noqa: PLR0915
+def print_features(features, title, limit=10):
+    """Helper to print features list."""
+    print(f"\n{title}")
+    print("-" * len(title))
+    for i, feature in enumerate(features[:limit]):
+        if i >= limit:
+            break
+        val = format_feature(feature)
+        if len(val) > 50:
+            val = val[:47] + "..."
+        marker = " ✏️" if feature.is_writable else ""
+        print(f"      {feature.name:<50} : {val}{marker}")
+
+    if len(features) > limit:
+        print(f"   ... and {len(features) - limit} more.")
+
+
+def print_writable_details(features, limit=5):
+    """Helper to print writable feature details."""
+    print("\n🛠  Writable Features")
+    print("-------------------")
+    writable = [f for f in features if f.is_writable]
+    print(f"Found {len(writable)} writable features:\n")
+
+    for i, feature in enumerate(writable[:limit]):
+        ctrl = feature.control
+        print(f"   {i + 1}. {feature.name}")
+        print(f"      Command: {ctrl.command_name}, Param: {ctrl.param_name}")
+
+        # Collect all constraints in a data-driven way
+        constraint_attrs = [
+            ("min", ctrl.min),
+            ("max", ctrl.max),
+            ("step", ctrl.step),
+            ("options", ctrl.options),
+            ("pattern", ctrl.pattern),
+            ("min_length", ctrl.min_length),
+            ("max_length", ctrl.max_length),
+        ]
+
+        constraints = [
+            f"{name}={value}" for name, value in constraint_attrs if value is not None
+        ]
+        if constraints:
+            print(f"      Constraints: {', '.join(constraints)}")
+
+    if len(writable) > limit:
+        print(f"\n   ... and {len(writable) - limit} more.")
+
+
+async def main():
     """Run the mock demo."""
-    print("🚀 Viessmann Library - Comprehensive Demo")
-    print("=======================================")
+    print("🚀 Viessmann Mock Demo (Flat Architecture)")
+    print("=" * 50)
 
-    # 1. Initialization
-    # -----------------
-    auth = OAuth("client_id", "redirect_url", "tokens.json")
-    client = MockViClient("Vitodens200W", auth)
-
-    inst_id = "123"
-    gw_serial = "1234567890123456"
-    dev_id = "0"
-    TARGET_FEATURE = "heating.circuits.0.heating.curve"
-
-    # Create a Device object for API calls
+    client = MockViClient("Vitodens200W")
     device = Device(
-        id=dev_id,
-        gateway_serial=gw_serial,
-        installation_id=inst_id,
+        id="0",
+        gateway_serial="MOCK_GW",
+        installation_id="123",
         model_id="Vitodens200W",
         device_type="heating",
         status="Online",
     )
 
-    print("\n[PART 1] Understanding Data Layers (Single Feature)")
-    print("---------------------------------------------------")
-    print(f"Target: {TARGET_FEATURE}")
+    # Fetch features
+    features = await client.get_features(device, only_enabled=True)
+    print(f"\n✅ Fetched {len(features)} enabled features from mock data.")
 
-    # Layer 1: MODEL (get_feature now returns Feature object)
-    print("\n1. MODEL Layer (get_feature)")
-    print("   -> Returns a Feature object directly.")
-    feature_model = await client.get_feature(device, TARGET_FEATURE)
-    print(f"   Object: {feature_model.name}")
-    print(f"   Properties: {list(feature_model.properties.keys())}")
+    # Display samples
+    print_features(features, "📋 Sample Features (first 10)", limit=10)
 
-    # Layer 2: FLAT / EXPANDED
-    print("\n2. FLAT Layer (expand())")
-    print("   -> Returns simple, scalar features (Sensors) for Home Assistant.")
-    flat_features = feature_model.expand()
-    for f in flat_features:
-        print(f"   - Entity: {f.name:<45} | Value: {format_feature(f)}")
+    # Display writable features
+    print_writable_details(features, limit=5)
 
-    # Layer 4: COMMAND
-    print("\n4. COMMAND Layer (Inspection & Execution)")
-    print("   -> Inspect capabilities and execute actions.")
-    if feature_model.commands:
-        for cmd_name, cmd in feature_model.commands.items():
-            params = list(cmd.params.keys())
-            print(
-                f"   - {cmd_name}({', '.join(params)}) "
-                f"[Executable: {cmd.is_executable}]"
-            )
-            if cmd_name == "setCurve":
-                print(f"     Constraints: {json.dumps(cmd.params, indent=2)}")
+    # Get specific feature
+    print("\n\n📍 Get Specific Feature")
+    print("----------------------")
+    temp_features = await client.get_features(
+        device, feature_names=["heating.sensors.temperature.outside"]
+    )
+    if temp_features:
+        f = temp_features[0]
+        print(f"   {f.name}: {format_feature(f)}")
 
-    print("\n   [Execution Demo]")
-    print("   Executing 'setCurve' with slope=1.4, shift=0...")
-    try:
-        result = await client.execute_command(
-            feature_model, "setCurve", slope=1.4, shift=0
-        )
-        print(f"   Result: {result}")
-    except Exception as e:
-        print(f"   Error: {e}")
-
-    print("\n\n[PART 2] Full Installation Status (Coordinator Pattern)")
-    print("-------------------------------------------------------")
-    print("Fetching everything in one call (Gateways -> Devices -> Features)...")
-
-    devices = await client.get_full_installation_status(installation_id=inst_id)
-
-    print(f"✅ Received {len(devices)} device(s).\n")
-
-    for i, device in enumerate(devices):
-        print(f"🔹 Device #{i}: {device.model_id} (ID: {device.id})")
-        print(f"   • Type:   {device.device_type}")
-        print(f"   • Status: {device.status}")
-
-        # Serial from features_flat
-        serial = next(
-            (f.value for f in device.features_flat if f.name == "device.serial"), "N/A"
-        )
-        print(f"   • Serial: {serial}")
-
-        print(
-            f"   • Features: {len(device.features)} (Model Objects) -> "
-            f"{len(device.features_flat)} (Flat Sensors)"
-        )
-
-        print("\n   🔎 Sample Sensors (from .features_flat):")
-        interesting_keys = [
-            "heating.sensors.temperature.outside",
-            "heating.boiler.sensors.temperature.commonSupply",
-            "heating.circuits.0.heating.curve.slope",
-        ]
-        for f in device.features_flat:
-            if f.name in interesting_keys:
-                print(f"      - {f.name:<45} : {f.value} {f.unit}")
-
-        print("\n   🛠  Available Commands (from .features):")
-        for f in device.features:
-            if f.commands:
-                # Print concise command list
-                cmds = []
-                for c_name, cmd in f.commands.items():
-                    mark = "✅" if cmd.is_executable else "❌"
-                    cmds.append(f"{mark} {c_name}")
-                print(f"      - {f.name}: {', '.join(cmds)}")
-
-    print("\n" + "=" * 60)
-    print("NOTE: This script uses the MOCK client (Offline).")
-    print("=" * 60)
+    print("\n" + "=" * 50)
+    print("Mock data from: fixtures/Vitodens200W.json")
 
 
 if __name__ == "__main__":

@@ -1,199 +1,85 @@
-"""Data models for Viessmann API objects."""
+"""Data models for Viessmann API objects (Flat Architecture)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from .validation import validate_command_params
-
-# Priority keys as a Set for faster lookup (O(1)) in checks
-VALUE_PRIORITY_KEYS = [
-    "value",
-    "status",
-    "active",
-    "enabled",
-    "strength",
-    "entries",
-    "day",
-    "week",
-    "month",
-    "year",
-]
-# For set operations (subset checks)
-VALUE_PRIORITY_SET = set(VALUE_PRIORITY_KEYS)
-
 
 @dataclass(frozen=True)
-class Command:
-    """Representation of a generic command on a feature."""
+class FeatureControl:
+    """Encapsulates write logic for a specific feature.
 
-    name: str
+    Attributes:
+        command_name: Name of the command to execute (e.g. 'setCurve').
+        param_name: Name of the parameter mapping to this feature (e.g. 'slope').
+        required_params: List of all parameters required by this command.
+            Used for dependency resolution (e.g. ['slope', 'shift']).
+        parent_feature_name: Name of the parent feature in the API.
+            Used to find sibling features during dependency resolution.
+        uri: The API URI to POST the command to.
+        min: Minimum value (numeric constraint).
+        max: Maximum value (numeric constraint).
+        step: Step size (numeric constraint).
+        options: List of allowed values (enum constraint).
+        min_length: Minimum length of string value.
+        max_length: Maximum length of string value.
+        pattern: Regex pattern for string validation.
+    """
+
+    command_name: str
+    param_name: str
+    required_params: list[str]
+    parent_feature_name: str
     uri: str
-    is_executable: bool
-    params: dict[str, Any] = field(default_factory=dict)
-
-    def validate(self, params: dict[str, Any]) -> None:
-        """Validate parameters."""
-        validate_command_params(self.name, self.params, params)
-
-    @classmethod
-    def from_api(cls, name: str, data: dict[str, Any]) -> Command:
-        """Create Command from API data."""
-        return cls(
-            name=name,
-            uri=data.get("uri", ""),
-            is_executable=data.get("isExecutable", True),
-            params=data.get("params", {}),
-        )
-
-
-@dataclass(frozen=True)
-class Installation:
-    """Representation of an installation."""
-
-    id: str
-    description: str
-    alias: str
-    address: dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> Installation:
-        """Create Installation from API data."""
-        return cls(
-            id=str(data.get("id", "")),
-            description=data.get("description", ""),
-            alias=data.get("alias", ""),
-            address=data.get("address", {}),
-        )
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    options: list[Any] | None = None
+    min_length: int | None = None
+    max_length: int | None = None
+    pattern: str | None = None
 
 
 @dataclass(frozen=True)
 class Feature:
-    """Representation of a Viessmann feature."""
+    """Representation of a Viessmann feature (Flat).
+
+    Attributes:
+        name: Unique name of the feature (e.g. 'heating...curve.slope').
+        value: The current value of the feature (type varies).
+        unit: Optional unit string (e.g. 'celsius').
+        is_enabled: Whether the feature is currently enabled on the device.
+        is_ready: Whether the feature is ready for interaction.
+        control: Optional control object if the feature is writable.
+    """
 
     name: str
-    properties: dict[str, Any]
+    value: Any
+    unit: str | None
     is_enabled: bool
     is_ready: bool
-    commands: dict[str, Command] = field(default_factory=dict)
+    control: FeatureControl | None = None
 
     @property
-    def value(self) -> str | int | float | bool | list | None:
-        """Extract the main value."""
-        data = self._primary_data
-
-        if data is None:
-            return None
-
-        # Standard Case: {"value": 10}
-        if isinstance(data, dict) and "value" in data:
-            return data["value"]
-
-        # Edge Case: Raw value or List (History)
-        return data
-
-    @property
-    def unit(self) -> str | None:
-        """Extract unit."""
-        # 1. Try to get unit from the primary data object (nested case)
-        # e.g. properties={'status': {'value': 'ok', 'unit': 'stat'}}
-        data = self._primary_data
-        if isinstance(data, dict):
-            return data.get("unit")
-
-        # 2. Fallback: Check if unit exists as a direct property (flat case)
-        # e.g. properties={'value': 10, 'unit': 'celsius'}
-        if "unit" in self.properties:
-            return self.properties["unit"]
-
-        return None
-
-    def expand(self) -> list[Feature]:
-        """Expand complex features into a list of simple scalar features."""
-        ignore_keys = {"unit", "type", "displayValue", "links"}
-
-        # Get actual data keys
-        data_keys = {k for k in self.properties if k not in ignore_keys}
-
-        if not data_keys:
-            return []
-
-        # Efficiently check if feature is scalar using set operations.
-        # If yes: Do not expand (we use .value).
-        if data_keys.issubset(VALUE_PRIORITY_SET):
-            return [self]
-
-        # Otherwise: It is a complex object (e.g. curve has slope & shift) -> Expand
-        flattened = []
-        # Sort iteration to ensure deterministic behavior
-        for key in sorted(data_keys):
-            flattened.append(self._create_sub_feature(key, self.properties[key]))
-
-        return flattened
-
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> Feature:
-        """Create Feature from API data."""
-        return cls(
-            name=data.get("feature", ""),
-            properties=data.get("properties", {}),
-            is_enabled=data.get("isEnabled", False),
-            is_ready=data.get("isReady", False),
-            commands={
-                name: Command.from_api(name, cmd_data)
-                for name, cmd_data in data.get("commands", {}).items()
-            },
-        )
-
-    # --- Private / Internal Helpers ---
-
-    @property
-    def _primary_data(self) -> dict[str, Any] | Any | None:
-        """Internal Helper: Finds the 'main' data object based on priority.
-
-        Used by both .value and .unit to avoid double-looping.
-        """
-        if not self.properties:
-            return None
-
-        # Search for primary value key in properties.
-        for key in VALUE_PRIORITY_KEYS:
-            if key in self.properties:
-                return self.properties[key]
-        return None
-
-    def _create_sub_feature(self, suffix: str, val_obj: Any) -> Feature:
-        """Helper to create a virtual sub-feature."""
-        # Normalize val_obj to be a dict with a 'value' key
-        # Handle cases where val_obj is a dict but doesn't have 'value' (e.g. raw dict)
-        if isinstance(val_obj, dict) and "value" in val_obj:
-            new_props = val_obj
-        else:
-            new_props = {"value": val_obj}
-
-        # Preserve unit if it was lost in normalization
-        # (e.g. raw dict without value key but with unit)
-        if isinstance(val_obj, dict) and "unit" in val_obj and "unit" not in new_props:
-            new_props["unit"] = val_obj["unit"]
-
-        # Clean name generation
-        new_name = (
-            self.name if self.name.endswith(f".{suffix}") else f"{self.name}.{suffix}"
-        )
-
-        return Feature(
-            name=new_name,
-            properties=new_props,  # Sub-Feature has normalized structure
-            is_enabled=self.is_enabled,
-            is_ready=self.is_ready,
-            commands={},
-        )
+    def is_writable(self) -> bool:
+        """Check if feature is writable."""
+        return self.control is not None
 
 
 @dataclass(frozen=True)
 class Device:
-    """Representation of a Viessmann device."""
+    """Representation of a Viessmann device.
+
+    Attributes:
+        id: Unique device identifier (GUID).
+        gateway_serial: Serial number of the connected gateway.
+        installation_id: ID of the installation.
+        model_id: Model identifier (e.g. 'Simple_Device').
+        device_type: Type classification (e.g. 'heating').
+        status: Connection status (e.g. 'Online').
+        features: List of all associated features.
+    """
 
     id: str
     gateway_serial: str
@@ -203,25 +89,41 @@ class Device:
     status: str
     features: list[Feature] = field(default_factory=list)
 
-    @property
-    def features_flat(self) -> list[Feature]:
-        """Return a flattened list of all features."""
-        # List comprehension is slightly faster than loop + extend
-        return [sub_f for f in self.features for sub_f in f.expand()]
+    # Internal cache for O(1) lookup
+    _features_by_name: dict[str, Feature] = field(init=False, repr=False, default=None)
 
-    # Helper for fast access
+    def __post_init__(self) -> None:
+        """Build internal cache."""
+        feature_map = {f.name: f for f in self.features}
+        object.__setattr__(self, "_features_by_name", feature_map)
+
     def get_feature(self, name: str) -> Feature | None:
-        """O(n) lookup helper."""
-        for f in self.features:
-            if f.name == name:
-                return f
-        return None
+        """O(1) lookup helper.
+
+        Args:
+            name: The exact name of the feature to find.
+
+        Returns:
+            The feature object if found, otherwise None.
+        """
+        if self._features_by_name is None:
+            return None
+        return self._features_by_name.get(name)
 
     @classmethod
     def from_api(
         cls, data: dict[str, Any], gateway_serial: str, installation_id: str
     ) -> Device:
-        """Create Device from API data."""
+        """Create Device from API data.
+
+        Args:
+            data: The dictionary returned by the API for a device.
+            gateway_serial: Serial number of the gateway this device belongs to.
+            installation_id: ID of the installation this device belongs to.
+
+        Returns:
+            A new Device instance.
+        """
         return cls(
             id=data.get("id", ""),
             gateway_serial=gateway_serial,
@@ -234,7 +136,13 @@ class Device:
 
 @dataclass(frozen=True)
 class CommandResponse:
-    """Response from a command execution."""
+    """Response from a command execution.
+
+    Attributes:
+        success: Whether the command was accepted by the API.
+        message: Optional success/error message.
+        reason: Optional failure reason/code.
+    """
 
     success: bool
     message: str | None = None
@@ -242,10 +150,14 @@ class CommandResponse:
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> CommandResponse:
-        """Create from API response."""
-        # API response is strictly
-        # {"data": {"success": ..., "message": ..., "reason": ...}}
-        # but sometimes might be distinct. We handle the inner 'data' block or root.
+        """Create from API response.
+
+        Args:
+            data: The JSON response dictionary from the API.
+
+        Returns:
+            A CommandResponse instance indicating success/failure.
+        """
         root = data.get("data", data)
         # Handle string "True"/"False" or boolean
         success_raw = root.get("success")
@@ -260,8 +172,49 @@ class CommandResponse:
 
 
 @dataclass(frozen=True)
+class Installation:
+    """Representation of an installation.
+
+    Attributes:
+        id: Unique installation ID (numeric string).
+        description: User-provided description.
+        alias: User-provided alias.
+        address: Physical address dictionary.
+    """
+
+    id: str
+    description: str
+    alias: str
+    address: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> Installation:
+        """Create Installation from API data.
+
+        Args:
+            data: The JSON dictionary representing an installation.
+
+        Returns:
+            A new Installation instance.
+        """
+        return cls(
+            id=str(data.get("id", "")),
+            description=data.get("description", ""),
+            alias=data.get("alias", ""),
+            address=data.get("address", {}),
+        )
+
+
+@dataclass(frozen=True)
 class Gateway:
-    """Representation of a gateway."""
+    """Representation of a gateway.
+
+    Attributes:
+        serial: Gateway serial number.
+        version: Firmware version.
+        status: Connection status.
+        installation_id: ID of the parent installation.
+    """
 
     serial: str
     version: str
@@ -270,7 +223,14 @@ class Gateway:
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> Gateway:
-        """Create Gateway from API data."""
+        """Create Gateway from API data.
+
+        Args:
+            data: The JSON dictionary representing a gateway.
+
+        Returns:
+            A new Gateway instance.
+        """
         return cls(
             serial=data.get("serial", ""),
             version=data.get("version", ""),

@@ -20,7 +20,7 @@ Exceptions often carry detailed information from the API:
 
 ```python
 try:
-    await client.execute_command(...)
+    await client.set_feature(device, feature, 50.0)
 except ViValidationError as e:
     print(f"Validation Failed: {e.message}")
     print(f"Error ID: {e.error_id}")
@@ -36,9 +36,12 @@ When requesting a feature that isn't supported by a device, the API returns 404.
 
 ```python
 try:
-    flow = await client.get_feature(..., "heating.sensors.volumetricFlow.share")
+    # Trying to get a specific feature that might not exist
+    features = await client.get_features(device, ["heating.sensors.volumetricFlow.share"])
+    if not features:
+        print("Feature not found (Filtered out or 404).")
 except ViNotFoundError:
-    print("This device does not have a volumetric flow sensor.")
+    print("Device or API endpoint not found.")
 ```
 
 ### Rate Limits

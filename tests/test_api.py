@@ -1,4 +1,4 @@
-"""Tests for vitoclient.api module."""
+"""Tests for vitoclient.api module (Flat Architecture)."""
 
 import aiohttp
 import pytest
@@ -16,7 +16,7 @@ from vi_api_client.exceptions import (
     ViNotFoundError,
     ViServerInternalError,
 )
-from vi_api_client.models import Device
+from vi_api_client.models import Device, FeatureControl
 
 
 class MockAuth(AbstractAuth):
@@ -119,15 +119,21 @@ class TestViClient:
 
     @pytest.mark.asyncio
     async def test_get_features(self):
-        """Test fetching all features for a device."""
+        """Test fetching all features for a device (Parsing check)."""
         with aioresponses() as m:
             url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
             m.post(
                 url,
                 payload={
                     "data": [
-                        {"feature": "heating.sensors.temperature.outside"},
-                        {"feature": "heating.circuits.0"},
+                        {
+                            "feature": "heating.sensors.temperature.outside",
+                            "properties": {"value": {"value": 5.5, "unit": "celsius"}},
+                        },
+                        {
+                            "feature": "heating.circuits.0",
+                            "properties": {"active": {"value": True}},
+                        },
                     ]
                 },
             )
@@ -146,23 +152,34 @@ class TestViClient:
                 )
                 features = await client.get_features(device)
 
+                # Expect 2 flat features.
+                # 1. heating.sensors.temperature.outside (value)
+                # 2. heating.circuits.0.active
                 assert len(features) == 2
                 assert features[0].name == "heating.sensors.temperature.outside"
+                assert features[0].value == 5.5
+                assert features[1].name == "heating.circuits.0.active"
 
     @pytest.mark.asyncio
     async def test_get_feature(self):
         """Test fetching a specific feature."""
         with aioresponses() as m:
-            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/heating.sensors.temperature.outside"
-            m.get(
+            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
+            m.post(
                 url,
                 payload={
-                    "data": {
-                        "feature": "heating.sensors.temperature.outside",
-                        "properties": {
-                            "value": {"type": "number", "value": 5.5, "unit": "celsius"}
-                        },
-                    }
+                    "data": [
+                        {
+                            "feature": "heating.sensors.temperature.outside",
+                            "properties": {
+                                "value": {
+                                    "type": "number",
+                                    "value": 5.5,
+                                    "unit": "celsius",
+                                }
+                            },
+                        }
+                    ]
                 },
             )
 
@@ -178,20 +195,22 @@ class TestViClient:
                     device_type="heating",
                     status="ok",
                 )
-                feature = await client.get_feature(
-                    device, "heating.sensors.temperature.outside"
+                features = await client.get_features(
+                    device, feature_names=["heating.sensors.temperature.outside"]
                 )
+                assert len(features) == 1
+                feature = features[0]
 
                 assert feature.name == "heating.sensors.temperature.outside"
-                assert feature.properties["value"]["value"] == 5.5
+                assert feature.value == 5.5
 
     @pytest.mark.asyncio
     async def test_get_feature_not_found(self):
         """Test fetching a non-existent feature."""
         with aioresponses() as m:
-            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/nonexistent.feature"
+            url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
             # Mock 404 from API
-            m.get(
+            m.post(
                 url,
                 status=404,
                 payload={
@@ -214,12 +233,15 @@ class TestViClient:
                     device_type="heating",
                     status="ok",
                 )
-                # Update expectation to ViNotFoundError
-                with pytest.raises(ViNotFoundError) as exc_info:
-                    await client.get_feature(device, "nonexistent.feature")
+                # With get_features, a missing feature just means empty list, not 404 error logic
+                # (The API might return 404 or just empty list for filter, but our client abstracts it)
+                # If we mock 404, the connector raises ClientError.
+                # BUT: get_features uses filter endpoint (POST). If that returns 404, it raises exception.
 
-                # API message is "Feature not found", wrapped in ViNotFoundError
-                assert "not found" in str(exc_info.value).lower()
+                with pytest.raises(ViNotFoundError):
+                    await client.get_features(
+                        device, feature_names=["nonexistent.feature"]
+                    )
 
     @pytest.mark.asyncio
     async def test_get_consumption(self):
@@ -227,6 +249,7 @@ class TestViClient:
         with aioresponses() as m:
             url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
 
+            # API response structure
             mock_data = {
                 "data": {
                     "data": {
@@ -305,7 +328,15 @@ class TestViClient:
             # Expect Post call
             url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
             m.post(
-                url, payload={"data": [{"feature": "new.feature", "isEnabled": True}]}
+                url,
+                payload={
+                    "data": [
+                        {
+                            "feature": "new.feature",
+                            "properties": {"value": {"value": 1}},
+                        }
+                    ]
+                },
             )
 
             async with aiohttp.ClientSession() as session:
@@ -316,3 +347,45 @@ class TestViClient:
                 assert updated_dev.id == "0"
                 assert len(updated_dev.features) == 1
                 assert updated_dev.features[0].name == "new.feature"
+
+    async def test_validate_constraints_step(self):
+        """Test step validation logic."""
+        # Use a mock/stub since we just want to test the _validate_constraints method logic
+        # But since it's private and part of Client, we can test it by calling it or via set_feature logic if we mocked enough.
+        # Easier: Just instantiate ViClient with mock auth and call private method directly (whitebox testing).
+
+        client = ViClient(None)  # type: ignore
+
+        # Case 1: Valid Step
+        ctrl = FeatureControl(
+            command_name="set",
+            param_name="p",
+            required_params=[],
+            parent_feature_name="x",
+            uri="x",
+            min=10,
+            max=30,
+            step=0.5,
+        )
+        client._validate_numeric_constraints(ctrl, 10.5)  # Should pass
+        client._validate_numeric_constraints(ctrl, 11.0)  # Should pass
+
+        # Case 2: Invalid Step (10.5 + 0.2 = 10.7 != 0.5 step)
+        with pytest.raises(ValueError) as exc:
+            client._validate_numeric_constraints(ctrl, 10.7)
+        assert "does not align with step" in str(exc.value)
+
+        # Case 3: Floating point precision (0.1 + 0.2)
+        ctrl2 = FeatureControl(
+            command_name="set",
+            param_name="p",
+            required_params=[],
+            parent_feature_name="x",
+            uri="x",
+            min=0,
+            max=1,
+            step=0.1,
+        )
+        client._validate_numeric_constraints(
+            ctrl2, 0.3
+        )  # Should pass despite float arith

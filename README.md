@@ -8,8 +8,8 @@ Designed for integration with Home Assistant and other async Python applications
 - **Asynchronous**: Built on `aiohttp` and `asyncio`.
 - **OAuth2 Authentication**: Handles token retrieval and automatic renewal.
 - **Auto-Discovery**: Automatically finds installations, gateways, and devices.
-- **Recursive Feature Flattening**: Converts complex nested JSON into a simple list of sensors (e.g., `heating.circuits.0.heating.curve.shift`).
-- **Command Execution**: Supports writing values and executing commands on devices (e.g. `setCurve`).
+- **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
+- **Command Execution**: Supports writing values with automatic parameter resolution (e.g. `setCurve`).
 - **Analytics API**: Fetch historical energy consumption data (gas/electricity).
 - **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
 
@@ -45,6 +45,9 @@ vi-client list-devices
 
 # 3. List only enabled Features with values (auto-detects first device)
 vi-client list-features --enabled --values
+
+# 4. List Writable Features (Settings)
+vi-client list-writable
 ```
 
 See [CLI Reference](docs/06_cli_reference.md) for more details.
@@ -55,7 +58,6 @@ See [CLI Reference](docs/06_cli_reference.md) for more details.
 import asyncio
 import aiohttp
 from vi_api_client import OAuth, ViClient
-from vi_api_client.utils import format_feature
 
 async def main():
     async with aiohttp.ClientSession() as session:
@@ -69,16 +71,27 @@ async def main():
 
         client = ViClient(auth)
 
-        # Get installations
+        # 1. Get Installations & Gateways
         installations = await client.get_installations()
-        print(f"Found {len(installations)} installations")
+        gateways = await client.get_gateways()
 
-        # Access nested structures flattened
-        devices = await client.get_full_installation_status(installations[0].id)
-        device = devices[0]
+        # 2. Get Devices (using first gateway and installation)
+        devices = await client.get_devices(installations[0].id, gateways[0].serial)
+        device = devices[0] # Usually the heating system (ID: 0)
+        print(f"Device: {device.model_id} ({device.status})")
 
-        for feature in device.features_flat:
-             print(f"{feature.name}: {format_feature(feature)}")
+        # 3. Get Features (Flat List)
+        features = await client.get_features(device)
+
+        for feature in features:
+             print(f"{feature.name}: {feature.value}")
+
+        # 4. Write a Feature
+        # Find a writable feature (e.g. heating curve slope)
+        slope = next((f for f in features if "curve.slope" in f.name and f.is_writable), None)
+        if slope:
+            print(f"Setting slope to 1.4...")
+            await client.set_feature(device, slope, 1.4)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -86,17 +99,18 @@ if __name__ == "__main__":
 
 ## Demo Applications
 
+- `demo_simple.py`: Minimal example to get started.
+- `demo_live.py`: Connect to the real API and explore features interactivity.
 - `demo_mock.py`: Run offline without credentials using the Mock Client.
-- `demo_live.py`: Connect to the real API.
 
 ## Documentation
 
 The detailed documentation is available in the `docs/` directory:
 
 1.  **[Getting Started](docs/01_getting_started.md)**: Installation and First Steps.
-2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the data-driven design.
+2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the Flat Architecture.
 3.  **[Authentication & Connection](docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
-4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Commands.
-5.  **[Client Reference](docs/05_client_reference.md)**: The `ViClient` class.
+4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Controls.
+5.  **[Client Reference](docs/05_client_reference.md)**: The `ViClient` class methods.
 6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
 7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.
