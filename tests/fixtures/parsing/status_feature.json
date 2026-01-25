@@ -1,0 +1,10 @@
+{
+    "feature": "heating.circuits.0.circulation.pump",
+    "isEnabled": true,
+    "properties": {
+        "status": {
+            "type": "string",
+            "value": "off"
+        }
+    }
+}

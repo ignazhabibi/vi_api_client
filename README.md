@@ -15,7 +15,7 @@ Designed for integration with Home Assistant and other async Python applications
 
 ## Installation
 
-This is currently a local development package.
+This is currently a local development package. **Requires Python 3.12+**.
 
 ```bash
 # Clone the repository

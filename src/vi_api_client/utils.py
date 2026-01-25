@@ -46,25 +46,25 @@ def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
         if "=" not in item:
             raise ValueError(f"Invalid argument format '{item}'. Expected key=value.")
 
-        key, val_str = item.split("=", 1)
+        key, value_string = item.split("=", 1)
 
         # Type inference
-        value = val_str
-        if val_str.lower() == "true":
+        value = value_string
+        if value_string.lower() == "true":
             value = True
-        elif val_str.lower() == "false":
+        elif value_string.lower() == "false":
             value = False
         else:
             try:
-                value = int(val_str)
+                value = int(value_string)
             except ValueError:
                 try:
-                    value = float(val_str)
+                    value = float(value_string)
                 except ValueError:
                     # Try parsing as JSON (e.g. for nested objects or lists)
-                    if val_str.startswith("[") or val_str.startswith("{"):
+                    if value_string.startswith("[") or value_string.startswith("{"):
                         with suppress(json.JSONDecodeError):
-                            value = json.loads(val_str)
+                            value = json.loads(value_string)
 
         params[key] = value
 
@@ -80,22 +80,22 @@ def format_feature(feature: "Feature") -> str:
     Returns:
         A formatted string representation of the value and unit.
     """
-    val = feature.value
-    u = feature.unit
+    value = feature.value
+    unit = feature.unit
 
-    if val is None:
+    if value is None:
         return "-"
 
     # Check if value is a schedule dict (has day keys like 'mon', 'tue', etc.)
-    if isinstance(val, dict) and {"mon", "tue", "wed"}.issubset(val.keys()):
-        return _format_schedule(val)
+    if isinstance(value, dict) and {"mon", "tue", "wed"}.issubset(value.keys()):
+        return _format_schedule(value)
 
     # Formatting for Lists (History Data)
-    if isinstance(val, list):
-        content = str(val) if len(val) <= 10 else f"List[{len(val)} items]"
-        return f"{content} {u}".strip() if u else content
+    if isinstance(value, list):
+        content = str(value) if len(value) <= 10 else f"List[{len(value)} items]"
+        return f"{content} {unit}".strip() if unit else content
 
-    return f"{val} {u}".strip() if u else str(val)
+    return f"{value} {unit}".strip() if unit else str(value)
 
 
 def _format_schedule(schedule: dict[str, list]) -> str:
@@ -120,7 +120,9 @@ def _format_schedule(schedule: dict[str, list]) -> str:
     for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
         slots = schedule.get(day, [])
         if slots:
-            slot_strs = [f"{s.get('start', '?')}-{s.get('end', '?')}" for s in slots]
+            slot_strs = [
+                f"{slot.get('start', '?')}-{slot.get('end', '?')}" for slot in slots
+            ]
             parts.append(f"{day_abbr[day]}[{', '.join(slot_strs)}]")
     return " ".join(parts) if parts else "(empty)"
 

@@ -1,0 +1,11 @@
+{
+    "data": {
+        "data": {
+            "summary": {
+                "heating.power.consumption.total": 15.5,
+                "heating.power.consumption.heating": 10.0,
+                "heating.power.consumption.dhw": 5.5
+            }
+        }
+    }
+}

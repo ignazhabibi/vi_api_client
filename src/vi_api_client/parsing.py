@@ -67,16 +67,16 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
     # "min" and "max" should only be ignored if they are metadata (scalars),
     # not if they are actual feature properties (nested dicts/values).
     data_keys = []
-    for k in properties:
-        if k in ignore_keys:
+    for key in properties:
+        if key in ignore_keys:
             continue
-        if k in ["min", "max"]:
+        if key in ["min", "max"]:
             # Check if it's complex (dict) -> Treat as feature
             # If scalar -> Treat as metadata (ignore)
-            val = properties[k]
-            if not isinstance(val, dict):
+            value = properties[key]
+            if not isinstance(value, dict):
                 continue
-        data_keys.append(k)
+        data_keys.append(key)
 
     # Fallback for simple features that might only have 'value'
     if not data_keys and "value" in properties:
@@ -92,7 +92,7 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
             prop_data = properties[key]
 
         # Extract value and unit
-        val, unit = _extract_value_and_unit(prop_data, properties.get("unit"))
+        value, unit = _extract_value_and_unit(prop_data, properties.get("unit"))
 
         # Find control logic
         control = _find_control(key, commands, base_name, prop_data)
@@ -100,7 +100,7 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
         features_out.append(
             Feature(
                 name=feat_name,
-                value=val,
+                value=value,
                 unit=unit,
                 is_enabled=is_enabled,
                 is_ready=is_ready,

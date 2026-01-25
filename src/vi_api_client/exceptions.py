@@ -6,8 +6,13 @@ from typing import Any
 class ViError(Exception):
     """Base class for all Viessmann errors."""
 
-    def __init__(self, message: str, error_id: str | None = None):
-        """Initialize the error."""
+    def __init__(self, message: str, error_id: str | None = None) -> None:
+        """Initialize the error.
+
+        Args:
+            message: The error message.
+            error_id: Optional unique error identifier from the API.
+        """
         super().__init__(message)
         self.error_id = error_id
 
@@ -44,15 +49,21 @@ class ViValidationError(ViError):
         message: str,
         error_id: str | None = None,
         validation_errors: list[dict[str, Any]] | None = None,
-    ):
-        """Initialize validation error."""
+    ) -> None:
+        """Initialize validation error.
+
+        Args:
+            message: The error message.
+            error_id: Optional unique error ID.
+            validation_errors: List of detailed validation issues.
+        """
         detailed_msg = message
         if validation_errors:
-            # Baue eine schöne Fehlermeldung aus den Details
+            # Build a pretty error message from details
             details = "; ".join(
                 [
-                    f"{e.get('message')} (path: {e.get('path')})"
-                    for e in validation_errors
+                    f"{error.get('message')} (path: {error.get('path')})"
+                    for error in validation_errors
                 ]
             )
             detailed_msg = f"{message}: {details}"

@@ -73,6 +73,9 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | :--- | :--- | :--- |
 | `command_name` | `str` | The internal command name (e.g., `setCurve`). |
 | `param_name` | `str` | The parameter name this feature maps to (e.g., `slope`). |
+| `required_params` | `List[str]` | List of all parameters required for this command (dependency resolution). |
+| `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). |
+| `uri` | `str` | The API endpoint for this specific command. |
 | `min` | `float` | Minimum allowed value (numeric). |
 | `max` | `float` | Maximum allowed value (numeric). |
 | `step` | `float` | Step increment (numeric). |

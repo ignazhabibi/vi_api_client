@@ -46,13 +46,13 @@ Fetches the complete status of an installation, including all devices and their 
 
 Methods to read data and control the device.
 
-### `get_features(device: Device, feature_names: List[str] = None, only_enabled: bool = False) -> List[Feature]`
+### `get_features(device: Device, only_enabled: bool = False, feature_names: List[str] = None) -> List[Feature]`
 Fetches features for a specific device. This is the primary method to read data.
 
 *   **Parameters**:
     *   `device`: A `Device` object.
-    *   `feature_names`: Optional list of feature names to fetch (e.g. `["heating.sensors.temperature.outside"]`). If None, fetches all features.
     *   `only_enabled`: if `True`, only returns features that are enabled by the device configuration.
+    *   `feature_names`: Optional list of feature names to fetch (e.g. `["heating.sensors.temperature.outside"]`). If None, fetches all features.
 *   **Returns**: List of `Feature` objects.
 *   **Performance**: If `feature_names` is provided, the request is optimized to fetch only those specific features.
 
@@ -65,13 +65,13 @@ Refreshes a specific device by refetching all its features.
 *   **Returns**: A new `Device` instance with updated features.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
-### `set_feature(device: Device, feature: Feature, value: Any) -> CommandResponse`
+### `set_feature(device: Device, feature: Feature, target_value: Any) -> CommandResponse`
 Sets a new value for a writable feature.
 
 *   **Parameters**:
     *   `device`: The `Device` object.
     *   `feature`: The `Feature` object you want to change (must be writable).
-    *   `value`: The new value you want to set.
+    *   `target_value`: The new value you want to set.
 *   **Returns**: `CommandResponse` object with `success`, `message`, and `reason` fields.
 *   **Raises**:
     *   `ViValidationError` if the value violates constraints (min/max/options).
@@ -80,13 +80,13 @@ Sets a new value for a writable feature.
 
 ## Analytics Methods
 
-### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary", resolution: str = "day") -> List[Feature]`
+### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary", resolution: str = "1d") -> List[Feature]`
 Fetches energy consumption usage for a time range.
 
 *   **Parameters**:
     *   `device`: A `Device` object.
     *   `start_dt`: Start date (datetime or ISO string).
     *   `end_dt`: End date (datetime or ISO string).
-    *   `metric`: One of `"total"`, `"heating"`, `"dhw"`, or `"summary"`.
-    *   `resolution`: Resolution of data (`"day"`, `"month"`, `"year"`).
+    *   `metric`: The data metric to fetch (e.g. 'summary', 'dhw'). Default: `"summary"`.
+    *   `resolution`: Resolution of data (`"1d"`, `"1w"`, `"1m"`, `"1y"`). Default: `"1d"`.
 *   **Returns**: List of `Feature` objects containing consumption values.

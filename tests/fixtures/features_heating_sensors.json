@@ -1,0 +1,21 @@
+{
+    "data": [
+        {
+            "feature": "heating.sensors.temperature.outside",
+            "properties": {
+                "value": {
+                    "value": 5.5,
+                    "unit": "celsius"
+                }
+            }
+        },
+        {
+            "feature": "heating.circuits.0",
+            "properties": {
+                "active": {
+                    "value": true
+                }
+            }
+        }
+    ]
+}

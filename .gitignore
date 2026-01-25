@@ -32,6 +32,7 @@ env/
 htmlcov/
 .tox/
 .nox/
+coverage.xml
 
 # Linting
 .ruff_cache/
@@ -49,4 +50,3 @@ MOCK_COVERAGE.md
 
 # Logs
 *.log
-.agent

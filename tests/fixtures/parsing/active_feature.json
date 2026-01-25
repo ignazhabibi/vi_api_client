@@ -1,0 +1,10 @@
+{
+    "feature": "heating.circuits.0.operating.modes.active",
+    "isEnabled": true,
+    "properties": {
+        "active": {
+            "type": "boolean",
+            "value": true
+        }
+    }
+}

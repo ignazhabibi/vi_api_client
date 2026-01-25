@@ -1,0 +1,28 @@
+{
+    "feature": "heating.circuits.0.heating.curve",
+    "isEnabled": true,
+    "properties": {
+        "slope": {
+            "type": "number",
+            "value": 1.4
+        },
+        "shift": {
+            "type": "number",
+            "value": 5
+        }
+    },
+    "commands": {
+        "setCurve": {
+            "isExecutable": true,
+            "uri": "foo",
+            "params": {
+                "slope": {
+                    "type": "number"
+                },
+                "shift": {
+                    "type": "number"
+                }
+            }
+        }
+    }
+}

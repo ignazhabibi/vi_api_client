@@ -1,6 +1,6 @@
 import json
-import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .api import ViClient
@@ -52,13 +52,13 @@ class MockViClient(ViClient):
     @staticmethod
     def get_available_mock_devices() -> list[str]:
         """Return a list of available mock device names."""
-        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-        if not os.path.exists(fixtures_dir):
+        fixtures_dir = Path(__file__).parent / "fixtures"
+        if not fixtures_dir.exists():
             return []
 
-        files = [f for f in os.listdir(fixtures_dir) if f.endswith(".json")]
+        files = [file.name for file in fixtures_dir.glob("*.json")]
         # Return sorted names without extension
-        return sorted([os.path.splitext(f)[0] for f in files])
+        return sorted([Path(file).stem for file in files])
 
     def _load_data(self) -> dict[str, Any]:
         """Load the JSON data for the selected device.
@@ -72,17 +72,17 @@ class MockViClient(ViClient):
         if self._data_cache:
             return self._data_cache
 
-        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-        file_path = os.path.join(fixtures_dir, f"{self.device_name}.json")
+        fixtures_dir = Path(__file__).parent / "fixtures"
+        file_path = fixtures_dir / f"{self.device_name}.json"
 
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             raise FileNotFoundError(
                 f"Mock device file not found: {self.device_name}.json. "
                 f"Available: {self.get_available_mock_devices()}"
             )
 
-        with open(file_path, encoding="utf-8") as f:
-            self._data_cache = json.load(f)
+        with file_path.open(encoding="utf-8") as file:
+            self._data_cache = json.load(file)
 
         return self._data_cache
 
@@ -147,20 +147,20 @@ class MockViClient(ViClient):
 
         # Parse ALL features to flat list
         all_features = []
-        for raw_f in raw_features:
-            all_features.extend(parse_feature_flat(raw_f))
+        for raw_feature in raw_features:
+            all_features.extend(parse_feature_flat(raw_feature))
 
         # Filter
         filtered = []
-        for f in all_features:
-            if only_enabled and not f.is_enabled:
+        for feature in all_features:
+            if only_enabled and not feature.is_enabled:
                 continue
 
             # Strict name matching (assuming feature_names are flat names)
-            if feature_names and f.name not in feature_names:
+            if feature_names and feature.name not in feature_names:
                 continue
 
-            filtered.append(f)
+            filtered.append(feature)
 
         return filtered
 

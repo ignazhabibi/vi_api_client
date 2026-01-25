@@ -1,0 +1,14 @@
+{
+    "feature": "mixed.feature",
+    "isEnabled": true,
+    "properties": {
+        "value": {
+            "type": "number",
+            "value": 42
+        },
+        "status": {
+            "type": "string",
+            "value": "error"
+        }
+    }
+}

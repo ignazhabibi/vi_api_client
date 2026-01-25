@@ -46,7 +46,11 @@ async def _raise_for_status(response) -> None:
         pass
 
     _LOGGER.error(
-        f"API Error {status} ({error_type}): {error_message} (ID: {vi_error_id})"
+        "API Error %s (%s): %s (ID: %s)",
+        status,
+        error_type,
+        error_message,
+        vi_error_id,
     )
 
     # Map status codes to specific exceptions.
@@ -106,13 +110,13 @@ class ViConnector:
         """
         try:
             _LOGGER.debug(mask_pii(f"Request: {method} {url}"))
-            async with await self.auth.request(method, url, **kwargs) as resp:
+            async with await self.auth.request(method, url, **kwargs) as response:
                 # Verify response status and raise exceptions if needed.
-                await _raise_for_status(resp)
+                await _raise_for_status(response)
 
                 # Return parsed JSON for success.
                 try:
-                    return await resp.json()
+                    return await response.json()
                 except Exception:
                     return {}
 

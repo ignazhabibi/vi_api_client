@@ -10,6 +10,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -54,8 +55,8 @@ def load_config(token_file: str) -> dict[str, Any]:
         Dictionary containing tokens and config, or empty dict if missing.
     """
     try:
-        with open(token_file) as f:
-            return json.load(f)
+        with Path(token_file).open() as file:
+            return json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -183,7 +184,10 @@ async def setup_client_context(
 
                     # Prefer Device "0" (Heating System)
                     # Prefer Device "0" (Heating System)
-                    target_dev = next((d for d in devices if d.id == "0"), devices[0])
+                    target_dev = next(
+                        (device for device in devices if device.id == "0"),
+                        devices[0],
+                    )
                     dev_id = target_dev.id
                     print(
                         f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, "
@@ -206,26 +210,31 @@ async def cmd_list_devices(args) -> None:
         try:
             installations = await ctx.client.get_installations()
             print(f"Found {len(installations)} installations:")
-            for inst in installations:
+            for installation in installations:
                 print(
-                    f"- ID: {inst.id}, Description: {inst.description}, "
-                    f"Alias: {inst.alias}"
+                    f"- ID: {installation.id}, "
+                    f"Description: {installation.description}, "
+                    f"Alias: {installation.alias}"
                 )
 
             gateways = await ctx.client.get_gateways()
             print(f"\nFound {len(gateways)} gateways:")
-            for gw in gateways:
+            for gateway in gateways:
                 print(
-                    f"- Serial: {gw.serial} (Inst: {gw.installation_id}), "
-                    f"Version: {gw.version}, Status: {gw.status}"
+                    f"- Serial: {gateway.serial} "
+                    f"(Inst: {gateway.installation_id}), "
+                    f"Version: {gateway.version}, Status: {gateway.status}"
                 )
 
-                devices = await ctx.client.get_devices(gw.installation_id, gw.serial)
+                devices = await ctx.client.get_devices(
+                    gateway.installation_id, gateway.serial
+                )
                 print(f"Found {len(devices)} devices:")
                 for device in devices:
                     print(
                         f"- ID: {device.id}, Model: {device.model_id}, "
-                        f"Type: {device.device_type}, Status: {device.status}"
+                        f"Type: {device.device_type}, "
+                        f"Status: {device.status}"
                     )
 
         except Exception as e:
@@ -286,8 +295,8 @@ async def cmd_list_features(args) -> None:
 def _print_simple_feature_list(features: list[Any], dev_id: str) -> None:
     """Print a simple list of feature names."""
     print(f"Found {len(features)} Features for device {dev_id}:")
-    for f in features:
-        print(f"- {f.name}")
+    for feature in features:
+        print(f"- {feature.name}")
 
 
 async def cmd_get_feature(args) -> None:
@@ -372,8 +381,8 @@ async def cmd_get_consumption(args) -> None:
             if isinstance(result, list):
                 print(f"Feature expanded to {len(result)} items:")
 
-                for f in result:
-                    print(f"- {f.name}: {format_feature(f)}")
+                for feature in result:
+                    print(f"- {feature.name}: {format_feature(feature)}")
             else:
                 print(f"Feature: {result.name}")
                 print(f"Value: {format_feature(result)}")
@@ -571,13 +580,13 @@ async def cmd_list_writable(args) -> None:
             device = _transient_device(ctx)
             features = await ctx.client.get_features(device)
 
-            writable_features = [f for f in features if f.is_writable]
+            writable_features = [feature for feature in features if feature.is_writable]
 
             print(f"\nFound {len(writable_features)} writable features:\n")
 
-            for f in writable_features:
-                ctrl = f.control
-                print(f"- {f.name}")
+            for feature in writable_features:
+                ctrl = feature.control
+                print(f"- {feature.name}")
                 print(f"    Param:   {ctrl.param_name} (via {ctrl.command_name})")
                 _print_feature_constraints(ctrl)
                 print("")
@@ -624,8 +633,8 @@ async def cmd_list_mock_devices(args) -> None:
     """
     devices = MockViClient.get_available_mock_devices()
     print("Available Mock Devices:")
-    for d in devices:
-        print(f"- {d}")
+    for device in devices:
+        print(f"- {device}")
 
 
 async def main() -> None:  # noqa: PLR0915

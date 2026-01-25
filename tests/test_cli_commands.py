@@ -33,6 +33,7 @@ def mock_cli_context():
 @pytest.mark.asyncio
 async def test_cmd_set_success(mock_cli_context, capsys):
     """Test successful feature setting via CLI."""
+    # --- ARRANGE ---
     args = Namespace(
         feature_name="heating.curve.slope",
         value="1.4",
@@ -74,8 +75,10 @@ async def test_cmd_set_success(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_set(args)
 
+        # --- ASSERT ---
         # Verify calls
         assert mock_cli_context.client.get_features.called
         # Should call set_feature
@@ -92,6 +95,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_exec_success(mock_cli_context, capsys):
     """Test successful command execution via CLI (Legacy/Advanced)."""
+    # --- ARRANGE ---
     args = Namespace(
         feature_name="heating.curve.slope",
         command_name="setCurve",
@@ -135,8 +139,10 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_exec(args)
 
+        # --- ASSERT ---
         # Verify calls
         assert mock_cli_context.client.get_features.called
         # Check first argument (Device)
@@ -160,6 +166,7 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     """Test that ValidationErrors are printed nicely."""
+    # --- ARRANGE ---
     args = Namespace(
         feature_name="heating.curve.slope",
         command_name="setCurve",
@@ -201,8 +208,10 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_exec(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         # The logic might catch validation error or print it.
         # "Validation failed: ..."
@@ -212,6 +221,7 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
     """Test finding feature failure handling."""
+    # --- ARRANGE ---
     args = Namespace(
         feature_name="missing.feature",
         token_file="tokens.json",
@@ -230,8 +240,10 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_get_feature(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         assert "Feature 'missing.feature' not found." in captured.out
 
@@ -239,6 +251,7 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_features_json(mock_cli_context, capsys):
     """Test listing features with JSON output."""
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -261,8 +274,10 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_list_features(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         output = json.loads(captured.out)
         assert output == ["f1", "f2"]
@@ -271,6 +286,7 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_features_enabled(mock_cli_context, capsys):
     """Test listing only enabled features (should use only_enabled=True)."""
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -292,8 +308,10 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_list_features(args)
 
+        # --- ASSERT ---
         # Verify call used only_enabled=True and passes Device
         assert mock_cli_context.client.get_features.called
         call_args = mock_cli_context.client.get_features.call_args
@@ -305,7 +323,7 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_devices(mock_cli_context, capsys):
     """Test listing installations, gateways, and devices."""
-
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -335,11 +353,12 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
-
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_list_devices(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
 
         # Verify Output
@@ -354,7 +373,7 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_writable(mock_cli_context, capsys):
     """Test listing available writable features for a device."""
-
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -390,8 +409,10 @@ async def test_cmd_list_writable(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_list_writable(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         # Should now list the flatter feature name
         assert "heating.circuits.0.heating.curve.slope" in captured.out
@@ -403,7 +424,7 @@ async def test_cmd_list_writable(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_get_consumption(mock_cli_context, capsys):
     """Test getting consumption data."""
-
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -438,8 +459,10 @@ async def test_cmd_get_consumption(mock_cli_context, capsys):
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
+        # --- ACT ---
         await cmd_get_consumption(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         assert "analytics.heating.power.consumption.total" in captured.out
         assert "15.5" in captured.out
@@ -448,7 +471,7 @@ async def test_cmd_get_consumption(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_mock_devices(capsys):
     """Test listing mock devices."""
-
+    # --- ARRANGE ---
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
@@ -460,8 +483,10 @@ async def test_cmd_list_mock_devices(capsys):
     with patch("vi_api_client.cli.MockViClient.get_available_mock_devices") as mock_get:
         mock_get.return_value = ["MockDev1", "MockDev2"]
 
+        # --- ACT ---
         await cmd_list_mock_devices(args)
 
+        # --- ASSERT ---
         captured = capsys.readouterr()
         assert "Available Mock Devices:" in captured.out
         assert "- MockDev1" in captured.out

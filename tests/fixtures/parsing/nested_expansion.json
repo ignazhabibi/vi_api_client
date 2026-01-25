@@ -1,0 +1,15 @@
+{
+    "feature": "heating.nested",
+    "isEnabled": true,
+    "properties": {
+        "propA": {
+            "type": "number",
+            "value": 10
+        },
+        "propB": {
+            "type": "number",
+            "value": 20,
+            "unit": "C"
+        }
+    }
+}

@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -51,7 +52,7 @@ class OAuth(AbstractAuth):
         self,
         client_id: str,
         redirect_uri: str,
-        token_file: str,
+        token_file: Path | str,
         websession: aiohttp.ClientSession | None = None,
         scope: str = DEFAULT_SCOPES,
     ) -> None:
@@ -59,11 +60,18 @@ class OAuth(AbstractAuth):
 
         If websession is None, one must be created externally or managed.
         For standalone CLI, we might pass one in.
+
+        Args:
+            client_id: OAuth client ID.
+            redirect_uri: Redirect URI for authentication flow.
+            token_file: Path to file for storing tokens.
+            websession: Optional aiohttp ClientSession.
+            scope: OAuth scopes (default: default scopes).
         """
         super().__init__(websession)
         self.client_id = client_id
         self.redirect_uri = redirect_uri
-        self.token_file = token_file
+        self.token_file = Path(token_file)
         self.scope = scope
         self._token_info: dict[str, Any] = {}
         self._pkce_verifier: str | None = None
@@ -74,8 +82,8 @@ class OAuth(AbstractAuth):
     def _load_tokens(self) -> None:
         """Load tokens from file."""
         try:
-            with open(self.token_file) as f:
-                self._token_info = json.load(f)
+            with self.token_file.open() as file:
+                self._token_info = json.load(file)
         except (FileNotFoundError, json.JSONDecodeError):
             self._token_info = {}  # Allow init as empty if invalid/missing
 
@@ -83,15 +91,15 @@ class OAuth(AbstractAuth):
         """Save tokens to file, preserving existing content."""
         current_data = {}
         try:
-            with open(self.token_file) as f:
-                current_data = json.load(f)
+            with self.token_file.open() as file:
+                current_data = json.load(file)
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
         current_data.update(self._token_info)
 
-        with open(self.token_file, "w") as f:
-            json.dump(current_data, f, indent=2)
+        with self.token_file.open("w") as file:
+            json.dump(current_data, file, indent=2)
 
     def get_authorization_url(self) -> str:
         """Generate authorization URL and PKCE challenge."""

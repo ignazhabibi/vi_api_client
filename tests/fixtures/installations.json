@@ -1,0 +1,12 @@
+{
+    "data": [
+        {
+            "id": 123456,
+            "description": "Home"
+        },
+        {
+            "id": 789012,
+            "description": "Office"
+        }
+    ]
+}

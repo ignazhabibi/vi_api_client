@@ -8,11 +8,12 @@ import asyncio
 import contextlib
 import os
 import sys
+from pathlib import Path
 
 import aiohttp
 
 # Ensure we can import the local package
-sys.path.insert(0, os.path.abspath("src"))
+sys.path.insert(0, str(Path("src").resolve()))
 
 from vi_api_client import ViClient
 from vi_api_client.auth import OAuth
@@ -53,11 +54,11 @@ async def main():
             print("No gateways found.")
             return
 
-        gw = gateways[0]
-        devices = await client.get_devices(gw.installation_id, gw.serial)
+        gateway = gateways[0]
+        devices = await client.get_devices(gateway.installation_id, gateway.serial)
 
         # Prefer "0" (Heating System) over Gateway
-        device = next((d for d in devices if d.id == "0"), devices[0])
+        device = next((device for device in devices if device.id == "0"), devices[0])
 
         print(f"Connected to: {device.model_id} (ID: {device.id})")
 
@@ -68,9 +69,9 @@ async def main():
         )
 
         if features:
-            f = features[0]
-            print(f"Value: {format_feature(f)}")
-            print(f"Raw:   {f.value}")
+            feature = features[0]
+            print(f"Value: {format_feature(feature)}")
+            print(f"Raw:   {feature.value}")
         else:
             print("Feature not found.")
 

@@ -52,9 +52,10 @@ class ViClient:
         _LOGGER.debug("Fetching installations...")
         installations_data = await self.connector.get(ENDPOINT_INSTALLATIONS)
         installations = [
-            Installation.from_api(i) for i in installations_data.get("data", [])
+            Installation.from_api(installation_data)
+            for installation_data in installations_data.get("data", [])
         ]
-        _LOGGER.debug(f"Found {len(installations)} installations")
+        _LOGGER.debug("Found %s installations", len(installations))
         return installations
 
     async def get_gateways(self) -> list[Gateway]:
@@ -65,8 +66,11 @@ class ViClient:
         """
         _LOGGER.debug("Fetching gateways...")
         gateways_data = await self.connector.get(ENDPOINT_GATEWAYS)
-        gateways = [Gateway.from_api(g) for g in gateways_data.get("data", [])]
-        _LOGGER.debug(f"Found {len(gateways)} gateways")
+        gateways = [
+            Gateway.from_api(gateway_data)
+            for gateway_data in gateways_data.get("data", [])
+        ]
+        _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
 
     async def get_devices(
@@ -84,8 +88,8 @@ class ViClient:
         url = self._build_devices_url(installation_id, gateway_serial)
         devices_data = await self.connector.get(url)
         return [
-            Device.from_api(d, gateway_serial, installation_id)
-            for d in devices_data.get("data", [])
+            Device.from_api(device_data, gateway_serial, installation_id)
+            for device_data in devices_data.get("data", [])
         ]
 
     async def get_features(
@@ -110,18 +114,21 @@ class ViClient:
             payload["filter"] = feature_names
 
         _LOGGER.debug(
-            f"Fetching features for device {device.id} (enabled={only_enabled})..."
+            "Fetching features for device %s (enabled=%s)...",
+            device.id,
+            only_enabled,
         )
         response = await self.connector.post(url, payload)
         raw_features = response.get("data", [])
 
         flat_features = []
-        for raw_f in raw_features:
-            flat_features.extend(parse_feature_flat(raw_f))
+        for raw_feature in raw_features:
+            flat_features.extend(parse_feature_flat(raw_feature))
 
         _LOGGER.debug(
-            f"Fetched {len(raw_features)} raw objects -> "
-            f"{len(flat_features)} flat features"
+            "Fetched %s raw objects -> %s flat features",
+            len(raw_features),
+            len(flat_features),
         )
         return flat_features
 
@@ -140,8 +147,8 @@ class ViClient:
         gateways = await self.get_gateways()
         all_devices = []
 
-        for gw in gateways:
-            gw_serial = gw.serial
+        for gateway in gateways:
+            gw_serial = gateway.serial
             devices = await self.get_devices(installation_id, gw_serial)
 
             for device in devices:
@@ -186,19 +193,22 @@ class ViClient:
         if not feature.control:
             raise ValueError(f"Feature '{feature.name}' is read-only.")
 
-        ctrl = feature.control
+        control = feature.control
         _LOGGER.debug(
-            f"Setting {feature.name} to {target_value} via {ctrl.command_name}"
+            "Setting %s to %s via %s",
+            feature.name,
+            target_value,
+            control.command_name,
         )
 
         # 1. Prepare Payload (Dependency Resolution)
-        payload = self._resolve_command_payload(device, ctrl, target_value)
+        payload = self._resolve_command_payload(device, control, target_value)
 
         # 2. Client-Side Validation
-        self._validate_constraints(ctrl, target_value)
+        self._validate_constraints(control, target_value)
 
         # 3. Execution
-        response_data = await self.connector.post(ctrl.uri, payload)
+        response_data = await self.connector.post(control.uri, payload)
         return CommandResponse.from_api(response_data)
 
     async def get_consumption(
@@ -294,12 +304,16 @@ class ViClient:
             if sibling:
                 payload[param_key] = sibling.value
                 _LOGGER.debug(
-                    f"  -> Resolved dependency '{param_key}' with value {sibling.value}"
+                    "  -> Resolved dependency '%s' with value %s",
+                    param_key,
+                    sibling.value,
                 )
             else:
                 _LOGGER.warning(
-                    f"  -> Dependency '{param_key}' for command '{ctrl.command_name}' "
-                    f"not found in device features. Sending without it."
+                    "  -> Dependency '%s' for command '%s' not found in "
+                    "device features. Sending without it.",
+                    param_key,
+                    ctrl.command_name,
                 )
         return payload
 

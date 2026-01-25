@@ -6,9 +6,9 @@ from .models import Feature
 
 # Metric to API property mapping
 METRIC_MAPPING = {
-    "total": "heating.power.consumption.total",
-    "heating": "heating.power.consumption.heating",
     "dhw": "heating.power.consumption.dhw",
+    "heating": "heating.power.consumption.heating",
+    "total": "heating.power.consumption.total",
 }
 
 
@@ -56,15 +56,15 @@ def parse_consumption_response(
 
     for prop_name in properties:
         # Extract value directly from summary dict
-        val = summary.get(prop_name, 0.0)
+        value = summary.get(prop_name, 0.0)
 
-        f = Feature(
+        feature = Feature(
             name=f"analytics.{prop_name}",
-            value=val,
+            value=value,
             unit="kilowattHour",
             is_enabled=True,
             is_ready=True,
         )
-        features.append(f)
+        features.append(feature)
 
     return features

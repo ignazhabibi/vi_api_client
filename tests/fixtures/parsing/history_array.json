@@ -1,0 +1,14 @@
+{
+    "feature": "heating.power.consumption",
+    "isEnabled": true,
+    "properties": {
+        "day": {
+            "type": "array",
+            "value": [
+                1.1,
+                2.2,
+                3.3
+            ]
+        }
+    }
+}

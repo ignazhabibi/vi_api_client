@@ -1,0 +1,66 @@
+{
+    "feature": "heating.dhw.temperature.hysteresis",
+    "properties": {
+        "switchOffValue": {
+            "type": "number",
+            "value": 2
+        },
+        "switchOnValue": {
+            "type": "number",
+            "value": 8
+        },
+        "value": {
+            "type": "number",
+            "value": 8
+        }
+    },
+    "commands": {
+        "setHysteresis": {
+            "isExecutable": true,
+            "name": "setHysteresis",
+            "params": {
+                "hysteresis": {
+                    "constraints": {
+                        "min": 1,
+                        "max": 10,
+                        "stepping": 0.5
+                    },
+                    "required": true,
+                    "type": "number"
+                }
+            }
+        },
+        "setHysteresisSwitchOffValue": {
+            "isExecutable": true,
+            "name": "setHysteresisSwitchOffValue",
+            "params": {
+                "hysteresis": {
+                    "constraints": {
+                        "min": 0,
+                        "max": 2.5,
+                        "stepping": 0.5
+                    },
+                    "required": true,
+                    "type": "number"
+                }
+            }
+        },
+        "setHysteresisSwitchOnValue": {
+            "isExecutable": true,
+            "name": "setHysteresisSwitchOnValue",
+            "params": {
+                "hysteresis": {
+                    "constraints": {
+                        "min": 1,
+                        "max": 10,
+                        "stepping": 0.5
+                    },
+                    "required": true,
+                    "type": "number"
+                }
+            }
+        }
+    },
+    "isEnabled": true,
+    "isReady": true
+}

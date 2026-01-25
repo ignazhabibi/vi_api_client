@@ -8,10 +8,11 @@ import contextlib
 import logging
 import os
 import sys
+from pathlib import Path
 
 import aiohttp
 
-sys.path.insert(0, os.path.abspath("src"))
+sys.path.insert(0, str(Path("src").resolve()))
 
 from vi_api_client import OAuth, ViClient
 from vi_api_client.utils import format_feature
@@ -27,11 +28,11 @@ def print_sample_features(features, limit=25):
     """Print a sample of features."""
     print(f"\n📋 Sample Features (first {limit}):")
     for feature in features[:limit]:
-        val = format_feature(feature)
-        if len(val) > 60:
-            val = val[:57] + "..."
+        value = format_feature(feature)
+        if len(value) > 60:
+            value = value[:57] + "..."
         marker = " ✏️" if feature.is_writable else ""
-        print(f"      {feature.name:<55} : {val}{marker}")
+        print(f"      {feature.name:<55} : {value}{marker}")
 
     if len(features) > limit:
         print(f"   ... and {len(features) - limit} more.")
@@ -39,7 +40,7 @@ def print_sample_features(features, limit=25):
 
 def print_writable_features(features, limit=10):
     """Print writable features with constraints."""
-    writable = [f for f in features if f.is_writable]
+    writable = [feature for feature in features if feature.is_writable]
     print(f"\n🛠  Writable Features ({len(writable)}):")
 
     for feature in writable[:limit]:
@@ -76,13 +77,13 @@ async def discover_device(client):
         print("No gateways found.")
         return None
 
-    gw = gateways[0]
-    devices = await client.get_devices(gw.installation_id, gw.serial)
+    gateway = gateways[0]
+    devices = await client.get_devices(gateway.installation_id, gateway.serial)
     if not devices:
         print("No devices found.")
         return None
 
-    device = next((d for d in devices if d.id == "0"), devices[0])
+    device = next((device for device in devices if device.id == "0"), devices[0])
     print(f"   Using Device: {device.id} ({device.model_id})")
     return device
 

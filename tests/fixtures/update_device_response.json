@@ -1,0 +1,12 @@
+{
+    "data": [
+        {
+            "feature": "new.feature",
+            "properties": {
+                "value": {
+                    "value": 1
+                }
+            }
+        }
+    ]
+}

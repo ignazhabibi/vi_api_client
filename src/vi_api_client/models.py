@@ -94,7 +94,7 @@ class Device:
 
     def __post_init__(self) -> None:
         """Build internal cache."""
-        feature_map = {f.name: f for f in self.features}
+        feature_map = {feature.name: feature for feature in self.features}
         object.__setattr__(self, "_features_by_name", feature_map)
 
     def get_feature(self, name: str) -> Feature | None:

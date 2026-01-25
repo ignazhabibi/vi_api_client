@@ -1,0 +1,14 @@
+{
+    "data": [
+        {
+            "id": "0",
+            "deviceType": "heating",
+            "modelId": "E3_Vitocal"
+        },
+        {
+            "id": "gateway",
+            "deviceType": "tcu",
+            "modelId": "E3_TCU"
+        }
+    ]
+}

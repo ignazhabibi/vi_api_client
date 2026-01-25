@@ -6,10 +6,10 @@ Demonstrates the Flat Architecture with offline mock data.
 import asyncio
 import contextlib
 import logging
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("src"))
+sys.path.insert(0, str(Path("src").resolve()))
 
 from vi_api_client import MockViClient
 from vi_api_client.models import Device
@@ -25,11 +25,11 @@ def print_features(features, title, limit=10):
     for i, feature in enumerate(features[:limit]):
         if i >= limit:
             break
-        val = format_feature(feature)
-        if len(val) > 50:
-            val = val[:47] + "..."
+        value = format_feature(feature)
+        if len(value) > 50:
+            value = value[:47] + "..."
         marker = " ✏️" if feature.is_writable else ""
-        print(f"      {feature.name:<50} : {val}{marker}")
+        print(f"      {feature.name:<50} : {value}{marker}")
 
     if len(features) > limit:
         print(f"   ... and {len(features) - limit} more.")
@@ -39,7 +39,7 @@ def print_writable_details(features, limit=5):
     """Helper to print writable feature details."""
     print("\n🛠  Writable Features")
     print("-------------------")
-    writable = [f for f in features if f.is_writable]
+    writable = [feature for feature in features if feature.is_writable]
     print(f"Found {len(writable)} writable features:\n")
 
     for i, feature in enumerate(writable[:limit]):
@@ -100,8 +100,8 @@ async def main():
         device, feature_names=["heating.sensors.temperature.outside"]
     )
     if temp_features:
-        f = temp_features[0]
-        print(f"   {f.name}: {format_feature(f)}")
+        feature = temp_features[0]
+        print(f"   {feature.name}: {format_feature(feature)}")
 
     print("\n" + "=" * 50)
     print("Mock data from: fixtures/Vitodens200W.json")

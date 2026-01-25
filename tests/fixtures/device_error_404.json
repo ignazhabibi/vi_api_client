@@ -1,0 +1,6 @@
+{
+    "viErrorId": "iot.feature-not-found",
+    "errorType": "DEVICE_LEVEL_ERROR",
+    "message": "Feature not found",
+    "reason": "NOT_FOUND"
+}

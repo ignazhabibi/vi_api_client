@@ -29,3 +29,17 @@ def load_mock_device(device_responses_dir):
             return json.load(f)
 
     return _load
+
+
+@pytest.fixture
+def load_fixture_json():
+    """Load a JSON fixture file from the tests/fixtures directory."""
+
+    def _load(path: str):
+        # Allow loading from tests/fixtures
+        base_path = os.path.join(os.path.dirname(__file__), "fixtures")
+        full_path = os.path.join(base_path, path)
+        with open(full_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    return _load
