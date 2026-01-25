@@ -58,7 +58,7 @@ Create a changelog snippet in the requested style:
     ```
 3.  **Tag**:
     ```bash
-    git tag -a v<NEW_VERSION> -m "Release v<NEW_VERSION>" -m "<PASTE_CHANGELOG_HERE>"
+    git -c core.commentChar=";" tag -a v<NEW_VERSION> -m "Release v<NEW_VERSION>" -m "<PASTE_CHANGELOG_HERE>"
     ```
 4.  **Push**:
     ```bash
