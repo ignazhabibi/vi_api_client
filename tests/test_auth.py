@@ -13,7 +13,7 @@ from vi_api_client.const import ENDPOINT_TOKEN
 
 def test_abstract_auth_cannot_be_instantiated():
     """AbstractAuth should not be instantiated directly."""
-    # --- ARRANGE & ACT & ASSERT ---
+    # Arrange, Act and Assert: Complete test in one step.
     with pytest.raises(TypeError):
         AbstractAuth(MagicMock())
 
@@ -50,13 +50,13 @@ def oauth_with_tokens(tmp_path):
 
 def test_get_authorization_url(oauth):
     """Test authorization URL generation."""
-    # --- ARRANGE ---
+    # Arrange: Prepare test data and fixtures.
     # Included in fixture
 
-    # --- ACT ---
+    # Act: Execute the function being tested.
     url = oauth.get_authorization_url()
 
-    # --- ASSERT ---
+    # Assert: Verify the results match expectations.
     assert "authorize" in url
     assert "client_id=test_client_id" in url
     assert "redirect_uri=" in url
@@ -67,34 +67,34 @@ def test_get_authorization_url(oauth):
 
 def test_has_tokens_no_token(oauth):
     """Token info should be empty when no token exists."""
-    # --- ACT & ASSERT ---
+    # Act and Assert: Execute and verify in one step.
     assert oauth._token_info == {}
 
 
 def test_has_tokens_with_token(oauth_with_tokens):
     """Token info should be populated when token file exists."""
-    # --- ACT & ASSERT ---
+    # Act and Assert: Execute and verify in one step.
     assert oauth_with_tokens._token_info.get("access_token") == "test_access_token"
 
 
 @pytest.mark.asyncio
 async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
     """Test getting access token when token is valid."""
-    # --- ARRANGE ---
+    # Arrange: Create ViAuth instance and configure mock token endpoint.
     async with aiohttp.ClientSession() as session:
         oauth_with_tokens.websession = session
 
-        # --- ACT ---
+        # Act: Request token using authorization code.
         token = await oauth_with_tokens.async_get_access_token()
 
-        # --- ASSERT ---
+        # Assert: Verify the results match expectations.
         assert token == "test_access_token"
 
 
 @pytest.mark.asyncio
 async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
     """Test token refresh."""
-    # --- ARRANGE ---
+    # Arrange: Create ViAuth with expired token and mock refresh endpoint.
     # Set expires_at to past to force refresh
     oauth_with_tokens._token_info["expires_at"] = 0
     data = load_fixture_json("auth_token.json")
@@ -105,16 +105,16 @@ async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
         async with aiohttp.ClientSession() as session:
             oauth_with_tokens.websession = session
 
-            # --- ACT ---
+            # Act: Get access token (should trigger refresh).
             await oauth_with_tokens.async_refresh_access_token()
 
-        # --- ASSERT ---
+        # Assert: Verify the results match expectations.
         assert oauth_with_tokens._token_info["access_token"] == "refreshed_access_token"
 
 
 def test_token_persistence(tmp_path):
     """Test that tokens are saved and loaded correctly."""
-    # --- ARRANGE ---
+    # Arrange: Prepare test data and fixtures.
     token_file = tmp_path / "tokens.json"
 
     # Create OAuth and manually set token info
@@ -131,7 +131,7 @@ def test_token_persistence(tmp_path):
         "expires_in": 3600,
     }
 
-    # --- ACT ---
+    # Act: Execute the function being tested.
     oauth._save_tokens()
 
     # Create new instance and verify tokens are loaded
@@ -141,18 +141,18 @@ def test_token_persistence(tmp_path):
         token_file=str(token_file),
     )
 
-    # --- ASSERT ---
+    # Assert: Verify the results match expectations.
     assert oauth2._token_info["access_token"] == "saved_token"
     assert oauth2._token_info["refresh_token"] == "saved_refresh"
 
 
 def test_pkce_verifier_generated_on_auth_url(oauth):
     """Test that PKCE verifier is generated when auth URL is requested."""
-    # --- ARRANGE ---
+    # Arrange: Prepare test data and fixtures.
     assert oauth._pkce_verifier is None
 
-    # --- ACT ---
+    # Act: Execute the function being tested.
     oauth.get_authorization_url()
 
-    # --- ASSERT ---
+    # Assert: Verify the results match expectations.
     assert oauth._pkce_verifier is not None

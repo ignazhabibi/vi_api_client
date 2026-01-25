@@ -10,7 +10,7 @@ from vi_api_client.models import Device, Gateway
 @pytest.mark.asyncio
 async def test_cli_context_mock_mode():
     """Test CLI context in mock mode (no API calls)."""
-    # --- ARRANGE ---
+    # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
         mock_device="Vitodens200W",
         client_id=None,
@@ -22,9 +22,9 @@ async def test_cli_context_mock_mode():
         device_id=None,
     )
 
-    # --- ACT ---
+    # Act: Execute the function being tested.
     async with setup_client_context(args) as ctx:
-        # --- ASSERT ---
+        # Assert: Verify the results match expectations.
         assert isinstance(ctx, CLIContext)
         assert ctx.inst_id == "99999"
         assert ctx.gw_serial == "MOCK_GATEWAY"
@@ -34,7 +34,7 @@ async def test_cli_context_mock_mode():
 @pytest.mark.asyncio
 async def test_cli_context_explicit_ids():
     """Test CLI context with explicit IDs (no auto-discovery)."""
-    # --- ARRANGE ---
+    # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
         mock_device=None,
         client_id="test_id",
@@ -56,9 +56,9 @@ async def test_cli_context_explicit_ids():
         mock_session = MagicMock()
         mock_create_session.return_value.__aenter__.return_value = mock_session
 
-        # --- ACT ---
+        # Act: Execute the function being tested.
         async with setup_client_context(args) as ctx:
-            # --- ASSERT ---
+            # Assert: Verify the results match expectations.
             assert ctx.inst_id == "123"
             assert ctx.gw_serial == "serial"
             assert ctx.dev_id == "dev1"
@@ -68,7 +68,7 @@ async def test_cli_context_explicit_ids():
 @pytest.mark.asyncio
 async def test_cli_context_autodiscovery():
     """Test CLI context auto-discovery by mocking the Client completely."""
-    # --- ARRANGE ---
+    # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
         mock_device=None,
         client_id="test_id",
@@ -108,9 +108,9 @@ async def test_cli_context_autodiscovery():
             ]
         )
 
-        # --- ACT ---
+        # Act: Execute the function being tested.
         async with setup_client_context(args) as ctx:
-            # --- ASSERT ---
+            # Assert: Verify the results match expectations.
             # Verify context values derived from mock client responses
             assert ctx.inst_id == "100"
             assert ctx.gw_serial == "GW123"

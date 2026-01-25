@@ -33,7 +33,7 @@ class MockAuth(AbstractAuth):
 @pytest.mark.asyncio
 async def test_get_installations(load_fixture_json):
     """Test fetching installations."""
-    # --- ARRANGE ---
+    # Arrange: Load fixture and mock API endpoint for installations.
     data = load_fixture_json("installations.json")
 
     with aioresponses() as m:
@@ -44,10 +44,10 @@ async def test_get_installations(load_fixture_json):
             auth = MockAuth(session)
             client = ViClient(auth)
 
-            # --- ACT ---
+            # Act: Fetch installations from API.
             installations = await client.get_installations()
 
-            # --- ASSERT ---
+            # Assert: Should return 2 installations with correct IDs.
             assert len(installations) == 2
             assert installations[0].id == "123456"
             assert installations[1].id == "789012"
@@ -56,7 +56,7 @@ async def test_get_installations(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_installations_error():
     """Test error handling when fetching installations fails."""
-    # --- ARRANGE ---
+    # Arrange: Mock API to return 500 Internal Server Error.
     url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
 
     with aioresponses() as m:
@@ -66,7 +66,7 @@ async def test_get_installations_error():
             auth = MockAuth(session)
             client = ViClient(auth)
 
-            # --- ACT & ASSERT ---
+            # Act and Assert: Fetch should raise ViServerInternalError.
             with pytest.raises(ViServerInternalError):
                 await client.get_installations()
 
@@ -74,7 +74,7 @@ async def test_get_installations_error():
 @pytest.mark.asyncio
 async def test_get_gateways(load_fixture_json):
     """Test fetching gateways."""
-    # --- ARRANGE ---
+    # Arrange: Load fixture and mock gateways endpoint.
     data = load_fixture_json("gateways.json")
     url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
 
@@ -85,10 +85,10 @@ async def test_get_gateways(load_fixture_json):
             auth = MockAuth(session)
             client = ViClient(auth)
 
-            # --- ACT ---
+            # Act: Fetch gateways from API.
             gateways = await client.get_gateways()
 
-            # --- ASSERT ---
+            # Assert: Should return 1 gateway with correct serial.
             assert len(gateways) == 1
             assert gateways[0].serial == "1234567890"
 
@@ -96,9 +96,13 @@ async def test_get_gateways(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_devices(load_fixture_json):
     """Test fetching devices for a gateway."""
-    # --- ARRANGE ---
+    # Arrange: Load device fixture and mock devices endpoint.
     data = load_fixture_json("devices_heating.json")
-    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/123456/gateways/1234567890/devices"
+    inst_id = "123456"
+    gw_serial = "1234567890"
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{inst_id}/gateways/{gw_serial}/devices"
+    )
 
     with aioresponses() as m:
         m.get(url, payload=data)
@@ -107,10 +111,10 @@ async def test_get_devices(load_fixture_json):
             auth = MockAuth(session)
             client = ViClient(auth)
 
-            # --- ACT ---
-            devices = await client.get_devices(123456, "1234567890")
+            # Act: Fetch devices for specific gateway.
+            devices = await client.get_devices(inst_id, gw_serial)
 
-            # --- ASSERT ---
+            # Assert: Should return 2 devices with correct properties.
             assert len(devices) == 2
             assert devices[0].id == "0"
             assert devices[0].device_type == "heating"
@@ -119,7 +123,7 @@ async def test_get_devices(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_features(load_fixture_json):
     """Test fetching all features for a device (Parsing check)."""
-    # --- ARRANGE ---
+    # Arrange: Create device and mock features endpoint to return all features.
     data = load_fixture_json("features_heating_sensors.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
 
@@ -139,10 +143,10 @@ async def test_get_features(load_fixture_json):
                 status="ok",
             )
 
-            # --- ACT ---
+            # Act: Fetch all features for the device.
             features = await client.get_features(device)
 
-            # --- ASSERT ---
+            # Assert: Verify all features are returned and parsed correctly.
             assert len(features) == 2
             assert features[0].name == "heating.sensors.temperature.outside"
             assert features[0].value == 5.5
@@ -152,7 +156,7 @@ async def test_get_features(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_feature(load_fixture_json):
     """Test fetching a specific feature."""
-    # --- ARRANGE ---
+    # Arrange: Create device and mock features endpoint to return a single filtered feature.
     data = load_fixture_json("features_filtered_single.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
 
@@ -172,12 +176,12 @@ async def test_get_feature(load_fixture_json):
                 status="ok",
             )
 
-            # --- ACT ---
+            # Act: Fetch a specific feature by name.
             features = await client.get_features(
                 device, feature_names=["heating.sensors.temperature.outside"]
             )
 
-            # --- ASSERT ---
+            # Assert: Verify only the requested feature is returned and parsed.
             assert len(features) == 1
             feature = features[0]
 
@@ -188,7 +192,7 @@ async def test_get_feature(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_feature_not_found(load_fixture_json):
     """Test fetching a non-existent feature."""
-    # --- ARRANGE ---
+    # Arrange: Create device and mock features endpoint to return 404 for a non-existent feature.
     data = load_fixture_json("device_error_404.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
 
@@ -208,7 +212,7 @@ async def test_get_feature_not_found(load_fixture_json):
                 status="ok",
             )
 
-            # --- ACT & ASSERT ---
+            # Act and Assert: Execute and verify in one step.
             with pytest.raises(ViNotFoundError):
                 await client.get_features(device, feature_names=["nonexistent.feature"])
 
@@ -216,7 +220,7 @@ async def test_get_feature_not_found(load_fixture_json):
 @pytest.mark.asyncio
 async def test_get_consumption(load_fixture_json):
     """Test the get_consumption method with various metrics."""
-    # --- ARRANGE ---
+    # Arrange: Prepare test data and fixtures.
     data = load_fixture_json("analytics/consumption_summary.json")
     url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
 
@@ -239,35 +243,35 @@ async def test_get_consumption(load_fixture_json):
             start = "2023-01-01T00:00:00"
             end = "2023-01-01T23:59:59"
 
-            # --- ACT 1: Summary ---
+            # Act: Fetch consumption data with summary metric.
             result_summary = await client.get_consumption(
                 device, start, end, metric="summary"
             )
 
-            # --- ASSERT 1 ---
+            # Assert: Summary should return 3 features with total consumption.
             assert isinstance(result_summary, list)
             assert len(result_summary) == 3
 
-            f_total = next(
-                f
-                for f in result_summary
-                if f.name == "analytics.heating.power.consumption.total"
+            feature_total = next(
+                feature
+                for feature in result_summary
+                if feature.name == "analytics.heating.power.consumption.total"
             )
-            assert f_total.value == 15.5
-            assert f_total.unit == "kilowattHour"
+            assert feature_total.value == 15.5
+            assert feature_total.unit == "kilowattHour"
 
-            # --- ACT 2: Individual Metric ---
+            # Act: Fetch consumption data for total metric only.
             result_total = await client.get_consumption(
                 device, start, end, metric="total"
             )
 
-            # --- ASSERT 2 ---
+            # Assert: Individual metric should return single feature.
             assert isinstance(result_total, list)
             assert len(result_total) == 1
             assert result_total[0].name == "analytics.heating.power.consumption.total"
             assert result_total[0].value == 15.5
 
-            # --- ACT 3: Invalid Metric ---
+            # Act: Attempt to fetch with invalid metric (should raise ValueError).
             with pytest.raises(ValueError):
                 await client.get_consumption(device, start, end, metric="invalid")
 
@@ -275,7 +279,7 @@ async def test_get_consumption(load_fixture_json):
 @pytest.mark.asyncio
 async def test_update_device(load_fixture_json):
     """Test efficient device update."""
-    # --- ARRANGE ---
+    # Arrange: Prepare test data and fixtures.
     data = load_fixture_json("update_device_response.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
 
@@ -295,10 +299,10 @@ async def test_update_device(load_fixture_json):
         async with aiohttp.ClientSession() as session:
             client = ViClient(MockAuth(session))
 
-            # --- ACT ---
+            # Act: Execute the function being tested.
             updated_dev = await client.update_device(dev)
 
-            # --- ASSERT ---
+            # Assert: Verify the results match expectations.
             assert updated_dev.id == "0"
             assert len(updated_dev.features) == 1
             assert updated_dev.features[0].name == "new.feature"
@@ -307,7 +311,7 @@ async def test_update_device(load_fixture_json):
 @pytest.mark.asyncio
 async def test_validate_constraints_step():
     """Test step validation logic."""
-    # --- ARRANGE ---
+    # Arrange: Create test values for step validation.
     # Use a mock/stub since we just want to test the _validate_constraints method logic
     client = ViClient(None)  # type: ignore
 
@@ -323,16 +327,16 @@ async def test_validate_constraints_step():
         step=0.5,
     )
 
-    # --- ACT & ASSERT (Case 1) ---
+    # Act and Assert (Case 1) ---
     client._validate_numeric_constraints(ctrl, 10.5)  # Should pass
     client._validate_numeric_constraints(ctrl, 11.0)  # Should pass
 
-    # --- ACT & ASSERT (Case 2: Invalid Step) ---
+    # Act and Assert (Case 2: Invalid Step) ---
     with pytest.raises(ValueError) as exc:
         client._validate_numeric_constraints(ctrl, 10.7)
     assert "does not align with step" in str(exc.value)
 
-    # --- ACT & ASSERT (Case 3: Floating point precision) ---
+    # Act and Assert (Case 3: Floating point precision) ---
     ctrl2 = FeatureControl(
         command_name="set",
         param_name="p",

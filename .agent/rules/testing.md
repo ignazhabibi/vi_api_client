@@ -19,9 +19,32 @@ These rules apply strictly to the `tests/` directory.
 - **Framework:** Use `pytest` exclusively.
 - **No Classes:** Use simple functions (`def test_...():`), NEVER use `unittest.TestCase` classes.
 - **Naming:** Test files start with `test_`. Test functions start with `test_`.
+- **Code Style:** Tests MUST follow all rules from `.agent/rules/python-style.md`:
+  - No single-letter variables (`f`, `v`, `d`, `i`) - use descriptive names
+  - Comments must be full sentences (capital letter, period)
+  - Use f-strings (except in logger calls)
+  - Descriptive boolean names (`is_`, `has_`, `should_`)
 
 ## 3. The "Arrange-Act-Assert" Pattern (MANDATORY)
-Every test function must follow the **Arrange-Act-Assert** structure. Visually separate these sections with comments if the test is longer than 5 lines.
+Every test function must follow the **Arrange-Act-Assert** structure.
+
+**CRITICAL: AAA comments must be test-specific, NOT generic.**
+
+❌ **Wrong (Generic):**
+```python
+# Arrange: Prepare test data and fixtures.
+# Act: Execute the function being tested.
+# Assert: Verify the results match expectations.
+```
+
+✅ **Right (Specific):**
+```python
+# Arrange: Load fixture for simple temperature sensor value.
+# Act: Parse the feature using flat architecture parser.
+# Assert: Feature should have correct name, value (5.5°C) and unit.
+```
+
+Visually separate these sections with comments if the test is longer than 5 lines.
 
 1.  **Arrange:** Prepare inputs, load fixtures, configure mocks (`respx`), and initialize the class under test.
 2.  **Act:** Execute the specific method or function being tested.

@@ -1,14 +1,16 @@
+"""Unit tests for hysteresis feature parsing."""
+
 from vi_api_client.parsing import parse_feature_flat
 
 
 def test_hysteresis_parsing(load_fixture_json):
-    # --- ARRANGE ---
+    # Arrange: Load fixture with hysteresis value and switch points.
     raw_feature = load_fixture_json("parsing/hysteresis_raw.json")
 
-    # --- ACT ---
+    # Act: Parse hysteresis feature - should create 3 separate features.
     features = parse_feature_flat(raw_feature)
 
-    # --- ASSERT ---
+    # Assert: Should create base hysteresis + switchOnValue + switchOffValue features.
     # We expect 3 features:
     # 1. heating.dhw.temperature.hysteresis (mapped from 'value', via setHysteresis)
     # 2. heating.dhw.temperature.hysteresis.switchOnValue (via setHysteresisSwitchOnValue)
@@ -16,17 +18,25 @@ def test_hysteresis_parsing(load_fixture_json):
 
     assert len(features) == 3
 
-    f_val = next(f for f in features if f.name == "heating.dhw.temperature.hysteresis")
-    f_on = next(f for f in features if f.name.endswith(".switchOnValue"))
-    f_off = next(f for f in features if f.name.endswith(".switchOffValue"))
+    feature_value = next(
+        feature
+        for feature in features
+        if feature.name == "heating.dhw.temperature.hysteresis"
+    )
+    feature_on = next(
+        feature for feature in features if feature.name.endswith(".switchOnValue")
+    )
+    feature_off = next(
+        feature for feature in features if feature.name.endswith(".switchOffValue")
+    )
 
-    # Check Controls
-    assert f_val.is_writable
-    assert f_val.control.command_name == "setHysteresis"
+    # Check Controls.
+    assert feature_value.is_writable
+    assert feature_value.control.command_name == "setHysteresis"
 
-    # These currently FAIL because of the missing mapping logic
-    assert f_on.is_writable
-    assert f_on.control.command_name == "setHysteresisSwitchOnValue"
+    # These currently FAIL because of the missing mapping logic.
+    assert feature_on.is_writable
+    assert feature_on.control.command_name == "setHysteresisSwitchOnValue"
 
-    assert f_off.is_writable
-    assert f_off.control.command_name == "setHysteresisSwitchOffValue"
+    assert feature_off.is_writable
+    assert feature_off.control.command_name == "setHysteresisSwitchOffValue"
