@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vi_api_client"
-version = "0.2.1"
+version = "0.3.0"
 description = "Async Python client for Viessmann Climate Solutions API"
 authors = [
   { name = "Michael", email = "antigravity@example.com" },

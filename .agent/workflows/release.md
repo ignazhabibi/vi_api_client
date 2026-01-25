@@ -8,7 +8,11 @@ This workflow guides you through creating a production release. It ensures quali
 
 ## 1. Quality Assurance
 
-### Linting
+
+
+Follow the **Fail Fast** principle: Start with fast checks and move to complex ones.
+
+### 1.1 Linting & Static Analysis
 First, auto-fix any style issues.
 ```bash
 ruff check --fix .
@@ -16,14 +20,30 @@ ruff check --fix .
 > [!WARNING]
 > If `ruff` reports errors that cannot be auto-fixed, **STOP**. Fix them manually before proceeding.
 
-### Testing
-Run the full test suite.
+### 1.2 Unit Tests (Fast)
+Run the isolated test suite.
 ```bash
 // turbo
 pytest
 ```
 > [!IMPORTANT]
-> If tests fail, **ABORT** the release. Do not proceed until all tests pass.
+> If tests fail, **ABORT** the release.
+
+### 1.3 Integration Verification (Mock)
+Verify the library works with complex data structures using the offline demo.
+```bash
+pytest -m integration
+```
+
+### 1.4 End-to-End Smoke Test (Live)
+Connect to the real Viessmann API to verify authentication and data retrieval.
+*Requires `tokens.json`.*
+
+```bash
+python3 demo_live.py
+```
+> [!CAUTION]
+> If E2E tests fail (e.g., Auth Error, Crash), **ABORT** the release. Do not ship broken code to users.
 
 ## 2. Version Bump & Notes (Agent)
 

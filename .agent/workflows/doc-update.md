@@ -36,4 +36,6 @@ For *every* piece of code documentation you update:
 
 1.  Make the necessary edits to `.md` files.
 2.  If code examples are present in docs, **test them** (e.g., by running them in a temporary script) to ensure they work.
-3.  Commit changes: `git commit -m "docs: update reference documentation"`
+3.  **Notify User:** Inform the user that documentation is updated and ready for review/commit.
+    > [!NOTE]
+    > Do not commit changes automatically. Leave them staged or unstaged for the user.
