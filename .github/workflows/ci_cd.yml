@@ -46,8 +46,17 @@ jobs:
       run: |
         pip install build
         python -m build
+    - name: Fetch Tag Message
+      id: tag_message
+      run: |
+        git fetch --depth=1 origin +refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}
+        TAG_MSG=$(git tag -l --format='%(contents:body)' ${{ github.ref_name }})
+        echo "body<<EOF" >> $GITHUB_OUTPUT
+        echo "$TAG_MSG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
     - name: GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: dist/*
-        generate_release_notes: true
+        body: ${{ steps.tag_message.outputs.body }}
+        generate_release_notes: false
