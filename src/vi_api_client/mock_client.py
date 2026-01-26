@@ -29,6 +29,22 @@ class MockAuth(AbstractAuth):
         super().__init__(websession)
 
 
+# Mapping of fixture names to device types
+# This provides consistent device_type values for mock devices
+DEVICE_TYPE_MAP: dict[str, str] = {
+    "Vitocal151A": "heating",
+    "Vitocal200": "heating",
+    "Vitocal250A": "heating",
+    "Vitocal252": "heating",
+    "Vitocal300G": "heating",
+    "Vitodens050W": "heating",
+    "Vitodens200W": "heating",
+    "Vitodens300W": "heating",
+    "VitolaUniferral": "heating",
+    "Vitopure350": "ventilation",
+}
+
+
 class MockViClient(ViClient):
     """A mock client that returns static responses from JSON files.
 
@@ -118,10 +134,7 @@ class MockViClient(ViClient):
                 gateway_serial=gateway_serial,
                 installation_id=installation_id,
                 model_id=self.device_name,
-                device_type="heating"
-                if "heating" in self.device_name.lower()
-                or "vitodens" in self.device_name.lower()
-                else "unknown",
+                device_type=DEVICE_TYPE_MAP.get(self.device_name, "heating"),
                 status="connected",
             )
         ]
