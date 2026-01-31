@@ -19,7 +19,7 @@ This is currently a local development package. **Requires Python 3.12+**.
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/ignazhabibi/vi_api_client.git
 cd vi_api_client
 
 # Create virtual env
@@ -101,7 +101,6 @@ if __name__ == "__main__":
 
 - `demo_simple.py`: Minimal example to get started.
 - `demo_live.py`: Connect to the real API and explore features interactivity.
-- `demo_mock.py`: Run offline without credentials using the Mock Client.
 
 ## Documentation
 

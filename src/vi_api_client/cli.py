@@ -637,7 +637,7 @@ async def cmd_list_mock_devices(args) -> None:
         print(f"- {device}")
 
 
-async def main() -> None:  # noqa: PLR0915
+async def async_main() -> None:  # noqa: PLR0915
     """Main CLI entrypoint."""
     # Parent parser for common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -816,5 +816,10 @@ async def _dispatch_command(args: argparse.Namespace) -> None:
         await handler(args)
 
 
+def main() -> None:
+    """Entry point for console_scripts."""
+    asyncio.run(async_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

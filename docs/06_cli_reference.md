@@ -97,7 +97,7 @@ The client includes sample data for various devices, allowing you to test integr
 vi-client list-mock-devices
 
 # Use a mock device to list its features
-vi-client list-features --mock-device Vitodens200W --values
+vi-client list-features --mock-device Vitocal250A --values
 ```
 
 ## Corporate Proxy / SSL Issues
