@@ -25,21 +25,33 @@ Act as a Senior QA Engineer. You must not change the logic of what is being test
 3.  *Fallback:* If you cannot create the file directly, provide the JSON content in a code block and tell me where to save it, but update the Python code as if the file exists.
 
 ### Step 3: Mocking & Networking
-1.  **Respx:** Replace `requests_mock` or `unittest.mock` for HTTP calls with `respx`.
+1.  **Mocking Library:** Use `aioresponses` to mock external API calls.
 2.  **Mock Data:** Configure the mock to return the data loaded from the fixture in Step 2.
-    - Example: `respx_mock.get(...).mock(return_value=Response(200, json=data))`
+    - Example: `m.get(url, payload=data)`
 
 ### Step 4: Apply AAA Pattern (Formatting)
-Refactor the function body to strictly follow the **Arrange-Act-Assert** pattern. You must insert these specific comments:
+Refactor the function body to strictly follow the **Arrange-Act-Assert** pattern using **one-liner comments**:
 
-1.  `# --- ARRANGE ---`
+1.  `# Arrange: [Description of setup]`
     - Load fixtures.
-    - Setup mocks (`respx`).
+    - Setup mocks.
     - Initialize the Class Under Test.
-2.  `# --- ACT ---`
+2.  `# Act: [Description of action]`
     - Call the method being tested.
-3.  `# --- ASSERT ---`
+3.  `# Assert: [Description of verification]`
     - Check results (`assert val == expected`).
+
+**Example:**
+```python
+# Arrange: Load fixture and mock API.
+data = ...
+
+# Act: Call the function.
+result = await ...
+
+# Assert: Check return value.
+assert result == ...
+```
 
 ## Output
 1.  Apply changes to the Python test file.

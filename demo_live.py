@@ -1,4 +1,4 @@
-"""Viessmann Library Demo Application (Live API).
+"""Viessmann Library Demo Application (IoT API).
 
 Demonstrates authentication, discovery, and feature fetching.
 """
@@ -13,6 +13,7 @@ from pathlib import Path
 import aiohttp
 
 sys.path.insert(0, str(Path("src").resolve()))
+
 
 from vi_api_client import OAuth, ViClient
 from vi_api_client.utils import format_feature
@@ -78,7 +79,12 @@ async def discover_device(client):
         return None
 
     gateway = gateways[0]
-    devices = await client.get_devices(gateway.installation_id, gateway.serial)
+    devices = await client.get_devices(
+        gateway.installation_id,
+        gateway.serial,
+        include_features=True,
+        only_active_features=True,
+    )
     if not devices:
         print("No devices found.")
         return None
@@ -90,7 +96,7 @@ async def discover_device(client):
 
 async def main():
     """Run the live demo."""
-    print("🚀 Viessmann Library Demo (Live)")
+    print("🚀 Viessmann Library Demo (IoT API)")
     print("=" * 40 + "\n")
 
     connector = aiohttp.TCPConnector(ssl=False)
@@ -113,8 +119,8 @@ async def main():
         if not device:
             return
 
-        print("\n📥 Fetching features...")
-        features = await client.get_features(device, only_enabled=True)
+        print("\n📥 Features (pre-fetched)...")
+        features = device.features
         print(f"   Found {len(features)} enabled features.")
 
         print_sample_features(features)

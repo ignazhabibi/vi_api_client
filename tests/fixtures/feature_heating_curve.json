@@ -1,0 +1,51 @@
+[
+    {
+        "apiVersion": 1,
+        "commands": {
+            "setCurve": {
+                "isExecutable": true,
+                "name": "setCurve",
+                "params": {
+                    "shift": {
+                        "constraints": {
+                            "max": 40,
+                            "min": -13,
+                            "stepping": 1
+                        },
+                        "required": true,
+                        "type": "number"
+                    },
+                    "slope": {
+                        "constraints": {
+                            "max": 3.5,
+                            "min": 0.2,
+                            "stepping": 0.1
+                        },
+                        "required": true,
+                        "type": "number"
+                    }
+                },
+                "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+            }
+        },
+        "deviceId": "0",
+        "feature": "heating.circuits.0.heating.curve",
+        "gatewayId": "GW123",
+        "isEnabled": true,
+        "isReady": true,
+        "properties": {
+            "shift": {
+                "type": "number",
+                "unit": "",
+                "value": 4
+            },
+            "slope": {
+                "type": "number",
+                "unit": "",
+                "value": 0.6
+            }
+        },
+        "timestamp": "2025-10-05T05:14:04.320Z",
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.circuits.0.heating.curve"
+    }
+]

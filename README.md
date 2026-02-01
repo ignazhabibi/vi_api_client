@@ -78,21 +78,23 @@ async def main():
         installations = await client.get_installations()
         gateways = await client.get_gateways()
 
-        # 2. Get Devices (using first gateway and installation)
-        devices = await client.get_devices(installations[0].id, gateways[0].serial)
+        # 2. Get Devices (using first gateway and installation) with Features
+        devices = await client.get_devices(
+            installations[0].id,
+            gateways[0].serial,
+            include_features=True
+        )
         device = devices[0] # Usually the heating system (ID: 0)
         print(f"Device: {device.model_id} ({device.status})")
 
-        # 3. Get Features (Flat List)
-        features = await client.get_features(device)
-
-        for feature in features:
+        # 3. Iterate Features (Flat List)
+        for feature in device.features:
              print(f"{feature.name}: {feature.value}")
 
         # 4. Write a Feature
         # Find a writable feature (e.g. heating curve slope)
         slope = next(
-            (f for f in features if "curve.slope" in f.name and f.is_writable),
+            (f for f in device.features if "curve.slope" in f.name and f.is_writable),
             None
         )
         if slope:

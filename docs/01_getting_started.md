@@ -69,46 +69,34 @@ async def main():
         gw_serial = gateways[0].serial
         print(f"Using Gateway: {gw_serial}")
 
-        devices = await client.get_devices(inst_id, gw_serial)
-        if not devices:
-            print("No devices found.")
-            return
-
         # Pick the heating device (usually id="0")
+        # include_features=True ensures we get the full data immediately
+        devices = await client.get_devices(inst_id, gw_serial, include_features=True)
+
+        if not devices:
+             print("No devices found.")
+             return
+
         device = next((d for d in devices if d.id == "0"), devices[0])
         print(f"Using Device: {device.id} ({device.model_id})")
+        print(f"Features: {len(device.features)}")
 
-        # Continued below...
-        await read_features(client, device)
+        # A) Iterate over all features
+        for feature in device.features:
+            print(f"- {feature.name}: {feature.value}")
+
+        # B) Access a specific feature directly (O(1))
+        outside_temp = device.get_feature("heating.sensors.temperature.outside")
+        if outside_temp:
+            print(f"Outside Temp: {outside_temp.value}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 2. Reading Features
 
-Once you have a `Device` object, you can query its features properly.
 
-```python
-from vi_api_client.utils import format_feature
-
-async def read_features(client, device):
-    # Fetch all features for the device
-    features = await client.get_features(device)
-
-    print(f"Found {len(features)} features.")
-
-    # Access a specific feature
-    outside_temp = device.get_feature("heating.sensors.temperature.outside")
-
-    if outside_temp:
-        # format_feature provides a string with unit (e.g., "12.5 celsius")
-        print(f"Outside Temperature: {format_feature(outside_temp)}")
-        # .value gives the raw scalar (e.g., 12.5)
-        print(f"Raw Value: {outside_temp.value}")
-```
-
-### 3. Executing Commands
+### 2. Executing Commands
 
 To change settings (e.g., set heating mode), you use the high-level `set_feature` method.
 

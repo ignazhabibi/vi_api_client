@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -141,19 +142,29 @@ class MockViClient(ViClient):
         ]
 
     async def get_devices(
-        self, installation_id: str, gateway_serial: str
+        self,
+        installation_id: str,
+        gateway_serial: str,
+        include_features: bool = False,
+        only_active_features: bool = False,
     ) -> list[Device]:
         """Return the mocked device as a typed model."""
-        return [
-            Device(
-                id="0",
-                gateway_serial=gateway_serial,
-                installation_id=installation_id,
-                model_id=self.device_name,
-                device_type=DEVICE_TYPE_MAP.get(self.device_name, "heating"),
-                status="connected",
+        device = Device(
+            id="0",
+            gateway_serial=gateway_serial,
+            installation_id=installation_id,
+            model_id=self.device_name,
+            device_type=DEVICE_TYPE_MAP.get(self.device_name, "heating"),
+            status="connected",
+        )
+
+        if include_features:
+            features = await self.get_features(
+                device, only_enabled=only_active_features
             )
-        ]
+            device = replace(device, features=features)
+
+        return [device]
 
     async def get_features(
         self,

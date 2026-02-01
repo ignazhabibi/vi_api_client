@@ -74,23 +74,45 @@ class ViClient:
         return gateways
 
     async def get_devices(
-        self, installation_id: str, gateway_serial: str
+        self,
+        installation_id: str,
+        gateway_serial: str,
+        include_features: bool = False,
+        only_active_features: bool = False,
     ) -> list[Device]:
         """Get devices as typed objects.
 
         Args:
             installation_id: ID of the installation.
             gateway_serial: Serial number of the gateway.
+            include_features: Whether to automatically fetch features for all devices.
+            only_active_features: If include_features is True, fetch only enabled ones.
 
         Returns:
-            List of Device objects.
+            List of Device objects (populated with features if requested).
         """
         url = self._build_devices_url(installation_id, gateway_serial)
         devices_data = await self.connector.get(url)
-        return [
+        devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
             for device_data in devices_data.get("data", [])
         ]
+
+        if include_features:
+            _LOGGER.debug(
+                "Hydrating %s devices with features (active_only=%s)...",
+                len(devices),
+                only_active_features,
+            )
+            populated_devices = []
+            for device in devices:
+                features = await self.get_features(
+                    device, only_enabled=only_active_features
+                )
+                populated_devices.append(replace(device, features=features))
+            return populated_devices
+
+        return devices
 
     async def get_features(
         self,
@@ -148,13 +170,13 @@ class ViClient:
         all_devices = []
 
         for gateway in gateways:
-            gw_serial = gateway.serial
-            devices = await self.get_devices(installation_id, gw_serial)
-
-            for device in devices:
-                features = await self.get_features(device, only_enabled=only_enabled)
-                device_with_features = replace(device, features=features)
-                all_devices.append(device_with_features)
+            devices = await self.get_devices(
+                installation_id,
+                gateway.serial,
+                include_features=True,
+                only_active_features=only_enabled,
+            )
+            all_devices.extend(devices)
 
         return all_devices
 

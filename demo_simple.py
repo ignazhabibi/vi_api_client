@@ -55,7 +55,9 @@ async def main():
             return
 
         gateway = gateways[0]
-        devices = await client.get_devices(gateway.installation_id, gateway.serial)
+        devices = await client.get_devices(
+            gateway.installation_id, gateway.serial, include_features=True
+        )
 
         # Prefer "0" (Heating System) over Gateway
         device = next((device for device in devices if device.id == "0"), devices[0])
@@ -64,12 +66,10 @@ async def main():
 
         # 4. Read Specific Feature
         print("\nReading Outside Temperature...")
-        features = await client.get_features(
-            device, feature_names=["heating.sensors.temperature.outside"]
-        )
+        # Direct access (hydrated device)
+        feature = device.get_feature("heating.sensors.temperature.outside")
 
-        if features:
-            feature = features[0]
+        if feature:
             print(f"Value: {format_feature(feature)}")
             print(f"Raw:   {feature.value}")
         else:

@@ -102,5 +102,31 @@ async def test_mock_workflow_vitocal():
         ),
         None,
     )
-    assert circuit_mode is not None
     assert circuit_mode.is_writable is True
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_mock_workflow_auto_hydration():
+    """Verify that get_devices(include_features=True) works with MockClient."""
+    # Arrange
+    client = MockViClient("Vitodens200W")
+
+    # Act: Use the new single-step hydration (Smart get_devices)
+    # IDs don't matter much for MockClient, but we provide them for consistency
+    devices = await client.get_devices(
+        installation_id="99999", gateway_serial="MOCK_GW", include_features=True
+    )
+
+    # Assert
+    assert len(devices) == 1
+    device = devices[0]
+
+    # The device should be already hydrated (features list populated)
+    # without needing a separate manual step.
+    assert len(device.features) > 0
+
+    # Verify we can find a standard feature
+    temp = device.get_feature("heating.sensors.temperature.outside")
+    assert temp is not None
+    assert temp.value == 9

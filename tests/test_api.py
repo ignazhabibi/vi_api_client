@@ -1,5 +1,8 @@
 """Tests for vitoclient.api module (Flat Architecture)."""
 
+import re
+from dataclasses import replace
+
 import aiohttp
 import pytest
 from aioresponses import aioresponses
@@ -9,6 +12,7 @@ from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import (
     API_BASE_URL,
     ENDPOINT_ANALYTICS_THERMAL,
+    ENDPOINT_FEATURES,
     ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
 )
@@ -327,16 +331,16 @@ async def test_validate_constraints_step():
         step=0.5,
     )
 
-    # Act and Assert (Case 1) ---
+    # Act & Assert: Case 1 (Valid Step)
     client._validate_numeric_constraints(ctrl, 10.5)  # Should pass
     client._validate_numeric_constraints(ctrl, 11.0)  # Should pass
 
-    # Act and Assert (Case 2: Invalid Step) ---
+    # Act & Assert: Case 2 (Invalid Step)
     with pytest.raises(ValueError) as exc:
         client._validate_numeric_constraints(ctrl, 10.7)
     assert "does not align with step" in str(exc.value)
 
-    # Act and Assert (Case 3: Floating point precision) ---
+    # Act & Assert: Case 3 (Floating point precision)
     ctrl2 = FeatureControl(
         command_name="set",
         param_name="p",
@@ -348,3 +352,175 @@ async def test_validate_constraints_step():
         step=0.1,
     )
     client._validate_numeric_constraints(ctrl2, 0.3)  # Should pass despite float arith
+
+
+@pytest.mark.asyncio
+async def test_get_devices_with_hydration(load_fixture_json):
+    """Test fetching devices with automatic feature hydration."""
+    # Arrange: Load fixtures.
+    devices_data = load_fixture_json("devices_heating.json")
+    features_data = load_fixture_json("features_heating_sensors.json")
+
+    inst_id = "123456"
+    gw_serial = "1234567890"
+
+    devices_url = (
+        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{inst_id}/gateways/{gw_serial}/devices"
+    )
+
+    with aioresponses() as m:
+        # 1. Mock Devices Call
+        m.get(devices_url, payload=devices_data)
+
+        # 2. Mock Features Call (for any device ID on this gateway)
+        features_pattern = re.compile(
+            f"{API_BASE_URL}{ENDPOINT_FEATURES}/{inst_id}/gateways/{gw_serial}/devices/.*/features/filter"
+        )
+        m.post(features_pattern, payload=features_data, repeat=True)
+
+        async with aiohttp.ClientSession() as session:
+            auth = MockAuth(session)
+            client = ViClient(auth)
+
+            # Act: Fetch devices with hydration enabled.
+            devices = await client.get_devices(
+                inst_id, gw_serial, include_features=True
+            )
+
+            # Assert:
+            assert len(devices) == 2
+
+            # Check Device 0 (Heating)
+            dev0 = next(d for d in devices if d.id == "0")
+            assert len(dev0.features) > 0
+            assert dev0.features[0].name == "heating.sensors.temperature.outside"
+
+
+@pytest.mark.asyncio
+async def test_set_feature_with_dependency(load_fixture_json):
+    """Test setting a feature that has a sibling dependency (slope needs shift)."""
+    # Arrange
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+
+    # URL to fetch specific feature (or all features in this filter context)
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+
+    # URL for the command
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+
+    with aioresponses() as m:
+        # Mock Feature Fetching
+        m.post(features_url, payload={"data": fixtures_data})
+
+        # Mock Command Execution
+        m.post(command_url, payload={"data": {"success": True}})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # 1. Manually construct device
+            device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="Vitocal250A",
+                device_type="heatpump",
+                status="Online",
+            )
+
+            # 2. Fetch features (this now uses our small fixture)
+            features = await client.get_features(device)
+            device = replace(device, features=features)
+
+            # 3. Find the 'slope' feature
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
+
+            # Act
+            # Set slope to 1.2.
+            # The fixture says 'shift' is 4.
+            # Expect payload: { "slope": 1.2, "shift": 4 }
+            await client.set_feature(device, slope_feature, 1.2)
+
+            # Assert
+            # Find the call with the matching URL
+            found_call = None
+            for (method, url), calls in m.requests.items():
+                if method == "POST" and str(url) == command_url:
+                    found_call = calls[0]
+                    break
+
+            assert found_call is not None
+            assert found_call.kwargs["json"] == {"slope": 1.2, "shift": 4}
+
+
+@pytest.mark.asyncio
+async def test_set_feature_validation_limit(load_fixture_json):
+    """Test client-side validation for min/max limits."""
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+
+    with aioresponses() as m:
+        m.post(features_url, payload={"data": fixtures_data})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="M",
+                device_type="H",
+                status="O",
+            )
+            device = replace(device, features=await client.get_features(device))
+
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+
+            # Act & Assert: Max limit violation (Max is 3.5)
+            with pytest.raises(ValueError, match=r"Value 5.0 > max"):
+                await client.set_feature(device, slope_feature, 5.0)
+
+
+@pytest.mark.asyncio
+async def test_set_feature_validation_step(load_fixture_json):
+    """Test client-side validation for stepping."""
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+
+    with aioresponses() as m:
+        m.post(features_url, payload={"data": fixtures_data})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="M",
+                device_type="H",
+                status="O",
+            )
+            device = replace(device, features=await client.get_features(device))
+
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+
+            # Act & Assert: Step violation (Step is 0.1)
+            # 1.25 is not valid for step 0.1
+            with pytest.raises(ValueError, match=r"does not align with step"):
+                await client.set_feature(device, slope_feature, 1.25)

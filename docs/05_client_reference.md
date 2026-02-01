@@ -26,12 +26,15 @@ Fetches all available installations.
 Fetches all gateways (automatically linked to installations).
 *   **Returns**: List of `Gateway` objects.
 
-### `get_devices(installation_id: str, gateway_serial: str) -> List[Device]`
+### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_active_features: bool = False) -> List[Device]`
 Fetches devices attached to a specific gateway.
+
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
-*   **Returns**: List of `Device` objects.
+    *   `include_features`: If `True`, automatically populates the `features` list (Default `False`).
+    *   `only_active_features`: If `include_features=True`, only fetches enabled features (Default `False`).
+*   **Returns**: List of `Device` objects. If `include_features=True`, the `features` property will be populated.
 
 ### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> List[Device]`
 Fetches the complete status of an installation, including all devices and their features.

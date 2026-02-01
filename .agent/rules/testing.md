@@ -26,7 +26,7 @@ These rules apply strictly to the `tests/` directory.
   - Descriptive boolean names (`is_`, `has_`, `should_`)
 
 ## 3. The "Arrange-Act-Assert" Pattern (MANDATORY)
-Every test function must follow the **Arrange-Act-Assert** structure.
+Every test function must follow the **Arrange-Act-Assert** structure using **one-liner comments** to clearly separate sections.
 
 **CRITICAL: AAA comments must be test-specific, NOT generic.**
 
@@ -40,20 +40,24 @@ Every test function must follow the **Arrange-Act-Assert** structure.
 ✅ **Right (Specific):**
 ```python
 # Arrange: Load fixture for simple temperature sensor value.
+feature = ...
+
 # Act: Parse the feature using flat architecture parser.
+result = ...
+
 # Assert: Feature should have correct name, value (5.5°C) and unit.
+assert result.value == 5.5
 ```
 
-Visually separate these sections with comments if the test is longer than 5 lines.
-
-1.  **Arrange:** Prepare inputs, load fixtures, configure mocks (`respx`), and initialize the class under test.
-2.  **Act:** Execute the specific method or function being tested.
-3.  **Assert:** Verify the results using native `assert`. Check return values and side effects.
+1.  `# Arrange: [Description]` - Prepare inputs, load fixtures, configure mocks, and initialize the class under test.
+2.  `# Act: [Description]` - Execute the specific method or function being tested.
+3.  `# Assert: [Description]` - Verify the results using native `assert`. Check return values and side effects.
 
 ## 4. Data & Mocking
 - **Loading Data:** Use a `load_fixture_json` fixture (from `conftest.py`) to read JSON files.
-- **HTTP Mocking:** Use `respx` to mock external API calls.
-    - Configure `respx` to return the data loaded from `fixtures/`.
+- **HTTP Mocking:**
+    - Use `aioresponses` to mock external API calls.
+    - Configure the mock to return data loaded from `fixtures/`.
 - **General Mocking:** Use the `mocker` fixture (`pytest-mock`) instead of `unittest.mock.patch` contexts.
 - **Async:** Mark async tests explicitly with `@pytest.mark.asyncio`.
 
@@ -67,34 +71,27 @@ Follow this exact style for writing tests:
 
 ```python
 import pytest
-from httpx import Response
+from aioresponses import aioresponses
 from my_lib.client import DeviceClient
-from my_lib.exceptions import AuthError
 
 @pytest.mark.asyncio
-async def test_get_device_details_success(respx_mock, load_fixture_json):
-    # --- ARRANGE ---
-    # 1. Load data from fixtures (Single Source of Truth)
+async def test_get_device_details_success(load_fixture_json):
+    # Arrange: Load data from fixtures and mock API endpoint.
     api_response = load_fixture_json("devices/plug_details.json")
+    url = "https://api.example.com/v1/devices/123"
 
-    # 2. Mock the API endpoint using respx
-    respx_mock.get("[https://api.example.com/v1/devices/123](https://api.example.com/v1/devices/123)").mock(
-        return_value=Response(200, json=api_response)
-    )
+    with aioresponses() as m:
+        m.get(url, payload=api_response)
 
-    # 3. Initialize the client
-    client = DeviceClient(token="abc")
+        # Act: Initialize client and fetch device.
+        client = DeviceClient(token="abc")
+        device = await client.get_device("123")
 
-    # --- ACT ---
-    device = await client.get_device("123")
-
-    # --- ASSERT ---
-    assert device.id == "123"
-    assert device.name == "Smart Plug"
-    assert device.is_on is True
-    # Ensure raw data was parsed correctly into the model
-    assert device.voltage == 230.5
-
+        # Assert: Verify device properties match fixture data.
+        assert device.id == "123"
+        assert device.name == "Smart Plug"
+        assert device.is_on is True
+```
 ## 7. Mock Data Integrity
 - **Authenticity:** Fixtures in `src/vi_api_client/fixtures/` are "Gold Standard" real-world dumps.
 - **Immutable:** NEVER modify these files to satisfy tests. If a test fails because a fixture is missing a field, the test expectation is wrong (or must handle the missing field), not the data.

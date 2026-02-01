@@ -11,9 +11,7 @@ This file defines the architectural foundations and critical context for the `vi
 ## 2. Core Architecture: The "Flat Feature" Model (Use this!)
 The most important architectural decision is the flattening of API data.
 
-- **Old Way (Forbidden)**: Accessing data/commands via nested dictionaries.
-  - ❌ `data["features"]["heating"]["circuits"]["0"]["properties"]["slope"]["value"]`
-- **New Way (Mandatory)**: Accessing data via flattened feature names.
+- **Concept**: Accessing data via flattened feature names.
   - ✅ `feature = device.get_feature("heating.circuits.0.heating.curve.slope")`
   - ✅ `value = feature.value`
 
@@ -48,7 +46,7 @@ A `Feature` object encapsulates everything needed for a specific datapoint:
 - **Framework**: `pytest` only.
 - **Pattern**: **Arrange-Act-Assert (AAA)** (Explicitly commented).
 - **Mocking**:
-  - **Network**: Use `respx` to mock HTTP calls.
+  - **Network**: Use `aioresponses` to mock HTTP calls.
   - **Data**: Load **JSON Fixtures** from `tests/fixtures/`.
   - **No Magic**: Do not use `unittest.mock` for network calls.
 
