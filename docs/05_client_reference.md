@@ -68,18 +68,30 @@ Refreshes a specific device by refetching all its features.
 *   **Returns**: A new `Device` instance with updated features.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
-### `set_feature(device: Device, feature: Feature, target_value: Any) -> CommandResponse`
-Sets a new value for a writable feature.
+### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
+Sets a new value for a writable feature and returns an optimistically updated device.
 
 *   **Parameters**:
     *   `device`: The `Device` object.
     *   `feature`: The `Feature` object you want to change (must be writable).
     *   `target_value`: The new value you want to set.
-*   **Returns**: `CommandResponse` object with `success`, `message`, and `reason` fields.
+*   **Returns**: Tuple of `(CommandResponse, Device)`:
+    *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
+    *   `Device`: Updated device with the feature value optimistically set (on success) or unchanged (on failure).
 *   **Raises**:
     *   `ViValidationError` if the value violates constraints (min/max/options).
     *   `ViConnectionError` if the API call fails.
 *   **Magic**: This method automatically resolves the correct command name and parameter name from the feature's definition.
+*   **Important**: Always use the returned `Device` for subsequent calls to ensure correct dependency resolution for interdependent features.
+
+**Example**:
+```python
+# Set heating curve slope
+response, device = await client.set_feature(device, slope_feature, 0.7)
+if response.success:
+    # Use updated device for next operation
+    response, device = await client.set_feature(device, shift_feature, 7.0)
+```
 
 ## Analytics Methods
 

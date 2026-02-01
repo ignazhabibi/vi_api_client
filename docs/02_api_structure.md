@@ -102,7 +102,10 @@ print(features[0].value)
 ```python
 # Set a feature value directly
 feature = features[0]
-await client.set_feature(device, feature, 1.6)
+response, device = await client.set_feature(device, feature, 1.6)
+if response.success:
+    # Use updated device for next operation
+    pass
 ```
 
 The library handles the "magic" of mapping your simple `1.6` value back to the complex JSON structure required by the API.

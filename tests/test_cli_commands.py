@@ -70,7 +70,16 @@ async def test_cmd_set_success(mock_cli_context, capsys):
     mock_response.success = True
     mock_response.message = "OK"
     mock_response.reason = None
-    mock_cli_context.client.set_feature.return_value = mock_response
+    # Return tuple (response, device)
+    mock_device = Device(
+        id="DEV1",
+        gateway_serial="GW1",
+        installation_id="99",
+        model_id="Test",
+        device_type="heating",
+        status="ok",
+    )
+    mock_cli_context.client.set_feature.return_value = (mock_response, mock_device)
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -134,7 +143,16 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
     mock_response.success = True
     mock_response.message = "OK"
     mock_response.reason = None
-    mock_cli_context.client.set_feature.return_value = mock_response
+    # Return tuple (response, device)
+    mock_device = Device(
+        id="DEV1",
+        gateway_serial="GW1",
+        installation_id="99",
+        model_id="Test",
+        device_type="heating",
+        status="ok",
+    )
+    mock_cli_context.client.set_feature.return_value = (mock_response, mock_device)
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context

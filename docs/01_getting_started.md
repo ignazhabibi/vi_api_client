@@ -119,16 +119,18 @@ async def set_heating_mode(client, device):
 
         # 3. Execute High-Level Set
         # This handles validations, parameter resolving, and API calls automatically
-        result = await client.set_feature(
+        # Returns tuple: (CommandResponse, Device)
+        response, device = await client.set_feature(
             device,
             feature,
             "heating"
         )
 
-        if result.success:
+        if response.success:
             print("Command executed successfully!")
+            # Use the updated device for subsequent calls
         else:
-            print(f"Command failed: {result.reason}")
+            print(f"Command failed: {response.reason}")
     else:
         print(f"Feature '{feature.name}' is read-only.")
 ```

@@ -443,11 +443,13 @@ async def test_set_feature_with_dependency(load_fixture_json):
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
 
-            # Act
-            # Set slope to 1.2.
+            # Act: Set slope to 1.2 and verify dependency resolution.
             # The fixture says 'shift' is 4.
             # Expect payload: { "slope": 1.2, "shift": 4 }
-            await client.set_feature(device, slope_feature, 1.2)
+            response, _updated_device = await client.set_feature(
+                device, slope_feature, 1.2
+            )
+            assert response.success
 
             # Assert
             # Find the call with the matching URL
@@ -488,7 +490,7 @@ async def test_set_feature_validation_limit(load_fixture_json):
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
 
-            # Act & Assert: Max limit violation (Max is 3.5)
+            # Act & Assert: Max limit violation (Max is 3.5).
             with pytest.raises(ValueError, match=r"Value 5.0 > max"):
                 await client.set_feature(device, slope_feature, 5.0)
 
@@ -520,7 +522,177 @@ async def test_set_feature_validation_step(load_fixture_json):
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
 
-            # Act & Assert: Step violation (Step is 0.1)
-            # 1.25 is not valid for step 0.1
+            # Act & Assert: Step violation (Step is 0.1, 1.25 is invalid).
             with pytest.raises(ValueError, match=r"does not align with step"):
                 await client.set_feature(device, slope_feature, 1.25)
+
+
+@pytest.mark.asyncio
+async def test_set_feature_returns_updated_device(load_fixture_json):
+    """Verify optimistic device update on success."""
+    # Arrange: Load heating curve fixture and setup mocks.
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
+        mock_responses.post(command_url, payload={"data": {"success": True}})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Create base device
+            base_device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="Vitocal250A",
+                device_type="heatpump",
+                status="Online",
+            )
+
+            # Hydrate with features
+            features = await client.get_features(base_device)
+            device = replace(base_device, features=features)
+
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            original_slope = slope_feature.value  # Should be 0.6 from fixture
+
+            # Act: Set slope to new value.
+            response, updated_device = await client.set_feature(
+                device, slope_feature, 0.7
+            )
+
+            # Assert: Returned device should have updated slope value.
+            assert response.success
+            updated_slope_feature = updated_device.get_feature(
+                "heating.circuits.0.heating.curve.slope"
+            )
+            assert updated_slope_feature.value == 0.7
+            assert original_slope == 0.6  # Original unchanged
+
+
+@pytest.mark.asyncio
+async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json):
+    """Verify device unchanged on command failure."""
+    # Arrange: Load fixture and mock API failure.
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
+        mock_responses.post(
+            command_url,
+            payload={"data": {"success": False, "reason": "Device unavailable"}},
+        )
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Create base device
+            base_device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="V",
+                device_type="h",
+                status="o",
+            )
+
+            # Hydrate with features
+            features = await client.get_features(base_device)
+            device = replace(base_device, features=features)
+
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            original_slope = slope_feature.value
+
+            # Act: Try to set value but command fails.
+            response, updated_device = await client.set_feature(
+                device, slope_feature, 0.7
+            )
+
+            # Assert: Response indicates failure and device unchanged.
+            assert not response.success
+            assert response.reason == "Device unavailable"
+            returned_slope_feature = updated_device.get_feature(
+                "heating.circuits.0.heating.curve.slope"
+            )
+            assert returned_slope_feature.value == original_slope
+
+
+@pytest.mark.asyncio
+async def test_interdependent_features_use_optimistic_values(load_fixture_json):
+    """Test that dependencies resolve from optimistic updates."""
+    # Arrange: Load heating curve fixture with slope=0.6, shift=4.
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
+        # Mock two successful command executions
+        mock_responses.post(
+            command_url, payload={"data": {"success": True}}, repeat=True
+        )
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Create base device
+            base_device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="V",
+                device_type="h",
+                status="o",
+            )
+
+            # Hydrate with features
+            features = await client.get_features(base_device)
+            device = replace(base_device, features=features)
+
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            shift_feature = device.get_feature("heating.circuits.0.heating.curve.shift")
+
+            # Act: Set slope first to 0.7.
+            response1, device = await client.set_feature(device, slope_feature, 0.7)
+            assert response1.success
+
+            # Act: Immediately set shift to 7.0 using optimistically updated device.
+            response2, device = await client.set_feature(device, shift_feature, 7.0)
+            assert response2.success
+
+            # Assert: Second API call should use slope=0.7 (from optimistic update).
+            found_call = None
+            for (method, url), calls in mock_responses.requests.items():
+                if method == "POST" and str(url) == command_url and len(calls) == 2:
+                    # Second call should have slope=0.7
+                    found_call = calls[1]
+                    break
+
+            assert found_call is not None
+            assert found_call.kwargs["json"] == {"slope": 0.7, "shift": 7.0}
