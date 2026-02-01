@@ -195,8 +195,8 @@ class ViClient:
 
     async def set_feature(
         self, device: Device, feature: Feature, target_value: Any
-    ) -> CommandResponse:
-        """Set a value for a feature.
+    ) -> tuple[CommandResponse, Device]:
+        """Set a value for a feature and return optimistically updated device.
 
         Automatically resolves dependencies (other required parameters for the command)
         by looking them up in the device's feature list.
@@ -207,7 +207,9 @@ class ViClient:
             target_value: The value to write.
 
         Returns:
-            CommandResponse indicating success or failure.
+            Tuple of (command_response, updated_device).
+            - If successful: device with optimistically updated feature value.
+            - If failed: original device unchanged.
 
         Raises:
             ValueError: If feature is read-only or value is out of bounds.
@@ -231,7 +233,23 @@ class ViClient:
 
         # 3. Execution
         response_data = await self.connector.post(control.uri, payload)
-        return CommandResponse.from_api(response_data)
+        response = CommandResponse.from_api(response_data)
+
+        # 4. Optimistic Device Update
+        if response.success:
+            # Update feature value optimistically
+            updated_feature = replace(feature, value=target_value)
+            updated_features = [
+                updated_feature
+                if existing_feature.name == feature.name
+                else existing_feature
+                for existing_feature in device.features
+            ]
+            updated_device = replace(device, features=updated_features)
+            return response, updated_device
+
+        # Return unchanged device on failure
+        return response, device
 
     async def get_consumption(
         self,

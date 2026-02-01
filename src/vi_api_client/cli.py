@@ -425,7 +425,9 @@ async def cmd_set(args) -> None:
             with suppress(ValueError):
                 target_val = float(args.value)
 
-            result = await ctx.client.set_feature(device, feature, target_val)
+            result, _updated_device = await ctx.client.set_feature(
+                device, feature, target_val
+            )
 
             if result.success:
                 print("✅ Success!")
@@ -488,7 +490,7 @@ async def cmd_exec(args) -> None:
             # 5. Execute
             if target_val is not None:
                 print(f"Using high-level set_feature(target={target_val})...")
-                result = await ctx.client.set_feature(
+                result, _updated_device = await ctx.client.set_feature(
                     # Reconstruct transient device if needed, or use ctx
                     _transient_device(ctx),
                     feature,

@@ -20,7 +20,10 @@ Exceptions often carry detailed information from the API:
 
 ```python
 try:
-    await client.set_feature(device, feature, 50.0)
+    response, device = await client.set_feature(device, feature, 50.0)
+    if response.success:
+        # Use updated device
+        pass
 except ViValidationError as e:
     print(f"Validation Failed: {e.message}")
     print(f"Error ID: {e.error_id}")

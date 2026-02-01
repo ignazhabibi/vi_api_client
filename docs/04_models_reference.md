@@ -86,13 +86,21 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 
 ## CommandResponse
 
-Result of a command execution (returned by `set_feature`).
+Result of a command execution (first element of tuple returned by `set_feature`).
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `success` | `bool` | `True` if the command succeeded. | `True` |
 | `message` | `str` | Optional message from the API. | `'Command accepted'` |
 | `reason` | `str` | Optional failure reason or details. | `'Feature not ready'` |
+
+**Usage**:
+```python
+response, updated_device = await client.set_feature(device, feature, value)
+if response.success:
+    # Command succeeded, device is optimistically updated
+    pass
+```
 
 ## Next Steps
 

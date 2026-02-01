@@ -99,7 +99,10 @@ async def main():
         )
         if slope:
             print(f"Setting slope to 1.4...")
-            await client.set_feature(device, slope, 1.4)
+            response, device = await client.set_feature(device, slope, 1.4)
+            if response.success:
+                print("✅ Success! Device updated.")
+                # Use updated device for subsequent calls
 
 if __name__ == "__main__":
     asyncio.run(main())
