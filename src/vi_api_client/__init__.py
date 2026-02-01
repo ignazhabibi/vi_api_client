@@ -13,6 +13,7 @@ from .exceptions import (
 )
 from .mock_client import MockViClient
 from .models import Device, Feature
+from .utils import mask_pii
 
 __all__ = [
     "AbstractAuth",
@@ -28,4 +29,5 @@ __all__ = [
     "ViRateLimitError",
     "ViServerInternalError",
     "ViValidationError",
+    "mask_pii",
 ]
