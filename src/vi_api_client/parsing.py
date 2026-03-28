@@ -23,6 +23,18 @@ COMPLEX_DATA_INDICATORS = {
     "sun",  # Schedule days
 }
 
+CONSUMPTION_ALIAS_FEATURES = {
+    "heating.power.consumption.dhw",
+    "heating.power.consumption.heating",
+    "heating.power.consumption.total",
+}
+
+CONSUMPTION_ALIAS_MAPPING = {
+    "currentDay": "day",
+    "currentMonth": "month",
+    "currentYear": "year",
+}
+
 
 def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
     """Parse a nested API feature object into a list of flat Feature objects.
@@ -48,7 +60,7 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
         # Return as single complex feature
         control = _find_control_for_complex_feature(base_name, commands)
 
-        return [
+        features_out = [
             Feature(
                 name=base_name,
                 value=properties,  # The whole dict
@@ -58,6 +70,15 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
                 control=control,
             )
         ]
+        features_out.extend(
+            _build_consumption_alias_features(
+                base_name=base_name,
+                properties=properties,
+                is_enabled=is_enabled,
+                is_ready=is_ready,
+            )
+        )
+        return features_out
 
     # 2. Flattening Logic
     features_out = []
@@ -105,6 +126,51 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
                 is_enabled=is_enabled,
                 is_ready=is_ready,
                 control=control,
+            )
+        )
+
+    return features_out
+
+
+def _build_consumption_alias_features(
+    base_name: str,
+    properties: dict[str, Any],
+    is_enabled: bool,
+    is_ready: bool,
+) -> list[Feature]:
+    """Build synthetic current* alias features for selected consumption metrics.
+
+    Args:
+        base_name: The raw API feature name.
+        properties: The raw properties dictionary of the feature.
+        is_enabled: Whether the feature is enabled.
+        is_ready: Whether the feature is ready.
+
+    Returns:
+        List of synthetic alias features.
+    """
+    if base_name not in CONSUMPTION_ALIAS_FEATURES:
+        return []
+
+    features_out: list[Feature] = []
+
+    for alias_name, source_name in CONSUMPTION_ALIAS_MAPPING.items():
+        source_data = properties.get(source_name)
+        if not isinstance(source_data, dict):
+            continue
+
+        values = source_data.get("value")
+        if not isinstance(values, list) or not values:
+            continue
+
+        features_out.append(
+            Feature(
+                name=f"{base_name}.{alias_name}",
+                value=values[0],
+                unit=source_data.get("unit"),
+                is_enabled=is_enabled,
+                is_ready=is_ready,
+                control=None,
             )
         )
 
