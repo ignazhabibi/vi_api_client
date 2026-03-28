@@ -1,0 +1,33 @@
+{
+  "feature": "heating.power.consumption.heating",
+  "isEnabled": true,
+  "isReady": true,
+  "properties": {
+    "day": {
+      "type": "array",
+      "unit": "kilowattHour",
+      "value": [
+        4.6,
+        6.8,
+        7
+      ]
+    },
+    "month": {
+      "type": "array",
+      "unit": "kilowattHour",
+      "value": [
+        32.3,
+        32.1,
+        0
+      ]
+    },
+    "year": {
+      "type": "array",
+      "unit": "kilowattHour",
+      "value": [
+        2565.7,
+        3809.6
+      ]
+    }
+  }
+}
