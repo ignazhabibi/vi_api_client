@@ -57,7 +57,7 @@ def load_config(token_file: str) -> dict[str, Any]:
     try:
         with Path(token_file).open() as file:
             return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return {}
 
 
@@ -144,7 +144,7 @@ def get_client_config_safe(args: argparse.Namespace) -> tuple[str, str]:
 @asynccontextmanager
 async def setup_client_context(
     args, discover: bool = True
-) -> AsyncGenerator[CLIContext, None]:
+) -> AsyncGenerator[CLIContext]:
     """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
     client_id, redirect_uri = get_client_config_safe(args)
 

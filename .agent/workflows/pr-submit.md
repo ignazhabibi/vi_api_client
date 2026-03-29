@@ -34,7 +34,6 @@ The agent must first verify:
     If the change touches `pyproject.toml`, build config, dependency management,
     or CLI entry points, validate the package build too.
     ```bash
-    python -m pip install build
     python -m build
     ```
 

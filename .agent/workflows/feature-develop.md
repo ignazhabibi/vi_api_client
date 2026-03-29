@@ -11,7 +11,7 @@ on a dedicated branch.
 > **Agent Rules Compliance**: During development, you MUST strictly follow ALL rules defined in `.agent/rules/`:
 > - `python-style.md` - Code style (f-strings, naming, sorting, logging)
 > - `python-docs.md` - Documentation (Google Style docstrings)
-> - `tech-stack.md` - Technology choices (Python 3.12+, typing, filesystem, async stack)
+> - `tech-stack.md` - Technology choices (Python 3.14+, typing, filesystem, async stack)
 > - `testing.md` - Test structure and mocking strategy
 > - `architecture-context.md` - Library architecture and repository boundaries
 > - `git-workflow.md` - This workflow itself
@@ -67,7 +67,6 @@ When changing packaging metadata, build config, dependency management, or CLI
 entry points, also validate once with:
 
 ```bash
-python -m pip install build
 python -m build
 ```
 
@@ -111,7 +110,7 @@ git commit -m "type: description"
 
 ## Notes
 - **Always** run lint + format-check + tests before committing
-- **Prefer** matching CI's Python 3.12 baseline locally
+- **Prefer** matching CI's Python 3.14 baseline locally
 - **Add a build check** when packaging or release-relevant surfaces changed
 - **Always** ask user before committing
 - Commit frequently with meaningful messages

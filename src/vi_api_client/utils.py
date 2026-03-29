@@ -1,5 +1,7 @@
 """Utility functions for Viessmann API Client."""
 
+from __future__ import annotations
+
 import json
 import re
 from contextlib import suppress
@@ -71,7 +73,7 @@ def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
     return params
 
 
-def format_feature(feature: "Feature") -> str:
+def format_feature(feature: Feature) -> str:
     """Format a feature's value for display (CLI/Logs).
 
     Args:

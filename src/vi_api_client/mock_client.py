@@ -206,7 +206,7 @@ class MockViClient(ViClient):
 
     async def _execute_command(
         self,
-        ctrl: "FeatureControl",
+        ctrl: FeatureControl,
         params: dict[str, Any],
     ) -> CommandResponse:
         """Mock execution of a command (Success).

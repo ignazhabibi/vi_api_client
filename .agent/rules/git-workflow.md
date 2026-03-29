@@ -33,7 +33,6 @@ Strict guidelines for version control and feature development.
    - `python -m pytest -q`
 3. If the change touches packaging metadata, build config, dependency
    management, or CLI entry points, also validate with:
-   - `python -m pip install build`
    - `python -m build`
 4. Commit with a Conventional Commit style message.
 

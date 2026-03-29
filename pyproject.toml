@@ -9,12 +9,12 @@ description = "Async Python client for Viessmann Climate Solutions API"
 authors = [
   { name = "Michael", email = "antigravity@example.com" },
 ]
+license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "aiohttp>=3.8.0",
     "pkce>=1.0.3",
@@ -22,10 +22,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "aioresponses",
+    "build",
     "pytest",
     "pytest-asyncio",
-    "aioresponses",
     "pytest-cov",
+    "ruff==0.15.8",
 ]
 
 [project.scripts]
@@ -33,7 +35,7 @@ vi-client = "vi_api_client.cli:main"
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [

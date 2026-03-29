@@ -18,7 +18,7 @@ Designed for integration with Home Assistant and other async Python applications
 
 ## Installation
 
-This is currently a local development package. **Requires Python 3.12+**.
+This is currently a local development package. **Requires Python 3.14+**.
 
 ```bash
 # Clone the repository
@@ -26,7 +26,7 @@ git clone https://github.com/ignazhabibi/vi_api_client.git
 cd vi_api_client
 
 # Create virtual env
-python3 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 
 # Install in editable mode
