@@ -100,7 +100,7 @@ should be updated to reflect it.
 Prefer matching the current CI interpreter locally when possible.
 
 ```bash
-python3.12 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install '.[dev]'
@@ -115,17 +115,16 @@ python -m pytest -q
 ```
 
 If a change touches packaging metadata, build config, dependency management, or
-CLI entry points, also install `build` if needed and validate with:
+CLI entry points, validate the package build too:
 
 ```bash
-python -m pip install build
 python -m build
 ```
 
 ## CI and Release Notes
 
 - CI currently runs via `.github/workflows/ci_cd.yml`.
-- The `quality-check` job currently runs on Python 3.12.
+- The `quality-check` job currently runs on Python 3.14.
 - Treat `main` as protected by workflow, even if GitHub does not technically
   enforce it in every environment.
 - Releases are published from `v*` tag runs in GitHub Actions.

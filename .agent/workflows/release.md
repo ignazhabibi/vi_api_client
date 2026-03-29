@@ -21,10 +21,9 @@ library package.
     ruff format --check .
     python -m pytest -q
     ```
-4.  **Build Validation**: Install `build` if needed and verify the package can
-    be built.
+4.  **Build Validation**: Verify the package can be built in the prepared dev
+    environment.
     ```bash
-    python -m pip install build
     python -m build
     ```
 

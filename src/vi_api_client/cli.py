@@ -144,7 +144,7 @@ def get_client_config_safe(args: argparse.Namespace) -> tuple[str, str]:
 @asynccontextmanager
 async def setup_client_context(
     args, discover: bool = True
-) -> AsyncGenerator[CLIContext, None]:
+) -> AsyncGenerator[CLIContext]:
     """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
     client_id, redirect_uri = get_client_config_safe(args)
 

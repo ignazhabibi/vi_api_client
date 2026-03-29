@@ -12,7 +12,7 @@ git clone https://github.com/ignazhabibi/vi_api_client.git
 cd vi_api_client
 
 # Create virtual env
-python3 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 
 # Install in editable mode

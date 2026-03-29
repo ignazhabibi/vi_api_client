@@ -314,7 +314,7 @@ class ViClient:
         return f"{base}/filter"
 
     def _resolve_command_payload(
-        self, device: Device, ctrl: "FeatureControl", target_value: Any
+        self, device: Device, ctrl: FeatureControl, target_value: Any
     ) -> dict[str, Any]:
         """Resolve all parameters required for a command.
 
@@ -357,7 +357,7 @@ class ViClient:
                 )
         return payload
 
-    def _validate_constraints(self, ctrl: "FeatureControl", value: Any) -> None:
+    def _validate_constraints(self, ctrl: FeatureControl, value: Any) -> None:
         """Validate value against all constraints using type-based dispatch.
 
         Args:
@@ -383,7 +383,7 @@ class ViClient:
             validator(ctrl, value)  # type: ignore
 
     def _validate_numeric_constraints(
-        self, ctrl: "FeatureControl", value: int | float
+        self, ctrl: FeatureControl, value: int | float
     ) -> None:
         """Validate numeric bounds and step."""
         if ctrl.min is not None and value < ctrl.min:
@@ -406,12 +406,12 @@ class ViClient:
                     f"(starting from {base})"
                 )
 
-    def _validate_enum_constraints(self, ctrl: "FeatureControl", value: Any) -> None:
+    def _validate_enum_constraints(self, ctrl: FeatureControl, value: Any) -> None:
         """Validate enum options."""
         if value not in ctrl.options:
             raise ValueError(f"Value {value} is not in allowed options: {ctrl.options}")
 
-    def _validate_string_constraints(self, ctrl: "FeatureControl", value: str) -> None:
+    def _validate_string_constraints(self, ctrl: FeatureControl, value: str) -> None:
         """Validate string length and pattern."""
         if ctrl.min_length is not None and len(value) < ctrl.min_length:
             raise ValueError(

@@ -5,8 +5,8 @@ trigger: always_on
 # Tech Stack & Patterns
 
 ## 1. Python Version
-- Runtime baseline is Python 3.12+.
-- CI currently validates against Python 3.12.
+- Runtime baseline is Python 3.14+.
+- CI currently validates against Python 3.14.
 - Prefer matching the CI interpreter locally when possible.
 - Keep tooling configuration aligned with the supported runtime baseline.
 

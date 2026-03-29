@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.14"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -22,8 +22,7 @@ jobs:
     - name: Install
       run: |
         pip install --upgrade pip
-        pip install ruff pytest build
-        if [ -f pyproject.toml ]; then pip install .[dev]; fi
+        pip install .[dev]
     - name: Lint & Format (Ruff)
       run: |
         ruff check .
@@ -41,10 +40,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.14"
     - name: Build
       run: |
-        pip install build
+        pip install .[dev]
         python -m build
     - name: Fetch Tag Message
       id: tag_message
