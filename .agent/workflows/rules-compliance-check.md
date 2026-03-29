@@ -1,36 +1,58 @@
 ---
-description: Bring the current file up to the standards defined in the project rules
+description: Review and update agent guidance so rules, workflows, and bootstrap docs remain aligned with repository reality
 ---
 
-# Code Compliance & Modernization
+# Rules and Workflow Compliance Check
 
-**Goal:** Bring the current file up to the standards defined in the project rules (`.agent/rules/*.md`).
+**Goal:** Keep `AGENTS.md`, `.agent/rules/`, and `.agent/workflows/`
+self-contained, current, and internally consistent with the real repository
+behavior.
 
 ## Instructions
 
-Act as a strict Code Reviewer and Refactoring Agent. Analyze the code and apply the following transformations step-by-step.
+Act as a strict repository guidance reviewer. Audit the guidance files against
+the actual codebase, docs, CI, release process, and repository boundaries, then
+update them directly where needed.
 
-### Phase 1: Structure & Imports (ref: `python-style.md`)
-1.  **Imports:** Sort all imports using standard sorting logic.
-2.  **Sorting:** Sort the contents of Lists (e.g., `SUPPORTED_PLATFORMS`, `CONSTANTS`) and Dictionary keys **alphabetically**.
-3.  **Filesystem:** Replace all `os.path` operations with `pathlib.Path` syntax.
-4.  **Naming:** Identify short variable names (k, v, d) and rename them to be descriptive (key, value, data).
+### Phase 1: Repository Reality Check
+1.  **Bootstrap Alignment:**
+    - Verify `AGENTS.md` still points to the correct always-relevant files and
+      workflows.
+    - Ensure it reflects current CI, release, setup, and boundary assumptions.
+2.  **Rules Alignment:**
+    - Check `.agent/rules/` for stale assumptions about architecture, tech
+      stack, testing, git workflow, and multi-repo boundaries.
+3.  **Workflow Alignment:**
+    - Check `.agent/workflows/` for stale steps around branches, PRs, local
+      validation, release flow, and documentation duties.
 
-### Phase 2: Syntax & Logging (CRITICAL!)
-1.  **Modern Python (3.12):** Update syntax to Python 3.12 standards (e.g., use `|` for Unions instead of `Optional` or `Union`, use `type` aliases).
-2.  **Logging:** Audit EVERY `_LOGGER` call:
-    - **MUST FIX:** Convert f-strings (`f"..."`) inside logger calls to Lazy Formatting (`%s`).
-    - Remove trailing periods `.` from log messages.
-3.  **Strings:** Convert all *other* string concatenations (outside of logging) to **f-strings**.
+### Phase 2: Self-Contained Documentation Check
+1.  **Coverage:** Treat repository-operational documentation as one system:
+    - `README.md`
+    - `docs/`
+    - `AGENTS.md`
+    - `.agent/rules/`
+    - `.agent/workflows/`
+2.  **Durable Knowledge:** If a new insight changed how the repo is actually
+    maintained, verify that the insight is captured in the right doc file and
+    not left implicit in conversation only.
+3.  **No Silent Drift:** If a guidance file is stale, update it as part of the
+    task instead of merely noting the discrepancy.
 
-### Phase 3: Typing & Documentation (ref: `python-docs.md`)
-1.  **Typing:**
-    - Replace `List`, `Dict`, `Tuple` imports with native types (`list`, `dict`, `tuple`).
-    - Remove `Any` where a specific type can be inferred.
-2.  **Docstrings:**
-    - Ensure a file-header docstring exists.
-    - Add docstrings for all Public Methods using **Google Style**.
-    - **IMPORTANT:** Remove type definitions from the docstring text (e.g., change `Args: name (str):` to `Args: name:`).
+### Phase 3: Required Triggers
+Treat guidance updates as mandatory when the task changed any of the following:
+
+- public API contract or model semantics
+- CLI behavior or examples
+- tech stack, Python baseline, or dependency strategy
+- test strategy, fixture policy, or build validation expectations
+- local setup commands
+- release versioning or tagging flow
+- Git workflow or repo-boundary policy
 
 ## Output
-Apply the changes directly to the file. Afterwards, provide a short bullet-point summary of what was fixed.
+Apply the necessary guidance updates directly. Afterwards:
+
+- summarize what guidance was updated
+- state which files were reviewed for drift
+- explicitly note if any checked files needed no change
