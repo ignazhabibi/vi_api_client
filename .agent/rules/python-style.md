@@ -2,7 +2,7 @@
 trigger: always_on
 ---
 
-# Python Style Guidelines (HA Compatible)
+# Python Style Guidelines
 
 These rules apply strictly to all Python files.
 

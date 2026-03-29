@@ -14,26 +14,36 @@ The agent must first verify:
     git branch --show-current
     ```
     > [!WARNING]
-    > If output is `main`, the Agent must **STOP** and ask the user to start a feature branch.
+    > If output is `main`, the Agent must create or request a short-lived
+    > feature branch before proceeding. Direct `main` commits are not the
+    > default path, including documentation and `.agent/` updates.
 
 2.  **Lint & Test**:
     ```bash
     // turbo
-    ruff format .
+    ruff check .
     // turbo
-    ruff check --fix .
+    ruff format --check .
     // turbo
-    pytest
+    python -m pytest -q
     ```
     > [!IMPORTANT]
     > If tests fail, **ABORT**.
 
+3.  **Packaging Sanity Check (when relevant)**:
+    If the change touches `pyproject.toml`, build config, dependency management,
+    or CLI entry points, validate the package build too.
+    ```bash
+    python -m pip install build
+    python -m build
+    ```
+
 ## 2. Commit (Agent)
 
-1.  **Stage**: `git add .`
+1.  **Stage**: Stage the intended files, not unrelated worktree changes.
 2.  **Commit**: Generate a comprehensive commit message `type(scope): description`.
     - `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
-    - Message should be under 50 chars ideally.
+    - Keep the subject concise and informative.
 
 ## 3. Push & PR (Agent)
 
@@ -53,9 +63,6 @@ The agent must first verify:
     > [!TIP]
     > Always check if `gh` is available with `gh --version` before trying Option A.
 
-## X. Special Case: Release (Tagging)
+## X. Releases
 
-If the user specifically requested a **RELEASE**:
-1.  Verify `pyproject.toml` version matches intent.
-2.  Create tag: `git tag vX.Y.Z`
-3.  Push tag: `git push origin vX.Y.Z`
+For release work, use the dedicated workflow in `.agent/workflows/release.md`.

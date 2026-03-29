@@ -33,7 +33,7 @@ vi-client = "vi_api_client.cli:main"
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
