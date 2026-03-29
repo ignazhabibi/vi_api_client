@@ -84,7 +84,7 @@ class OAuth(AbstractAuth):
         try:
             with self.token_file.open() as file:
                 self._token_info = json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError, json.JSONDecodeError:
             self._token_info = {}  # Allow init as empty if invalid/missing
 
     def _save_tokens(self) -> None:
@@ -93,7 +93,7 @@ class OAuth(AbstractAuth):
         try:
             with self.token_file.open() as file:
                 current_data = json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError, json.JSONDecodeError:
             pass
 
         current_data.update(self._token_info)
