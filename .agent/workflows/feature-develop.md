@@ -21,7 +21,7 @@ Ensure you're working from the latest `main` branch.
 
 ```bash
 git checkout main
-git pull
+git pull --ff-only
 ```
 
 ## Step 2: Create Feature Branch

@@ -125,8 +125,12 @@ python -m build
 
 - CI currently runs via `.github/workflows/ci_cd.yml`.
 - The `quality-check` job currently runs on Python 3.14.
-- Treat `main` as protected by workflow, even if GitHub does not technically
-  enforce it in every environment.
+- `main` is protected on GitHub. Treat the pull-request path as mandatory
+  unless the user explicitly requests an emergency bypass.
+- Renovate is enabled via `renovate.json`. Dependency update PRs are expected
+  repository traffic and should be reviewed normally.
+- The current Renovate policy is PR creation without automerge. Do not assume
+  dependency PRs will merge themselves unless the repository config changes.
 - Releases are published from `v*` tag runs in GitHub Actions.
 - The GitHub Release body is populated from the annotated tag message, so
   release tags must be annotated and should include the changelog body.
