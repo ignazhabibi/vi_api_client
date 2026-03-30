@@ -21,7 +21,7 @@ Strict guidelines for version control and feature development.
 ### A. Start Clean
 
 1. `git checkout main`
-2. `git pull`
+2. `git pull --ff-only`
 3. `git checkout -b feature/<descriptive-name>`
 
 ### B. Develop
@@ -47,8 +47,13 @@ Strict guidelines for version control and feature development.
 ### D. Re-Sync
 
 1. `git checkout main`
-2. `git pull`
+2. `git pull --ff-only`
 3. `git branch -d feature/<name>`
+
+If the repository uses squash merges, local branch deletion may still warn that
+the feature branch was "not yet merged to HEAD" even after the PR was merged.
+That warning is usually benign if `main` was refreshed successfully and the PR
+contents are present on `origin/main`.
 
 ## 3. Release Process
 
@@ -71,3 +76,5 @@ message.
 - **Validation**: Run `ruff check .`, `ruff format --check .`, and
   `python -m pytest -q` before proposing a push. Add `python -m build` when the
   change touches packaging or release-related surfaces.
+- **Dependency PRs**: Renovate PRs are part of the normal workflow. Review them
+  like any other PR and do not assume automerge is enabled.

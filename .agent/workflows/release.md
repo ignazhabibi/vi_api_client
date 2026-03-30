@@ -11,7 +11,7 @@ library package.
 1.  **Branch Check**: Ensure `main` is fully up-to-date.
     ```bash
     git checkout main
-    git pull
+    git pull --ff-only
     ```
 2.  **Clean State**: `git status` must show no modified files.
 3.  **Local Validation**: Run the same quality gates the repo expects before
@@ -88,7 +88,7 @@ tag body becomes the GitHub Release body in CI.
 6.  **Refresh Local Main**:
     ```bash
     git checkout main
-    git pull
+    git pull --ff-only
     ```
 7.  **Tag the Merged Main Commit**:
     ```bash
