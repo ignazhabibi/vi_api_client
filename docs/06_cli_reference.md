@@ -42,6 +42,7 @@ vi-client list-features --enabled --values
 vi-client list-features --json
 ```
 *Note: This auto-detects the first device. You can specify `--gateway-serial` and `--device-id` if needed.*
+*Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic alias feature per base feature: `...currentYear`. Additional synthetic `currentDay` and `currentMonth` aliases are no longer generated.*
 
 ## 4. Fetch Feature Details
 Get the current value of a specific feature.
