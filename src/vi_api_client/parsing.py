@@ -24,14 +24,13 @@ COMPLEX_DATA_INDICATORS = {
 }
 
 CONSUMPTION_ALIAS_FEATURES = {
+    "heating.power.consumption.cooling",
     "heating.power.consumption.dhw",
     "heating.power.consumption.heating",
     "heating.power.consumption.total",
 }
 
 CONSUMPTION_ALIAS_MAPPING = {
-    "currentDay": "day",
-    "currentMonth": "month",
     "currentYear": "year",
 }
 
@@ -138,7 +137,7 @@ def _build_consumption_alias_features(
     is_enabled: bool,
     is_ready: bool,
 ) -> list[Feature]:
-    """Build synthetic current* alias features for selected consumption metrics.
+    """Build synthetic currentYear alias features for selected consumption metrics.
 
     Args:
         base_name: The raw API feature name.

@@ -83,16 +83,48 @@ def test_feature_do_not_flatten_history(load_fixture_json):
     assert feature.value["day"]["value"] == [1.1, 2.2, 3.3]
 
 
+def test_feature_adds_consumption_alias_for_cooling(load_fixture_json):
+    """Test that cooling consumption gets a synthetic currentYear alias."""
+    # Arrange: Load fixture for cooling power consumption with year array data.
+    data = load_fixture_json("parsing/consumption_alias_cooling.json")
+
+    # Act: Parse the feature using flat architecture parser.
+    features = parse_feature_flat(data)
+
+    # Assert: Original feature and only the currentYear alias should be available.
+    assert len(features) == 2
+
+    base_feature = next(
+        feature
+        for feature in features
+        if feature.name == "heating.power.consumption.cooling"
+    )
+    assert isinstance(base_feature.value, dict)
+    assert base_feature.value["year"]["value"][0] == 12.5
+
+    current_year_feature = next(
+        feature
+        for feature in features
+        if feature.name == "heating.power.consumption.cooling.currentYear"
+    )
+    assert current_year_feature.value == 12.5
+    assert current_year_feature.unit == "kilowattHour"
+    assert not any(
+        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
+        for feature in features
+    )
+
+
 def test_feature_adds_consumption_aliases_for_heating(load_fixture_json):
-    """Test that heating consumption gets synthetic current* alias features."""
+    """Test that heating consumption gets a synthetic currentYear alias."""
     # Arrange: Load fixture for heating power consumption with day/month/year arrays.
     data = load_fixture_json("parsing/consumption_alias_heating.json")
 
     # Act: Parse the feature using flat architecture parser.
     features = parse_feature_flat(data)
 
-    # Assert: Original feature and derived current* aliases should be available.
-    assert len(features) == 4
+    # Assert: Original feature and only the currentYear alias should be available.
+    assert len(features) == 2
 
     base_feature = next(
         feature
@@ -102,54 +134,29 @@ def test_feature_adds_consumption_aliases_for_heating(load_fixture_json):
     assert isinstance(base_feature.value, dict)
     assert base_feature.value["day"]["value"][0] == 4.6
 
-    current_day_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.heating.currentDay"
-    )
-    assert current_day_feature.value == 4.6
-    assert current_day_feature.unit == "kilowattHour"
-
-    current_month_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.heating.currentMonth"
-    )
-    assert current_month_feature.value == 32.3
-
     current_year_feature = next(
         feature
         for feature in features
         if feature.name == "heating.power.consumption.heating.currentYear"
     )
     assert current_year_feature.value == 2565.7
+    assert current_year_feature.unit == "kilowattHour"
+    assert not any(
+        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
+        for feature in features
+    )
 
 
 def test_feature_adds_consumption_aliases_for_dhw(load_fixture_json):
-    """Test that DHW consumption gets synthetic current* alias features."""
+    """Test that DHW consumption gets a synthetic currentYear alias."""
     # Arrange: Load fixture for DHW power consumption with day/month/year arrays.
     data = load_fixture_json("parsing/consumption_alias_dhw.json")
 
     # Act: Parse the feature using flat architecture parser.
     features = parse_feature_flat(data)
 
-    # Assert: Original feature and derived current* aliases should be available.
-    assert len(features) == 4
-
-    current_day_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.dhw.currentDay"
-    )
-    assert current_day_feature.value == 2.6
-    assert current_day_feature.unit == "kilowattHour"
-
-    current_month_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.dhw.currentMonth"
-    )
-    assert current_month_feature.value == 16
+    # Assert: Original feature and only the currentYear alias should be available.
+    assert len(features) == 2
 
     current_year_feature = next(
         feature
@@ -157,33 +164,23 @@ def test_feature_adds_consumption_aliases_for_dhw(load_fixture_json):
         if feature.name == "heating.power.consumption.dhw.currentYear"
     )
     assert current_year_feature.value == 875.0999999999999
+    assert current_year_feature.unit == "kilowattHour"
+    assert not any(
+        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
+        for feature in features
+    )
 
 
 def test_feature_adds_consumption_aliases_for_total(load_fixture_json):
-    """Test that total consumption gets synthetic current* alias features."""
+    """Test that total consumption gets a synthetic currentYear alias."""
     # Arrange: Load fixture for total power consumption with day/month/year arrays.
     data = load_fixture_json("parsing/consumption_alias_total.json")
 
     # Act: Parse the feature using flat architecture parser.
     features = parse_feature_flat(data)
 
-    # Assert: Original feature and derived current* aliases should be available.
-    assert len(features) == 4
-
-    current_day_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.total.currentDay"
-    )
-    assert current_day_feature.value == 7.199999999999999
-    assert current_day_feature.unit == "kilowattHour"
-
-    current_month_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.total.currentMonth"
-    )
-    assert current_month_feature.value == 48.3
+    # Assert: Original feature and only the currentYear alias should be available.
+    assert len(features) == 2
 
     current_year_feature = next(
         feature
@@ -191,6 +188,11 @@ def test_feature_adds_consumption_aliases_for_total(load_fixture_json):
         if feature.name == "heating.power.consumption.total.currentYear"
     )
     assert current_year_feature.value == 3440.8
+    assert current_year_feature.unit == "kilowattHour"
+    assert not any(
+        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
+        for feature in features
+    )
 
 
 def test_feature_priority_value_over_status(load_fixture_json):
