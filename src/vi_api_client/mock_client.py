@@ -1,4 +1,5 @@
 import json
+import warnings
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -236,6 +237,10 @@ class MockViClient(ViClient):
     ) -> list[Feature]:
         """Get consumption data from analytics fixture if available.
 
+        .. deprecated:: 1.x
+            The get_consumption method and analytics API are deprecated and will be
+            removed in a future major release.
+
         Args:
             device: The device object (context).
             start_dt: Start time (not used in mock).
@@ -246,6 +251,12 @@ class MockViClient(ViClient):
         Returns:
             List of analytics features if fixture exists, empty list otherwise.
         """
+        warnings.warn(
+            "The get_consumption method and Analytics API are deprecated "
+            "and will be removed in a future major version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         analytics_data = self._load_analytics_data()
         if analytics_data:
             properties = resolve_properties(metric)

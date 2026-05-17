@@ -248,9 +248,10 @@ async def test_get_consumption(load_fixture_json):
             end = "2023-01-01T23:59:59"
 
             # Act: Fetch consumption data with summary metric.
-            result_summary = await client.get_consumption(
-                device, start, end, metric="summary"
-            )
+            with pytest.warns(DeprecationWarning, match="deprecated"):
+                result_summary = await client.get_consumption(
+                    device, start, end, metric="summary"
+                )
 
             # Assert: Summary should return 3 features with total consumption.
             assert isinstance(result_summary, list)
@@ -265,9 +266,10 @@ async def test_get_consumption(load_fixture_json):
             assert feature_total.unit == "kilowattHour"
 
             # Act: Fetch consumption data for total metric only.
-            result_total = await client.get_consumption(
-                device, start, end, metric="total"
-            )
+            with pytest.warns(DeprecationWarning, match="deprecated"):
+                result_total = await client.get_consumption(
+                    device, start, end, metric="total"
+                )
 
             # Assert: Individual metric should return single feature.
             assert isinstance(result_total, list)
@@ -276,7 +278,10 @@ async def test_get_consumption(load_fixture_json):
             assert result_total[0].value == 15.5
 
             # Act: Attempt to fetch with invalid metric (should raise ValueError).
-            with pytest.raises(ValueError):
+            with (
+                pytest.raises(ValueError),
+                pytest.warns(DeprecationWarning, match="deprecated"),
+            ):
                 await client.get_consumption(device, start, end, metric="invalid")
 
 

@@ -82,6 +82,8 @@ vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
 ## 8. Get Consumption (Analytics)
+> **DEPRECATED:** The `get-consumption` command and Analytics API will be removed in a future major release.
+
 Fetch gas/electricity consumption (summary per day/week/month/year).
 
 - **Arguments**:

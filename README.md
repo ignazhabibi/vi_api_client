@@ -1,8 +1,5 @@
 # Viessmann API Python Client
 
-> [!WARNING]
-> This project is in an early stage of development. It is currently under active development, and changes (including breaking changes) are possible at any time.
-
 A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann-climatesolutions.com/start.html).
 Designed for integration with Home Assistant and other async Python applications.
 
@@ -13,7 +10,6 @@ Designed for integration with Home Assistant and other async Python applications
 - **Auto-Discovery**: Automatically finds installations, gateways, and devices.
 - **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
 - **Command Execution**: Supports writing values with automatic parameter resolution (e.g. `setCurve`).
-- **Analytics API**: Fetch historical energy consumption data (gas/electricity).
 - **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
 
 ## Installation

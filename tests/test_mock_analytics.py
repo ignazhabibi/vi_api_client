@@ -16,7 +16,8 @@ async def test_get_consumption_with_analytics_fixture() -> None:
     device = devices[0]
 
     # Act: Fetch consumption data using summary metric.
-    features = await client.get_consumption(device, "2026-01-01", "2026-01-02")
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        features = await client.get_consumption(device, "2026-01-01", "2026-01-02")
 
     # Assert: Should return 3 analytics features with expected values.
     assert len(features) == 3
@@ -51,7 +52,8 @@ async def test_get_consumption_without_analytics_fixture() -> None:
     device = devices[0]
 
     # Act: Attempt to fetch consumption data.
-    features = await client.get_consumption(device, "2026-01-01", "2026-01-02")
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        features = await client.get_consumption(device, "2026-01-01", "2026-01-02")
 
     # Assert: Should return empty list (no analytics fixture available).
     assert features == []
@@ -68,9 +70,10 @@ async def test_get_consumption_specific_metric() -> None:
     device = devices[0]
 
     # Act: Fetch only DHW consumption metric.
-    features = await client.get_consumption(
-        device, "2026-01-01", "2026-01-02", metric="dhw"
-    )
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        features = await client.get_consumption(
+            device, "2026-01-01", "2026-01-02", metric="dhw"
+        )
 
     # Assert: Should return only 1 feature (dhw).
     assert len(features) == 1

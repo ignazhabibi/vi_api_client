@@ -361,6 +361,15 @@ async def cmd_get_consumption(args) -> None:
     Args:
         args: Parsed command line arguments including metric (summary, total, etc.).
     """
+    _LOGGER.warning(
+        "The 'get-consumption' command and Analytics API are deprecated "
+        "and will be removed in a future major version."
+    )
+    print(
+        "WARNING: The 'get-consumption' command and Analytics API are deprecated "
+        "and will be removed in a future major release.\n"
+    )
+
     try:
         async with setup_client_context(args) as ctx:
             print(f"Fetching consumption (Metric: {args.metric})...")
