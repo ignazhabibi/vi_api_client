@@ -96,6 +96,8 @@ if response.success:
 ## Analytics Methods
 
 ### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary", resolution: str = "1d") -> List[Feature]`
+> **DEPRECATED:** The `get_consumption` method and Analytics API will be removed in a future major release.
+
 Fetches energy consumption usage for a time range.
 
 *   **Parameters**:

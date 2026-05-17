@@ -2,6 +2,7 @@
 
 import logging
 import re
+import warnings
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
@@ -261,6 +262,10 @@ class ViClient:
     ) -> list[Feature]:
         """Fetch aggregated energy consumption.
 
+        .. deprecated:: 1.x
+            The get_consumption method and analytics API are deprecated and will be
+            removed in a future major release.
+
         Args:
             device: The device to fetch data for.
             start_dt: Start time (datetime or ISO string).
@@ -271,6 +276,13 @@ class ViClient:
         Returns:
             List of features representing the consumption data.
         """
+        warnings.warn(
+            "The get_consumption method and Analytics API are deprecated "
+            "and will be removed in a future major version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         # Ensure string format
         if isinstance(start_dt, datetime):
             start_dt = start_dt.isoformat()
