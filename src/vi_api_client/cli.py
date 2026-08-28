@@ -8,7 +8,7 @@ import os
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,7 @@ from vi_api_client import (
     ViValidationError,
 )
 
-from .models import CommandResponse, Device
+from .models import CommandResponse, Device, Feature
 from .utils import format_feature, parse_cli_params
 
 # Default file to store tokens and config
@@ -409,14 +409,10 @@ async def cmd_set(args) -> None:
     """
     try:
         async with setup_client_context(args) as ctx:
-            device = _transient_device(ctx)
-            features = await ctx.client.get_features(
-                device, feature_names=[args.feature_name]
-            )
-            if not features:
-                print(f"Error: Feature '{args.feature_name}' not found.")
+            target = await _fetch_target_feature(ctx, args.feature_name)
+            if target is None:
                 return
-            feature = features[0]
+            device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
@@ -474,9 +470,10 @@ async def cmd_exec(args) -> None:
     try:
         async with setup_client_context(args) as ctx:
             # 2. Find Feature
-            feature = await _fetch_target_feature(ctx, args.feature_name)
-            if not feature:
+            target = await _fetch_target_feature(ctx, args.feature_name)
+            if target is None:
                 return
+            device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
@@ -500,8 +497,7 @@ async def cmd_exec(args) -> None:
             if target_val is not None:
                 print(f"Using high-level set_feature(target={target_val})...")
                 result, _updated_device = await ctx.client.set_feature(
-                    # Reconstruct transient device if needed, or use ctx
-                    _transient_device(ctx),
+                    device,
                     feature,
                     target_val,
                 )
@@ -522,14 +518,18 @@ async def cmd_exec(args) -> None:
         _LOGGER.error("Error executing command: %s", e)
 
 
-async def _fetch_target_feature(ctx: CLIContext, name: str) -> Any | None:
-    """Helper to fetch a single feature by name."""
+async def _fetch_target_feature(
+    ctx: CLIContext, name: str
+) -> tuple[Device, Feature] | None:
+    """Fetch a target feature together with its complete device context."""
     device = _transient_device(ctx)
-    features = await ctx.client.get_features(device, feature_names=[name])
-    if not features:
+    features = await ctx.client.get_features(device)
+    hydrated_device = replace(device, features=features)
+    feature = hydrated_device.get_feature(name)
+    if feature is None:
         print(f"Error: Feature '{name}' not found.")
         return None
-    return features[0]
+    return hydrated_device, feature
 
 
 def _transient_device(ctx: CLIContext) -> Device:
