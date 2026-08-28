@@ -60,6 +60,7 @@ To format a feature value for display with units:
 
 ```python
 from vi_api_client.utils import format_feature
+
 print(format_feature(feature))  # "25.5 celsius"
 ```
 
