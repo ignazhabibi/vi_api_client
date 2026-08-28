@@ -5,7 +5,8 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 from urllib.parse import urlencode
 
 import aiohttp
@@ -20,14 +21,45 @@ _LOGGER = logging.getLogger(__name__)
 class AbstractAuth(ABC):
     """Abstract class to make authenticated requests."""
 
-    def __init__(self, websession: aiohttp.ClientSession) -> None:
-        """Initialize the auth."""
+    def __init__(self, websession: aiohttp.ClientSession | None = None) -> None:
+        """Initialize the auth with an optional externally managed session."""
         self.websession = websession
+        self._owns_websession = False
+
+    async def __aenter__(self) -> Self:
+        """Enter the authentication context."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close resources owned by the authentication provider."""
+        await self.async_close()
 
     @abstractmethod
     async def async_get_access_token(self) -> str:
         """Return a valid access token."""
         pass
+
+    async def _async_get_websession(self) -> aiohttp.ClientSession:
+        """Return an available session, creating an owned one when needed."""
+        if self.websession is None:
+            self.websession = aiohttp.ClientSession()
+            self._owns_websession = True
+        return self.websession
+
+    async def async_close(self) -> None:
+        """Close the web session only when it was created internally."""
+        if not self._owns_websession or self.websession is None:
+            return
+
+        if not self.websession.closed:
+            await self.websession.close()
+        self.websession = None
+        self._owns_websession = False
 
     async def request(
         self, method: str, url: str, **kwargs: Any
@@ -42,7 +74,8 @@ class AbstractAuth(ABC):
         headers["Authorization"] = f"Bearer {access_token}"
         kwargs["headers"] = headers
 
-        return await self.websession.request(method, url, **kwargs)
+        websession = await self._async_get_websession()
+        return await websession.request(method, url, **kwargs)
 
 
 class OAuth(AbstractAuth):
@@ -58,8 +91,8 @@ class OAuth(AbstractAuth):
     ) -> None:
         """Initialize OAuth.
 
-        If websession is None, one must be created externally or managed.
-        For standalone CLI, we might pass one in.
+        If websession is None, a session is created lazily. Use the auth provider
+        as an async context manager or call `async_close` to release it.
 
         Args:
             client_id: OAuth client ID.
@@ -141,7 +174,8 @@ class OAuth(AbstractAuth):
             "code_verifier": self._pkce_verifier,
         }
 
-        async with self.websession.post(ENDPOINT_TOKEN, data=data) as resp:
+        websession = await self._async_get_websession()
+        async with websession.post(ENDPOINT_TOKEN, data=data) as resp:
             if resp.status != 200:
                 text = await resp.text()
                 raise ViAuthError(f"Failed to fetch token: {text}")
@@ -160,7 +194,8 @@ class OAuth(AbstractAuth):
             "refresh_token": refresh_token,
         }
 
-        async with self.websession.post(ENDPOINT_TOKEN, data=data) as resp:
+        websession = await self._async_get_websession()
+        async with websession.post(ENDPOINT_TOKEN, data=data) as resp:
             if resp.status != 200:
                 text = await resp.text()
                 # If refresh fails, we might need to re-auth, but here we just raise
