@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from vi_api_client.cli import (
+    _dispatch_command,
     cmd_exec,
     cmd_get_consumption,
     cmd_get_feature,
@@ -14,6 +15,7 @@ from vi_api_client.cli import (
     cmd_list_writable,
     cmd_login,
     cmd_set,
+    main,
 )
 from vi_api_client.exceptions import ViValidationError
 from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
@@ -86,7 +88,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_set(args)
+        assert await cmd_set(args) is True
 
         # Assert: Verify the results match expectations.
         # Verify calls
@@ -206,7 +208,7 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_exec(args)
+        assert await cmd_exec(args) is True
 
         # Assert: Verify the results match expectations.
         # Verify calls
@@ -333,7 +335,7 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_exec(args)
+        assert await cmd_exec(args) is False
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -365,7 +367,7 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_get_feature(args)
+        assert await cmd_get_feature(args) is False
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -399,7 +401,7 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_list_features(args)
+        assert await cmd_list_features(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -433,7 +435,7 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_list_features(args)
+        assert await cmd_list_features(args) is True
 
         # Assert: Verify the results match expectations.
         # Verify call used only_enabled=True and passes Device
@@ -480,7 +482,7 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_list_devices(args)
+        assert await cmd_list_devices(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -534,7 +536,7 @@ async def test_cmd_list_writable(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_list_writable(args)
+        assert await cmd_list_writable(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -584,7 +586,7 @@ async def test_cmd_get_consumption(mock_cli_context, capsys):
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
 
         # Act: Execute the function being tested.
-        await cmd_get_consumption(args)
+        assert await cmd_get_consumption(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
@@ -608,10 +610,35 @@ async def test_cmd_list_mock_devices(capsys):
         mock_get.return_value = ["MockDev1", "MockDev2"]
 
         # Act: Execute the function being tested.
-        await cmd_list_mock_devices(args)
+        assert await cmd_list_mock_devices(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
         assert "Available Mock Devices:" in captured.out
         assert "- MockDev1" in captured.out
         assert "- MockDev2" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_dispatch_returns_nonzero_for_failed_command():
+    """The command dispatcher should map handler failures to exit status 1."""
+    args = Namespace(command="set")
+
+    with patch("vi_api_client.cli.cmd_set", new_callable=AsyncMock) as mock_cmd_set:
+        mock_cmd_set.return_value = False
+
+        assert await _dispatch_command(args) == 1
+
+
+def test_main_exits_with_async_command_status():
+    """The console entry point should expose the asynchronous exit status."""
+    with (
+        patch(
+            "vi_api_client.cli.async_main", new_callable=AsyncMock
+        ) as mock_async_main,
+        pytest.raises(SystemExit) as exit_error,
+    ):
+        mock_async_main.return_value = 1
+        main()
+
+    assert exit_error.value.code == 1

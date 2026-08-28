@@ -93,7 +93,7 @@ async def create_session(args) -> aiohttp.ClientSession:
     return aiohttp.ClientSession()
 
 
-async def cmd_login(args) -> None:
+async def cmd_login(args) -> bool:
     """Handle login command.
 
     Guides the user through OAuth authorization flow.
@@ -116,6 +116,7 @@ async def cmd_login(args) -> None:
 
     _save_client_config(args.token_file, client_id, redirect_uri)
     print(f"Successfully authenticated! Tokens and config saved to {args.token_file}")
+    return True
 
 
 def get_client_config(args) -> tuple[str, str]:
@@ -244,7 +245,7 @@ async def setup_client_context(
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
 
 
-async def cmd_list_devices(args) -> None:
+async def cmd_list_devices(args) -> bool:
     """List installations and devices.
 
     Fetches and prints all installations, gateways, and devices.
@@ -253,8 +254,8 @@ async def cmd_list_devices(args) -> None:
         args: Parsed command line arguments.
     """
     # Does not use full context discovery, just client
-    async with setup_client_context(args, discover=False) as ctx:
-        try:
+    try:
+        async with setup_client_context(args, discover=False) as ctx:
             installations = await ctx.client.get_installations()
             print(f"Found {len(installations)} installations:")
             for installation in installations:
@@ -284,11 +285,14 @@ async def cmd_list_devices(args) -> None:
                         f"Status: {device.status}"
                     )
 
-        except Exception as e:
-            _LOGGER.error("Error listing devices: %s", e)
+    except Exception as e:
+        _LOGGER.error("Error listing devices: %s", e)
+        return False
+
+    return True
 
 
-async def cmd_list_features(args) -> None:
+async def cmd_list_features(args) -> bool:
     """List all features for a device.
 
     Supports filtering and formatting options.
@@ -337,6 +341,9 @@ async def cmd_list_features(args) -> None:
 
     except Exception as e:
         _LOGGER.error("Error listing features: %s", e)
+        return False
+
+    return True
 
 
 def _print_simple_feature_list(features: list[Any], dev_id: str) -> None:
@@ -346,7 +353,7 @@ def _print_simple_feature_list(features: list[Any], dev_id: str) -> None:
         print(f"- {feature.name}")
 
 
-async def cmd_get_feature(args) -> None:
+async def cmd_get_feature(args) -> bool:
     """Get a specific feature.
 
     Fetches and displays details for a single feature by name.
@@ -396,11 +403,15 @@ async def cmd_get_feature(args) -> None:
 
     except ViNotFoundError:  # Catch before Exception
         print(f"Feature '{args.feature_name}' not found.")
+        return False
     except Exception as e:
         _LOGGER.error("Error fetching feature: %s", e)
+        return False
+
+    return True
 
 
-async def cmd_get_consumption(args) -> None:
+async def cmd_get_consumption(args) -> bool:
     """Get consumption data.
 
     Fetches energy consumption for today based on the selected metric.
@@ -444,9 +455,12 @@ async def cmd_get_consumption(args) -> None:
                 print(f"Value: {format_feature(result)}")
     except Exception as e:
         _LOGGER.error("Error fetching consumption: %s", e)
+        return False
+
+    return True
 
 
-async def cmd_set(args) -> None:
+async def cmd_set(args) -> bool:  # noqa: PLR0911
     """Set a feature value (User Friendly).
 
     Sets a feature to a new value using the high-level set_feature API.
@@ -458,12 +472,12 @@ async def cmd_set(args) -> None:
         async with setup_client_context(args) as ctx:
             target = await _fetch_target_feature(ctx, args.feature_name)
             if target is None:
-                return
+                return False
             device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
-                return
+                return False
 
             print(f"Setting '{feature.name}' to '{args.value}'...")
             # We show this for transparency but it's not needed by user
@@ -483,22 +497,27 @@ async def cmd_set(args) -> None:
 
             if result.success:
                 print("✅ Success!")
-            else:
-                print("❌ Failed!")
-                if result.message:
-                    print(f"Message: {result.message}")
-                if result.reason:
-                    print(f"Reason: {result.reason}")
+                return True
+
+            print("❌ Failed!")
+            if result.message:
+                print(f"Message: {result.message}")
+            if result.reason:
+                print(f"Reason: {result.reason}")
+            return False
 
     except ViValidationError as e:
         print(f"Validation failed: {e}")
+        return False
     except ViNotFoundError as e:
         print(f"Not found: {e}")
+        return False
     except Exception as e:
         _LOGGER.error("Error setting feature: %s", e)
+        return False
 
 
-async def cmd_exec(args) -> None:
+async def cmd_exec(args) -> bool:  # noqa: PLR0911
     """Execute a command (Advanced).
 
     Executes a raw command with parameters. For advanced users.
@@ -512,19 +531,19 @@ async def cmd_exec(args) -> None:
         params_dict = parse_cli_params(args.params) if args.params else {}
     except ValueError as e:
         print(f"Error parsing parameters: {e}")
-        return
+        return False
 
     try:
         async with setup_client_context(args) as ctx:
             # 2. Find Feature
             target = await _fetch_target_feature(ctx, args.feature_name)
             if target is None:
-                return
+                return False
             device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
-                return
+                return False
 
             # 3. Validate Command Name
             if feature.control.command_name != args.command_name:
@@ -533,7 +552,7 @@ async def cmd_exec(args) -> None:
                     f", but you specified '{args.command_name}'."
                 )
                 print("Error: Features only expose their primary control command.")
-                return
+                return False
 
             print(f"Executing '{args.command_name}' on {feature.name}...")
 
@@ -555,14 +574,17 @@ async def cmd_exec(args) -> None:
                 )
                 result = CommandResponse.from_api(result)
 
-            _print_command_result(result)
+            return _print_command_result(result)
 
     except ViValidationError as e:
         print(f"Validation failed: {e}")
+        return False
     except ViNotFoundError as e:
         print(f"Not found: {e}")
+        return False
     except Exception as e:
         _LOGGER.error("Error executing command: %s", e)
+        return False
 
 
 async def _fetch_target_feature(
@@ -610,7 +632,7 @@ def _determine_target_value(
     return None
 
 
-def _print_command_result(result: CommandResponse) -> None:
+def _print_command_result(result: CommandResponse) -> bool:
     """Print the result of a command execution."""
     if result.success:
         print("✅ Success!")
@@ -622,8 +644,10 @@ def _print_command_result(result: CommandResponse) -> None:
     if result.reason:
         print(f"Reason: {result.reason}")
 
+    return result.success
 
-async def cmd_list_writable(args) -> None:
+
+async def cmd_list_writable(args) -> bool:
     """List all writable features for a device.
 
     Displays features that have a control block (can be modified).
@@ -651,6 +675,9 @@ async def cmd_list_writable(args) -> None:
 
     except Exception as e:
         _LOGGER.error("Error listing writable features: %s", e)
+        return False
+
+    return True
 
 
 def _print_feature_constraints(ctrl: Any) -> None:
@@ -681,7 +708,7 @@ def _print_feature_constraints(ctrl: Any) -> None:
         print(f"    Constraints: {', '.join(constraints)}")
 
 
-async def cmd_list_mock_devices(args) -> None:
+async def cmd_list_mock_devices(args) -> bool:
     """List available mock devices.
 
     Lists fixture files that can be used for offline testing.
@@ -693,9 +720,10 @@ async def cmd_list_mock_devices(args) -> None:
     print("Available Mock Devices:")
     for device in devices:
         print(f"- {device}")
+    return True
 
 
-async def async_main() -> None:  # noqa: PLR0915
+async def async_main() -> int:  # noqa: PLR0915
     """Main CLI entrypoint."""
     # Parent parser for common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -834,13 +862,18 @@ async def async_main() -> None:  # noqa: PLR0915
 
     if not args.command:
         parser.print_help()
-        return
+        return 0
 
-    with suppress(KeyboardInterrupt):
-        await _dispatch_command(args)
+    try:
+        return await _dispatch_command(args)
+    except KeyboardInterrupt:
+        return 130
+    except Exception as e:
+        _LOGGER.error("Error executing command: %s", e)
+        return 1
 
 
-async def _dispatch_command(args: argparse.Namespace) -> None:
+async def _dispatch_command(args: argparse.Namespace) -> int:
     """Dispatch command to appropriate handler."""
     # Pre-checks for login
     if args.command == "login" and (
@@ -853,7 +886,7 @@ async def _dispatch_command(args: argparse.Namespace) -> None:
                 "Error: --client-id is required for initial login "
                 "(or use VIESSMANN_CLIENT_ID env var)."
             )
-            sys.exit(1)
+            return 1
 
     handlers = {
         "login": cmd_login,
@@ -868,13 +901,15 @@ async def _dispatch_command(args: argparse.Namespace) -> None:
     }
 
     handler = handlers.get(args.command)
-    if handler:
-        await handler(args)
+    if not handler:
+        return 2
+
+    return 0 if await handler(args) else 1
 
 
 def main() -> None:
     """Entry point for console_scripts."""
-    asyncio.run(async_main())
+    raise SystemExit(asyncio.run(async_main()))
 
 
 if __name__ == "__main__":
