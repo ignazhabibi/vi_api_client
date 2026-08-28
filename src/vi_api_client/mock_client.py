@@ -75,9 +75,11 @@ class MockViClient(ViClient):
         if not fixtures_dir.exists():
             return []
 
-        files = [file.name for file in fixtures_dir.glob("*.json")]
-        # Return sorted names without extension
-        return sorted([Path(file).stem for file in files])
+        return sorted(
+            file.stem
+            for file in fixtures_dir.glob("*.json")
+            if not file.stem.endswith("_analytics")
+        )
 
     def _load_analytics_data(self) -> dict[str, Any] | None:
         """Load optional analytics fixture if available.

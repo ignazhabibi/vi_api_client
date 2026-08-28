@@ -98,6 +98,54 @@ async def test_get_gateways(load_fixture_json):
 
 
 @pytest.mark.asyncio
+async def test_get_full_installation_status_uses_matching_gateways_only():
+    """Full status should not query gateways from other installations."""
+    # Arrange: Mock one gateway for each of two installations.
+    installation_id = "installation-a"
+    matching_gateway = "gateway-a"
+    other_gateway = "gateway-b"
+    gateways_url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
+    devices_url = (
+        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
+        f"{matching_gateway}/devices"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(
+            gateways_url,
+            payload={
+                "data": [
+                    {
+                        "installationId": installation_id,
+                        "serial": matching_gateway,
+                        "status": "connected",
+                        "version": "1.0.0",
+                    },
+                    {
+                        "installationId": "installation-b",
+                        "serial": other_gateway,
+                        "status": "connected",
+                        "version": "1.0.0",
+                    },
+                ]
+            },
+        )
+        mock_responses.get(devices_url, payload={"data": []})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Fetch the complete status for the first installation.
+            devices = await client.get_full_installation_status(installation_id)
+
+    # Assert: Only the matching gateway should receive a devices request.
+    requested_urls = [str(url) for _method, url in mock_responses.requests]
+    assert devices == []
+    assert devices_url in requested_urls
+    assert other_gateway not in "".join(requested_urls)
+
+
+@pytest.mark.asyncio
 async def test_get_devices(load_fixture_json):
     """Test fetching devices for a gateway."""
     # Arrange: Load device fixture and mock devices endpoint.
