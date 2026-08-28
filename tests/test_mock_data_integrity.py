@@ -10,6 +10,7 @@ import os
 
 import pytest
 
+from vi_api_client.mock_client import MockViClient
 from vi_api_client.parsing import parse_feature_flat
 
 # Path to the bundled fixtures (src/vi_api_client/fixtures)
@@ -24,6 +25,14 @@ def get_mock_data_files():
     all_files = glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
     # Exclude analytics fixtures as they have a different structure
     return [f for f in all_files if not f.endswith("_analytics.json")]
+
+
+def test_available_mock_devices_excludes_analytics_fixtures():
+    """Only device fixtures should be offered as selectable mock devices."""
+    devices = MockViClient.get_available_mock_devices()
+
+    assert "Vitocal250A" in devices
+    assert "Vitocal250A_analytics" not in devices
 
 
 @pytest.mark.parametrize("file_path", get_mock_data_files(), ids=os.path.basename)
