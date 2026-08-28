@@ -12,6 +12,7 @@ from vi_api_client.cli import (
     cmd_list_features,
     cmd_list_mock_devices,
     cmd_list_writable,
+    cmd_login,
     cmd_set,
 )
 from vi_api_client.exceptions import ViValidationError
@@ -100,6 +101,52 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         # Verify output
         captured = capsys.readouterr()
         assert "Success!" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tmp_path):
+    """Login should reuse environment credentials and save them for later commands."""
+    # Arrange: Seed a token file and provide client settings through the environment.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text('{"access_token": "existing-token"}', encoding="utf-8")
+    args = Namespace(
+        client_id=None,
+        insecure=False,
+        redirect_uri=None,
+        token_file=str(token_file),
+    )
+    monkeypatch.setenv("VIESSMANN_CLIENT_ID", "environment-client-id")
+    monkeypatch.setenv("VIESSMANN_REDIRECT_URI", "http://localhost:8123/auth")
+    mock_auth = MagicMock()
+    mock_auth.get_authorization_url.return_value = "https://example.invalid/authorize"
+    mock_auth.async_fetch_details_from_code = AsyncMock()
+
+    with (
+        patch("builtins.input", return_value="authorization-code"),
+        patch("vi_api_client.cli.OAuth", return_value=mock_auth) as mock_oauth,
+        patch(
+            "vi_api_client.cli.create_session", new_callable=AsyncMock
+        ) as mock_create_session,
+    ):
+        mock_session = MagicMock()
+        mock_create_session.return_value.__aenter__.return_value = mock_session
+
+        # Act: Complete the CLI login flow without explicit command-line settings.
+        await cmd_login(args)
+
+    # Assert: The resolved configuration should be used and stored with tokens.
+    saved_config = json.loads(token_file.read_text(encoding="utf-8"))
+    mock_oauth.assert_called_once_with(
+        "environment-client-id",
+        "http://localhost:8123/auth",
+        str(token_file),
+    )
+    assert mock_auth.websession is mock_session
+    assert saved_config == {
+        "access_token": "existing-token",
+        "client_id": "environment-client-id",
+        "redirect_uri": "http://localhost:8123/auth",
+    }
 
 
 @pytest.mark.asyncio
