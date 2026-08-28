@@ -22,7 +22,7 @@ jobs:
     - name: Install
       run: |
         pip install --upgrade pip
-        pip install .[dev]
+        pip install -c constraints-ci.txt .[dev]
     - name: Lint & Format (Ruff)
       run: |
         ruff check .
@@ -43,7 +43,7 @@ jobs:
         python-version: "3.14"
     - name: Build
       run: |
-        pip install .[dev]
+        pip install -c constraints-ci.txt .[dev]
         python -m build
     - name: Fetch Tag Message
       id: tag_message

@@ -29,6 +29,18 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Development and Tests
+
+Install the development dependencies with the CI constraints to reproduce the
+tested HTTP client and mock combination locally:
+
+```bash
+python -m pip install -c constraints-ci.txt '.[dev]'
+ruff check .
+ruff format --check .
+python -m pytest -q
+```
+
 ## Quick Start
 
 ### CLI

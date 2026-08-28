@@ -12,11 +12,20 @@
         "pytest",
         "pytest-asyncio",
         "pytest-cov",
-        "aioresponses",
         "build",
         "ruff"
       ],
       "groupName": "python dev dependencies"
+    },
+    {
+      "matchFileNames": ["constraints-ci.txt"],
+      "matchPackageNames": ["aiohttp", "aioresponses"],
+      "groupName": "CI HTTP test stack"
+    },
+    {
+      "matchFileNames": ["pyproject.toml"],
+      "matchPackageNames": ["aiohttp", "aioresponses"],
+      "enabled": false
     },
     {
       "matchManagers": ["github-actions"],
