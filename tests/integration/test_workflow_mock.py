@@ -1,5 +1,7 @@
 """Integration tests for the full workflow using Mock Client."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from vi_api_client import MockViClient
@@ -103,6 +105,35 @@ async def test_mock_workflow_vitocal():
         None,
     )
     assert circuit_mode.is_writable is True
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_mock_set_feature_stays_offline():
+    """Verify mock writes use simulated execution instead of the connector."""
+    # Arrange: Hydrate a mock heat pump and guard against connector POST requests.
+    client = MockViClient("Vitocal250A")
+    client.connector.post = AsyncMock()
+    device = (
+        await client.get_devices(
+            installation_id="99999",
+            gateway_serial="MOCK_GW",
+            include_features=True,
+        )
+    )[0]
+    slope = device.get_feature("heating.circuits.0.heating.curve.slope")
+    assert slope is not None
+
+    # Act: Set the writable slope through the standard high-level client method.
+    response, updated_device = await client.set_feature(device, slope, 0.7)
+
+    # Assert: The command should succeed locally without invoking the connector.
+    updated_slope = updated_device.get_feature(slope.name)
+    client.connector.post.assert_not_awaited()
+    assert response.success is True
+    assert updated_slope is not None
+    assert updated_slope.value == 0.7
+    assert slope.value != updated_slope.value
 
 
 @pytest.mark.integration

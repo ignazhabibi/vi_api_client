@@ -233,8 +233,7 @@ class ViClient:
         self._validate_constraints(control, target_value)
 
         # 3. Execution
-        response_data = await self.connector.post(control.uri, payload)
-        response = CommandResponse.from_api(response_data)
+        response = await self._execute_command(control, payload)
 
         # 4. Optimistic Device Update
         if response.success:
@@ -307,6 +306,24 @@ class ViClient:
     # ------------------------------------------------------------------
     # Private Helper Methods
     # ------------------------------------------------------------------
+
+    async def _execute_command(
+        self, control: FeatureControl, payload: dict[str, Any]
+    ) -> CommandResponse:
+        """Execute a feature command through the live API connector.
+
+        Subclasses can override this boundary to provide alternative command
+        execution without changing validation or optimistic device updates.
+
+        Args:
+            control: The feature control describing the command endpoint.
+            payload: The resolved command parameters.
+
+        Returns:
+            The parsed command response.
+        """
+        response_data = await self.connector.post(control.uri, payload)
+        return CommandResponse.from_api(response_data)
 
     def _build_devices_url(self, installation_id: str, gateway_serial: str) -> str:
         return (
