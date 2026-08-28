@@ -12,6 +12,7 @@ All Auth classes accept an optional `websession` argument (an `aiohttp.ClientSes
 import aiohttp
 from vi_api_client import OAuth, ViClient
 
+
 async def main():
     async with aiohttp.ClientSession() as session:
         auth = OAuth(..., websession=session)

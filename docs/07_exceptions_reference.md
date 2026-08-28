@@ -40,7 +40,9 @@ When requesting a feature that isn't supported by a device, the API returns 404.
 ```python
 try:
     # Trying to get a specific feature that might not exist
-    features = await client.get_features(device, ["heating.sensors.volumetricFlow.share"])
+    features = await client.get_features(
+        device, ["heating.sensors.volumetricFlow.share"]
+    )
     if not features:
         print("Feature not found (Filtered out or 404).")
 except ViNotFoundError:

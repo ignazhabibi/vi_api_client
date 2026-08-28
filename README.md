@@ -70,6 +70,7 @@ import asyncio
 import aiohttp
 from vi_api_client import OAuth, ViClient
 
+
 async def main():
     async with aiohttp.ClientSession() as session:
         # Initialize Auth (tokens saved to tokens.json)
@@ -77,7 +78,7 @@ async def main():
             client_id="YOUR_CLIENT_ID",
             redirect_uri="http://localhost:4200/",
             token_file="tokens.json",
-            websession=session
+            websession=session,
         )
 
         client = ViClient(auth)
@@ -88,22 +89,20 @@ async def main():
 
         # 2. Get Devices (using first gateway and installation) with Features
         devices = await client.get_devices(
-            installations[0].id,
-            gateways[0].serial,
-            include_features=True
+            installations[0].id, gateways[0].serial, include_features=True
         )
-        device = devices[0] # Usually the heating system (ID: 0)
+        device = devices[0]  # Usually the heating system (ID: 0)
         print(f"Device: {device.model_id} ({device.status})")
 
         # 3. Iterate Features (Flat List)
         for feature in device.features:
-             print(f"{feature.name}: {feature.value}")
+            print(f"{feature.name}: {feature.value}")
 
         # 4. Write a Feature
         # Find a writable feature (e.g. heating curve slope)
         slope = next(
             (f for f in device.features if "curve.slope" in f.name and f.is_writable),
-            None
+            None,
         )
         if slope:
             print(f"Setting slope to 1.4...")
@@ -111,6 +110,7 @@ async def main():
             if response.success:
                 print("✅ Success! Device updated.")
                 # Use updated device for subsequent calls
+
 
 if __name__ == "__main__":
     asyncio.run(main())

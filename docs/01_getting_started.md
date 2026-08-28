@@ -39,6 +39,7 @@ CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID")
 REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
 
+
 async def main():
     async with aiohttp.ClientSession() as session:
         # 1. Setup Authentication (auto-handles token refresh)
@@ -74,8 +75,8 @@ async def main():
         devices = await client.get_devices(inst_id, gw_serial, include_features=True)
 
         if not devices:
-             print("No devices found.")
-             return
+            print("No devices found.")
+            return
 
         device = next((d for d in devices if d.id == "0"), devices[0])
         print(f"Using Device: {device.id} ({device.model_id})")
@@ -89,6 +90,7 @@ async def main():
         outside_temp = device.get_feature("heating.sensors.temperature.outside")
         if outside_temp:
             print(f"Outside Temp: {outside_temp.value}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -120,11 +122,7 @@ async def set_heating_mode(client, device):
         # 3. Execute High-Level Set
         # This handles validations, parameter resolving, and API calls automatically
         # Returns tuple: (CommandResponse, Device)
-        response, device = await client.set_feature(
-            device,
-            feature,
-            "heating"
-        )
+        response, device = await client.set_feature(device, feature, "heating")
 
         if response.success:
             print("Command executed successfully!")

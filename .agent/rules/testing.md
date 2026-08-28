@@ -113,6 +113,7 @@ class MockAuth(AbstractAuth):
     async def async_get_access_token(self) -> str:
         return "mock-token"
 
+
 @pytest.mark.asyncio
 async def test_get_installations(load_fixture_json):
     # Arrange: Load installation fixture and mock the installations endpoint.
