@@ -171,6 +171,9 @@ class ViClient:
         all_devices = []
 
         for gateway in gateways:
+            if gateway.installation_id != installation_id:
+                continue
+
             devices = await self.get_devices(
                 installation_id,
                 gateway.serial,
