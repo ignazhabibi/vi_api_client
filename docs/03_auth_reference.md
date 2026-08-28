@@ -5,8 +5,12 @@ This reference covers authentication strategies and connection management.
 ## Connection Management (`websession`)
 
 All Auth classes accept an optional `websession` argument (an `aiohttp.ClientSession`).
-*   **Provided**: The client uses your session. Efficient for reusing connections in a larger app (e.g. Home Assistant).
-*   **Not Provided**: The client creates its own `ClientSession` internally.
+
+*   **Provided**: The client uses your session but leaves its lifecycle under
+    caller control. This is efficient for reusing connections in a larger app
+    (e.g. Home Assistant).
+*   **Not Provided**: The client creates its own `ClientSession` lazily when the
+    first request is made.
 
 ```python
 import aiohttp
@@ -19,6 +23,23 @@ async def main():
         client = ViClient(auth)
         # requests reuse the `session` pool
 ```
+
+When no session is supplied, use the auth provider as an async context manager
+so its internally created session is closed reliably:
+
+```python
+async def main():
+    async with OAuth(
+        client_id="YOUR_CLIENT_ID",
+        redirect_uri="http://localhost:4200/",
+        token_file="tokens.json",
+    ) as auth:
+        client = ViClient(auth)
+        installations = await client.get_installations()
+```
+
+Alternatively, call `await auth.async_close()` when the provider is no longer
+needed. `async_close()` never closes a session passed through `websession`.
 
 ## Base Class: `AbstractAuth`
 

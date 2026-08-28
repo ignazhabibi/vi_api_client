@@ -1,14 +1,16 @@
 """Tests for vitoclient.auth module."""
 
 import json
+import time
 from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
 from aioresponses import aioresponses
 
+from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth, OAuth
-from vi_api_client.const import ENDPOINT_TOKEN
+from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_TOKEN
 
 
 def test_abstract_auth_cannot_be_instantiated():
@@ -156,3 +158,60 @@ def test_pkce_verifier_generated_on_auth_url(oauth):
 
     # Assert: Verify the results match expectations.
     assert oauth._pkce_verifier is not None
+
+
+@pytest.mark.asyncio
+async def test_oauth_creates_and_closes_internal_websession(tmp_path):
+    """OAuth should manage a session when the caller does not supply one."""
+    # Arrange: Store a valid token and mock the installations endpoint.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text(
+        json.dumps(
+            {
+                "access_token": "test_access_token",
+                "expires_at": time.time() + 3600,
+            }
+        ),
+        encoding="utf-8",
+    )
+    oauth = OAuth(
+        client_id="test_client_id",
+        redirect_uri="http://localhost:4200/",
+        token_file=token_file,
+    )
+    installations_url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(installations_url, payload={"data": []})
+
+        # Act: Make a client request within the OAuth resource context.
+        async with oauth:
+            installations = await ViClient(oauth).get_installations()
+            internal_websession = oauth.websession
+
+    # Assert: The request should work and the internally owned session should close.
+    assert installations == []
+    assert internal_websession is not None
+    assert internal_websession.closed is True
+    assert oauth.websession is None
+
+
+@pytest.mark.asyncio
+async def test_oauth_keeps_external_websession_open(tmp_path):
+    """OAuth should not close a session supplied by the caller."""
+    # Arrange: Create an external session and an OAuth provider that uses it.
+    token_file = tmp_path / "tokens.json"
+    async with aiohttp.ClientSession() as external_websession:
+        oauth = OAuth(
+            client_id="test_client_id",
+            redirect_uri="http://localhost:4200/",
+            token_file=token_file,
+            websession=external_websession,
+        )
+
+        # Act: Enter and exit the OAuth resource context.
+        async with oauth:
+            pass
+
+        # Assert: OAuth should leave the caller-owned session open.
+        assert external_websession.closed is False
