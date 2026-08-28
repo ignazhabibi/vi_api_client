@@ -172,10 +172,40 @@ async def setup_client_context(
                     print("No gateways found.")
                     raise ValueError("No gateways found.")
 
-                if not gw_serial:
-                    gw_serial = gateways[0].serial
-                if not inst_id:
-                    inst_id = gateways[0].installation_id
+                if gw_serial:
+                    gateway = next(
+                        (
+                            gateway
+                            for gateway in gateways
+                            if gateway.serial == gw_serial
+                        ),
+                        None,
+                    )
+                    if not gateway:
+                        raise ValueError(f"Gateway '{gw_serial}' not found.")
+                    if inst_id and gateway.installation_id != inst_id:
+                        raise ValueError(
+                            f"Gateway '{gw_serial}' does not belong to installation "
+                            f"'{inst_id}'."
+                        )
+                elif inst_id:
+                    gateway = next(
+                        (
+                            gateway
+                            for gateway in gateways
+                            if gateway.installation_id == inst_id
+                        ),
+                        None,
+                    )
+                    if not gateway:
+                        raise ValueError(
+                            f"No gateway found for installation '{inst_id}'."
+                        )
+                else:
+                    gateway = gateways[0]
+
+                inst_id = gateway.installation_id
+                gw_serial = gateway.serial
 
                 if not dev_id:
                     devices = await client.get_devices(inst_id, gw_serial)

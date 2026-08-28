@@ -119,3 +119,130 @@ async def test_cli_context_autodiscovery():
             # Verify client method calls
             mock_client.get_gateways.assert_called_once()
             mock_client.get_devices.assert_called_once_with("100", "GW123")
+
+
+@pytest.mark.asyncio
+async def test_cli_context_discovery_uses_provided_gateway_scope():
+    """A supplied gateway serial should determine its missing installation ID."""
+    args = Namespace(
+        mock_device=None,
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file="tokens.json",
+        insecure=False,
+        installation_id=None,
+        gateway_serial="GW-B",
+        device_id=None,
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.OAuth"),
+        patch("vi_api_client.cli.load_config", return_value={}),
+    ):
+        mock_client = mock_client_cls.return_value
+        mock_client.get_gateways = AsyncMock(
+            return_value=[
+                Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
+                Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
+            ]
+        )
+        mock_client.get_devices = AsyncMock(
+            return_value=[
+                Device(
+                    id="0",
+                    gateway_serial="GW-B",
+                    installation_id="B",
+                    model_id="m1",
+                    device_type="heating",
+                    status="ok",
+                )
+            ]
+        )
+
+        async with setup_client_context(args) as ctx:
+            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "0")
+
+        mock_client.get_devices.assert_called_once_with("B", "GW-B")
+
+
+@pytest.mark.asyncio
+async def test_cli_context_discovery_uses_provided_installation_scope():
+    """A supplied installation ID should select one of its gateways."""
+    args = Namespace(
+        mock_device=None,
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file="tokens.json",
+        insecure=False,
+        installation_id="B",
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.OAuth"),
+        patch("vi_api_client.cli.load_config", return_value={}),
+    ):
+        mock_client = mock_client_cls.return_value
+        mock_client.get_gateways = AsyncMock(
+            return_value=[
+                Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
+                Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
+            ]
+        )
+        mock_client.get_devices = AsyncMock(
+            return_value=[
+                Device(
+                    id="0",
+                    gateway_serial="GW-B",
+                    installation_id="B",
+                    model_id="m1",
+                    device_type="heating",
+                    status="ok",
+                )
+            ]
+        )
+
+        async with setup_client_context(args) as ctx:
+            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "0")
+
+        mock_client.get_devices.assert_called_once_with("B", "GW-B")
+
+
+@pytest.mark.asyncio
+async def test_cli_context_rejects_mismatched_partial_scope():
+    """Partially specified IDs must not be combined across installations."""
+    args = Namespace(
+        mock_device=None,
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file="tokens.json",
+        insecure=False,
+        installation_id="A",
+        gateway_serial="GW-B",
+        device_id=None,
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.OAuth"),
+        patch("vi_api_client.cli.load_config", return_value={}),
+    ):
+        mock_client = mock_client_cls.return_value
+        mock_client.get_gateways = AsyncMock(
+            return_value=[
+                Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
+                Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
+            ]
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Gateway 'GW-B' does not belong to installation 'A'",
+        ):
+            async with setup_client_context(args):
+                pass
+
+        mock_client.get_devices.assert_not_called()
