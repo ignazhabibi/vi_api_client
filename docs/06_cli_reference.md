@@ -2,6 +2,9 @@
 
 The package includes a command-line interface `vi-client` for testing authentication and exploring the API.
 
+Commands return exit status `0` on success and a non-zero status when the
+requested operation fails. This makes the CLI safe to use in shell scripts.
+
 > **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file!
 
 ## 1. Login
