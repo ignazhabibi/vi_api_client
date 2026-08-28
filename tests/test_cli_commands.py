@@ -95,6 +95,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         mock_cli_context.client.set_feature.assert_called()
         # Verify call args for set_feature: (device, feature, value)
         call_args_set = mock_cli_context.client.set_feature.call_args[0]
+        assert call_args_set[0].get_feature("heating.curve.slope") is mock_feature
         assert call_args_set[2] == 1.4  # Value parsed from float
 
         # Verify output
@@ -212,20 +213,78 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
         assert mock_cli_context.client.get_features.called
         # Check first argument (Device)
         args_list = mock_cli_context.client.get_features.call_args[0]
-        kwargs_list = mock_cli_context.client.get_features.call_args[1]
         # args_list is (device,)
         assert args_list[0].id == "DEV1"
-        assert kwargs_list["feature_names"] == ["heating.curve.slope"]
+        assert mock_cli_context.client.get_features.call_args[1] == {}
 
         # Should call set_feature
         mock_cli_context.client.set_feature.assert_called()
         # Verify call args for set_feature: (device, feature, value)
         call_args_set = mock_cli_context.client.set_feature.call_args[0]
+        assert call_args_set[0].get_feature("heating.curve.slope") is mock_feature
         assert call_args_set[2] == 1.4  # Value parsed from float
 
         # Verify output
         captured = capsys.readouterr()
         assert "Success!" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
+    """Test CLI writes provide sibling values required by a command."""
+    # Arrange: Provide heating-curve features that share the setCurve command.
+    args = Namespace(
+        feature_name="heating.curve.slope",
+        value="1.4",
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+    control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["shift", "slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+    )
+    slope = Feature(
+        name="heating.curve.slope",
+        value=1.0,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=control,
+    )
+    shift = Feature(
+        name="heating.curve.shift",
+        value=4.0,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=control,
+    )
+    mock_cli_context.client.get_features.return_value = [slope, shift]
+    mock_cli_context.client.set_feature.return_value = (
+        MagicMock(success=True, message=None, reason=None),
+        MagicMock(),
+    )
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        # Act: Set the slope through the CLI command.
+        await cmd_set(args)
+
+    # Assert: The write should receive a device containing the sibling shift value.
+    command_device = mock_cli_context.client.set_feature.call_args.args[0]
+    assert command_device.get_feature("heating.curve.slope") is slope
+    assert command_device.get_feature("heating.curve.shift") is shift
+    assert mock_cli_context.client.get_features.call_args.kwargs == {}
 
 
 @pytest.mark.asyncio
