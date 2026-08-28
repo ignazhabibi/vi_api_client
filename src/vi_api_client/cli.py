@@ -27,6 +27,7 @@ from .models import CommandResponse, Device
 from .utils import format_feature, parse_cli_params
 
 # Default file to store tokens and config
+DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -61,6 +62,21 @@ def load_config(token_file: str) -> dict[str, Any]:
         return {}
 
 
+def _save_client_config(token_file: str, client_id: str, redirect_uri: str) -> None:
+    """Save client configuration alongside the OAuth tokens.
+
+    Args:
+        token_file: Path to the JSON token and configuration file.
+        client_id: OAuth client ID used for authentication.
+        redirect_uri: OAuth redirect URI used for authentication.
+    """
+    config = load_config(token_file)
+    config.update({"client_id": client_id, "redirect_uri": redirect_uri})
+
+    with Path(token_file).open("w", encoding="utf-8") as file:
+        json.dump(config, file, indent=2)
+
+
 async def create_session(args) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL.
 
@@ -85,8 +101,7 @@ async def cmd_login(args) -> None:
     Args:
         args: Parsed command line arguments including client_id and redirect_uri.
     """
-    client_id = args.client_id
-    redirect_uri = args.redirect_uri
+    client_id, redirect_uri = get_client_config(args)
 
     auth = OAuth(client_id, redirect_uri, args.token_file)
     url = auth.get_authorization_url()
@@ -99,6 +114,7 @@ async def cmd_login(args) -> None:
         auth.websession = session
         await auth.async_fetch_details_from_code(code)
 
+    _save_client_config(args.token_file, client_id, redirect_uri)
     print(f"Successfully authenticated! Tokens and config saved to {args.token_file}")
 
 
@@ -113,6 +129,7 @@ def get_client_config(args) -> tuple[str, str]:
         args.redirect_uri
         or os.getenv("VIESSMANN_REDIRECT_URI")
         or config.get("redirect_uri")
+        or DEFAULT_REDIRECT_URI
     )
 
     if not client_id:
@@ -655,9 +672,7 @@ async def async_main() -> None:  # noqa: PLR0915
     common_parser.add_argument(
         "--client-id", help="OAuth Client ID (optional if saved)"
     )
-    common_parser.add_argument(
-        "--redirect-uri", default="http://localhost:4200/", help="OAuth Redirect URI"
-    )
+    common_parser.add_argument("--redirect-uri", help="OAuth Redirect URI")
     common_parser.add_argument(
         "--token-file", default=TOKEN_FILE, help="Path to save/load tokens"
     )
