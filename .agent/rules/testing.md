@@ -68,6 +68,10 @@ For exception-focused tests, `# Act and assert: ...` is acceptable when splittin
 the steps would be artificial.
 
 ## 4. Data & Mocking
+
+- **Compatible Test Stack:** Install development dependencies with
+  `python -m pip install -c constraints-ci.txt '.[dev]'` so local HTTP-mocking
+  tests use the same `aiohttp` and `aioresponses` versions as CI.
 - **Fixture Loading:** Use shared helpers such as `load_fixture_json` for
   `tests/fixtures/` data.
 - **HTTP-Layer Tests:** Use `aioresponses` to mock external API calls against

@@ -103,8 +103,11 @@ Prefer matching the current CI interpreter locally when possible.
 python3.14 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install '.[dev]'
+python -m pip install -c constraints-ci.txt '.[dev]'
 ```
+
+`constraints-ci.txt` defines the tested Python 3.14 HTTP client and mock
+combination used by CI. Renovate updates that pair through a dedicated PR.
 
 Primary local quality gates:
 
