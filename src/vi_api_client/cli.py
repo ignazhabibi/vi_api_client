@@ -8,7 +8,7 @@ import os
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,10 +23,11 @@ from vi_api_client import (
     ViValidationError,
 )
 
-from .models import CommandResponse, Device
+from .models import CommandResponse, Device, Feature
 from .utils import format_feature, parse_cli_params
 
 # Default file to store tokens and config
+DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -61,6 +62,21 @@ def load_config(token_file: str) -> dict[str, Any]:
         return {}
 
 
+def _save_client_config(token_file: str, client_id: str, redirect_uri: str) -> None:
+    """Save client configuration alongside the OAuth tokens.
+
+    Args:
+        token_file: Path to the JSON token and configuration file.
+        client_id: OAuth client ID used for authentication.
+        redirect_uri: OAuth redirect URI used for authentication.
+    """
+    config = load_config(token_file)
+    config.update({"client_id": client_id, "redirect_uri": redirect_uri})
+
+    with Path(token_file).open("w", encoding="utf-8") as file:
+        json.dump(config, file, indent=2)
+
+
 async def create_session(args) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL.
 
@@ -85,8 +101,7 @@ async def cmd_login(args) -> None:
     Args:
         args: Parsed command line arguments including client_id and redirect_uri.
     """
-    client_id = args.client_id
-    redirect_uri = args.redirect_uri
+    client_id, redirect_uri = get_client_config(args)
 
     auth = OAuth(client_id, redirect_uri, args.token_file)
     url = auth.get_authorization_url()
@@ -99,6 +114,7 @@ async def cmd_login(args) -> None:
         auth.websession = session
         await auth.async_fetch_details_from_code(code)
 
+    _save_client_config(args.token_file, client_id, redirect_uri)
     print(f"Successfully authenticated! Tokens and config saved to {args.token_file}")
 
 
@@ -113,6 +129,7 @@ def get_client_config(args) -> tuple[str, str]:
         args.redirect_uri
         or os.getenv("VIESSMANN_REDIRECT_URI")
         or config.get("redirect_uri")
+        or DEFAULT_REDIRECT_URI
     )
 
     if not client_id:
@@ -439,14 +456,10 @@ async def cmd_set(args) -> None:
     """
     try:
         async with setup_client_context(args) as ctx:
-            device = _transient_device(ctx)
-            features = await ctx.client.get_features(
-                device, feature_names=[args.feature_name]
-            )
-            if not features:
-                print(f"Error: Feature '{args.feature_name}' not found.")
+            target = await _fetch_target_feature(ctx, args.feature_name)
+            if target is None:
                 return
-            feature = features[0]
+            device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
@@ -504,9 +517,10 @@ async def cmd_exec(args) -> None:
     try:
         async with setup_client_context(args) as ctx:
             # 2. Find Feature
-            feature = await _fetch_target_feature(ctx, args.feature_name)
-            if not feature:
+            target = await _fetch_target_feature(ctx, args.feature_name)
+            if target is None:
                 return
+            device, feature = target
 
             if not feature.control:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
@@ -530,8 +544,7 @@ async def cmd_exec(args) -> None:
             if target_val is not None:
                 print(f"Using high-level set_feature(target={target_val})...")
                 result, _updated_device = await ctx.client.set_feature(
-                    # Reconstruct transient device if needed, or use ctx
-                    _transient_device(ctx),
+                    device,
                     feature,
                     target_val,
                 )
@@ -552,14 +565,18 @@ async def cmd_exec(args) -> None:
         _LOGGER.error("Error executing command: %s", e)
 
 
-async def _fetch_target_feature(ctx: CLIContext, name: str) -> Any | None:
-    """Helper to fetch a single feature by name."""
+async def _fetch_target_feature(
+    ctx: CLIContext, name: str
+) -> tuple[Device, Feature] | None:
+    """Fetch a target feature together with its complete device context."""
     device = _transient_device(ctx)
-    features = await ctx.client.get_features(device, feature_names=[name])
-    if not features:
+    features = await ctx.client.get_features(device)
+    hydrated_device = replace(device, features=features)
+    feature = hydrated_device.get_feature(name)
+    if feature is None:
         print(f"Error: Feature '{name}' not found.")
         return None
-    return features[0]
+    return hydrated_device, feature
 
 
 def _transient_device(ctx: CLIContext) -> Device:
@@ -685,9 +702,7 @@ async def async_main() -> None:  # noqa: PLR0915
     common_parser.add_argument(
         "--client-id", help="OAuth Client ID (optional if saved)"
     )
-    common_parser.add_argument(
-        "--redirect-uri", default="http://localhost:4200/", help="OAuth Redirect URI"
-    )
+    common_parser.add_argument("--redirect-uri", help="OAuth Redirect URI")
     common_parser.add_argument(
         "--token-file", default=TOKEN_FILE, help="Path to save/load tokens"
     )

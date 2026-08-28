@@ -17,6 +17,9 @@ vi-client login --client-id <YOUR_CLIENT_ID> --redirect-uri <YOUR_REDIRECT_URI>
 # export VIESSMANN_REDIRECT_URI=<YOUR_REDIRECT_URI>
 ```
 Follow the URL, log in, and paste the code back into the terminal.
+The client ID and redirect URI used during login are saved with the tokens, so
+later commands can reuse them without repeating `--client-id`. Environment
+variables and explicit command-line arguments continue to take precedence.
 
 ## 2. List Devices
 View all installations, gateways, and devices available to your account.
