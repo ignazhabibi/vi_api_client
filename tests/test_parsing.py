@@ -234,6 +234,7 @@ def test_feature_control_association(load_fixture_json):
     assert feature_slope.control is not None
     assert feature_slope.control.command_name == "setCurve"
     assert feature_slope.control.param_name == "slope"
+    assert feature_slope.control.value_type == "number"
     assert "shift" in feature_slope.control.required_params
 
     feature_shift = next(

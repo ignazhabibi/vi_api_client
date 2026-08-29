@@ -249,6 +249,7 @@ def _build_control(
         min=_resolve_constraint(["min"], sources),
         max=_resolve_constraint(["max"], sources),
         step=_resolve_constraint(["step", "stepping"], sources),
+        value_type=p_data.get("type"),
         options=_resolve_constraint(["enum"], sources),
         min_length=_resolve_constraint(["minLength"], sources),
         max_length=_resolve_constraint(["maxLength"], sources),
@@ -337,6 +338,7 @@ def _find_control_for_complex_feature(
                     required_params=list(params.keys()),
                     parent_feature_name=base_name,
                     uri=cmd_data.get("uri", ""),
+                    value_type=params[target_param].get("type"),
                     # Complex controls rarely have simple min/max
                 )
     return None

@@ -57,6 +57,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         required_params=["slope"],
         parent_feature_name="heating.curve",
         uri="uri",
+        value_type="number",
     )
     mock_feature = Feature(
         name="heating.curve.slope",
@@ -103,6 +104,148 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         # Verify output
         captured = capsys.readouterr()
         assert "Success!" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_set_preserves_string_values(mock_cli_context):
+    """CLI writes should preserve numeric-looking string values."""
+    # Arrange: Create a writable string feature with a numeric-looking enum option.
+    args = Namespace(
+        feature_name="heating.program",
+        value="01",
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+    control = FeatureControl(
+        command_name="setProgram",
+        param_name="program",
+        required_params=["program"],
+        parent_feature_name="heating",
+        uri="uri",
+        value_type="string",
+        options=["01", "auto"],
+    )
+    feature = Feature(
+        name="heating.program",
+        value="auto",
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=control,
+    )
+    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.set_feature.return_value = (
+        MagicMock(success=True, message=None, reason=None),
+        MagicMock(),
+    )
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        # Act: Set the numeric-looking enum value through the CLI.
+        assert await cmd_set(args) is True
+
+    # Assert: The command should receive the exact string rather than a float.
+    assert mock_cli_context.client.set_feature.call_args.args[2] == "01"
+
+
+@pytest.mark.asyncio
+async def test_cmd_set_parses_boolean_values(mock_cli_context):
+    """CLI writes should convert boolean command parameters explicitly."""
+    # Arrange: Create a writable boolean feature and uppercase CLI input.
+    args = Namespace(
+        feature_name="heating.enabled",
+        value="TRUE",
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+    control = FeatureControl(
+        command_name="setEnabled",
+        param_name="enabled",
+        required_params=["enabled"],
+        parent_feature_name="heating",
+        uri="uri",
+        value_type="boolean",
+    )
+    feature = Feature(
+        name="heating.enabled",
+        value=False,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=control,
+    )
+    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.set_feature.return_value = (
+        MagicMock(success=True, message=None, reason=None),
+        MagicMock(),
+    )
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        # Act: Set the boolean feature through the CLI.
+        assert await cmd_set(args) is True
+
+    # Assert: The command should receive a native boolean value.
+    assert mock_cli_context.client.set_feature.call_args.args[2] is True
+
+
+@pytest.mark.asyncio
+async def test_cmd_set_rejects_invalid_numeric_values(mock_cli_context, capsys):
+    """CLI writes should reject non-numeric input for numeric controls."""
+    # Arrange: Create a numeric feature and provide a text value.
+    args = Namespace(
+        feature_name="heating.curve.slope",
+        value="automatic",
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        mock_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+    control = FeatureControl(
+        command_name="setCurve",
+        param_name="slope",
+        required_params=["slope"],
+        parent_feature_name="heating.curve",
+        uri="uri",
+        value_type="number",
+    )
+    feature = Feature(
+        name="heating.curve.slope",
+        value=1.4,
+        unit=None,
+        is_enabled=True,
+        is_ready=True,
+        control=control,
+    )
+    mock_cli_context.client.get_features.return_value = [feature]
+
+    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
+        mock_setup.return_value.__aenter__.return_value = mock_cli_context
+
+        # Act: Attempt to submit text to a numeric command parameter.
+        assert await cmd_set(args) is False
+
+    # Assert: The CLI should explain the validation failure without sending a write.
+    assert "must be a number" in capsys.readouterr().out
+    mock_cli_context.client.set_feature.assert_not_called()
 
 
 @pytest.mark.asyncio
