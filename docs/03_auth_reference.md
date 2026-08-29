@@ -74,6 +74,10 @@ If `token_file` is provided, the class automatically:
 
 This ensures persistent authentication across restarts.
 
+If the token file contains invalid JSON, `OAuth` leaves it untouched and raises
+`ViAuthError`. Repair or remove that file before authenticating again; this avoids
+silently losing credentials or saved client configuration.
+
 (The `OAuth` class implements the PKCE flow internally).
 
 ## Token Format

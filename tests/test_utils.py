@@ -2,7 +2,7 @@
 
 import pytest
 
-from vi_api_client.utils import parse_cli_params
+from vi_api_client.utils import mask_pii, parse_cli_params
 
 
 def test_parse_key_value():
@@ -66,3 +66,17 @@ def test_nested_json_value():
     # Assert: Nested JSON should be parsed as Python dict.
     assert isinstance(params["schedule"], dict)
     assert params["schedule"]["day"] == 1
+
+
+@pytest.mark.parametrize("prefix", ["Bearer", "bearer", "BEARER"])
+def test_mask_pii_redacts_bearer_tokens_case_insensitively(prefix):
+    """Bearer token redaction should not depend on header capitalization."""
+    # Arrange: Build an Authorization value with a secret token.
+    token = "sensitive-token-value"
+
+    # Act: Mask the Authorization value.
+    masked_text = mask_pii(f"Authorization: {prefix} {token}")
+
+    # Assert: The token should be absent regardless of the Bearer capitalization.
+    assert token not in masked_text
+    assert masked_text.endswith("Bearer ***")

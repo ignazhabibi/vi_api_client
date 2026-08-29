@@ -11,6 +11,7 @@ from aioresponses import aioresponses
 from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth, OAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_TOKEN
+from vi_api_client.exceptions import ViAuthError
 
 
 def test_abstract_auth_cannot_be_instantiated():
@@ -79,6 +80,40 @@ def test_has_tokens_with_token(oauth_with_tokens):
     assert oauth_with_tokens._token_info.get("access_token") == "test_access_token"
 
 
+def test_oauth_rejects_malformed_token_file_without_modifying_it(tmp_path):
+    """Malformed token files should remain intact and explain the recovery action."""
+    # Arrange: Store invalid JSON in the configured token file.
+    token_file = tmp_path / "tokens.json"
+    invalid_content = "{invalid"
+    token_file.write_text(invalid_content, encoding="utf-8")
+
+    # Act and assert: Loading the malformed token file should preserve its content.
+    with pytest.raises(ViAuthError, match="Repair or remove the file"):
+        OAuth(
+            client_id="test_client_id",
+            redirect_uri="http://localhost:4200/",
+            token_file=token_file,
+        )
+
+    # Assert: The invalid file should remain available for manual recovery.
+    assert token_file.read_text(encoding="utf-8") == invalid_content
+
+
+def test_save_tokens_rejects_file_that_becomes_malformed(oauth):
+    """Token saves should not overwrite a file corrupted after initialization."""
+    # Arrange: Initialize OAuth, then replace its absent token file with invalid JSON.
+    invalid_content = "{invalid"
+    oauth.token_file.write_text(invalid_content, encoding="utf-8")
+    oauth._token_info = {"access_token": "new-token"}
+
+    # Act and assert: Saving should preserve the malformed file and explain recovery.
+    with pytest.raises(ViAuthError, match="Repair or remove the file"):
+        oauth._save_tokens()
+
+    # Assert: The malformed token file should not be overwritten by the new token.
+    assert oauth.token_file.read_text(encoding="utf-8") == invalid_content
+
+
 @pytest.mark.asyncio
 async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
     """Test getting access token when token is valid."""
@@ -112,6 +147,27 @@ async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
 
         # Assert: Verify the results match expectations.
         assert oauth_with_tokens._token_info["access_token"] == "refreshed_access_token"
+
+
+@pytest.mark.asyncio
+async def test_code_exchange_failure_does_not_write_tokens(oauth):
+    """Rejected authorization codes should not create or alter token storage."""
+    # Arrange: Start an authorization flow and mock a rejected token exchange.
+    oauth.get_authorization_url()
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            ENDPOINT_TOKEN, status=400, body="invalid authorization code"
+        )
+
+        async with aiohttp.ClientSession() as session:
+            oauth.websession = session
+
+            # Act and assert: A rejected token exchange should raise a library error.
+            with pytest.raises(ViAuthError, match="Failed to fetch token"):
+                await oauth.async_fetch_details_from_code("rejected-code")
+
+    # Assert: Failed authentication should not create a token file.
+    assert not oauth.token_file.exists()
 
 
 def test_token_persistence(tmp_path):
