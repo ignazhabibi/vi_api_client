@@ -39,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 class CLIContext:
     """Context for CLI commands."""
 
-    session: aiohttp.ClientSession
+    session: aiohttp.ClientSession | None
     client: ViClient | MockViClient
     # Found IDs (either from args or auto-discovery)
     inst_id: str
@@ -145,103 +145,81 @@ def get_client_config(args) -> tuple[str, str]:
     return client_id, redirect_uri
 
 
-def get_client_config_safe(args: argparse.Namespace) -> tuple[str, str]:
-    """Get config but return empty strings if missing (for mock mode).
-
-    Args:
-        args: Parsed command line arguments.
-
-    Returns:
-        Tuple of (client_id, redirect_uri).
-    """
-    # For mock mode, we don't strictly need client_id, so we can be lenient.
-    if args.mock_device:
-        return "mock_id", "mock_uri"
-    return get_client_config(args)
-
-
 @asynccontextmanager
 async def setup_client_context(
     args, discover: bool = True
 ) -> AsyncGenerator[CLIContext]:
     """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
-    client_id, redirect_uri = get_client_config_safe(args)
+    if args.mock_device:
+        client = MockViClient(args.mock_device)
+        inst_id = getattr(args, "installation_id", None) or "99999"
+        gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
+        dev_id = getattr(args, "device_id", None) or "0"
+        print(f"Using Mock Device: {args.mock_device}")
+        yield CLIContext(None, client, inst_id, gw_serial, dev_id)
+        return
+
+    client_id, redirect_uri = get_client_config(args)
 
     async with await create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
 
-        # Initialize Client
-        if args.mock_device:
-            client = MockViClient(args.mock_device, auth)
-            # Default mock IDs
-            inst_id = getattr(args, "installation_id", None) or "99999"
-            gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
-            dev_id = getattr(args, "device_id", None) or "0"
-            print(f"Using Mock Device: {args.mock_device}")
-        else:
-            client = ViClient(auth)
-            inst_id = getattr(args, "installation_id", None)
-            gw_serial = getattr(args, "gateway_serial", None)
-            dev_id = getattr(args, "device_id", None)
+        client = ViClient(auth)
+        inst_id = getattr(args, "installation_id", None)
+        gw_serial = getattr(args, "gateway_serial", None)
+        dev_id = getattr(args, "device_id", None)
 
-            # Perform Auto-Discovery if IDs are missing
-            if discover and not (inst_id and gw_serial and dev_id):
-                gateways = await client.get_gateways()
-                if not gateways:
-                    print("No gateways found.")
-                    raise ValueError("No gateways found.")
+        # Perform Auto-Discovery if IDs are missing.
+        if discover and not (inst_id and gw_serial and dev_id):
+            gateways = await client.get_gateways()
+            if not gateways:
+                print("No gateways found.")
+                raise ValueError("No gateways found.")
 
-                if gw_serial:
-                    gateway = next(
-                        (
-                            gateway
-                            for gateway in gateways
-                            if gateway.serial == gw_serial
-                        ),
-                        None,
+            if gw_serial:
+                gateway = next(
+                    (gateway for gateway in gateways if gateway.serial == gw_serial),
+                    None,
+                )
+                if not gateway:
+                    raise ValueError(f"Gateway '{gw_serial}' not found.")
+                if inst_id and gateway.installation_id != inst_id:
+                    raise ValueError(
+                        f"Gateway '{gw_serial}' does not belong to installation "
+                        f"'{inst_id}'."
                     )
-                    if not gateway:
-                        raise ValueError(f"Gateway '{gw_serial}' not found.")
-                    if inst_id and gateway.installation_id != inst_id:
-                        raise ValueError(
-                            f"Gateway '{gw_serial}' does not belong to installation "
-                            f"'{inst_id}'."
-                        )
-                elif inst_id:
-                    gateway = next(
-                        (
-                            gateway
-                            for gateway in gateways
-                            if gateway.installation_id == inst_id
-                        ),
-                        None,
-                    )
-                    if not gateway:
-                        raise ValueError(
-                            f"No gateway found for installation '{inst_id}'."
-                        )
-                else:
-                    gateway = gateways[0]
+            elif inst_id:
+                gateway = next(
+                    (
+                        gateway
+                        for gateway in gateways
+                        if gateway.installation_id == inst_id
+                    ),
+                    None,
+                )
+                if not gateway:
+                    raise ValueError(f"No gateway found for installation '{inst_id}'.")
+            else:
+                gateway = gateways[0]
 
-                inst_id = gateway.installation_id
-                gw_serial = gateway.serial
+            inst_id = gateway.installation_id
+            gw_serial = gateway.serial
 
-                if not dev_id:
-                    devices = await client.get_devices(inst_id, gw_serial)
-                    if not devices:
-                        raise ValueError("No devices found.")
+            if not dev_id:
+                devices = await client.get_devices(inst_id, gw_serial)
+                if not devices:
+                    raise ValueError("No devices found.")
 
-                    # Prefer Device "0" (Heating System)
-                    # Prefer Device "0" (Heating System)
-                    target_dev = next(
-                        (device for device in devices if device.id == "0"),
-                        devices[0],
-                    )
-                    dev_id = target_dev.id
-                    print(
-                        f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, "
-                        f"Dev={dev_id}"
-                    )
+                # Prefer device "0" (heating system).
+                target_dev = next(
+                    (device for device in devices if device.id == "0"),
+                    devices[0],
+                )
+                dev_id = target_dev.id
+                print(
+                    f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, "
+                    f"Dev={dev_id}"
+                )
 
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
 

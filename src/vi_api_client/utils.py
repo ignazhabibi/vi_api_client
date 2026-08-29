@@ -142,7 +142,7 @@ def mask_pii(text: str) -> str:
         return text
 
     # Mask Tokens (Bearer eyJ...)
-    text = re.sub(r"Bearer\s+[a-zA-Z0-9\-_.]+", "Bearer ***", text)
+    text = re.sub(r"Bearer\s+[a-zA-Z0-9\-_.]+", "Bearer ***", text, flags=re.IGNORECASE)
 
     # Mask Gateways in URLs or JSON (16 digit serials)
     # Pattern: gateway_serial, serial, or inside URL path
