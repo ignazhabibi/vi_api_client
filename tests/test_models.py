@@ -32,6 +32,7 @@ def test_feature_writable():
         min=0,
         max=100,
         step=1,
+        value_type="number",
         options=[1, 2],
     )
 
@@ -49,6 +50,7 @@ def test_feature_writable():
     assert feature.is_writable is True
     assert feature.control.min == 0
     assert feature.control.max == 100
+    assert feature.control.value_type == "number"
     assert feature.control.options == [1, 2]
 
 

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import os
 import sys
 from collections.abc import AsyncGenerator
@@ -464,10 +465,7 @@ async def cmd_set(args) -> bool:  # noqa: PLR0911
                 f"Param: {feature.control.param_name})"
             )
 
-            # Simple type conversion
-            target_val = args.value
-            with suppress(ValueError):
-                target_val = float(args.value)
+            target_val = _parse_set_value(args.value, feature)
 
             result, _updated_device = await ctx.client.set_feature(
                 device, feature, target_val
@@ -493,6 +491,78 @@ async def cmd_set(args) -> bool:  # noqa: PLR0911
     except Exception as e:
         _LOGGER.error("Error setting feature: %s", e)
         return False
+
+
+def _parse_set_value(raw_value: str, feature: Feature) -> bool | float | int | str:
+    """Convert a CLI value according to the target command parameter type.
+
+    Args:
+        raw_value: Value provided after the CLI ``set`` command.
+        feature: Writable feature that supplies the command metadata.
+
+    Returns:
+        The value in the type expected by the target command.
+
+    Raises:
+        ViValidationError: If a numeric or boolean command value is malformed.
+    """
+    if feature.control is None:
+        return raw_value
+
+    value_type = feature.control.value_type
+    if value_type is None:
+        value_type = _infer_feature_value_type(feature)
+
+    if value_type == "boolean":
+        normalized_value = raw_value.casefold()
+        if normalized_value == "true":
+            return True
+        if normalized_value == "false":
+            return False
+        raise ViValidationError(
+            f"Value '{raw_value}' for '{feature.name}' must be true or false."
+        )
+
+    if value_type == "integer":
+        try:
+            return int(raw_value)
+        except ValueError as error:
+            raise ViValidationError(
+                f"Value '{raw_value}' for '{feature.name}' must be an integer."
+            ) from error
+
+    if value_type == "number":
+        try:
+            value = float(raw_value)
+        except ValueError as error:
+            raise ViValidationError(
+                f"Value '{raw_value}' for '{feature.name}' must be a number."
+            ) from error
+        if not math.isfinite(value):
+            raise ViValidationError(
+                f"Value '{raw_value}' for '{feature.name}' must be finite."
+            )
+        return value
+
+    return raw_value
+
+
+def _infer_feature_value_type(feature: Feature) -> str:
+    """Infer a legacy feature's command type when API metadata is unavailable."""
+    if isinstance(feature.value, bool):
+        return "boolean"
+    if isinstance(feature.value, int | float):
+        return "number"
+    if feature.control and any(
+        constraint is not None
+        for constraint in (
+            feature.control.min,
+            feature.control.max,
+            feature.control.step,
+        )
+    ):
+        return "number"
+    return "string"
 
 
 async def cmd_exec(args) -> bool:  # noqa: PLR0911

@@ -21,6 +21,8 @@ class FeatureControl:
         min: Minimum value (numeric constraint).
         max: Maximum value (numeric constraint).
         step: Step size (numeric constraint).
+        value_type: Viessmann command parameter type, such as ``number`` or
+            ``boolean``.
         options: List of allowed values (enum constraint).
         min_length: Minimum length of string value.
         max_length: Maximum length of string value.
@@ -35,6 +37,7 @@ class FeatureControl:
     min: float | None = None
     max: float | None = None
     step: float | None = None
+    value_type: str | None = None
     options: list[Any] | None = None
     min_length: int | None = None
     max_length: int | None = None

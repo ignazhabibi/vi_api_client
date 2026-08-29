@@ -78,7 +78,9 @@ vi-client set heating.circuits.0.heating.curve.slope 1.4
 # Set operating mode
 vi-client set heating.circuits.0.operating.modes.active heating
 ```
-The CLI automatically handles type conversion (string "1.4" -> float 1.4) and validation against constraints.
+The CLI converts values according to the feature's command type: numeric values
+become numbers, `true`/`false` become booleans, and text values such as `auto`
+or `01` remain strings. It then validates the value against the feature constraints.
 
 ## 7. Advanced: Execute Raw Command
 If you need to execute a command with multiple parameters at once (rare), you can use `exec`.

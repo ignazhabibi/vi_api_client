@@ -80,6 +80,7 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | `min` | `float` | Minimum allowed value (numeric). | `0.2` |
 | `max` | `float` | Maximum allowed value (numeric). | `3.5` |
 | `step` | `float` | Step increment (numeric). | `0.1` |
+| `value_type` | `str` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
 | `options` | `List[str]` | List of valid options (enum). | `['eco', 'comfort']` |
 | `pattern` | `str` | Regex pattern for validation (string). | `'^[a-z]+$'` |
 | `min_length` | `int` | Minimum string length. | `1` |
