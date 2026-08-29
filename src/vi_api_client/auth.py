@@ -5,6 +5,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urlencode
@@ -109,30 +110,43 @@ class OAuth(AbstractAuth):
         self._token_info: dict[str, Any] = {}
         self._pkce_verifier: str | None = None
 
-        # Load existing tokens if available
+        # Load existing tokens if available.
         self._load_tokens()
 
     def _load_tokens(self) -> None:
         """Load tokens from file."""
+        self._token_info = self._read_token_file()
+
+    def _read_token_file(self) -> dict[str, Any]:
+        """Read token data without silently replacing malformed files."""
         try:
-            with self.token_file.open() as file:
-                self._token_info = json.load(file)
-        except FileNotFoundError, json.JSONDecodeError:
-            self._token_info = {}  # Allow init as empty if invalid/missing
+            with self.token_file.open(encoding="utf-8") as file:
+                return json.load(file)
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError as error:
+            raise ViAuthError(
+                f"Token file '{self.token_file}' contains invalid JSON and was not "
+                "modified. Repair or remove the file before authenticating again."
+            ) from error
 
     def _save_tokens(self) -> None:
         """Save tokens to file, preserving existing content."""
-        current_data = {}
-        try:
-            with self.token_file.open() as file:
-                current_data = json.load(file)
-        except FileNotFoundError, json.JSONDecodeError:
-            pass
-
+        current_data = self._read_token_file()
         current_data.update(self._token_info)
 
-        with self.token_file.open("w") as file:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=self.token_file.parent,
+            prefix=f".{self.token_file.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file:
             json.dump(current_data, file, indent=2)
+            temporary_file = Path(file.name)
+
+        temporary_file.replace(self.token_file)
 
     def get_authorization_url(self) -> str:
         """Generate authorization URL and PKCE challenge."""
