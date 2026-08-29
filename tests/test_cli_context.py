@@ -8,27 +8,44 @@ from vi_api_client.models import Device, Gateway
 
 
 @pytest.mark.asyncio
-async def test_cli_context_mock_mode():
-    """Test CLI context in mock mode (no API calls)."""
-    # Arrange: Create mock client, device, and fixture data for test.
+async def test_cli_context_mock_mode_does_not_create_oauth_or_session(tmp_path):
+    """Mock mode should stay offline without credentials or token access."""
+    # Arrange: Point mock mode at malformed tokens and fail if live setup is used.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text("{invalid", encoding="utf-8")
     args = Namespace(
         mock_device="Vitodens200W",
         client_id=None,
         redirect_uri=None,
-        token_file="tokens.json",
+        token_file=token_file,
         insecure=False,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
     )
 
-    # Act: Execute the function being tested.
-    async with setup_client_context(args) as ctx:
-        # Assert: Verify the results match expectations.
-        assert isinstance(ctx, CLIContext)
-        assert ctx.inst_id == "99999"
-        assert ctx.gw_serial == "MOCK_GATEWAY"
-        assert ctx.dev_id == "0"
+    with (
+        patch("vi_api_client.cli.OAuth") as mock_oauth,
+        patch(
+            "vi_api_client.cli.create_session", new_callable=AsyncMock
+        ) as mock_create_session,
+    ):
+        mock_create_session.side_effect = AssertionError(
+            "Mock mode must not create an HTTP session"
+        )
+
+        # Act: Build a context for the bundled mock device.
+        async with setup_client_context(args) as ctx:
+            # Assert: The mock context should use deterministic offline defaults.
+            assert isinstance(ctx, CLIContext)
+            assert ctx.session is None
+            assert ctx.inst_id == "99999"
+            assert ctx.gw_serial == "MOCK_GATEWAY"
+            assert ctx.dev_id == "0"
+
+    # Assert: No live authentication or HTTP session should be initialized.
+    mock_oauth.assert_not_called()
+    mock_create_session.assert_not_called()
 
 
 @pytest.mark.asyncio
