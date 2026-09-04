@@ -14,7 +14,7 @@ import aiohttp
 import pkce
 
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
-from .exceptions import ViAuthError
+from .exceptions import ViAuthError, ViConnectionError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,18 +65,24 @@ class AbstractAuth(ABC):
     async def request(
         self, method: str, url: str, **kwargs: Any
     ) -> aiohttp.ClientResponse:
-        """Make an authenticated request."""
-        try:
-            access_token = await self.async_get_access_token()
-        except ViAuthError:
-            raise
+        """Make an authenticated request.
+
+        Exceptions raised by the authentication provider propagate unchanged.
+
+        Raises:
+            ViConnectionError: If the HTTP request cannot be made.
+        """
+        access_token = await self.async_get_access_token()
 
         headers = kwargs.get("headers", {}).copy()
         headers["Authorization"] = f"Bearer {access_token}"
         kwargs["headers"] = headers
 
         websession = await self._async_get_websession()
-        return await websession.request(method, url, **kwargs)
+        try:
+            return await websession.request(method, url, **kwargs)
+        except (TimeoutError, aiohttp.ClientError) as error:
+            raise ViConnectionError(f"Network error: {error}") from error
 
 
 class OAuth(AbstractAuth):

@@ -7,7 +7,6 @@ from .auth import AbstractAuth
 from .const import API_BASE_URL
 from .exceptions import (
     ViAuthError,
-    ViConnectionError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -108,21 +107,13 @@ class ViConnector:
 
         Handles execution and delegates error checking.
         """
-        try:
-            _LOGGER.debug(mask_pii(f"Request: {method} {url}"))
-            async with await self.auth.request(method, url, **kwargs) as response:
-                # Verify response status and raise exceptions if needed.
-                await _raise_for_status(response)
+        _LOGGER.debug(mask_pii(f"Request: {method} {url}"))
+        async with await self.auth.request(method, url, **kwargs) as response:
+            # Verify response status and raise exceptions if needed.
+            await _raise_for_status(response)
 
-                # Return parsed JSON for success.
-                try:
-                    return await response.json()
-                except Exception:
-                    return {}
-
-        except ViError:
-            # Re-raise business logic errors.
-            raise
-        except Exception as e:
-            # Wrap low-level network errors.
-            raise ViConnectionError(f"Network error: {e}") from e
+            # Return parsed JSON for success.
+            try:
+                return await response.json()
+            except Exception:
+                return {}

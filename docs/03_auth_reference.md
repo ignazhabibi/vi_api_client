@@ -43,12 +43,17 @@ needed. `async_close()` never closes a session passed through `websession`.
 
 ## Base Class: `AbstractAuth`
 
-The abstract base class for all authentication providers. It handles the core logic of attaching the Bearer token to requests.
+The abstract base class for all authentication providers. It handles the core
+logic of attaching the Bearer token to requests.
 
 ### Methods
 
-#### `get_access_token() -> str`
-Returns a valid access token. If the current token is expired, it automatically triggers a refresh.
+#### `async_get_access_token() -> str`
+
+Returns a valid access token. Custom authentication providers can raise their
+own exceptions from this method; the client preserves those exceptions so the
+calling application can handle provider-specific recovery. Connection failures
+while sending the authenticated API request are exposed as `ViConnectionError`.
 
 ## `OAuth`
 
