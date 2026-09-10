@@ -1,153 +1,57 @@
 # AGENTS.md
 
-This repository keeps its detailed agent guidance in `.agent/`.
+## Scope and Priorities
 
-Use this file as the bootstrap entry point. The detailed files in `.agent/` are
-the canonical source for project-specific rules and workflows.
+Follow runtime instructions first, then this file, then the repository's configured tooling. Treat implementation and configuration as newer than examples or assumptions in documentation.
 
-## Priority and Structure
-
-When working in this repository, use this order:
-
-1. System / developer / tool instructions from the runtime
-2. This `AGENTS.md`
-3. `.agent/rules/`
-4. `.agent/workflows/`
-
-If repository guidance conflicts internally:
-
-- Rules in `.agent/rules/` override workflow convenience steps.
-- Newer repository reality overrides stale examples.
-- Do not hardcode dependency versions into guidance files unless the exact
-  version is genuinely required.
-
-## Always-Relevant Files
-
-Read these first for most non-trivial tasks:
-
-- `.agent/rules/architecture-context.md`
-- `.agent/rules/tech-stack.md`
-- `.agent/rules/python-style.md`
-- `.agent/rules/python-docs.md`
-- `.agent/rules/testing.md`
-- `.agent/rules/git-workflow.md`
-- `.agent/rules/consumer-repo-protection.md`
-
-## Workflow Selection
-
-Pick the matching workflow before making substantial changes:
-
-- Feature work: `.agent/workflows/feature-develop.md`
-- Releases and tags: `.agent/workflows/release.md`
-- PR submission flow: `.agent/workflows/pr-submit.md`
-- Test review / test updates: `.agent/workflows/test-compliance-check.md`
-- Rules review / agent guidance cleanup: `.agent/workflows/rules-compliance-check.md`
-- Documentation-only work: `.agent/workflows/doc-update.md`
-
-## Self-Contained Repository Documentation
-
-Treat the repository-operational documentation as a self-contained system that
-must stay current together:
-
-- `README.md`
-- `docs/`
-- `AGENTS.md`
-- `.agent/rules/`, especially `architecture-context.md` and `tech-stack.md`
-- `.agent/workflows/`
-
-After any task that changes repository behavior or expectations, the agent must
-perform an explicit documentation drift check before considering the work
-complete.
-
-This is mandatory for changes affecting:
-
-- public API contracts, feature model behavior, or command semantics
-- CLI commands, arguments, auto-discovery behavior, or example usage
-- tech stack or Python/dependency policy
-- local setup commands
-- testing strategy, mock fixtures, or bundled offline workflows
-- CI behavior or required checks
-- release flow, versioning rules, or tag/changelog expectations
-- GitHub governance such as branch policy or PR requirements
-
-The agent must then do one of the following:
-
-- update the affected documentation in the same task, or
-- explicitly state that the documentation was checked and no update is needed
-
-Do not keep durable repository knowledge implicit when the repository guidance
-should be updated to reflect it.
+Keep changes small and directly related to the request. Do not refactor or clean up unrelated code. State assumptions and tradeoffs when they materially affect the solution.
 
 ## Project Context
 
-- This is the `vi_api_client` repository, an asynchronous Python library for the
-  Viessmann Climate Solutions API.
-- Main library code lives in `src/vi_api_client/`.
-- User-facing reference docs live in `docs/`.
-- Tests live in `tests/`.
-- Bundled offline mock device fixtures live in `src/vi_api_client/fixtures/`.
-- The CLI entrypoint is `vi-client` via `src/vi_api_client/cli.py`.
-- The library is consumed by `vi_climate_devices` and other async Python apps.
-- Treat consumer repositories as separate codebases. Do not silently edit them
-  as part of library work.
-- `MockViClient` is the preferred offline client for smoke tests, CLI demos, and
-  integration-style workflows.
-- `aioresponses` is the default HTTP mocking layer for API/auth tests against
-  the real `ViClient` request flow.
+- This is `vi_api_client`, an asynchronous Python library for the Viessmann Climate Solutions API. Library code is in `src/vi_api_client/`; tests are in `tests/`; user-facing documentation is in `docs/`.
+- The library has a flat feature model: use dot-named `Feature` objects from `device.get_feature(...)` rather than navigating raw nested API payloads. Read values from `feature.value` and use `feature.is_writable` to determine whether a feature can be changed.
+- `update_device` returns a new `Device`; do not mutate device instances in place. Use `set_feature` for writes rather than constructing raw API payloads.
+- `MockViClient` uses the bundled fixtures in `src/vi_api_client/fixtures/` and is the preferred client for offline smoke, CLI, and integration-style tests. Use `aioresponses` for HTTP and OAuth request-flow tests against `ViClient`.
+- `vi_climate_devices` and other consumers are separate codebases. Do not edit them or add consumer-specific library behavior without an explicit request. Explain compatibility impact, expected consumer follow-up, and required version bump instead.
 
-## Development Baseline
+## Python and Tests
 
-Prefer matching the current CI interpreter locally when possible.
+For Python implementation, test, or review work, read [CONTRIBUTING.md](CONTRIBUTING.md) before starting.
+
+## Development and Local Quality Gate
+
+Prefer matching CI's Python 3.14 baseline locally. The normal development setup and validation commands are:
 
 ```bash
 python3.14 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -c constraints-ci.txt '.[dev]'
-```
-
-`constraints-ci.txt` defines the tested Python 3.14 HTTP client and mock
-combination used by CI. Renovate updates that pair through a dedicated PR.
-
-Primary local quality gates:
-
-```bash
 ruff check .
 ruff format --check .
 python -m pytest -q
 ```
 
-If a change touches packaging metadata, build config, dependency management, or
-CLI entry points, validate the package build too:
+Run `python -m build` as well when changing packaging metadata, build configuration, dependencies, or CLI entry points. `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
 
-```bash
-python -m build
-```
+## Git, Pull Requests, and Releases
 
-## CI and Release Notes
+- `main` is protected. Use short-lived branches and pull requests; never commit or merge directly to `main` without an explicitly confirmed emergency bypass.
+- Stage only requested files. Before committing, show the files, summary, and proposed Conventional Commit message; no additional confirmation is needed.
+- Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` job before treating a PR as merge-ready. Squash merge only with explicit authorization.
+- After a merge, fast-forward local `main` and delete the confirmed merged local branch.
+- For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump through a PR, then create an annotated `vX.Y.Z` tag on the merged `main` commit. Its message becomes the GitHub Release body. A release is complete only after the tag workflow is green.
 
-- CI currently runs via `.github/workflows/ci_cd.yml`.
-- The `quality-check` job currently runs on Python 3.14.
-- `main` is protected on GitHub. Treat the pull-request path as mandatory
-  unless the user explicitly requests an emergency bypass.
-- Renovate is enabled via `renovate.json`. Dependency update PRs are expected
-  repository traffic and should be reviewed normally.
-- The current Renovate policy is PR creation without automerge. Do not assume
-  dependency PRs will merge themselves unless the repository config changes.
-- Releases are published from `v*` tag runs in GitHub Actions.
-- The GitHub Release body is populated from the annotated tag message, so
-  release tags must be annotated and should include the changelog body.
-- Prefer creating release tags from a clean, up-to-date `main` after the release
-  version bump has landed through the normal PR flow.
-- A release is not considered complete until the tag workflow is green.
+## Documentation Drift
 
-## Practical Agent Notes
+After changes to architecture, public API, CLI behavior, dependencies, setup, tests or fixtures, CI, GitHub policy, or releases, check `README.md`, `docs/`, `CONTRIBUTING.md`, `AGENTS.md`, `pyproject.toml`, and relevant `.github/workflows/` files. Update affected documentation in the same change, or explicitly state that no update was needed.
 
-- Prefer `rg` / `rg --files` for repo search.
-- Use `apply_patch` for manual file edits.
-- Keep changes minimal and consistent with existing patterns.
-- If rules or workflows look stale, update them as part of the task instead of
-  working around them silently.
-- End substantial tasks with an explicit repository documentation drift check
-  against `README.md`, `docs/`, `AGENTS.md`, `.agent/rules/`, and
-  `.agent/workflows/`.
+## Agent Skills
+
+### Issue tracker
+
+Issues and specifications live in this repository's GitHub Issues. Write them in English, even when the surrounding conversation is in another language.
+
+### Domain documentation
+
+This repository uses a single-context domain-document layout. See `docs/adr/` and `CONTEXT.md` when the task concerns domain terminology or an architecture decision.
