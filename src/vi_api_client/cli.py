@@ -48,34 +48,6 @@ class CLIContext:
     dev_id: str
 
 
-def load_config(token_file: str) -> dict[str, Any]:
-    """Load configuration from token file.
-
-    Args:
-        token_file: Path to the JSON token file.
-
-    Returns:
-        Dictionary containing tokens and config, or empty dict if missing.
-
-    Raises:
-        ViAuthError: If the credential document cannot be read or is malformed.
-    """
-    return CredentialDocument(Path(token_file)).read()
-
-
-def _save_client_config(token_file: str, client_id: str, redirect_uri: str) -> None:
-    """Save client configuration alongside the OAuth tokens.
-
-    Args:
-        token_file: Path to the JSON token and configuration file.
-        client_id: OAuth client ID used for authentication.
-        redirect_uri: OAuth redirect URI used for authentication.
-    """
-    CredentialDocument(Path(token_file)).update(
-        {"client_id": client_id, "redirect_uri": redirect_uri}
-    )
-
-
 async def create_session(args) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL.
 
@@ -113,14 +85,16 @@ async def cmd_login(args) -> bool:
         auth.websession = session
         await auth.async_fetch_details_from_code(code)
 
-    _save_client_config(args.token_file, client_id, redirect_uri)
+    CredentialDocument(Path(args.token_file)).update(
+        {"client_id": client_id, "redirect_uri": redirect_uri}
+    )
     print(f"Successfully authenticated! Tokens and config saved to {args.token_file}")
     return True
 
 
 def get_client_config(args) -> tuple[str, str]:
     """Get client_id and redirect_uri from args or file."""
-    config = load_config(args.token_file)
+    config = CredentialDocument(Path(args.token_file)).read()
 
     client_id = (
         args.client_id or os.getenv("VIESSMANN_CLIENT_ID") or config.get("client_id")
@@ -934,7 +908,7 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
         not args.client_id and not os.getenv("VIESSMANN_CLIENT_ID")
     ):
         # Check config one last time before failing
-        config = load_config(args.token_file)
+        config = CredentialDocument(Path(args.token_file)).read()
         if not config.get("client_id"):
             print(
                 "Error: --client-id is required for initial login "

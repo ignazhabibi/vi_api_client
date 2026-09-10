@@ -83,14 +83,14 @@ async def test_cli_context_explicit_ids():
 
 
 @pytest.mark.asyncio
-async def test_cli_context_autodiscovery():
+async def test_cli_context_autodiscovery(tmp_path):
     """Test CLI context auto-discovery by mocking the Client completely."""
     # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
         mock_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
-        token_file="tokens.json",
+        token_file=tmp_path / "tokens.json",
         insecure=False,
         installation_id=None,
         gateway_serial=None,
@@ -101,7 +101,6 @@ async def test_cli_context_autodiscovery():
     with (
         patch("vi_api_client.cli.ViClient") as MockClientCls,
         patch("vi_api_client.cli.OAuth"),
-        patch("vi_api_client.cli.load_config", return_value={}),
     ):
         # Setup the mock client instance
         mock_client = MockClientCls.return_value
@@ -139,13 +138,13 @@ async def test_cli_context_autodiscovery():
 
 
 @pytest.mark.asyncio
-async def test_cli_context_discovery_uses_provided_gateway_scope():
+async def test_cli_context_discovery_uses_provided_gateway_scope(tmp_path):
     """A supplied gateway serial should determine its missing installation ID."""
     args = Namespace(
         mock_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
-        token_file="tokens.json",
+        token_file=tmp_path / "tokens.json",
         insecure=False,
         installation_id=None,
         gateway_serial="GW-B",
@@ -155,7 +154,6 @@ async def test_cli_context_discovery_uses_provided_gateway_scope():
     with (
         patch("vi_api_client.cli.ViClient") as mock_client_cls,
         patch("vi_api_client.cli.OAuth"),
-        patch("vi_api_client.cli.load_config", return_value={}),
     ):
         mock_client = mock_client_cls.return_value
         mock_client.get_gateways = AsyncMock(
@@ -184,13 +182,13 @@ async def test_cli_context_discovery_uses_provided_gateway_scope():
 
 
 @pytest.mark.asyncio
-async def test_cli_context_discovery_uses_provided_installation_scope():
+async def test_cli_context_discovery_uses_provided_installation_scope(tmp_path):
     """A supplied installation ID should select one of its gateways."""
     args = Namespace(
         mock_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
-        token_file="tokens.json",
+        token_file=tmp_path / "tokens.json",
         insecure=False,
         installation_id="B",
         gateway_serial=None,
@@ -200,7 +198,6 @@ async def test_cli_context_discovery_uses_provided_installation_scope():
     with (
         patch("vi_api_client.cli.ViClient") as mock_client_cls,
         patch("vi_api_client.cli.OAuth"),
-        patch("vi_api_client.cli.load_config", return_value={}),
     ):
         mock_client = mock_client_cls.return_value
         mock_client.get_gateways = AsyncMock(
@@ -229,13 +226,13 @@ async def test_cli_context_discovery_uses_provided_installation_scope():
 
 
 @pytest.mark.asyncio
-async def test_cli_context_rejects_mismatched_partial_scope():
+async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     """Partially specified IDs must not be combined across installations."""
     args = Namespace(
         mock_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
-        token_file="tokens.json",
+        token_file=tmp_path / "tokens.json",
         insecure=False,
         installation_id="A",
         gateway_serial="GW-B",
@@ -245,7 +242,6 @@ async def test_cli_context_rejects_mismatched_partial_scope():
     with (
         patch("vi_api_client.cli.ViClient") as mock_client_cls,
         patch("vi_api_client.cli.OAuth"),
-        patch("vi_api_client.cli.load_config", return_value={}),
     ):
         mock_client = mock_client_cls.return_value
         mock_client.get_gateways = AsyncMock(
