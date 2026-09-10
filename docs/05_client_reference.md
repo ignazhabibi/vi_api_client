@@ -68,6 +68,35 @@ Refreshes a specific device by refetching all its features.
 *   **Returns**: A new `Device` instance with updated features.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
+### `update_gateway_devices(devices: List[Device]) -> GatewayDeviceRefreshResult`
+
+Refreshes known devices belonging to one installation and gateway. The normal
+path uses one POST feature-filter request and retrieves enabled and ready
+features only.
+
+*   **Parameters**:
+    *   `devices`: Existing devices from exactly one installation and gateway. Device IDs must be unique.
+*   **Returns**: A `GatewayDeviceRefreshResult`. Successful new devices preserve their relative input order; recognized device-specific failures are keyed separately by device ID.
+*   **Fallback**: Devices omitted from a valid bulk response are retried individually. A gateway-wide `DEVICE_COMMUNICATION_ERROR` retries all requested devices individually.
+*   **Raises**:
+    *   `ValueError` for mixed installations, mixed gateways, or duplicate device IDs.
+    *   `ViResponseError` for malformed successful responses.
+    *   The applicable `ViError` subclass for global authentication, rate-limit, connection, server, or unknown API failures.
+*   **Boundary behavior**: Empty input returns an empty complete result without I/O. Failed original devices are not returned in `updated_devices`.
+
+```python
+result = await client.update_gateway_devices(devices)
+for device in result.updated_devices:
+    use_current_state(device)
+
+for device_id, error in result.errors_by_device_id.items():
+    handle_unavailable_device(device_id, error.error_type)
+```
+
+This method is explicit: `get_features`, `update_device`, `get_devices`, and
+`get_full_installation_status` continue to use their existing request and error
+semantics.
+
 ### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
 Sets a new value for a writable feature and returns an optimistically updated device.
 

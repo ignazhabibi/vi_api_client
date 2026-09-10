@@ -110,11 +110,27 @@ if response.success:
 
 The library handles the "magic" of mapping your simple `1.6` value back to the complex JSON structure required by the API.
 
+## 6. Gateway-Scoped Device Refresh
+
+When several known devices belong to the same installation and gateway,
+`update_gateway_devices(devices)` refreshes their enabled and ready features
+with one gateway-scoped bulk feature fetch in the normal case. Returned feature
+URIs are matched to complete, URL-decoded device-ID path segments. Gateway-owned
+features and features for devices outside the requested set are not added to a
+device.
+
+The operation returns successful devices separately from device-specific
+errors. A missing device is retried through its existing per-device endpoint;
+global failures still abort the operation. Existing discovery and single-device
+methods keep their established behavior. The client remains cache-free, so the
+consumer owns polling cadence and stale-state policy.
+
 ## Summary
 
 *   **Everything is a Feature**: No more "Properties" vs "Features".
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
 *   **Simple Set**: Use `set_feature(device, feature, value)`.
+*   **Explicit Multi-Device Refresh**: Use `update_gateway_devices` for known devices behind one gateway.
 
 ## Next Steps
 

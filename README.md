@@ -9,6 +9,7 @@ Designed for integration with Home Assistant and other async Python applications
 - **OAuth2 Authentication**: Handles token retrieval and automatic renewal.
 - **Auto-Discovery**: Automatically finds installations, gateways, and devices.
 - **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
+- **Gateway-Scoped Refresh**: Refreshes multiple known devices with one normal-case request while preserving partial successes.
 - **Command Execution**: Supports writing values with automatic parameter resolution (e.g. `setCurve`).
 - **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
 
@@ -87,11 +88,14 @@ async def main():
         installations = await client.get_installations()
         gateways = await client.get_gateways()
 
-        # 2. Get Devices (using first gateway and installation) with Features
-        devices = await client.get_devices(
-            installations[0].id, gateways[0].serial, include_features=True
-        )
-        device = devices[0]  # Usually the heating system (ID: 0)
+        # 2. Discover and refresh devices behind one gateway
+        devices = await client.get_devices(installations[0].id, gateways[0].serial)
+        refresh = await client.update_gateway_devices(devices)
+        for device_id, error in refresh.errors_by_device_id.items():
+            print(f"Device {device_id} could not be refreshed: {error}")
+        if not refresh.updated_devices:
+            return
+        device = refresh.updated_devices[0]
         print(f"Device: {device.model_id} ({device.status})")
 
         # 3. Iterate Features (Flat List)

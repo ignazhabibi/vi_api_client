@@ -31,13 +31,13 @@ async def _raise_for_status(response) -> None:
     vi_error_id = None
     error_message = f"HTTP {status}"
     validation_details = []
-    error_type = "UNKNOWN"
+    error_type = None
 
     try:
         data = await response.json()
         vi_error_id = data.get("viErrorId")
         error_message = data.get("message", error_message)
-        error_type = data.get("errorType", "")
+        error_type = data.get("errorType")
         if "validationErrors" in data:
             validation_details = data["validationErrors"]
     except Exception:
@@ -54,27 +54,29 @@ async def _raise_for_status(response) -> None:
 
     # Map status codes to specific exceptions.
     if status == 401:
-        raise ViAuthError(f"Unauthorized: {error_message}", vi_error_id)
+        raise ViAuthError(f"Unauthorized: {error_message}", vi_error_id, error_type)
 
     if status == 403:
-        raise ViAuthError(f"Forbidden: {error_message}", vi_error_id)
+        raise ViAuthError(f"Forbidden: {error_message}", vi_error_id, error_type)
 
     if status == 404:
-        raise ViNotFoundError(f"Not Found: {error_message}", vi_error_id)
+        raise ViNotFoundError(f"Not Found: {error_message}", vi_error_id, error_type)
 
     if status == 429:
-        raise ViRateLimitError("Rate Limit Exceeded", vi_error_id)
+        raise ViRateLimitError("Rate Limit Exceeded", vi_error_id, error_type)
 
     if status in (400, 422):
-        raise ViValidationError(error_message, vi_error_id, validation_details)
+        raise ViValidationError(
+            error_message, vi_error_id, validation_details, error_type
+        )
 
     if status >= 500:
         raise ViServerInternalError(
-            f"Server Error {status}: {error_message}", vi_error_id
+            f"Server Error {status}: {error_message}", vi_error_id, error_type
         )
 
     # Generic catch-all for other error codes.
-    raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id)
+    raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id, error_type)
 
 
 class ViConnector:

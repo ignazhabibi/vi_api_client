@@ -6,6 +6,7 @@ import warnings
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from .analytics import parse_consumption_response, resolve_properties
 from .auth import AbstractAuth
@@ -16,12 +17,14 @@ from .const import (
     ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
 )
+from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
     Device,
     Feature,
     FeatureControl,
     Gateway,
+    GatewayDeviceRefreshResult,
     Installation,
 )
 from .parsing import parse_feature_flat
@@ -197,6 +200,74 @@ class ViClient:
         features = await self.get_features(device, only_enabled=only_enabled)
         return replace(device, features=features)
 
+    async def update_gateway_devices(
+        self, devices: list[Device]
+    ) -> GatewayDeviceRefreshResult:
+        """Refresh enabled and ready features for devices on one gateway.
+
+        Args:
+            devices: Existing devices belonging to one installation and gateway.
+
+        Returns:
+            The successfully refreshed devices and any device-specific failures.
+
+        Raises:
+            ValueError: If devices span multiple scopes or contain duplicate IDs.
+            ViResponseError: If a successful response violates the API contract.
+            ViError: If a global API or connection failure aborts the refresh.
+        """
+        if not devices:
+            return GatewayDeviceRefreshResult([], {})
+
+        self._validate_gateway_devices(devices)
+
+        first_device = devices[0]
+        url = (
+            f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
+            f"{first_device.gateway_serial}/features/filter"
+        )
+        payload = {
+            "includeDevicesFeatures": True,
+            "skipDisabled": True,
+            "skipNotReady": True,
+        }
+        try:
+            response = await self.connector.post(url, payload)
+        except ViValidationError as error:
+            if error.error_type == "DEVICE_COMMUNICATION_ERROR":
+                return await self._refresh_devices_individually(devices)
+            raise
+
+        requested_device_ids = {device.id for device in devices}
+        raw_features_by_device_id, seen_device_ids = self._group_gateway_features(
+            response, requested_device_ids
+        )
+
+        updated_devices_by_id: dict[str, Device] = {}
+        for device in devices:
+            if device.id not in seen_device_ids:
+                continue
+            raw_features = raw_features_by_device_id[device.id]
+            features = self._parse_gateway_device_features(device.id, raw_features)
+            updated_devices_by_id[device.id] = replace(device, features=features)
+
+        missing_devices = [
+            device for device in devices if device.id not in seen_device_ids
+        ]
+        fallback_result = await self._refresh_devices_individually(missing_devices)
+        updated_devices_by_id.update(
+            {device.id: device for device in fallback_result.updated_devices}
+        )
+        updated_devices = [
+            updated_devices_by_id[device.id]
+            for device in devices
+            if device.id in updated_devices_by_id
+        ]
+
+        return GatewayDeviceRefreshResult(
+            updated_devices, fallback_result.errors_by_device_id
+        )
+
     async def set_feature(
         self, device: Device, feature: Feature, target_value: Any
     ) -> tuple[CommandResponse, Device]:
@@ -344,6 +415,132 @@ class ViClient:
         if feature_name:
             return f"{base}/{feature_name}"
         return f"{base}/filter"
+
+    @staticmethod
+    def _validate_gateway_devices(devices: list[Device]) -> None:
+        """Validate that devices form one unambiguous gateway-scoped request."""
+        installation_ids = {device.installation_id for device in devices}
+        gateway_serials = {device.gateway_serial for device in devices}
+        device_ids = [device.id for device in devices]
+        if len(installation_ids) != 1 or len(gateway_serials) != 1:
+            raise ValueError("Devices must belong to the same installation and gateway")
+        if len(set(device_ids)) != len(device_ids):
+            raise ValueError("Devices must have unique IDs")
+
+    def _group_gateway_features(
+        self, response: object, requested_device_ids: set[str]
+    ) -> tuple[dict[str, list[dict[str, Any]]], set[str]]:
+        """Validate and group a gateway response by requested device ID."""
+        if not isinstance(response, dict):
+            raise ViResponseError("Gateway feature response must be an object")
+        raw_response_features = response.get("data")
+        if not isinstance(raw_response_features, list):
+            raise ViResponseError("Gateway feature response data must be a list")
+
+        grouped_features: dict[str, list[dict[str, Any]]] = {
+            device_id: [] for device_id in requested_device_ids
+        }
+        seen_device_ids: set[str] = set()
+        for raw_feature in raw_response_features:
+            if not isinstance(raw_feature, dict):
+                raise ViResponseError("Gateway feature entries must be objects")
+            device_id = self._get_feature_device_id(raw_feature.get("uri"))
+            if device_id in grouped_features:
+                self._validate_gateway_feature(raw_feature)
+                grouped_features[device_id].append(raw_feature)
+                seen_device_ids.add(device_id)
+
+        return grouped_features, seen_device_ids
+
+    @staticmethod
+    def _validate_gateway_feature(raw_feature: dict[str, Any]) -> None:
+        """Validate fields required to parse an ordinary device feature."""
+        feature_name = raw_feature.get("feature")
+        properties = raw_feature.get("properties")
+        commands = raw_feature.get("commands", {})
+        if not isinstance(feature_name, str) or not feature_name:
+            raise ViResponseError("Gateway device feature has no valid feature name")
+        if not isinstance(properties, dict) or not isinstance(commands, dict):
+            raise ViResponseError("Gateway device feature has invalid feature data")
+
+    @staticmethod
+    def _parse_gateway_device_features(
+        device_id: str, raw_features: list[dict[str, Any]]
+    ) -> list[Feature]:
+        """Parse one device's features and expose contract failures consistently."""
+        features = []
+        try:
+            for raw_feature in raw_features:
+                features.extend(parse_feature_flat(raw_feature))
+        except (AttributeError, KeyError, TypeError, ValueError) as error:
+            raise ViResponseError(
+                f"Invalid feature data for device {device_id}"
+            ) from error
+        return features
+
+    def _get_feature_device_id(self, uri: object) -> str | None:
+        """Return the decoded device ID from a device feature URI."""
+        if not isinstance(uri, str) or not uri:
+            raise ViResponseError("Gateway feature entry has no valid URI")
+
+        try:
+            raw_path_segments = urlsplit(uri).path.split("/")
+            if any(
+                re.search(r"%(?![0-9A-Fa-f]{2})", segment)
+                for segment in raw_path_segments
+            ):
+                raise ViResponseError(
+                    "Gateway feature entry has an invalid encoded URI"
+                )
+            path_segments = [
+                unquote(segment, errors="strict") for segment in raw_path_segments
+            ]
+        except ValueError as error:
+            raise ViResponseError("Gateway feature entry has an invalid URI") from error
+
+        device_indexes = [
+            index for index, segment in enumerate(path_segments) if segment == "devices"
+        ]
+        if not device_indexes:
+            return None
+        if len(device_indexes) != 1:
+            raise ViResponseError("Gateway feature URI has ambiguous device ownership")
+
+        devices_index = device_indexes[0]
+        if (
+            devices_index + 1 >= len(path_segments)
+            or not path_segments[devices_index + 1]
+        ):
+            raise ViResponseError("Gateway feature URI has no device ID")
+        return path_segments[devices_index + 1]
+
+    async def _refresh_devices_individually(
+        self, devices: list[Device]
+    ) -> GatewayDeviceRefreshResult:
+        """Refresh devices individually and isolate known device failures."""
+        updated_devices = []
+        errors_by_device_id: dict[str, ViError] = {}
+        device_error_types = {
+            "DEVICE_COMMUNICATION_ERROR",
+            "DEVICE_NOT_FOUND",
+            "PACKAGE_NOT_PAID_FOR",
+        }
+
+        for device in devices:
+            try:
+                features = await self.get_features(device, only_enabled=True)
+            except ViError as error:
+                if error.error_type not in device_error_types:
+                    raise
+                errors_by_device_id[device.id] = error
+            except (AttributeError, KeyError, TypeError, ValueError) as error:
+                raise ViResponseError(
+                    f"Invalid feature data for device {device.id}"
+                ) from error
+            else:
+                updated_devices.append(replace(device, features=features))
+
+        return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
     def _resolve_command_payload(
         self, device: Device, ctrl: FeatureControl, target_value: Any
