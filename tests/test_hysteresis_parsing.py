@@ -32,11 +32,14 @@ def test_hysteresis_parsing(load_fixture_json):
 
     # Check Controls.
     assert feature_value.is_writable
+    assert feature_value.control is not None
     assert feature_value.control.command_name == "setHysteresis"
 
     # These currently FAIL because of the missing mapping logic.
     assert feature_on.is_writable
+    assert feature_on.control is not None
     assert feature_on.control.command_name == "setHysteresisSwitchOnValue"
 
     assert feature_off.is_writable
+    assert feature_off.control is not None
     assert feature_off.control.command_name == "setHysteresisSwitchOffValue"

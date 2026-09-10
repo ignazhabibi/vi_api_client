@@ -221,6 +221,12 @@ async def setup_client_context(
                     f"Dev={dev_id}"
                 )
 
+        if not (inst_id and gw_serial and dev_id):
+            raise ValueError(
+                "Installation ID, gateway serial, and device ID are required when "
+                "auto-discovery is disabled."
+            )
+
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
 
 
@@ -716,6 +722,8 @@ async def cmd_list_writable(args) -> bool:
 
             for feature in writable_features:
                 ctrl = feature.control
+                if ctrl is None:
+                    continue
                 print(f"- {feature.name}")
                 print(f"    Param:   {ctrl.param_name} (via {ctrl.command_name})")
                 _print_feature_constraints(ctrl)

@@ -95,7 +95,9 @@ class Device:
     features: list[Feature] = field(default_factory=list)
 
     # Internal cache for O(1) lookup
-    _features_by_name: dict[str, Feature] = field(init=False, repr=False, default=None)
+    _features_by_name: dict[str, Feature] = field(
+        init=False, repr=False, default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         """Build internal cache."""

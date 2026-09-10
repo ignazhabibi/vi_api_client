@@ -135,7 +135,10 @@ class ViClient:
             List of Feature objects (flattened).
         """
         url = self._build_features_url(device)
-        payload = {"skipDisabled": only_enabled, "skipNotReady": only_enabled}
+        payload: dict[str, bool | list[str]] = {
+            "skipDisabled": only_enabled,
+            "skipNotReady": only_enabled,
+        }
         if feature_names:
             payload["filter"] = feature_names
 
@@ -601,15 +604,10 @@ class ViClient:
             self._validate_enum_constraints(ctrl, value)
 
         # Type-specific Dispatch
-        validators = {
-            int: self._validate_numeric_constraints,
-            float: self._validate_numeric_constraints,
-            str: self._validate_string_constraints,
-        }
-
-        validator = validators.get(type(value))
-        if validator:
-            validator(ctrl, value)  # type: ignore
+        if isinstance(value, int | float):
+            self._validate_numeric_constraints(ctrl, value)
+        elif isinstance(value, str):
+            self._validate_string_constraints(ctrl, value)
 
     def _validate_numeric_constraints(
         self, ctrl: FeatureControl, value: int | float

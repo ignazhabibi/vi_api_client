@@ -605,7 +605,7 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
     )
 
     # Mock Data (Objects)
-    inst = Installation(id=123, description="Home", alias="MyHome", address={})
+    inst = Installation(id="123", description="Home", alias="MyHome", address={})
     gw = Gateway(serial="GW1", version="1.0", status="ok", installation_id="123")
     dev = Device(
         id="0",

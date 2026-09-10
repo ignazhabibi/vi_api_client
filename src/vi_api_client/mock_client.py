@@ -237,22 +237,22 @@ class MockViClient(ViClient):
 
     async def _execute_command(
         self,
-        ctrl: FeatureControl,
-        params: dict[str, Any],
+        control: FeatureControl,
+        payload: dict[str, Any],
     ) -> CommandResponse:
         """Mock execution of a command (Success).
 
         Args:
-            ctrl: The feature control block being executed.
-            params: Validated parameters for the command.
+            control: The feature control block being executed.
+            payload: Validated parameters for the command.
 
         Returns:
             A CommandResponse indicating success.
         """
         print(
-            f"[MOCK] Executing command '{ctrl.command_name}' for feature "
-            f"'{ctrl.parent_feature_name}' (param: {ctrl.param_name}) "
-            f"with params: {params}"
+            f"[MOCK] Executing command '{control.command_name}' for feature "
+            f"'{control.parent_feature_name}' (param: {control.param_name}) "
+            f"with params: {payload}"
         )
         return CommandResponse(success=True, reason="Mock Execution Success")
 

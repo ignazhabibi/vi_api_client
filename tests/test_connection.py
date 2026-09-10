@@ -93,7 +93,7 @@ async def test_connector_wraps_aiohttp_connection_error() -> None:
 )
 @pytest.mark.asyncio
 async def test_connector_preserves_viessmann_error_type(
-    status: int, expected_error: type[Exception]
+    status: int, expected_error: type[ViError]
 ) -> None:
     # Arrange: Return a structured Viessmann error from the HTTP boundary.
     url = f"{API_BASE_URL}/features"

@@ -104,6 +104,7 @@ async def test_mock_workflow_vitocal():
         ),
         None,
     )
+    assert circuit_mode is not None
     assert circuit_mode.is_writable is True
 
 
