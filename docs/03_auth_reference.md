@@ -83,6 +83,12 @@ If the token file contains invalid JSON, `OAuth` leaves it untouched and raises
 `ViAuthError`. Repair or remove that file before authenticating again; this avoids
 silently losing credentials or saved client configuration.
 
+Credential updates preserve unrelated JSON fields, are written through a temporary
+file in the same directory, and then atomically replace the previous file. On
+platforms that support POSIX permissions, the resulting credential file is
+owner-readable and owner-writable only (`0600`). The parent directory must already
+exist; `OAuth` does not create it automatically.
+
 (The `OAuth` class implements the PKCE flow internally).
 
 ## Token Format
