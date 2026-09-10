@@ -46,12 +46,19 @@ Run `python -m build` as well when changing packaging metadata, build configurat
 
 After changes to architecture, public API, CLI behavior, dependencies, setup, tests or fixtures, CI, GitHub policy, or releases, check `README.md`, `docs/`, `CONTRIBUTING.md`, `AGENTS.md`, `pyproject.toml`, and relevant `.github/workflows/` files. Update affected documentation in the same change, or explicitly state that no update was needed.
 
-## Agent Skills
+## Agent skills
 
 ### Issue tracker
 
-Issues and specifications live in this repository's GitHub Issues. Write them in English, even when the surrounding conversation is in another language.
+Issues and specifications live in this repository's GitHub Issues and are
+written in English. See `docs/agents/issue-tracker.md`.
 
-### Domain documentation
+### Triage labels
 
-This repository uses a single-context domain-document layout. See `docs/adr/` and `CONTEXT.md` when the task concerns domain terminology or an architecture decision.
+The canonical triage labels use their default names. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses a single-context domain-document layout. See
+`docs/agents/domain.md`.
