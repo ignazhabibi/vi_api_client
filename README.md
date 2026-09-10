@@ -37,8 +37,10 @@ tested HTTP client and mock combination locally:
 
 ```bash
 python -m pip install -c constraints-ci.txt '.[dev]'
+pre-commit install
 ruff check .
 ruff format --check .
+pyright --pythonpath python
 python -m pytest -q
 ```
 

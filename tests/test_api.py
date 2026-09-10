@@ -75,23 +75,21 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     assert result.is_complete
     assert [device.id for device in result.updated_devices] == ["10", "0"]
     assert result.updated_devices[0].model_id == "model-10"
-    assert (
-        result.updated_devices[0]
-        .get_feature("heating.sensors.temperature.supply")
-        .value
-        == 34.2
+    supply_temperature = result.updated_devices[0].get_feature(
+        "heating.sensors.temperature.supply"
     )
-    assert (
-        result.updated_devices[1]
-        .get_feature("heating.sensors.temperature.outside")
-        .value
-        == 5.5
+    outside_temperature = result.updated_devices[1].get_feature(
+        "heating.sensors.temperature.outside"
     )
-    assert (
-        result.updated_devices[1]
-        .get_feature("heating.circuits.0.heating.curve.slope")
-        .is_writable
+    heating_curve_slope = result.updated_devices[1].get_feature(
+        "heating.circuits.0.heating.curve.slope"
     )
+    assert supply_temperature is not None
+    assert outside_temperature is not None
+    assert heating_curve_slope is not None
+    assert supply_temperature.value == 34.2
+    assert outside_temperature.value == 5.5
+    assert heating_curve_slope.is_writable
     assert len(mock_responses.requests) == 1
     request = next(iter(mock_responses.requests.values()))[0]
     assert request.kwargs["json"] == {
@@ -133,7 +131,9 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments():
     # Assert: The decoded complete segment maps to the requested device.
     assert result.is_complete
     assert result.updated_devices[0].id == "device/0"
-    assert result.updated_devices[0].get_feature("heating.status").value == "ready"
+    heating_status = result.updated_devices[0].get_feature("heating.status")
+    assert heating_status is not None
+    assert heating_status.value == "ready"
 
 
 @pytest.mark.asyncio
@@ -842,6 +842,7 @@ async def test_set_feature_with_dependency(load_fixture_json):
             # 3. Find the 'slope' feature
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
+            assert slope_feature is not None
 
             # Act: Set slope to 1.2 and verify dependency resolution.
             # The fixture says 'shift' is 4.
@@ -889,6 +890,7 @@ async def test_set_feature_validation_limit(load_fixture_json):
             device = replace(device, features=await client.get_features(device))
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
 
             # Act & Assert: Max limit violation (Max is 3.5).
             with pytest.raises(ValueError, match=r"Value 5.0 > max"):
@@ -921,6 +923,7 @@ async def test_set_feature_validation_step(load_fixture_json):
             device = replace(device, features=await client.get_features(device))
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
 
             # Act & Assert: Step violation (Step is 0.1, 1.25 is invalid).
             with pytest.raises(ValueError, match=r"does not align with step"):
@@ -964,6 +967,7 @@ async def test_set_feature_returns_updated_device(load_fixture_json):
             device = replace(base_device, features=features)
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
             original_slope = slope_feature.value  # Should be 0.6 from fixture
 
             # Act: Set slope to new value.
@@ -976,6 +980,7 @@ async def test_set_feature_returns_updated_device(load_fixture_json):
             updated_slope_feature = updated_device.get_feature(
                 "heating.circuits.0.heating.curve.slope"
             )
+            assert updated_slope_feature is not None
             assert updated_slope_feature.value == 0.7
             assert original_slope == 0.6  # Original unchanged
 
@@ -1020,6 +1025,7 @@ async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json
             device = replace(base_device, features=features)
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
             original_slope = slope_feature.value
 
             # Act: Try to set value but command fails.
@@ -1033,6 +1039,7 @@ async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json
             returned_slope_feature = updated_device.get_feature(
                 "heating.circuits.0.heating.curve.slope"
             )
+            assert returned_slope_feature is not None
             assert returned_slope_feature.value == original_slope
 
 
@@ -1077,6 +1084,8 @@ async def test_interdependent_features_use_optimistic_values(load_fixture_json):
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             shift_feature = device.get_feature("heating.circuits.0.heating.curve.shift")
+            assert slope_feature is not None
+            assert shift_feature is not None
 
             # Act: Set slope first to 0.7.
             response1, device = await client.set_feature(device, slope_feature, 0.7)

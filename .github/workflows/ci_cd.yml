@@ -23,12 +23,8 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -c constraints-ci.txt .[dev]
-    - name: Lint & Format (Ruff)
-      run: |
-        ruff check .
-        ruff format --check .
-    - name: Tests
-      run: pytest
+    - name: Quality check
+      run: python scripts/quality_check.py
 
   release:
     needs: quality-check

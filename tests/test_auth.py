@@ -18,7 +18,7 @@ def test_abstract_auth_cannot_be_instantiated():
     """AbstractAuth should not be instantiated directly."""
     # Arrange, Act and Assert: Complete test in one step.
     with pytest.raises(TypeError):
-        AbstractAuth(MagicMock())
+        AbstractAuth(MagicMock())  # type: ignore[reportAbstractUsage]
 
 
 @pytest.fixture

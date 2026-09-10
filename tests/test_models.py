@@ -55,6 +55,7 @@ def test_feature_writable():
 
     # Assert: Feature should be writable and have constraint values from control.
     assert feature.is_writable is True
+    assert feature.control is not None
     assert feature.control.min == 0
     assert feature.control.max == 100
     assert feature.control.value_type == "number"

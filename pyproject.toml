@@ -27,6 +27,8 @@ dev = [
     "pytest>=9",
     "pytest-asyncio>=1.3",
     "pytest-cov>=7.1",
+    "pyright==1.1.411",
+    "pre-commit==4.6.2",
     "ruff==0.16.5",
 ]
 
@@ -68,3 +70,9 @@ convention = "google"
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.pyright]
+include = ["src", "tests", "demo_simple.py", "demo_live.py"]
+exclude = [".venv", "build", "dist"]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
