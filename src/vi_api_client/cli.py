@@ -24,6 +24,7 @@ from vi_api_client import (
     ViValidationError,
 )
 
+from .credentials import CredentialDocument
 from .models import CommandResponse, Device, Feature
 from .utils import format_feature, parse_cli_params
 
@@ -55,12 +56,11 @@ def load_config(token_file: str) -> dict[str, Any]:
 
     Returns:
         Dictionary containing tokens and config, or empty dict if missing.
+
+    Raises:
+        ViAuthError: If the credential document cannot be read or is malformed.
     """
-    try:
-        with Path(token_file).open() as file:
-            return json.load(file)
-    except FileNotFoundError, json.JSONDecodeError:
-        return {}
+    return CredentialDocument(Path(token_file)).read()
 
 
 def _save_client_config(token_file: str, client_id: str, redirect_uri: str) -> None:
@@ -71,11 +71,9 @@ def _save_client_config(token_file: str, client_id: str, redirect_uri: str) -> N
         client_id: OAuth client ID used for authentication.
         redirect_uri: OAuth redirect URI used for authentication.
     """
-    config = load_config(token_file)
-    config.update({"client_id": client_id, "redirect_uri": redirect_uri})
-
-    with Path(token_file).open("w", encoding="utf-8") as file:
-        json.dump(config, file, indent=2)
+    CredentialDocument(Path(token_file)).update(
+        {"client_id": client_id, "redirect_uri": redirect_uri}
+    )
 
 
 async def create_session(args) -> aiohttp.ClientSession:
