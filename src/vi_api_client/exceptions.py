@@ -6,15 +6,22 @@ from typing import Any
 class ViError(Exception):
     """Base class for all Viessmann errors."""
 
-    def __init__(self, message: str, error_id: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        error_id: str | None = None,
+        error_type: str | None = None,
+    ) -> None:
         """Initialize the error.
 
         Args:
             message: The error message.
             error_id: Optional unique error identifier from the API.
+            error_type: Optional Viessmann API error classification.
         """
         super().__init__(message)
         self.error_id = error_id
+        self.error_type = error_type
 
 
 class ViConnectionError(ViError):
@@ -41,6 +48,12 @@ class ViRateLimitError(ViError):
     pass
 
 
+class ViResponseError(ViError):
+    """A successful HTTP response that violates the expected API contract."""
+
+    pass
+
+
 class ViValidationError(ViError):
     """400 Bad Request or 422 Validation Error."""
 
@@ -49,6 +62,7 @@ class ViValidationError(ViError):
         message: str,
         error_id: str | None = None,
         validation_errors: list[dict[str, Any]] | None = None,
+        error_type: str | None = None,
     ) -> None:
         """Initialize validation error.
 
@@ -56,6 +70,7 @@ class ViValidationError(ViError):
             message: The error message.
             error_id: Optional unique error ID.
             validation_errors: List of detailed validation issues.
+            error_type: Optional Viessmann API error classification.
         """
         detailed_msg = message
         if validation_errors:
@@ -68,7 +83,7 @@ class ViValidationError(ViError):
             )
             detailed_msg = f"{message}: {details}"
 
-        super().__init__(detailed_msg, error_id)
+        super().__init__(detailed_msg, error_id, error_type)
         self.validation_errors = validation_errors
 
 

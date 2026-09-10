@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .exceptions import ViError
+
 
 @dataclass(frozen=True)
 class FeatureControl:
@@ -135,6 +137,24 @@ class Device:
             device_type=data.get("deviceType", ""),
             status=data.get("status", ""),
         )
+
+
+@dataclass(frozen=True)
+class GatewayDeviceRefreshResult:
+    """Result of refreshing devices through one gateway-scoped request.
+
+    Attributes:
+        updated_devices: Devices whose enabled and ready features were refreshed.
+        errors_by_device_id: Device-specific failures keyed by device ID.
+    """
+
+    updated_devices: list[Device]
+    errors_by_device_id: dict[str, ViError]
+
+    @property
+    def is_complete(self) -> bool:
+        """Return whether every requested device was refreshed."""
+        return not self.errors_by_device_id
 
 
 @dataclass(frozen=True)

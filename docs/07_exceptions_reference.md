@@ -11,12 +11,15 @@ All exceptions inherit from `ViError` (and `Exception`).
     *   `ViAuthError`: Authentication failed (401/403). check your tokens.
     *   `ViNotFoundError`: Resource not found (404). Typically happens if you request a feature that does not exist on the device.
     *   `ViRateLimitError`: API Rate Limit exceeded (429). You should back off.
+    *   `ViResponseError`: A successful HTTP response violates the expected response contract.
     *   `ViValidationError`: Bad Request (400) or Validation Error (422). Includes detailed validation messages from the API.
     *   `ViServerInternalError`: Server issues (500+).
 
 ## Exception Details
 
-Exceptions often carry detailed information from the API:
+Exceptions expose an optional `error_id` and an optional `error_type` from
+structured Viessmann error responses. `ViValidationError` additionally exposes
+`validation_errors`.
 
 ```python
 try:
@@ -25,12 +28,19 @@ try:
         # Use updated device
         pass
 except ViValidationError as e:
-    print(f"Validation Failed: {e.message}")
+    print(f"Validation Failed: {e}")
     print(f"Error ID: {e.error_id}")
+    print(f"Error type: {e.error_type}")
     # Specific validation details (list of dicts)
     for err in e.validation_errors:
         print(f" - {err['message']} @ {err['path']}")
 ```
+
+`update_gateway_devices` uses `error_type` to keep
+`DEVICE_COMMUNICATION_ERROR`, `DEVICE_NOT_FOUND`, and
+`PACKAGE_NOT_PAID_FOR` failures from concrete per-device fallbacks in its
+partial result. Authentication, rate-limit, connection, server, unknown API,
+and response-contract errors abort the whole refresh.
 
 ## Handling Specific Cases
 

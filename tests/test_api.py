@@ -17,8 +17,13 @@ from vi_api_client.const import (
     ENDPOINT_INSTALLATIONS,
 )
 from vi_api_client.exceptions import (
+    ViAuthError,
+    ViConnectionError,
     ViNotFoundError,
+    ViRateLimitError,
+    ViResponseError,
     ViServerInternalError,
+    ViValidationError,
 )
 from vi_api_client.models import Device, FeatureControl
 
@@ -32,6 +37,348 @@ class MockAuth(AbstractAuth):
 
     async def async_get_access_token(self) -> str:
         return self._access_token
+
+
+def _build_gateway_device(device_id: str) -> Device:
+    """Build a device for gateway-scoped refresh tests."""
+    return Device(
+        id=device_id,
+        gateway_serial="gateway-1",
+        installation_id="installation-1",
+        model_id=f"model-{device_id}",
+        device_type="heating",
+        status="connected",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
+    load_fixture_json,
+):
+    # Arrange: Mock a gateway response with requested and unrelated features.
+    response = load_fixture_json("gateway_device_features.json")
+    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=response)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Refresh both devices through the public gateway operation.
+            result = await client.update_gateway_devices(devices)
+
+    # Assert: Both devices are refreshed in input order by one bulk request.
+    assert result.is_complete
+    assert [device.id for device in result.updated_devices] == ["10", "0"]
+    assert result.updated_devices[0].model_id == "model-10"
+    assert (
+        result.updated_devices[0]
+        .get_feature("heating.sensors.temperature.supply")
+        .value
+        == 34.2
+    )
+    assert (
+        result.updated_devices[1]
+        .get_feature("heating.sensors.temperature.outside")
+        .value
+        == 5.5
+    )
+    assert (
+        result.updated_devices[1]
+        .get_feature("heating.circuits.0.heating.curve.slope")
+        .is_writable
+    )
+    assert len(mock_responses.requests) == 1
+    request = next(iter(mock_responses.requests.values()))[0]
+    assert request.kwargs["json"] == {
+        "includeDevicesFeatures": True,
+        "skipDisabled": True,
+        "skipNotReady": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_decodes_complete_device_uri_segments():
+    # Arrange: Return a feature for a device ID containing an encoded slash.
+    response = {
+        "data": [
+            {
+                "feature": "heating.status",
+                "properties": {"value": "ready"},
+                "uri": (
+                    "/iot/v2/features/installations/installation-1/gateways/"
+                    "gateway-1/devices/device%2F0/features/heating.status"
+                ),
+            }
+        ]
+    }
+    device = _build_gateway_device("device/0")
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=response)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Refresh the encoded device ID.
+            result = await client.update_gateway_devices([device])
+
+    # Assert: The decoded complete segment maps to the requested device.
+    assert result.is_complete
+    assert result.updated_devices[0].id == "device/0"
+    assert result.updated_devices[0].get_feature("heating.status").value == "ready"
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_accepts_empty_input_without_request():
+    # Arrange: Create a client without registering any HTTP response.
+    async with aiohttp.ClientSession() as session:
+        client = ViClient(MockAuth(session))
+
+        # Act: Refresh an empty gateway device collection.
+        result = await client.update_gateway_devices([])
+
+    # Assert: Empty input is a complete result and performs no I/O.
+    assert result.is_complete
+    assert result.updated_devices == []
+    assert result.errors_by_device_id == {}
+
+
+@pytest.mark.parametrize(
+    ("devices", "message"),
+    [
+        (
+            [
+                _build_gateway_device("0"),
+                replace(_build_gateway_device("1"), gateway_serial="gateway-2"),
+            ],
+            "same installation and gateway",
+        ),
+        (
+            [
+                _build_gateway_device("0"),
+                replace(_build_gateway_device("1"), installation_id="installation-2"),
+            ],
+            "same installation and gateway",
+        ),
+        (
+            [_build_gateway_device("0"), _build_gateway_device("0")],
+            "unique IDs",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_update_gateway_devices_rejects_ambiguous_device_sets(
+    devices: list[Device], message: str
+):
+    # Arrange: Create a client without registering any HTTP response.
+    async with aiohttp.ClientSession() as session:
+        client = ViClient(MockAuth(session))
+
+        # Act and assert: Invalid device collections fail before network access.
+        with pytest.raises(ValueError, match=message):
+            await client.update_gateway_devices(devices)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        [],
+        {"data": {}},
+        {"data": ["not-an-object"]},
+        {"data": [{"uri": "/iot/v2/features/devices"}]},
+        {"data": [{"uri": "/iot/v2/features/devices/%ZZ/features/heating"}]},
+        {"data": [{"uri": "/iot/v2/features/devices/0/features/missing.feature"}]},
+        {"data": [{"uri": ("/iot/v2/features/devices/0/features/devices/10/heating")}]},
+        {
+            "data": [
+                {
+                    "uri": "/iot/v2/features/devices/0/features/heating",
+                    "properties": [],
+                }
+            ]
+        },
+    ],
+)
+@pytest.mark.asyncio
+async def test_update_gateway_devices_rejects_invalid_bulk_responses(response):
+    # Arrange: Return a malformed successful response from the gateway endpoint.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=response)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: Invalid response ownership is a public response error.
+            with pytest.raises(ViResponseError):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_falls_back_only_for_missing_devices(
+    load_fixture_json,
+):
+    # Arrange: The bulk response includes device 10 but omits device 0.
+    fixture = load_fixture_json("gateway_device_features.json")
+    bulk_response = {
+        "data": [
+            feature for feature in fixture["data"] if "/devices/10/" in feature["uri"]
+        ]
+    }
+    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+    gateway_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+    device_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/devices/0/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(gateway_url, payload=bulk_response)
+        mock_responses.post(device_url, payload={"data": []})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Refresh the two devices.
+            result = await client.update_gateway_devices(devices)
+
+    # Assert: Only the absent device uses the fallback; empty features are successful.
+    assert result.is_complete
+    assert [device.id for device in result.updated_devices] == ["10", "0"]
+    assert result.updated_devices[1].features == []
+    assert len(mock_responses.requests) == 2
+    assert any(
+        method == "POST" and str(request_url) == device_url
+        for method, request_url in mock_responses.requests
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "error_type"),
+    [
+        (400, "DEVICE_COMMUNICATION_ERROR"),
+        (404, "DEVICE_NOT_FOUND"),
+        (403, "PACKAGE_NOT_PAID_FOR"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_update_gateway_devices_captures_device_specific_fallback_errors(
+    status: int, error_type: str, load_fixture_json
+):
+    # Arrange: Gateway communication fails and device 0 then fails specifically.
+    fixture = load_fixture_json("gateway_device_features.json")
+    device_10_response = {
+        "data": [
+            feature for feature in fixture["data"] if "/devices/10/" in feature["uri"]
+        ]
+    }
+    base_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1"
+    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            f"{base_url}/features/filter",
+            status=400,
+            payload={
+                "message": "Gateway unavailable",
+                "errorType": "DEVICE_COMMUNICATION_ERROR",
+            },
+        )
+        mock_responses.post(
+            f"{base_url}/devices/10/features/filter", payload=device_10_response
+        )
+        mock_responses.post(
+            f"{base_url}/devices/0/features/filter",
+            status=status,
+            payload={"message": "Device unavailable", "errorType": error_type},
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Refresh through the public gateway operation.
+            result = await client.update_gateway_devices(devices)
+
+    # Assert: Successful devices and per-device errors remain independent.
+    assert not result.is_complete
+    assert [device.id for device in result.updated_devices] == ["10"]
+    assert set(result.errors_by_device_id) == {"0"}
+    assert result.errors_by_device_id["0"].error_type == error_type
+
+
+@pytest.mark.parametrize(
+    ("status", "error_type", "expected_error"),
+    [
+        (401, "UNAUTHORIZED", ViAuthError),
+        (429, "RATE_LIMIT_EXCEEDED", ViRateLimitError),
+        (500, "INTERNAL_ERROR", ViServerInternalError),
+        (400, "UNKNOWN_VALIDATION_ERROR", ViValidationError),
+    ],
+)
+@pytest.mark.asyncio
+async def test_update_gateway_devices_propagates_global_gateway_errors(
+    status: int, error_type: str, expected_error: type[Exception]
+):
+    # Arrange: Return a non-fallback gateway error.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            url,
+            status=status,
+            payload={"message": "Global failure", "errorType": error_type},
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: Global failures abort the entire refresh.
+            with pytest.raises(expected_error):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_propagates_connection_errors():
+    # Arrange: Do not register the bulk endpoint, causing a network failure.
+    with aioresponses():
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: Connection failures abort the entire refresh.
+            with pytest.raises(ViConnectionError):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_translates_malformed_fallback_response():
+    # Arrange: Trigger fallback and return invalid feature properties.
+    base_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1"
+    with aioresponses() as mock_responses:
+        mock_responses.post(f"{base_url}/features/filter", payload={"data": []})
+        mock_responses.post(
+            f"{base_url}/devices/0/features/filter",
+            payload={"data": [{"feature": "broken", "properties": []}]},
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: Fallback contract failures use the public error.
+            with pytest.raises(ViResponseError):
+                await client.update_gateway_devices([_build_gateway_device("0")])
 
 
 @pytest.mark.asyncio

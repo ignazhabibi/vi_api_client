@@ -1,0 +1,77 @@
+{
+  "data": [
+    {
+      "feature": "heating.sensors.temperature.outside",
+      "properties": {
+        "value": {
+          "unit": "celsius",
+          "value": 5.5
+        }
+      },
+      "isEnabled": true,
+      "isReady": true,
+      "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/devices/0/features/heating.sensors.temperature.outside"
+    },
+    {
+      "commands": {
+        "setCurve": {
+          "isExecutable": true,
+          "params": {
+            "shift": {
+              "required": true,
+              "type": "number"
+            },
+            "slope": {
+              "required": true,
+              "type": "number"
+            }
+          },
+          "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+        }
+      },
+      "feature": "heating.circuits.0.heating.curve",
+      "isEnabled": true,
+      "isReady": true,
+      "properties": {
+        "shift": {
+          "unit": "celsius",
+          "value": 0
+        },
+        "slope": {
+          "value": 0.7
+        }
+      },
+      "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/devices/0/features/heating.circuits.0.heating.curve"
+    },
+    {
+      "feature": "heating.sensors.temperature.supply",
+      "isEnabled": true,
+      "isReady": true,
+      "properties": {
+        "value": {
+          "unit": "celsius",
+          "value": 34.2
+        }
+      },
+      "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/devices/10/features/heating.sensors.temperature.supply"
+    },
+    {
+      "feature": "gateway.status",
+      "isEnabled": true,
+      "isReady": true,
+      "properties": {
+        "value": "connected"
+      },
+      "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/features/gateway.status"
+    },
+    {
+      "feature": "device.serial",
+      "isEnabled": true,
+      "isReady": true,
+      "properties": {
+        "value": "unrequested"
+      },
+      "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/installation-1/gateways/gateway-1/devices/99/features/device.serial"
+    }
+  ]
+}

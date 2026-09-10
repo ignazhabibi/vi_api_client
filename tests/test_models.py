@@ -1,6 +1,13 @@
 """Tests for data models (Flat Architecture)."""
 
-from vi_api_client.models import Device, Feature, FeatureControl
+import vi_api_client
+from vi_api_client.exceptions import ViError, ViResponseError
+from vi_api_client.models import (
+    Device,
+    Feature,
+    FeatureControl,
+    GatewayDeviceRefreshResult,
+)
 
 
 def test_feature_dataclass():
@@ -95,3 +102,35 @@ def test_device_from_api():
     # Assert: Device should have API data correctly mapped to model fields.
     assert d.id == "dev1"
     assert d.model_id == "complex_model"
+
+
+def test_gateway_device_refresh_result_reports_completeness():
+    # Arrange: Create one refreshed device and one device-specific error.
+    refreshed_device = Device(
+        id="device-0",
+        gateway_serial="gateway-1",
+        installation_id="installation-1",
+        model_id="Vitocal250A",
+        device_type="heating",
+        status="connected",
+    )
+    error = ViError("device unavailable")
+
+    # Act: Build complete and partial gateway device refresh results.
+    complete_result = GatewayDeviceRefreshResult(
+        updated_devices=[refreshed_device], errors_by_device_id={}
+    )
+    partial_result = GatewayDeviceRefreshResult(
+        updated_devices=[refreshed_device],
+        errors_by_device_id={"device-1": error},
+    )
+
+    # Assert: Completeness depends only on the device-specific error mapping.
+    assert complete_result.is_complete
+    assert not partial_result.is_complete
+
+
+def test_gateway_refresh_public_types_are_exported():
+    # Act and assert: New public contracts are available from the package root.
+    assert vi_api_client.GatewayDeviceRefreshResult is GatewayDeviceRefreshResult
+    assert vi_api_client.ViResponseError is ViResponseError

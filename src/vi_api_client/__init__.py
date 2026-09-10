@@ -8,17 +8,19 @@ from .exceptions import (
     ViError,
     ViNotFoundError,
     ViRateLimitError,
+    ViResponseError,
     ViServerInternalError,
     ViValidationError,
 )
 from .mock_client import MockViClient
-from .models import Device, Feature
+from .models import Device, Feature, GatewayDeviceRefreshResult
 from .utils import mask_pii
 
 __all__ = [
     "AbstractAuth",
     "Device",
     "Feature",
+    "GatewayDeviceRefreshResult",
     "MockViClient",
     "OAuth",
     "ViAuthError",
@@ -27,6 +29,7 @@ __all__ = [
     "ViError",
     "ViNotFoundError",
     "ViRateLimitError",
+    "ViResponseError",
     "ViServerInternalError",
     "ViValidationError",
     "mask_pii",

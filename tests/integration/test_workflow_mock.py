@@ -161,3 +161,36 @@ async def test_mock_workflow_auto_hydration():
     temp = device.get_feature("heating.sensors.temperature.outside")
     assert temp is not None
     assert temp.value == 9
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_mock_gateway_device_refresh_stays_offline():
+    """Verify gateway-scoped refresh has offline mock parity."""
+    # Arrange: Use two known devices on the same mock gateway.
+    client = MockViClient("Vitodens200W")
+    client.connector.post = AsyncMock()
+    devices = [
+        Device(
+            id=device_id,
+            gateway_serial="MOCK_GW",
+            installation_id="99999",
+            model_id=f"model-{device_id}",
+            device_type="heating",
+            status="connected",
+        )
+        for device_id in ("10", "0")
+    ]
+
+    # Act: Refresh both devices through the gateway-scoped public API.
+    result = await client.update_gateway_devices(devices)
+
+    # Assert: Mock refresh preserves order and metadata without HTTP access.
+    client.connector.post.assert_not_awaited()
+    assert result.is_complete
+    assert [device.id for device in result.updated_devices] == ["10", "0"]
+    assert [device.model_id for device in result.updated_devices] == [
+        "model-10",
+        "model-0",
+    ]
+    assert all(device.features for device in result.updated_devices)

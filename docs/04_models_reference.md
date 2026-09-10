@@ -104,6 +104,18 @@ if response.success:
     pass
 ```
 
+## GatewayDeviceRefreshResult
+
+Frozen result dataclass returned by `update_gateway_devices`. Its attributes
+cannot be reassigned; callers should also treat the contained list and mapping
+as result values rather than mutate them.
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `updated_devices` | `List[Device]` | New device instances that refreshed successfully, in their relative input order. |
+| `errors_by_device_id` | `Dict[str, ViError]` | Recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
+| `is_complete` | `bool` | `True` when no device-specific failures occurred. |
+
 ## Next Steps
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
