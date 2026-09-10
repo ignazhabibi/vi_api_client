@@ -6,6 +6,7 @@ import pytest
 
 from vi_api_client.cli import (
     _dispatch_command,
+    async_main,
     cmd_exec,
     cmd_get_consumption,
     cmd_get_feature,
@@ -15,6 +16,7 @@ from vi_api_client.cli import (
     cmd_list_writable,
     cmd_login,
     cmd_set,
+    get_client_config,
     main,
 )
 from vi_api_client.exceptions import ViValidationError
@@ -253,7 +255,10 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
     """Login should reuse environment credentials and save them for later commands."""
     # Arrange: Seed a token file and provide client settings through the environment.
     token_file = tmp_path / "tokens.json"
-    token_file.write_text('{"access_token": "existing-token"}', encoding="utf-8")
+    token_file.write_text(
+        '{"access_token": "existing-token", "future_field": "preserve-me"}',
+        encoding="utf-8",
+    )
     args = Namespace(
         client_id=None,
         insecure=False,
@@ -291,7 +296,68 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
         "access_token": "existing-token",
         "client_id": "environment-client-id",
         "redirect_uri": "http://localhost:8123/auth",
+        "future_field": "preserve-me",
     }
+
+
+def test_get_client_config_prefers_arguments_then_environment_then_document(
+    monkeypatch, tmp_path
+):
+    """Client settings should resolve in documented priority order."""
+    # Arrange: Store fallback settings and configure conflicting higher priorities.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text(
+        '{"client_id": "saved-client", "redirect_uri": "http://saved"}',
+        encoding="utf-8",
+    )
+    args = Namespace(
+        client_id="argument-client",
+        redirect_uri=None,
+        token_file=token_file,
+    )
+    monkeypatch.setenv("VIESSMANN_CLIENT_ID", "environment-client")
+    monkeypatch.setenv("VIESSMANN_REDIRECT_URI", "http://environment")
+
+    # Act: Resolve the settings for a CLI invocation.
+    client_id, redirect_uri = get_client_config(args)
+
+    # Assert: Arguments override the environment, which overrides the document.
+    assert (client_id, redirect_uri) == ("argument-client", "http://environment")
+
+
+def test_get_client_config_uses_document_then_default_redirect(monkeypatch, tmp_path):
+    """Saved settings should supply the client ID and default redirect URI."""
+    # Arrange: Store only a saved client ID with no higher-priority settings.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text('{"client_id": "saved-client"}', encoding="utf-8")
+    args = Namespace(client_id=None, redirect_uri=None, token_file=token_file)
+    monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
+    monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
+
+    # Act: Resolve settings for a command without arguments or environment values.
+    client_id, redirect_uri = get_client_config(args)
+
+    # Assert: The document supplies the client ID and the redirect falls back.
+    assert (client_id, redirect_uri) == ("saved-client", "http://localhost:4200/")
+
+
+@pytest.mark.asyncio
+async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp_path):
+    """Malformed credentials should produce a failing CLI status without rewrites."""
+    # Arrange: Point an initial login command at malformed credential data.
+    token_file = tmp_path / "tokens.json"
+    invalid_content = "{not-json"
+    token_file.write_text(invalid_content, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv", ["vi-client", "login", "--token-file", str(token_file)]
+    )
+
+    # Act: Invoke the command through its process-status boundary.
+    exit_status = await async_main()
+
+    # Assert: The command fails and leaves the malformed source untouched.
+    assert exit_status == 1
+    assert token_file.read_text(encoding="utf-8") == invalid_content
 
 
 @pytest.mark.asyncio

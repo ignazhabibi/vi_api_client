@@ -23,6 +23,8 @@ Follow the URL, log in, and paste the code back into the terminal.
 The client ID and redirect URI used during login are saved with the tokens, so
 later commands can reuse them without repeating `--client-id`. Environment
 variables and explicit command-line arguments continue to take precedence.
+If the credential document is malformed, the command exits unsuccessfully and
+leaves the file unchanged; repair or remove it before trying again.
 
 ## 2. List Devices
 View all installations, gateways, and devices available to your account.
