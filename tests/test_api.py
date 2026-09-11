@@ -457,48 +457,79 @@ async def test_get_gateways(load_fixture_json):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("endpoint", "method"),
+    ("url", "request_method", "operation", "arguments"),
     [
-        (ENDPOINT_INSTALLATIONS, "get_installations"),
-        (ENDPOINT_GATEWAYS, "get_gateways"),
+        (f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}", "get", "get_installations", ()),
+        (f"{API_BASE_URL}{ENDPOINT_GATEWAYS}", "get", "get_gateways", ()),
+        (
+            f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
+            "get",
+            "get_devices",
+            ("installation-1", "gateway-1"),
+        ),
+        (
+            f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
+            "post",
+            "get_features",
+            (_build_gateway_device("0"),),
+        ),
     ],
 )
-async def test_discovery_rejects_successful_non_json_responses(endpoint, method):
+async def test_discovery_rejects_successful_non_json_responses(
+    url, request_method, operation, arguments
+):
     """Discovery should reject successful responses that are not JSON objects."""
     # Arrange: Return non-JSON content from each discovery endpoint.
-    url = f"{API_BASE_URL}{endpoint}"
-
     with aioresponses() as mock_responses:
-        mock_responses.get(url, body="not JSON", content_type="text/plain")
+        getattr(mock_responses, request_method)(
+            url, body="not JSON", content_type="text/plain"
+        )
         async with aiohttp.ClientSession() as session:
             client = ViClient(MockAuth(session))
 
             # Act and assert: The public response error communicates the contract failure.
             with pytest.raises(ViResponseError):
-                await getattr(client, method)()
+                await getattr(client, operation)(*arguments)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("endpoint", "method"),
+    ("url", "request_method", "operation", "arguments"),
     [
-        (ENDPOINT_INSTALLATIONS, "get_installations"),
-        (ENDPOINT_GATEWAYS, "get_gateways"),
+        (f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}", "get", "get_installations", ()),
+        (f"{API_BASE_URL}{ENDPOINT_GATEWAYS}", "get", "get_gateways", ()),
+        (
+            f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
+            "get",
+            "get_devices",
+            ("installation-1", "gateway-1"),
+        ),
+        (
+            f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
+            "post",
+            "get_features",
+            (_build_gateway_device("0"),),
+        ),
     ],
 )
-async def test_discovery_rejects_successful_malformed_json_envelopes(endpoint, method):
+@pytest.mark.parametrize(
+    "response",
+    [[], {}, {"data": {}}, {"data": [None]}],
+    ids=["root-list", "missing-data", "data-not-list", "data-entry-not-object"],
+)
+async def test_discovery_rejects_successful_malformed_json_envelopes(
+    url, request_method, operation, arguments, response
+):
     """Discovery should reject successful JSON that violates its envelope contract."""
-    # Arrange: Return a JSON object whose data member is not a collection.
-    url = f"{API_BASE_URL}{endpoint}"
-
+    # Arrange: Return JSON that violates a collection envelope requirement.
     with aioresponses() as mock_responses:
-        mock_responses.get(url, payload={"data": {}})
+        getattr(mock_responses, request_method)(url, payload=response)
         async with aiohttp.ClientSession() as session:
             client = ViClient(MockAuth(session))
 
             # Act and assert: The public response error communicates the contract failure.
             with pytest.raises(ViResponseError):
-                await getattr(client, method)()
+                await getattr(client, operation)(*arguments)
 
 
 @pytest.mark.asyncio
@@ -567,6 +598,40 @@ async def test_get_full_installation_status_uses_matching_gateways_only():
     assert devices == []
     assert devices_url in requested_urls
     assert other_gateway not in "".join(requested_urls)
+
+
+@pytest.mark.asyncio
+async def test_get_full_installation_status_rejects_malformed_device_responses():
+    """Full status should preserve discovery envelope validation."""
+    # Arrange: Return a matching gateway followed by invalid device collection entries.
+    installation_id = "installation-1"
+    gateway_serial = "gateway-1"
+    gateways_url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
+    devices_url = (
+        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
+        f"{gateway_serial}/devices"
+    )
+    with aioresponses() as mock_responses:
+        mock_responses.get(
+            gateways_url,
+            payload={
+                "data": [
+                    {
+                        "installationId": installation_id,
+                        "serial": gateway_serial,
+                        "status": "connected",
+                        "version": "1.0.0",
+                    }
+                ]
+            },
+        )
+        mock_responses.get(devices_url, payload={"data": [None]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The composed read keeps the public response error.
+            with pytest.raises(ViResponseError, match="entries must be objects"):
+                await client.get_full_installation_status(installation_id)
 
 
 @pytest.mark.asyncio
@@ -789,6 +854,25 @@ async def test_update_device(load_fixture_json):
             assert updated_dev.id == "0"
             assert len(updated_dev.features) == 1
             assert updated_dev.features[0].name == "new.feature"
+
+
+@pytest.mark.asyncio
+async def test_update_device_rejects_malformed_feature_responses():
+    """Device refresh should preserve feature envelope validation."""
+    # Arrange: Return an invalid feature collection for an existing device.
+    device = _build_gateway_device("0")
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/devices/0/features/filter"
+    )
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": [None]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The composed refresh keeps the public response error.
+            with pytest.raises(ViResponseError, match="entries must be objects"):
+                await client.update_device(device)
 
 
 @pytest.mark.asyncio

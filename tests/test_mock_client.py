@@ -3,6 +3,8 @@
 import pytest
 
 from vi_api_client import MockViClient
+from vi_api_client.exceptions import ViResponseError
+from vi_api_client.mock_client import _FixtureDiscoveryAdapter
 
 
 def test_mock_client_rejects_obsolete_authentication_argument():
@@ -82,6 +84,21 @@ async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
 
     # Assert: Shared filtering retains the requested enabled and ready feature only.
     assert [feature.name for feature in features] == ["device.serial"]
+
+
+@pytest.mark.asyncio
+async def test_mock_client_rejects_malformed_fixture_feature_envelopes():
+    """Fixture feature responses should use the same envelope validation as live ones."""
+    # Arrange: Replace the cached fixture response with an invalid collection entry.
+    client = MockViClient("Vitodens200W")
+    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
+    fixture_adapter = client._discovery_adapter
+    assert isinstance(fixture_adapter, _FixtureDiscoveryAdapter)
+    fixture_adapter._feature_data = {"data": [None]}
+
+    # Act and assert: The inherited public feature read exposes ViResponseError.
+    with pytest.raises(ViResponseError, match="entries must be objects"):
+        await client.get_features(device)
 
 
 @pytest.mark.asyncio
