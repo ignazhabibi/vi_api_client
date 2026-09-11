@@ -41,7 +41,7 @@ async def test_mock_update_device_returns_hydrated_copy_without_mutating_input()
     refreshed_device = await client.update_device(device)
 
     # Assert: The input remains unhydrated and the returned copy has features.
-    assert device.features == []
+    assert device.features == ()
     assert refreshed_device is not device
     assert refreshed_device.features
 

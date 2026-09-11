@@ -11,7 +11,7 @@ Represents an installation site (House).
 | `id` | `str` | Unique installation ID. | `'123456789'` |
 | `description` | `str` | Description of the installation. | `'Home'` |
 | `alias` | `str` | Alias name. | `'My House'` |
-| `address` | `dict[str, Any]` | Address information. | `{'city': 'Berlin', ...}` |
+| `address` | `Mapping[str, Any]` | Read-only address information. | `{'city': 'Berlin', ...}` |
 
 ## Gateway
 
@@ -36,7 +36,7 @@ Represents a physical device attached to a gateway (e.g. Heating System).
 | `model_id` | `str` | Model name (e.g., "E3_Vitocal_16"). | `'E3_Vitocal_250A'` |
 | `device_type` | `str` | Device type (e.g., "heating", "tcu"). | `'heating'` |
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
-| `features` | `list[Feature]` | Features supported by this device. | `[Feature(...)]` |
+| `features` | `Sequence[Feature]` | Read-only features supported by this device. | `(Feature(...),)` |
 
 
 
@@ -74,14 +74,14 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | :--- | :--- | :--- | :--- |
 | `command_name` | `str` | The internal command name. | `'setCurve'` |
 | `param_name` | `str` | The parameter name this feature maps to. | `'slope'` |
-| `required_params` | `list[str]` | Parameter names used to assemble the command payload. | `['slope', 'shift']` |
+| `required_params` | `Sequence[str]` | Read-only parameter names used to assemble the command payload. | `('slope', 'shift')` |
 | `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
 | `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
 | `min` | `float \| None` | Minimum allowed value (numeric). | `0.2` |
 | `max` | `float \| None` | Maximum allowed value (numeric). | `3.5` |
 | `step` | `float \| None` | Step increment (numeric). | `0.1` |
 | `value_type` | `str \| None` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
-| `options` | `list[Any] \| None` | Valid enum values. | `['eco', 'comfort']` |
+| `options` | `Sequence[Any] \| None` | Read-only valid enum values. | `('eco', 'comfort')` |
 | `pattern` | `str \| None` | Regex pattern for validation (string). | `'^[a-z]+$'` |
 | `min_length` | `int \| None` | Minimum string length. | `1` |
 | `max_length` | `int \| None` | Maximum string length. | `20` |
@@ -107,14 +107,13 @@ if response.success:
 
 ## GatewayDeviceRefreshResult
 
-Frozen result dataclass returned by `update_gateway_devices`. Its attributes
-cannot be reassigned; callers should also treat the contained list and mapping
-as result values rather than mutate them.
+Frozen result dataclass returned by `update_gateway_devices`. Its collection
+attributes are immutable snapshots.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `updated_devices` | `list[Device]` | New device instances that refreshed successfully, in their relative input order. |
-| `errors_by_device_id` | `dict[str, ViError]` | Recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
+| `updated_devices` | `Sequence[Device]` | Read-only new device instances that refreshed successfully, in their relative input order. |
+| `errors_by_device_id` | `Mapping[str, ViError]` | Read-only recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
 | `is_complete` | `bool` | `True` when no device-specific failures occurred. |
 
 ## Next Steps

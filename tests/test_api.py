@@ -158,7 +158,7 @@ async def test_update_gateway_devices_accepts_empty_input_without_request():
 
     # Assert: Empty input is a complete result and performs no I/O.
     assert result.is_complete
-    assert result.updated_devices == []
+    assert result.updated_devices == ()
     assert result.errors_by_device_id == {}
 
 
@@ -269,7 +269,7 @@ async def test_update_gateway_devices_falls_back_only_for_missing_devices(
     # Assert: Only the absent device uses the fallback; empty features are successful.
     assert result.is_complete
     assert [device.id for device in result.updated_devices] == ["10", "0"]
-    assert result.updated_devices[1].features == []
+    assert result.updated_devices[1].features == ()
     assert len(mock_responses.requests) == 2
     assert any(
         method == "POST" and str(request_url) == device_url
@@ -627,6 +627,33 @@ async def test_get_features(load_fixture_json):
             assert features[0].name == "heating.sensors.temperature.outside"
             assert features[0].value == 5.5
             assert features[1].name == "heating.circuits.0.active"
+
+
+@pytest.mark.asyncio
+async def test_get_features_translates_duplicate_api_feature_names(load_fixture_json):
+    # Arrange: Mock a response containing the same feature twice.
+    data = load_fixture_json("features_heating_sensors.json")
+    data["data"].append(deepcopy(data["data"][0]))
+    device = Device(
+        id="0",
+        gateway_serial="1234567890",
+        installation_id="123456",
+        model_id="test",
+        device_type="heating",
+        status="ok",
+    )
+    url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/123456/gateways/1234567890/devices/0/features/filter"
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The client translates an invalid API response.
+            with pytest.raises(ViResponseError, match="Duplicate feature name"):
+                await client.get_features(
+                    device, feature_names=["heating.circuits.0.active"]
+                )
 
 
 @pytest.mark.asyncio
