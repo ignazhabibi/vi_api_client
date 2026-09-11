@@ -4,6 +4,21 @@ The library simplifies Viessmann API error handling by mapping HTTP status codes
 
 All exceptions inherit from `ViError` (and `Exception`).
 
+Import exception classes from the package root:
+
+```python
+from vi_api_client import (
+    ViAuthError,
+    ViConnectionError,
+    ViError,
+    ViNotFoundError,
+    ViRateLimitError,
+    ViResponseError,
+    ViServerInternalError,
+    ViValidationError,
+)
+```
+
 ## Exception Hierarchy
 
 *   `ViError` (Base class)
