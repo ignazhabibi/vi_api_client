@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from vi_api_client.cli import CLIContext, setup_client_context
+from vi_api_client.cli import CLIContext, create_session, setup_client_context
 from vi_api_client.models import Device, Gateway
 
 
@@ -83,7 +83,9 @@ async def test_cli_context_explicit_ids():
 
 
 @pytest.mark.asyncio
-async def test_cli_context_autodiscovery(tmp_path):
+async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
+    tmp_path, capsys
+):
     """Test CLI context auto-discovery by mocking the Client completely."""
     # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
@@ -95,6 +97,7 @@ async def test_cli_context_autodiscovery(tmp_path):
         installation_id=None,
         gateway_serial=None,
         device_id=None,
+        json=True,
     )
 
     # We patch Client so we don't need real Auth or Network
@@ -135,6 +138,27 @@ async def test_cli_context_autodiscovery(tmp_path):
             # Verify client method calls
             mock_client.get_gateways.assert_called_once()
             mock_client.get_devices.assert_called_once_with("100", "GW123")
+
+    # Assert: JSON output callers receive setup context as a diagnostic.
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Auto-selected Context: Inst=100, GW=GW123, Dev=0" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
+    """Insecure TLS warnings must not contaminate requested JSON output."""
+    # Arrange: Request JSON output while disabling TLS verification.
+    args = Namespace(insecure=True, json=True)
+
+    # Act: Create and close the session without making a network request.
+    session = await create_session(args)
+    await session.close()
+
+    # Assert: The warning remains a visible stderr diagnostic.
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "WARNING: SSL verification disabled via --insecure" in captured.err
 
 
 @pytest.mark.asyncio

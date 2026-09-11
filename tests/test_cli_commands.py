@@ -607,6 +607,85 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
+async def test_async_main_json_output_with_mock_device_is_machine_readable(
+    monkeypatch, capsys
+):
+    """The real CLI path must reserve stdout for a JSON feature list."""
+    # Arrange: Use a bundled fixture without replacing client context setup.
+    monkeypatch.setattr(
+        "sys.argv",
+        ["vi-client", "list-features", "--mock-device", "Vitocal250A", "--json"],
+    )
+
+    # Act: Invoke the parser, dispatcher, and context setup through the CLI entry path.
+    exit_status = await async_main()
+
+    # Assert: JSON output is parseable and setup diagnostics stay on stderr.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    assert json.loads(captured.out)
+    assert "Using Mock Device: Vitocal250A" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_async_main_json_feature_values_with_mock_device_are_machine_readable(
+    monkeypatch, capsys
+):
+    """The real CLI path must reserve stdout for JSON feature values."""
+    # Arrange: Use a bundled fixture without replacing client context setup.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-features",
+            "--mock-device",
+            "Vitocal250A",
+            "--values",
+            "--json",
+        ],
+    )
+
+    # Act: Invoke the parser, dispatcher, and context setup through the CLI entry path.
+    exit_status = await async_main()
+
+    # Assert: JSON output includes values and setup diagnostics stay on stderr.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    features = json.loads(captured.out)
+    assert features
+    assert all("value" in feature for feature in features)
+    assert "Using Mock Device: Vitocal250A" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_async_main_json_setup_error_is_written_to_stderr(
+    monkeypatch, capsys, tmp_path
+):
+    """A JSON-mode setup error must preserve stdout for a payload document."""
+    # Arrange: Request live JSON output without saved or explicit credentials.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-features",
+            "--json",
+            "--token-file",
+            str(tmp_path / "tokens.json"),
+        ],
+    )
+
+    # Act: Invoke the CLI entry path.
+    with pytest.raises(SystemExit) as error:
+        await async_main()
+
+    # Assert: The failed setup leaves stdout empty and preserves the diagnostic.
+    captured = capsys.readouterr()
+    assert error.value.code == 1
+    assert captured.out == ""
+    assert "Error: Client ID not found." in captured.err
+
+
+@pytest.mark.asyncio
 async def test_cmd_list_features_enabled(mock_cli_context, capsys):
     """Test listing only enabled features (should use only_enabled=True)."""
     # Arrange: Create mock client, device, and fixture data for test.
