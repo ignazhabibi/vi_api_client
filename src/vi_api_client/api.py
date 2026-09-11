@@ -9,10 +9,7 @@ from urllib.parse import unquote, urlsplit
 from ._discovery import _DiscoveryAdapter, _LiveDiscoveryAdapter
 from .auth import AbstractAuth
 from .connection import ViConnector
-from .const import (
-    ENDPOINT_FEATURES,
-    ENDPOINT_INSTALLATIONS,
-)
+from .const import ENDPOINT_FEATURES
 from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
@@ -96,8 +93,9 @@ class ViClient:
         Returns:
             List of Device objects (populated with features if requested).
         """
-        url = self._build_devices_url(installation_id, gateway_serial)
-        devices_data = await self.connector.get(url)
+        devices_data = await self._discovery_adapter.get_devices(
+            installation_id, gateway_serial
+        )
         devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
             for device_data in devices_data.get("data", [])
@@ -135,7 +133,6 @@ class ViClient:
         Returns:
             List of Feature objects (flattened).
         """
-        url = self._build_features_url(device)
         payload: dict[str, bool | list[str]] = {
             "skipDisabled": only_enabled,
             "skipNotReady": only_enabled,
@@ -148,19 +145,26 @@ class ViClient:
             device.id,
             only_enabled,
         )
-        response = await self.connector.post(url, payload)
+        response = await self._discovery_adapter.get_features(device, payload)
         raw_features = response.get("data", [])
 
         flat_features = []
         for raw_feature in raw_features:
             flat_features.extend(parse_feature_flat(raw_feature))
 
+        filtered_features = [
+            feature
+            for feature in flat_features
+            if (not only_enabled or (feature.is_enabled and feature.is_ready))
+            and (not feature_names or feature.name in feature_names)
+        ]
+
         _LOGGER.debug(
             "Fetched %s raw objects -> %s flat features",
             len(raw_features),
-            len(flat_features),
+            len(filtered_features),
         )
-        return flat_features
+        return filtered_features
 
     async def get_full_installation_status(
         self, installation_id: str, only_enabled: bool = True
@@ -364,23 +368,6 @@ class ViClient:
         """
         response_data = await self.connector.post(control.uri, payload)
         return CommandResponse.from_api(response_data)
-
-    def _build_devices_url(self, installation_id: str, gateway_serial: str) -> str:
-        return (
-            f"{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
-            f"{gateway_serial}/devices"
-        )
-
-    def _build_features_url(
-        self, device: Device, feature_name: str | None = None
-    ) -> str:
-        base = (
-            f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
-            f"{device.gateway_serial}/devices/{device.id}/features"
-        )
-        if feature_name:
-            return f"{base}/{feature_name}"
-        return f"{base}/filter"
 
     @staticmethod
     def _validate_gateway_devices(devices: list[Device]) -> None:
