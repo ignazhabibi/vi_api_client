@@ -91,7 +91,7 @@ class ViClient:
         )
         devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
-            for device_data in devices_data.get("data", [])
+            for device_data in self._get_discovery_data(devices_data, "Device")
         ]
 
         if include_features:
@@ -142,7 +142,7 @@ class ViClient:
             only_enabled,
         )
         response = await self._discovery_adapter.get_features(device, payload)
-        raw_features = response.get("data", [])
+        raw_features = self._get_discovery_data(response, "Feature")
 
         flat_features = []
         for raw_feature in raw_features:
@@ -370,10 +370,12 @@ class ViClient:
         if not isinstance(envelope, dict):
             raise ViResponseError(f"{resource_name} response must be an object")
         data = envelope.get("data")
-        if not isinstance(data, list) or not all(
-            isinstance(item, dict) for item in data
-        ):
+        if not isinstance(data, list):
             raise ViResponseError(f"{resource_name} response data must be a list")
+        if not all(isinstance(item, dict) for item in data):
+            raise ViResponseError(
+                f"{resource_name} response data entries must be objects"
+            )
         return data
 
     async def _execute_command(
