@@ -51,7 +51,8 @@ When requesting a feature that isn't supported by a device, the API returns 404.
 try:
     # Trying to get a specific feature that might not exist
     features = await client.get_features(
-        device, ["heating.sensors.volumetricFlow.share"]
+        device,
+        feature_names=["heating.sensors.volumetricFlow.share"],
     )
     if not features:
         print("Feature not found (Filtered out or 404).")
@@ -77,6 +78,6 @@ except ViRateLimitError:
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.

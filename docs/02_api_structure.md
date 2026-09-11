@@ -78,7 +78,7 @@ If a feature is writable, it has a `.control` attribute with metadata:
 
 *   `command_name`: The internal command to send (e.g., `setCurve`)
 *   `param_name`: The parameter this feature maps to (e.g., `slope`)
-*   `required_params`: List of **all** parameters required by this command, including `param_name` (e.g., `['slope', 'shift']`)
+*   `required_params`: Parameter names used to assemble the command payload, including `param_name` (e.g., `['slope', 'shift']`)
 *   `parent_feature_name`: Name of the parent feature, used to resolve sibling dependencies (e.g., `heating.circuits.0.heating.curve`)
 *   `uri`: The API URI endpoint for executing the command
 *   `min` / `max` / `step`: Numerical constraints
@@ -93,7 +93,10 @@ Because of this flat design, usage is consistent:
 **1. Reading (Get Features)**
 ```python
 # Get a specific feature by name (e.g. heating curve slope)
-features = await client.get_features(device, ["heating.circuits.0.heating.curve.slope"])
+features = await client.get_features(
+    device,
+    feature_names=["heating.circuits.0.heating.curve.slope"],
+)
 print(features[0].value)
 # Output: 1.4
 ```
@@ -127,7 +130,7 @@ consumer owns polling cadence and stale-state policy.
 
 ## Summary
 
-*   **Everything is a Feature**: No more "Properties" vs "Features".
+*   **Everything is a Feature**: Scalar properties are exposed as addressable `Feature` objects.
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
 *   **Simple Set**: Use `set_feature(device, feature, value)`.
 *   **Explicit Multi-Device Refresh**: Use `update_gateway_devices` for known devices behind one gateway.
@@ -136,7 +139,7 @@ consumer owns polling cadence and stale-state policy.
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

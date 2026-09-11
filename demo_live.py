@@ -15,7 +15,7 @@ import aiohttp
 sys.path.insert(0, str(Path("src").resolve()))
 
 
-from vi_api_client import OAuth, ViClient
+from vi_api_client import OAuth, ViAuthError, ViClient
 from vi_api_client.utils import format_feature
 
 CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID", "YOUR_CLIENT_ID")
@@ -99,15 +99,13 @@ async def main():
     print("🚀 Viessmann Library Demo (IoT API)")
     print("=" * 40 + "\n")
 
-    connector = aiohttp.TCPConnector(ssl=False)
-
-    async with aiohttp.ClientSession(connector=connector) as session:
+    async with aiohttp.ClientSession() as session:
         auth = OAuth(CLIENT_ID, REDIRECT_URI, TOKEN_FILE, websession=session)
 
         try:
             await auth.async_get_access_token()
             print("✅ Authentication successful.\n")
-        except Exception:
+        except ViAuthError:
             print("⚠️  No valid tokens found.")
             print(f"Run: 'vi-client login --client-id {CLIENT_ID}'")
             return

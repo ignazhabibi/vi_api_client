@@ -11,7 +11,7 @@ Represents an installation site (House).
 | `id` | `str` | Unique installation ID. | `'123456789'` |
 | `description` | `str` | Description of the installation. | `'Home'` |
 | `alias` | `str` | Alias name. | `'My House'` |
-| `address` | `Dict` | Address information. | `{'city': 'Berlin', ...}` |
+| `address` | `dict[str, Any]` | Address information. | `{'city': 'Berlin', ...}` |
 
 ## Gateway
 
@@ -36,7 +36,7 @@ Represents a physical device attached to a gateway (e.g. Heating System).
 | `model_id` | `str` | Model name (e.g., "E3_Vitocal_16"). | `'E3_Vitocal_250A'` |
 | `device_type` | `str` | Device type (e.g., "heating", "tcu"). | `'heating'` |
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
-| `features` | `List[Feature]` | List of features supported by this device. | `[Feature(...)]` |
+| `features` | `list[Feature]` | Features supported by this device. | `[Feature(...)]` |
 
 
 
@@ -48,11 +48,11 @@ The core unit of information. A feature represents a single property (Sensor) or
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
 | `value` | `Any` | Primary value of the feature (scalar). | `1.4` |
-| `unit` | `str` | Unit of measurement. | `None` |
+| `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
 | `is_writable` | `bool` | `True` if this feature can be modified. | `True` |
-| `control` | `Optional[FeatureControl]` | Metadata for writing to this feature. | `FeatureControl(...)` |
+| `control` | `FeatureControl \| None` | Metadata for writing to this feature. | `FeatureControl(...)` |
 
 ### Formatting Values
 
@@ -74,27 +74,28 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | :--- | :--- | :--- | :--- |
 | `command_name` | `str` | The internal command name. | `'setCurve'` |
 | `param_name` | `str` | The parameter name this feature maps to. | `'slope'` |
-| `required_params` | `List[str]` | List of all parameters required for this command. | `['slope', 'shift']` |
+| `required_params` | `list[str]` | Parameter names used to assemble the command payload. | `['slope', 'shift']` |
 | `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
 | `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
-| `min` | `float` | Minimum allowed value (numeric). | `0.2` |
-| `max` | `float` | Maximum allowed value (numeric). | `3.5` |
-| `step` | `float` | Step increment (numeric). | `0.1` |
-| `value_type` | `str` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
-| `options` | `List[str]` | List of valid options (enum). | `['eco', 'comfort']` |
-| `pattern` | `str` | Regex pattern for validation (string). | `'^[a-z]+$'` |
-| `min_length` | `int` | Minimum string length. | `1` |
-| `max_length` | `int` | Maximum string length. | `20` |
+| `min` | `float \| None` | Minimum allowed value (numeric). | `0.2` |
+| `max` | `float \| None` | Maximum allowed value (numeric). | `3.5` |
+| `step` | `float \| None` | Step increment (numeric). | `0.1` |
+| `value_type` | `str \| None` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
+| `options` | `list[Any] \| None` | Valid enum values. | `['eco', 'comfort']` |
+| `pattern` | `str \| None` | Regex pattern for validation (string). | `'^[a-z]+$'` |
+| `min_length` | `int \| None` | Minimum string length. | `1` |
+| `max_length` | `int \| None` | Maximum string length. | `20` |
 
 ## CommandResponse
 
-Result of a command execution (first element of tuple returned by `set_feature`).
+Result of a command execution. It is returned directly by `execute_command`
+and as the first element of the tuple returned by `set_feature`.
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `success` | `bool` | `True` if the command succeeded. | `True` |
-| `message` | `str` | Optional message from the API. | `'Command accepted'` |
-| `reason` | `str` | Optional failure reason or details. | `'Feature not ready'` |
+| `message` | `str \| None` | Optional message from the API. | `'Command accepted'` |
+| `reason` | `str \| None` | Optional failure reason or details. | `'Feature not ready'` |
 
 **Usage**:
 ```python
@@ -112,8 +113,8 @@ as result values rather than mutate them.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `updated_devices` | `List[Device]` | New device instances that refreshed successfully, in their relative input order. |
-| `errors_by_device_id` | `Dict[str, ViError]` | Recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
+| `updated_devices` | `list[Device]` | New device instances that refreshed successfully, in their relative input order. |
+| `errors_by_device_id` | `dict[str, ViError]` | Recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
 | `is_complete` | `bool` | `True` when no device-specific failures occurred. |
 
 ## Next Steps

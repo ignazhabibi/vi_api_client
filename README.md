@@ -10,31 +10,10 @@ Designed for integration with Home Assistant and other async Python applications
 - **Auto-Discovery**: Automatically finds installations, gateways, and devices.
 - **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
 - **Gateway-Scoped Refresh**: Refreshes multiple known devices with one normal-case request while preserving partial successes.
-- **Command Execution**: Supports writing values with automatic parameter resolution (e.g. `setCurve`).
-- **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
-
-## Next Major Release
-
-The next major release will remove the deprecated Analytics API:
-`ViClient.get_consumption`, `MockViClient.get_consumption`, and the
-`vi-client get-consumption` command. Read consumption through Devices API features such as
-`heating.power.consumption.total` and their existing flattened aliases instead.
-
-It also removes raw transport access: `ViClient.connector`, `ViConnector`, and
-the `vi_api_client.connection` module are no longer supported. Use the typed
-discovery, refresh, and write methods on `ViClient` instead. For multi-parameter
-writes, use `execute_command(feature, parameters)`; use `set_feature` for a
-single writable feature and automatic dependency resolution.
-
-`MockViClient` now takes only a fixture device name. Remove any redundant mock
-authentication argument. It remains a `ViClient` subtype and all high-level
-methods continue to work unchanged. Fixture clients never create a session or
-make network requests.
-
-Consumers such as `vi_climate_devices` must update their dependency to this
-major release, remove mock authentication arguments, and import public models
-from the package root (for example, `from vi_api_client import Device, Feature`)
-rather than private transport modules.
+- **Command Execution**: Supports safe single-feature writes with automatic
+  parameter resolution and explicit multi-parameter commands.
+- **Mock Client**: Runs the same client workflows against bundled real-device
+  responses without authentication, sessions, or network requests.
 
 ## Installation
 
@@ -111,10 +90,24 @@ async def main():
 
         # 1. Get Installations & Gateways
         installations = await client.get_installations()
+        if not installations:
+            return
+        installation = installations[0]
+
         gateways = await client.get_gateways()
+        gateway = next(
+            (
+                gateway
+                for gateway in gateways
+                if gateway.installation_id == installation.id
+            ),
+            None,
+        )
+        if gateway is None:
+            return
 
         # 2. Discover and refresh devices behind one gateway
-        devices = await client.get_devices(installations[0].id, gateways[0].serial)
+        devices = await client.get_devices(installation.id, gateway.serial)
         refresh = await client.update_gateway_devices(devices)
         for device_id, error in refresh.errors_by_device_id.items():
             print(f"Device {device_id} could not be refreshed: {error}")
@@ -127,7 +120,7 @@ async def main():
         for feature in device.features:
             print(f"{feature.name}: {feature.value}")
 
-        # 4. Write a Feature
+        # 4. Write one Feature with automatic dependency resolution
         # Find a writable feature (e.g. heating curve slope)
         slope = next(
             (f for f in device.features if "curve.slope" in f.name and f.is_writable),

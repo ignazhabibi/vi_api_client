@@ -69,11 +69,11 @@ from vi_api_client import OAuth
 | :--- | :--- | :--- | :--- |
 | `client_id` | `str` | Yes | Your Client ID from the [Viessmann Developer Portal](https://developer.viessmann.com/). |
 | `redirect_uri` | `str` | Yes | Must match your registered Redirect URI (e.g. `http://localhost:4200/`). |
-| `token_file` | `str` | No | Path to store/load tokens (JSON). Defaults to None (memory only). |
+| `token_file` | `Path \| str` | Yes | Path to the JSON credential document used to store and load tokens. |
 | `websession` | `ClientSession` | No | `aiohttp` session to share connections. |
 
 ### Automatic Token Refresh
-If `token_file` is provided, the class automatically:
+The class automatically:
 1.  **Loads** tokens from disk on startup.
 2.  **Saves** new tokens to disk whenever they are refreshed.
 
@@ -105,7 +105,7 @@ Tokens are stored in `token_file` as:
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

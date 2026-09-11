@@ -31,11 +31,10 @@ import os
 
 import aiohttp
 
-from vi_api_client import ViClient
-from vi_api_client.auth import OAuth
+from vi_api_client import OAuth, ViClient
 
 # Configuration
-CLIENT_ID = os.getenv("VIESSMANN_CLIENT_ID")
+CLIENT_ID = os.environ["VIESSMANN_CLIENT_ID"]
 REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
 
@@ -59,20 +58,31 @@ async def main():
             print("No installations found.")
             return
 
-        inst_id = installations[0].id
-        print(f"Using Installation: {inst_id}")
+        installation = installations[0]
+        print(f"Using Installation: {installation.id}")
 
         gateways = await client.get_gateways()
-        if not gateways:
-            print("No gateways found.")
+        gateway = next(
+            (
+                gateway
+                for gateway in gateways
+                if gateway.installation_id == installation.id
+            ),
+            None,
+        )
+        if gateway is None:
+            print("No gateway found for the selected installation.")
             return
 
-        gw_serial = gateways[0].serial
-        print(f"Using Gateway: {gw_serial}")
+        print(f"Using Gateway: {gateway.serial}")
 
         # Pick the heating device (usually id="0")
         # include_features=True ensures we get the full data immediately
-        devices = await client.get_devices(inst_id, gw_serial, include_features=True)
+        devices = await client.get_devices(
+            installation.id,
+            gateway.serial,
+            include_features=True,
+        )
 
         if not devices:
             print("No devices found.")
@@ -95,9 +105,6 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
-
-
 ### 2. Executing Commands
 
 To change settings (e.g., set heating mode), you use the high-level `set_feature` method.
@@ -137,7 +144,7 @@ async def set_heating_mode(client, device):
 
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
