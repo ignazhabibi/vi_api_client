@@ -1,8 +1,9 @@
 import json
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from ._discovery import _DiscoveryAdapter
 from .api import ViClient
 from .auth import AbstractAuth
 from .models import (
@@ -10,24 +11,33 @@ from .models import (
     Device,
     Feature,
     FeatureControl,
-    Gateway,
     GatewayDeviceRefreshResult,
-    Installation,
 )
 from .parsing import parse_feature_flat
 
 
-class MockAuth(AbstractAuth):
-    """Mock authentication provider."""
+class _FixtureDiscoveryAdapter:
+    """Return deterministic discovery envelopes without authentication or HTTP."""
 
-    async def async_get_access_token(self) -> str:
-        """Return a mock access token."""
-        return "mock_token"
+    def __init__(self, device_name: str) -> None:
+        """Initialize the adapter for a selected fixture device."""
+        self._device_name = device_name
+        fixture_path = Path(__file__).parent / "fixtures" / "discovery.json"
+        with fixture_path.open(encoding="utf-8") as file:
+            self._data = cast(dict[str, dict[str, Any]], json.load(file))
 
-    def __init__(self, websession: Any = None) -> None:
-        """Initialize mock auth."""
-        # Standard AbstractAuth expects a websession, but we don't use it in Mock
-        super().__init__(websession)
+    async def get_installations(self) -> dict[str, Any]:
+        """Return the mock installation envelope."""
+        envelope = self._data["installations"]
+        installation = envelope["data"][0]
+        installation["description"] = installation["description"].format(
+            device_name=self._device_name
+        )
+        return envelope
+
+    async def get_gateways(self) -> dict[str, Any]:
+        """Return the mock gateway envelope."""
+        return self._data["gateways"]
 
 
 # Mapping of fixture names to device types
@@ -58,12 +68,12 @@ class MockViClient(ViClient):
         Args:
             device_name: The name of the mock device (e.g. "Vitodens200W").
                 Must correspond to a file in the fixtures directory.
-            auth: Optional auth provider (not used for logic,
-                but kept for interface compatibility).
+            auth: Ignored compatibility argument; mock clients do not authenticate.
         """
-        # Pass dummy auth if none provided, to satisfy superclass
-        super().__init__(auth or MockAuth())
         self.device_name = device_name
+        self._discovery_adapter: _DiscoveryAdapter = _FixtureDiscoveryAdapter(
+            device_name
+        )
         self._data_cache = None
 
     @staticmethod
@@ -73,7 +83,11 @@ class MockViClient(ViClient):
         if not fixtures_dir.exists():
             return []
 
-        return sorted(file.stem for file in fixtures_dir.glob("*.json"))
+        return sorted(
+            file.stem
+            for file in fixtures_dir.glob("*.json")
+            if file.stem != "discovery"
+        )
 
     def _load_data(self) -> dict[str, Any]:
         """Load the JSON data for the selected device.
@@ -100,28 +114,6 @@ class MockViClient(ViClient):
             self._data_cache = json.load(file)
 
         return self._data_cache
-
-    async def get_installations(self) -> list[Installation]:
-        """Return a mock installation."""
-        return [
-            Installation(
-                id="99999",
-                description=f"Mock Installation ({self.device_name})",
-                alias="Mock Home",
-                address={"city": "Mock City"},
-            )
-        ]
-
-    async def get_gateways(self) -> list[Gateway]:
-        """Return a mock gateway."""
-        return [
-            Gateway(
-                serial="MOCK_GATEWAY_SERIAL",
-                version="1.0.0",
-                status="connected",
-                installation_id="99999",
-            )
-        ]
 
     async def get_devices(
         self,

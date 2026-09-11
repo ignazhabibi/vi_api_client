@@ -6,11 +6,11 @@ from dataclasses import replace
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from ._discovery import _DiscoveryAdapter, _LiveDiscoveryAdapter
 from .auth import AbstractAuth
 from .connection import ViConnector
 from .const import (
     ENDPOINT_FEATURES,
-    ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
 )
 from .exceptions import ViError, ViResponseError, ViValidationError
@@ -42,6 +42,9 @@ class ViClient:
             auth: Authentication handler providing the access token.
         """
         self.connector = ViConnector(auth)
+        self._discovery_adapter: _DiscoveryAdapter = _LiveDiscoveryAdapter(
+            self.connector
+        )
 
     async def get_installations(self) -> list[Installation]:
         """Get list of installations.
@@ -50,10 +53,12 @@ class ViClient:
             List of Installation objects available to the user.
         """
         _LOGGER.debug("Fetching installations...")
-        installations_data = await self.connector.get(ENDPOINT_INSTALLATIONS)
+        installations_data = await self._discovery_adapter.get_installations()
         installations = [
             Installation.from_api(installation_data)
-            for installation_data in installations_data.get("data", [])
+            for installation_data in self._get_discovery_data(
+                installations_data, "Installation"
+            )
         ]
         _LOGGER.debug("Found %s installations", len(installations))
         return installations
@@ -65,10 +70,10 @@ class ViClient:
             List of Gateway objects found (across all installations).
         """
         _LOGGER.debug("Fetching gateways...")
-        gateways_data = await self.connector.get(ENDPOINT_GATEWAYS)
+        gateways_data = await self._discovery_adapter.get_gateways()
         gateways = [
             Gateway.from_api(gateway_data)
-            for gateway_data in gateways_data.get("data", [])
+            for gateway_data in self._get_discovery_data(gateways_data, "Gateway")
         ]
         _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
@@ -327,6 +332,20 @@ class ViClient:
     # ------------------------------------------------------------------
     # Private Helper Methods
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_discovery_data(
+        envelope: object, resource_name: str
+    ) -> list[dict[str, Any]]:
+        """Validate and return the data collection from a discovery envelope."""
+        if not isinstance(envelope, dict):
+            raise ViResponseError(f"{resource_name} response must be an object")
+        data = envelope.get("data")
+        if not isinstance(data, list) or not all(
+            isinstance(item, dict) for item in data
+        ):
+            raise ViResponseError(f"{resource_name} response data must be a list")
+        return data
 
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, Any]

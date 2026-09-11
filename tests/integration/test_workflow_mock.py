@@ -1,11 +1,28 @@
 """Integration tests for the full workflow using Mock Client."""
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from vi_api_client import MockViClient
 from vi_api_client.models import Device
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_mock_discovery_uses_shared_domain_conversion_without_auth():
+    """Mock discovery should share client conversion without a live connector."""
+    # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
+    client = MockViClient("Vitodens200W")
+
+    # Act: Discover installations and gateways through the inherited workflow.
+    installations = await client.get_installations()
+    gateways = await client.get_gateways()
+
+    # Assert: Fixture envelopes are converted by the shared client implementation.
+    assert installations[0].id == "99999"
+    assert installations[0].description == "Mock Installation (Vitodens200W)"
+    assert gateways[0].serial == "MOCK_GATEWAY_SERIAL"
+    assert gateways[0].installation_id == installations[0].id
+    assert not hasattr(client, "connector")
 
 
 @pytest.mark.integration
@@ -111,10 +128,9 @@ async def test_mock_workflow_vitocal():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_mock_set_feature_stays_offline():
-    """Verify mock writes use simulated execution instead of the connector."""
-    # Arrange: Hydrate a mock heat pump and guard against connector POST requests.
+    """Verify mock writes use simulated execution without live resources."""
+    # Arrange: Hydrate a mock heat pump without authentication or HTTP resources.
     client = MockViClient("Vitocal250A")
-    client.connector.post = AsyncMock()
     device = (
         await client.get_devices(
             installation_id="99999",
@@ -128,9 +144,8 @@ async def test_mock_set_feature_stays_offline():
     # Act: Set the writable slope through the standard high-level client method.
     response, updated_device = await client.set_feature(device, slope, 0.7)
 
-    # Assert: The command should succeed locally without invoking the connector.
+    # Assert: The command should succeed locally.
     updated_slope = updated_device.get_feature(slope.name)
-    client.connector.post.assert_not_awaited()
     assert response.success is True
     assert updated_slope is not None
     assert updated_slope.value == 0.7
@@ -170,7 +185,6 @@ async def test_mock_gateway_device_refresh_stays_offline():
     """Verify gateway-scoped refresh has offline mock parity."""
     # Arrange: Use two known devices on the same mock gateway.
     client = MockViClient("Vitodens200W")
-    client.connector.post = AsyncMock()
     devices = [
         Device(
             id=device_id,
@@ -187,7 +201,6 @@ async def test_mock_gateway_device_refresh_stays_offline():
     result = await client.update_gateway_devices(devices)
 
     # Assert: Mock refresh preserves order and metadata without HTTP access.
-    client.connector.post.assert_not_awaited()
     assert result.is_complete
     assert [device.id for device in result.updated_devices] == ["10", "0"]
     assert [device.model_id for device in result.updated_devices] == [

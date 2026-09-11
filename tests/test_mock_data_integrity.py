@@ -21,7 +21,11 @@ MOCK_DATA_DIR = os.path.join(
 
 def get_mock_data_files():
     """Get all bundled mock device JSON files."""
-    return sorted(glob.glob(os.path.join(MOCK_DATA_DIR, "*.json")))
+    return sorted(
+        file_path
+        for file_path in glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
+        if not file_path.endswith("discovery.json")
+    )
 
 
 @pytest.mark.parametrize("file_path", get_mock_data_files(), ids=os.path.basename)

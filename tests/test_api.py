@@ -444,6 +444,72 @@ async def test_get_gateways(load_fixture_json):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("endpoint", "method"),
+    [
+        (ENDPOINT_INSTALLATIONS, "get_installations"),
+        (ENDPOINT_GATEWAYS, "get_gateways"),
+    ],
+)
+async def test_discovery_rejects_successful_non_json_responses(endpoint, method):
+    """Discovery should reject successful responses that are not JSON objects."""
+    # Arrange: Return non-JSON content from each discovery endpoint.
+    url = f"{API_BASE_URL}{endpoint}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, body="not JSON", content_type="text/plain")
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The public response error communicates the contract failure.
+            with pytest.raises(ViResponseError):
+                await getattr(client, method)()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("endpoint", "method"),
+    [
+        (ENDPOINT_INSTALLATIONS, "get_installations"),
+        (ENDPOINT_GATEWAYS, "get_gateways"),
+    ],
+)
+async def test_discovery_rejects_successful_malformed_json_envelopes(endpoint, method):
+    """Discovery should reject successful JSON that violates its envelope contract."""
+    # Arrange: Return a JSON object whose data member is not a collection.
+    url = f"{API_BASE_URL}{endpoint}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload={"data": {}})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The public response error communicates the contract failure.
+            with pytest.raises(ViResponseError):
+                await getattr(client, method)()
+
+
+@pytest.mark.asyncio
+async def test_discovery_keeps_a_caller_managed_session_open(load_fixture_json):
+    """Discovery must not close a session supplied through authentication."""
+    # Arrange: Provide a caller-owned session and successful installation envelope.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=load_fixture_json("installations.json"))
+        session = aiohttp.ClientSession()
+        try:
+            client = ViClient(MockAuth(session))
+
+            # Act: Run discovery through the adapter-backed client.
+            await client.get_installations()
+
+            # Assert: The client did not create or close a replacement session.
+            assert not session.closed
+        finally:
+            await session.close()
+
+
+@pytest.mark.asyncio
 async def test_get_full_installation_status_uses_matching_gateways_only():
     """Full status should not query gateways from other installations."""
     # Arrange: Mock one gateway for each of two installations.
