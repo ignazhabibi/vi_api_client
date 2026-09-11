@@ -30,6 +30,12 @@ class _DiscoveryAdapter(Protocol):
         """Return the raw feature API envelope."""
         raise NotImplementedError
 
+    async def get_gateway_features(
+        self, devices: list[Device], payload: dict[str, bool]
+    ) -> dict[str, Any]:
+        """Return the raw gateway-scoped feature API envelope."""
+        raise NotImplementedError
+
 
 class _LiveDiscoveryAdapter:
     """Retrieve client envelopes through the authenticated HTTP connector."""
@@ -63,5 +69,16 @@ class _LiveDiscoveryAdapter:
         url = (
             f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
             f"{device.gateway_serial}/devices/{device.id}/features/filter"
+        )
+        return await self._connector.post(url, payload)
+
+    async def get_gateway_features(
+        self, devices: list[Device], payload: dict[str, bool]
+    ) -> dict[str, Any]:
+        """Return the raw gateway-scoped feature API envelope."""
+        first_device = devices[0]
+        url = (
+            f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
+            f"{first_device.gateway_serial}/features/filter"
         )
         return await self._connector.post(url, payload)

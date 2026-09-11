@@ -10,7 +10,6 @@ from ._commands import _CommandAdapter, _LiveCommandAdapter
 from ._discovery import _DiscoveryAdapter, _LiveDiscoveryAdapter
 from .auth import AbstractAuth
 from .connection import ViConnector
-from .const import ENDPOINT_FEATURES
 from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
@@ -231,18 +230,15 @@ class ViClient:
 
         self._validate_gateway_devices(devices)
 
-        first_device = devices[0]
-        url = (
-            f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
-            f"{first_device.gateway_serial}/features/filter"
-        )
         payload = {
             "includeDevicesFeatures": True,
             "skipDisabled": True,
             "skipNotReady": True,
         }
         try:
-            response = await self.connector.post(url, payload)
+            response = await self._discovery_adapter.get_gateway_features(
+                devices, payload
+            )
         except ViValidationError as error:
             if error.error_type == "DEVICE_COMMUNICATION_ERROR":
                 return await self._refresh_devices_individually(devices)

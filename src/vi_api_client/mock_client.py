@@ -1,5 +1,4 @@
 import json
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,7 +9,6 @@ from .auth import AbstractAuth
 from .models import (
     Device,
     FeatureControl,
-    GatewayDeviceRefreshResult,
 )
 
 
@@ -61,6 +59,12 @@ class _FixtureDiscoveryAdapter:
         self, device: Device, payload: dict[str, bool | list[str]]
     ) -> dict[str, Any]:
         """Return the selected fixture's raw feature envelope."""
+        return self._load_feature_data()
+
+    async def get_gateway_features(
+        self, devices: list[Device], payload: dict[str, bool]
+    ) -> dict[str, Any]:
+        """Return the selected fixture's raw gateway-scoped feature envelope."""
         return self._load_feature_data()
 
     def _load_feature_data(self) -> dict[str, Any]:
@@ -137,30 +141,3 @@ class MockViClient(ViClient):
             for file in fixtures_dir.glob("*.json")
             if file.stem != "discovery"
         )
-
-    async def update_gateway_devices(
-        self, devices: list[Device]
-    ) -> GatewayDeviceRefreshResult:
-        """Refresh gateway devices from fixtures without network access.
-
-        Args:
-            devices: Existing devices belonging to one installation and gateway.
-
-        Returns:
-            Refreshed devices in input order with no device-specific errors.
-
-        Raises:
-            ValueError: If devices span multiple scopes or contain duplicate IDs.
-        """
-        if not devices:
-            return GatewayDeviceRefreshResult([], {})
-
-        self._validate_gateway_devices(devices)
-        updated_devices = []
-        for device in devices:
-            features = await self.get_features(device, only_enabled=True)
-            enabled_and_ready_features = [
-                feature for feature in features if feature.is_ready
-            ]
-            updated_devices.append(replace(device, features=enabled_and_ready_features))
-        return GatewayDeviceRefreshResult(updated_devices, {})

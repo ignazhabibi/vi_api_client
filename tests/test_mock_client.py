@@ -40,6 +40,23 @@ async def test_mock_update_device_returns_hydrated_copy_without_mutating_input()
 
 
 @pytest.mark.asyncio
+async def test_mock_gateway_refresh_uses_the_fixture_adapter_without_authentication():
+    """Mock gateway refresh should reuse the client workflow without credentials."""
+    # Arrange: Discover the deterministic fixture device through an offline client.
+    client = MockViClient("Vitodens200W")
+    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
+
+    # Act: Refresh the discovered device through the inherited gateway operation.
+    result = await client.update_gateway_devices([device])
+
+    # Assert: The fixture refresh is complete and preserves the source device metadata.
+    assert result.is_complete
+    assert result.updated_devices[0].id == device.id
+    assert result.updated_devices[0].model_id == device.model_id
+    assert result.updated_devices[0].features
+
+
+@pytest.mark.asyncio
 async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
     """Mock filtering should retain only requested enabled and ready features."""
     # Arrange: Select a fixture that includes disabled features.
