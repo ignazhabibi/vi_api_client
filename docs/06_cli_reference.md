@@ -91,21 +91,7 @@ If you need to execute a command with multiple parameters at once (rare), you ca
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
-## 8. Get Consumption (Analytics)
-> **DEPRECATED:** The `get-consumption` command and Analytics API will be removed in a future major release.
-
-Fetch gas/electricity consumption (summary per day/week/month/year).
-
-- **Arguments**:
-  - `--metric`: `summary` (default), `total`, `heating`, `dhw`
-
-```bash
-vi-client get-consumption --metric summary
-```
-*   Returns features prefixed with `analytics.` (e.g. `analytics.heating.power.consumption.total`).
-*   Data is fetched from the Viessmann Analytics API (not live data).
-
-## 9. Mock Devices (Offline Mode)
+## 8. Mock Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
 Mock mode does not read OAuth credentials or `tokens.json` and never makes network
 requests.

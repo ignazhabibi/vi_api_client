@@ -11,7 +11,6 @@ from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import (
     API_BASE_URL,
-    ENDPOINT_ANALYTICS_THERMAL,
     ENDPOINT_FEATURES,
     ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
@@ -614,70 +613,6 @@ async def test_get_feature_not_found(load_fixture_json):
             # Act and Assert: Execute and verify in one step.
             with pytest.raises(ViNotFoundError):
                 await client.get_features(device, feature_names=["nonexistent.feature"])
-
-
-@pytest.mark.asyncio
-async def test_get_consumption(load_fixture_json):
-    """Test the get_consumption method with various metrics."""
-    # Arrange: Prepare test data and fixtures.
-    data = load_fixture_json("analytics/consumption_summary.json")
-    url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
-
-    with aioresponses() as m:
-        m.post(url, payload=data, repeat=True)
-
-        async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
-            client = ViClient(auth)
-
-            device = Device(
-                id="dev",
-                gateway_serial="gw",
-                installation_id="inst",
-                model_id="model",
-                device_type="heating",
-                status="ok",
-            )
-
-            start = "2023-01-01T00:00:00"
-            end = "2023-01-01T23:59:59"
-
-            # Act: Fetch consumption data with summary metric.
-            with pytest.warns(DeprecationWarning, match="deprecated"):
-                result_summary = await client.get_consumption(
-                    device, start, end, metric="summary"
-                )
-
-            # Assert: Summary should return 3 features with total consumption.
-            assert isinstance(result_summary, list)
-            assert len(result_summary) == 3
-
-            feature_total = next(
-                feature
-                for feature in result_summary
-                if feature.name == "analytics.heating.power.consumption.total"
-            )
-            assert feature_total.value == 15.5
-            assert feature_total.unit == "kilowattHour"
-
-            # Act: Fetch consumption data for total metric only.
-            with pytest.warns(DeprecationWarning, match="deprecated"):
-                result_total = await client.get_consumption(
-                    device, start, end, metric="total"
-                )
-
-            # Assert: Individual metric should return single feature.
-            assert isinstance(result_total, list)
-            assert len(result_total) == 1
-            assert result_total[0].name == "analytics.heating.power.consumption.total"
-            assert result_total[0].value == 15.5
-
-            # Act: Attempt to fetch with invalid metric (should raise ValueError).
-            with (
-                pytest.raises(ValueError),
-                pytest.warns(DeprecationWarning, match="deprecated"),
-            ):
-                await client.get_consumption(device, start, end, metric="invalid")
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,6 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, replace
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -368,55 +367,6 @@ async def cmd_get_feature(args) -> bool:
     return True
 
 
-async def cmd_get_consumption(args) -> bool:
-    """Get consumption data.
-
-    Fetches energy consumption for today based on the selected metric.
-
-    Args:
-        args: Parsed command line arguments including metric (summary, total, etc.).
-    """
-    _LOGGER.warning(
-        "The 'get-consumption' command and Analytics API are deprecated "
-        "and will be removed in a future major version."
-    )
-    print(
-        "WARNING: The 'get-consumption' command and Analytics API are deprecated "
-        "and will be removed in a future major release.\n"
-    )
-
-    try:
-        async with setup_client_context(args) as ctx:
-            print(f"Fetching consumption (Metric: {args.metric})...")
-            device = _transient_device(ctx)
-
-            # Helper for CLI "today"
-            now = datetime.now()
-            start_dt = now.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ).isoformat()
-            end_dt = now.replace(
-                hour=23, minute=59, second=59, microsecond=999999
-            ).isoformat()
-
-            result = await ctx.client.get_consumption(
-                device, start_dt, end_dt, metric=args.metric
-            )
-            if isinstance(result, list):
-                print(f"Feature expanded to {len(result)} items:")
-
-                for feature in result:
-                    print(f"- {feature.name}: {format_feature(feature)}")
-            else:
-                print(f"Feature: {result.name}")
-                print(f"Value: {format_feature(result)}")
-    except Exception as e:
-        _LOGGER.error("Error fetching consumption: %s", e)
-        return False
-
-    return True
-
-
 async def cmd_set(args) -> bool:  # noqa: PLR0911
     """Set a feature value (User Friendly).
 
@@ -751,7 +701,7 @@ async def cmd_list_mock_devices(args) -> bool:
     return True
 
 
-async def async_main() -> int:  # noqa: PLR0915
+async def async_main() -> int:
     """Main CLI entrypoint."""
     # Parent parser for common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -816,26 +766,6 @@ async def async_main() -> int:  # noqa: PLR0915
     parser_feature.add_argument(
         "--raw", action="store_true", help="Show raw JSON response"
     )
-
-    # Get Consumption
-    parser_consumption = subparsers.add_parser(
-        "get-consumption",
-        help="Get energy consumption for today",
-        parents=[common_parser],
-    )
-    parser_consumption.add_argument(
-        "--metric",
-        default="summary",
-        choices=["summary", "total", "heating", "dhw"],
-        help="Metric to fetch",
-    )
-    parser_consumption.add_argument(
-        "--installation-id", type=int, help="Installation ID (optional)"
-    )
-    parser_consumption.add_argument(
-        "--gateway-serial", help="Gateway Serial (optional)"
-    )
-    parser_consumption.add_argument("--device-id", help="Device ID (optional)")
 
     # List available mock devices
     subparsers.add_parser(
@@ -921,7 +851,6 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
         "list-devices": cmd_list_devices,
         "list-features": cmd_list_features,
         "get-feature": cmd_get_feature,
-        "get-consumption": cmd_get_consumption,
         "list-mock-devices": cmd_list_mock_devices,
         "list-writable": cmd_list_writable,
         "set": cmd_set,

@@ -122,21 +122,6 @@ if response.success:
     response, device = await client.set_feature(device, shift_feature, 7.0)
 ```
 
-## Analytics Methods
-
-### `get_consumption(device: Device, start_dt: datetime, end_dt: datetime, metric: str = "summary", resolution: str = "1d") -> List[Feature]`
-> **DEPRECATED:** The `get_consumption` method and Analytics API will be removed in a future major release.
-
-Fetches energy consumption usage for a time range.
-
-*   **Parameters**:
-    *   `device`: A `Device` object.
-    *   `start_dt`: Start date (datetime or ISO string).
-    *   `end_dt`: End date (datetime or ISO string).
-    *   `metric`: The data metric to fetch (e.g. 'summary', 'dhw'). Default: `"summary"`.
-    *   `resolution`: Resolution of data (`"1d"`, `"1w"`, `"1m"`, `"1y"`). Default: `"1d"`.
-*   **Returns**: List of `Feature` objects containing consumption values.
-
 ## Next Steps
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
