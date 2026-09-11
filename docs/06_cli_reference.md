@@ -21,8 +21,9 @@ vi-client login --client-id <YOUR_CLIENT_ID> --redirect-uri <YOUR_REDIRECT_URI>
 ```
 Follow the URL, log in, and paste the code back into the terminal.
 The client ID and redirect URI used during login are saved with the tokens, so
-later commands can reuse them without repeating `--client-id`. Environment
-variables and explicit command-line arguments continue to take precedence.
+later commands can reuse them without repeating `--client-id`. Configuration
+precedence is command-line arguments, environment variables, the credential
+document, and finally the default redirect URI.
 If the credential document is malformed, the command exits unsuccessfully and
 leaves the file unchanged; repair or remove it before trying again.
 
@@ -40,17 +41,17 @@ Feature names vary by device model (e.g., heat pumps vs gas boilers). Use this t
 # List all features (names only)
 vi-client list-features
 
-# List only enabled features (names only)
+# List only enabled and ready features (names only)
 vi-client list-features --enabled
 
-# List enabled features WITH values - THIS IS THE MOST USEFUL COMMAND!
+# List enabled and ready features with values
 vi-client list-features --enabled --values
 
 # Output as JSON
 vi-client list-features --json
 ```
 *Note: This auto-detects the first device. You can specify `--gateway-serial` and `--device-id` if needed.*
-*Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic alias feature per base feature: `...currentYear`. Additional synthetic `currentDay` and `currentMonth` aliases are no longer generated.*
+*Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic `...currentYear` alias per base feature. `currentDay` and `currentMonth` aliases are not generated.*
 
 ## 4. Fetch Feature Details
 Get the current value of a specific feature.
@@ -84,7 +85,7 @@ The CLI converts values according to the feature's command type: numeric values
 become numbers, `true`/`false` become booleans, and text values such as `auto`
 or `01` remain strings. It then validates the value against the feature constraints.
 
-## 7. Advanced: Execute Raw Command
+## 7. Advanced: Execute an Explicit Command
 If you need to execute a command with multiple parameters at once (rare), you can use `exec`.
 
 ```bash
@@ -126,6 +127,6 @@ vi-client get-feature "heating.circuits.0" --insecure
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

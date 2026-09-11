@@ -15,8 +15,7 @@ import aiohttp
 # Ensure we can import the local package
 sys.path.insert(0, str(Path("src").resolve()))
 
-from vi_api_client import ViClient
-from vi_api_client.auth import OAuth
+from vi_api_client import OAuth, ViAuthError, ViClient
 from vi_api_client.utils import format_feature
 
 # Configuration
@@ -28,9 +27,7 @@ TOKEN_FILE = os.getenv("VIESSMANN_TOKEN_FILE", "tokens.json")
 
 async def main():
     """Run the simple demo."""
-    connector = aiohttp.TCPConnector(ssl=False)  # Use insecure for demo
-
-    async with aiohttp.ClientSession(connector=connector) as session:
+    async with aiohttp.ClientSession() as session:
         # 1. Setup Authentication
         auth = OAuth(
             client_id=CLIENT_ID,
@@ -41,7 +38,7 @@ async def main():
 
         try:
             await auth.async_get_access_token()
-        except Exception:
+        except ViAuthError:
             print("Please login first using: vi-client login")
             return
 
@@ -58,6 +55,9 @@ async def main():
         devices = await client.get_devices(
             gateway.installation_id, gateway.serial, include_features=True
         )
+        if not devices:
+            print("No devices found.")
+            return
 
         # Prefer "0" (Heating System) over Gateway
         device = next((device for device in devices if device.id == "0"), devices[0])

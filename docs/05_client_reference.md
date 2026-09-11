@@ -14,59 +14,49 @@ from vi_api_client import ViClient
 | :--- | :--- | :--- |
 | `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `OAuth`). |
 
-## v2 Migration
+## Client contract
 
-`ViClient` no longer exposes `connector`, and `ViConnector` plus the
-`vi_api_client.connection` module have been removed. Use the typed methods on
-this page instead; there is no generic raw HTTP replacement. Use
-`execute_command(feature, parameters)` for a complete explicit command payload,
-or `set_feature(device, feature, value)` for a safe single-feature write with
-dependency resolution.
+`ViClient` exposes typed discovery, refresh, and write operations rather than a
+generic HTTP interface. Use `set_feature(device, feature, value)` for a safe
+single-feature write with dependency resolution, or
+`execute_command(feature, parameters)` when the complete command payload is
+already known.
 
-`MockViClient` remains a `ViClient` subtype, but its constructor is now
-`MockViClient(device_name)` only. Remove any unused mock authentication argument.
-Fixture-backed clients load local data only and never construct authentication,
-sessions, or transports.
+An application that supplies `OAuth(websession=session)` owns and closes that
+session. An `AbstractAuth` provider closes only a session it created itself.
 
-The high-level discovery, hydration, filtering, immutable `update_device`,
-gateway refresh, `set_feature`, and `execute_command` methods are unchanged.
-An application that supplies `OAuth(websession=session)` continues to own and
-close that session; an `AbstractAuth` provider still closes only a session it
-created itself.
-
-Downstream consumers, including `vi_climate_devices`, need a dependency update,
-removal of redundant mock authentication arguments, and package-root model
-imports such as `from vi_api_client import Device, Feature`. No changes to that
-separate repository are included here.
+`MockViClient(device_name)` is a `ViClient` subtype backed by bundled device
+responses. It supports the same high-level methods without constructing
+authentication, sessions, or network transports.
 
 ## Discovery Methods
 
 Methods to discover the structure of your heating system.
 
-### `get_installations() -> List[Installation]`
+### `get_installations() -> list[Installation]`
 Fetches all available installations.
 *   **Returns**: List of `Installation` objects.
 
-### `get_gateways() -> List[Gateway]`
+### `get_gateways() -> list[Gateway]`
 Fetches all gateways (automatically linked to installations).
 *   **Returns**: List of `Gateway` objects.
 
-### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_active_features: bool = False) -> List[Device]`
+### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_active_features: bool = False) -> list[Device]`
 Fetches devices attached to a specific gateway.
 
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
     *   `include_features`: If `True`, automatically populates the `features` list (Default `False`).
-    *   `only_active_features`: If `include_features=True`, only fetches enabled features (Default `False`).
+    *   `only_active_features`: If `include_features=True`, only returns enabled and ready features (Default `False`).
 *   **Returns**: List of `Device` objects. If `include_features=True`, the `features` property will be populated.
 
-### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> List[Device]`
+### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> list[Device]`
 Fetches the complete status of an installation, including all devices and their features.
 
 *   **Parameters**:
     *   `installation_id`: The ID of the installation to scan.
-    *   `only_enabled`: if `True` (default), only fetches active features.
+    *   `only_enabled`: if `True` (default), only returns enabled and ready features.
 *   **Returns**: List of `Device` objects, where each device has its `features` attribute fully populated.
 *   **Use Case**: Initial startup (e.g., Home Assistant integration load) to populate the entire entity registry at once.
 
@@ -74,12 +64,12 @@ Fetches the complete status of an installation, including all devices and their 
 
 Methods to read data and control the device.
 
-### `get_features(device: Device, only_enabled: bool = False, feature_names: List[str] = None) -> List[Feature]`
+### `get_features(device: Device, only_enabled: bool = False, feature_names: list[str] | None = None) -> list[Feature]`
 Fetches features for a specific device. This is the primary method to read data.
 
 *   **Parameters**:
     *   `device`: A `Device` object.
-    *   `only_enabled`: if `True`, only returns features that are enabled by the device configuration.
+    *   `only_enabled`: if `True`, only returns features that are enabled and ready.
     *   `feature_names`: Optional list of feature names to fetch (e.g. `["heating.sensors.temperature.outside"]`). If None, fetches all features.
 *   **Returns**: List of `Feature` objects.
 *   **Performance**: If `feature_names` is provided, the request is optimized to fetch only those specific features.
@@ -89,11 +79,11 @@ Refreshes a specific device by refetching all its features.
 
 *   **Parameters**:
     *   `device`: The `Device` object to update.
-    *   `only_enabled`: if `True`, only fetches active features (Performance optimization).
+    *   `only_enabled`: if `True`, only returns enabled and ready features (default `True`).
 *   **Returns**: A new `Device` instance with updated features.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
-### `update_gateway_devices(devices: List[Device]) -> GatewayDeviceRefreshResult`
+### `update_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
 
 Refreshes known devices belonging to one installation and gateway. The normal
 path uses one POST feature-filter request and retrieves enabled and ready
@@ -118,9 +108,9 @@ for device_id, error in result.errors_by_device_id.items():
     handle_unavailable_device(device_id, error.error_type)
 ```
 
-This method is explicit: `get_features`, `update_device`, `get_devices`, and
-`get_full_installation_status` continue to use their existing request and error
-semantics.
+`get_features`, `update_device`, `get_devices`, and
+`get_full_installation_status` use their single-device request and error
+semantics rather than this gateway-scoped partial-result contract.
 
 ### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
 Sets a new value for a writable feature and returns an optimistically updated device.
@@ -133,7 +123,8 @@ Sets a new value for a writable feature and returns an optimistically updated de
     *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
     *   `Device`: Updated device with the feature value optimistically set (on success) or unchanged (on failure).
 *   **Raises**:
-    *   `ViValidationError` if the value violates constraints (min/max/options).
+    *   `ValueError` if the feature is read-only or the value violates client-side constraints.
+    *   `ViValidationError` if the API rejects the generated command payload.
     *   `ViConnectionError` if the API call fails.
 *   **Magic**: This method automatically resolves the correct command name and parameter name from the feature's definition.
 *   **Important**: Always use the returned `Device` for subsequent calls to ensure correct dependency resolution for interdependent features.
@@ -157,6 +148,9 @@ parameter is sent unchanged.
 Use it only when the caller already has the complete command payload, such as
 an advanced integration writing both heating-curve values at once.
 
+The method raises `ValueError` when the supplied feature is read-only. API and
+connection failures use the corresponding `ViError` subclasses.
+
 ```python
 response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})
 ```
@@ -166,6 +160,6 @@ response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
