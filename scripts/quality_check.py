@@ -13,6 +13,7 @@ COMMANDS = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
     (sys.executable, "-m", "pyright", "--pythonpath", sys.executable),
     (sys.executable, "-m", "pytest", "-q"),
+    (sys.executable, "-m", "build"),
 )
 
 

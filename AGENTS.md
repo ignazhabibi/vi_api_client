@@ -29,10 +29,14 @@ python -m pip install --upgrade pip
 python -m pip install -c constraints-ci.txt '.[dev]'
 ruff check .
 ruff format --check .
+pyright --pythonpath python
 python -m pytest -q
+python -m build
 ```
 
-Run `python -m build` as well when changing packaging metadata, build configuration, dependencies, or CLI entry points. `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
+The quality gate builds both distribution artifacts after linting, formatting,
+type checking, and tests. `constraints-ci.txt` defines the CI-tested HTTP-client
+and mock combination.
 
 ## Git, Pull Requests, and Releases
 
