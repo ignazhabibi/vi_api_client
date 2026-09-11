@@ -35,6 +35,11 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 _LOGGER = logging.getLogger(__name__)
 
 
+def _print_diagnostic(args, message: str) -> None:
+    """Print setup information without contaminating requested JSON output."""
+    print(message, file=sys.stderr if getattr(args, "json", False) else sys.stdout)
+
+
 @dataclass
 class CLIContext:
     """Context for CLI commands."""
@@ -57,7 +62,7 @@ async def create_session(args) -> aiohttp.ClientSession:
         An aiohttp ClientSession configured according to args.
     """
     if args.insecure:
-        print("WARNING: SSL verification disabled via --insecure")
+        _print_diagnostic(args, "WARNING: SSL verification disabled via --insecure")
         connector = aiohttp.TCPConnector(ssl=False)
         return aiohttp.ClientSession(connector=connector)
     return aiohttp.ClientSession()
@@ -106,11 +111,12 @@ def get_client_config(args) -> tuple[str, str]:
     )
 
     if not client_id:
-        print(
+        _print_diagnostic(
+            args,
             "Error: Client ID not found. Provide via --client-id or "
-            "VIESSMANN_CLIENT_ID env var."
+            "VIESSMANN_CLIENT_ID env var.",
         )
-        print("Please run 'login' first or provide --client-id.")
+        _print_diagnostic(args, "Please run 'login' first or provide --client-id.")
         sys.exit(1)
 
     return client_id, redirect_uri
@@ -126,7 +132,7 @@ async def setup_client_context(
         inst_id = getattr(args, "installation_id", None) or "99999"
         gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
         dev_id = getattr(args, "device_id", None) or "0"
-        print(f"Using Mock Device: {args.mock_device}")
+        _print_diagnostic(args, f"Using Mock Device: {args.mock_device}")
         yield CLIContext(None, client, inst_id, gw_serial, dev_id)
         return
 
@@ -144,7 +150,7 @@ async def setup_client_context(
         if discover and not (inst_id and gw_serial and dev_id):
             gateways = await client.get_gateways()
             if not gateways:
-                print("No gateways found.")
+                _print_diagnostic(args, "No gateways found.")
                 raise ValueError("No gateways found.")
 
             if gw_serial:
@@ -187,9 +193,10 @@ async def setup_client_context(
                     devices[0],
                 )
                 dev_id = target_dev.id
-                print(
+                _print_diagnostic(
+                    args,
                     f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, "
-                    f"Dev={dev_id}"
+                    f"Dev={dev_id}",
                 )
 
         if not (inst_id and gw_serial and dev_id):
