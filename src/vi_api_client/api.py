@@ -125,6 +125,9 @@ class ViClient:
 
         Returns:
             List of Feature objects (flattened).
+
+        Raises:
+            ViResponseError: If the API response contains duplicate feature names.
         """
         payload: dict[str, bool | list[str]] = {
             "skipDisabled": only_enabled,
@@ -144,6 +147,14 @@ class ViClient:
         flat_features = []
         for raw_feature in raw_features:
             flat_features.extend(parse_feature_flat(raw_feature))
+
+        feature_names_seen: set[str] = set()
+        for feature in flat_features:
+            if feature.name in feature_names_seen:
+                raise ViResponseError(
+                    f"Duplicate feature name in API response: {feature.name}"
+                )
+            feature_names_seen.add(feature.name)
 
         filtered_features = [
             feature

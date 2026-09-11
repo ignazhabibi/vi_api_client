@@ -132,7 +132,7 @@ async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_orde
     assert adapter.calls == ["gateway", "device:0"]
     assert [device.id for device in result.updated_devices] == ["10", "0"]
     assert result.updated_devices[0].model_id == "model-10"
-    assert result.updated_devices[1].features == []
+    assert result.updated_devices[1].features == ()
     assert result.is_complete
 
 

@@ -1,5 +1,9 @@
 """Tests for data models (Flat Architecture)."""
 
+from collections.abc import Mapping, Sequence
+
+import pytest
+
 import vi_api_client
 from vi_api_client.exceptions import ViError, ViResponseError
 from vi_api_client.models import (
@@ -7,6 +11,7 @@ from vi_api_client.models import (
     Feature,
     FeatureControl,
     GatewayDeviceRefreshResult,
+    Installation,
 )
 
 
@@ -25,6 +30,20 @@ def test_feature_dataclass():
     assert feature.value == 10
     assert feature.unit == "C"
     assert feature.is_writable is False
+
+
+def test_feature_value_is_not_recursively_frozen():
+    # Arrange: Create a feature with a caller-owned arbitrary payload.
+    value = {"entries": [1]}
+    feature = Feature(
+        name="test.feature", value=value, unit=None, is_enabled=True, is_ready=True
+    )
+
+    # Act: Mutate the arbitrary value after construction.
+    value["entries"].append(2)
+
+    # Assert: The model collection contract does not recursively freeze Any values.
+    assert feature.value == {"entries": [1, 2]}
 
 
 def test_feature_writable():
@@ -59,7 +78,7 @@ def test_feature_writable():
     assert feature.control.min == 0
     assert feature.control.max == 100
     assert feature.control.value_type == "number"
-    assert feature.control.options == [1, 2]
+    assert feature.control.options == (1, 2)
 
 
 def test_device_dataclass():
@@ -85,6 +104,98 @@ def test_device_dataclass():
     assert dev.get_feature("f1") == f1
     assert dev.get_feature("f2") == f2
     assert dev.get_feature("missing") is None
+
+
+def test_device_features_are_immutable_and_keep_lookup_in_sync():
+    # Arrange: Build a device from a caller-owned mutable feature list.
+    first_feature = Feature(
+        name="f1", value=1, unit=None, is_enabled=True, is_ready=True
+    )
+    second_feature = Feature(
+        name="f2", value=2, unit=None, is_enabled=True, is_ready=True
+    )
+    input_features = [first_feature]
+    device = Device(
+        id="123",
+        gateway_serial="gw",
+        installation_id="inst",
+        model_id="TestModel",
+        device_type="test",
+        status="Online",
+        features=input_features,
+    )
+
+    # Act: Mutate the caller-owned collection after construction.
+    input_features.append(second_feature)
+
+    # Assert: The snapshot and its O(1) lookup remain consistent and read-only.
+    assert isinstance(device.features, Sequence)
+    assert not isinstance(device.features, list)
+    assert device.features == (first_feature,)
+    assert device.get_feature("f1") is first_feature
+    assert device.get_feature("f2") is None
+    assert isinstance(device._features_by_name, Mapping)
+    cache_attribute = "_features_by_name"
+    with pytest.raises(TypeError):
+        getattr(device, cache_attribute)["f2"] = second_feature
+
+
+def test_device_rejects_duplicate_feature_names():
+    # Arrange: Build two distinct features with the same documented identity.
+    duplicate_features = [
+        Feature(name="f1", value=1, unit=None, is_enabled=True, is_ready=True),
+        Feature(name="f1", value=2, unit=None, is_enabled=True, is_ready=True),
+    ]
+
+    # Act and assert: Direct invalid model construction is rejected.
+    with pytest.raises(ValueError, match="Duplicate feature name: f1"):
+        Device(
+            id="123",
+            gateway_serial="gw",
+            installation_id="inst",
+            model_id="TestModel",
+            device_type="test",
+            status="Online",
+            features=duplicate_features,
+        )
+
+
+def test_other_model_collections_are_immutable_snapshots():
+    # Arrange: Create models from caller-owned mutable collections.
+    required_params = ["target"]
+    options = ["eco"]
+    control = FeatureControl(
+        command_name="set",
+        param_name="target",
+        required_params=required_params,
+        parent_feature_name="parent",
+        uri="url",
+        options=options,
+    )
+    refreshed_devices = []
+    errors_by_device_id = {"device-1": ViError("unavailable")}
+    result = GatewayDeviceRefreshResult(refreshed_devices, errors_by_device_id)
+    address = {"city": "Berlin"}
+    installation = Installation("1", "Home", "Home", address)
+
+    # Act: Mutate the original collections after construction.
+    required_params.append("mode")
+    options.append("comfort")
+    refreshed_devices.append(Device("1", "gw", "inst", "model", "heating", "connected"))
+    errors_by_device_id["device-2"] = ViError("offline")
+    address["street"] = "Example Street"
+
+    # Assert: Each public collection is an immutable defensive copy.
+    assert control.required_params == ("target",)
+    assert control.options == ("eco",)
+    assert result.updated_devices == ()
+    assert list(result.errors_by_device_id) == ["device-1"]
+    assert installation.address == {"city": "Berlin"}
+    for collection in (result.errors_by_device_id, installation.address):
+        assert isinstance(collection, Mapping)
+        setitem_method = "__setitem__"
+        with pytest.raises((AttributeError, TypeError)):
+            getattr(collection, setitem_method)("changed", "value")
 
 
 def test_device_from_api():

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from .exceptions import ViError
@@ -15,7 +17,7 @@ class FeatureControl:
     Attributes:
         command_name: Name of the command to execute (e.g. 'setCurve').
         param_name: Name of the parameter mapping to this feature (e.g. 'slope').
-        required_params: List of all parameters required by this command.
+        required_params: Read-only parameter names required by this command.
             Used for dependency resolution (e.g. ['slope', 'shift']).
         parent_feature_name: Name of the parent feature in the API.
             Used to find sibling features during dependency resolution.
@@ -25,7 +27,7 @@ class FeatureControl:
         step: Step size (numeric constraint).
         value_type: Viessmann command parameter type, such as ``number`` or
             ``boolean``.
-        options: List of allowed values (enum constraint).
+        options: Read-only allowed values (enum constraint).
         min_length: Minimum length of string value.
         max_length: Maximum length of string value.
         pattern: Regex pattern for string validation.
@@ -33,17 +35,23 @@ class FeatureControl:
 
     command_name: str
     param_name: str
-    required_params: list[str]
+    required_params: Sequence[str]
     parent_feature_name: str
     uri: str
     min: float | None = None
     max: float | None = None
     step: float | None = None
     value_type: str | None = None
-    options: list[Any] | None = None
+    options: Sequence[Any] | None = None
     min_length: int | None = None
     max_length: int | None = None
     pattern: str | None = None
+
+    def __post_init__(self) -> None:
+        """Store caller-owned sequences as immutable snapshots."""
+        object.__setattr__(self, "required_params", tuple(self.required_params))
+        if self.options is not None:
+            object.__setattr__(self, "options", tuple(self.options))
 
 
 @dataclass(frozen=True)
@@ -83,7 +91,7 @@ class Device:
         model_id: Model identifier (e.g. 'Simple_Device').
         device_type: Type classification (e.g. 'heating').
         status: Connection status (e.g. 'Online').
-        features: List of all associated features.
+        features: Read-only associated features.
     """
 
     id: str
@@ -92,17 +100,27 @@ class Device:
     model_id: str
     device_type: str
     status: str
-    features: list[Feature] = field(default_factory=list)
+    features: Sequence[Feature] = field(default_factory=tuple)
 
     # Internal cache for O(1) lookup
-    _features_by_name: dict[str, Feature] = field(
-        init=False, repr=False, default_factory=dict
+    _features_by_name: Mapping[str, Feature] = field(
+        init=False, repr=False, default_factory=lambda: MappingProxyType({})
     )
 
     def __post_init__(self) -> None:
-        """Build internal cache."""
-        feature_map = {feature.name: feature for feature in self.features}
-        object.__setattr__(self, "_features_by_name", feature_map)
+        """Store features and their lookup cache as immutable snapshots.
+
+        Raises:
+            ValueError: If more than one feature has the same name.
+        """
+        features = tuple(self.features)
+        feature_map: dict[str, Feature] = {}
+        for feature in features:
+            if feature.name in feature_map:
+                raise ValueError(f"Duplicate feature name: {feature.name}")
+            feature_map[feature.name] = feature
+        object.__setattr__(self, "features", features)
+        object.__setattr__(self, "_features_by_name", MappingProxyType(feature_map))
 
     def get_feature(self, name: str) -> Feature | None:
         """O(1) lookup helper.
@@ -150,8 +168,17 @@ class GatewayDeviceRefreshResult:
         errors_by_device_id: Device-specific failures keyed by device ID.
     """
 
-    updated_devices: list[Device]
-    errors_by_device_id: dict[str, ViError]
+    updated_devices: Sequence[Device]
+    errors_by_device_id: Mapping[str, ViError]
+
+    def __post_init__(self) -> None:
+        """Store caller-owned collections as immutable snapshots."""
+        object.__setattr__(self, "updated_devices", tuple(self.updated_devices))
+        object.__setattr__(
+            self,
+            "errors_by_device_id",
+            MappingProxyType(dict(self.errors_by_device_id)),
+        )
 
     @property
     def is_complete(self) -> bool:
@@ -204,13 +231,17 @@ class Installation:
         id: Unique installation ID (numeric string).
         description: User-provided description.
         alias: User-provided alias.
-        address: Physical address dictionary.
+        address: Read-only physical address mapping.
     """
 
     id: str
     description: str
     alias: str
-    address: dict[str, Any] = field(default_factory=dict)
+    address: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Store caller-owned address data as an immutable snapshot."""
+        object.__setattr__(self, "address", MappingProxyType(dict(self.address)))
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> Installation:
