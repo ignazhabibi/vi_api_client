@@ -122,6 +122,20 @@ if response.success:
     response, device = await client.set_feature(device, shift_feature, 7.0)
 ```
 
+### `execute_command(feature: Feature, parameters: dict[str, Any]) -> CommandResponse`
+
+Executes an explicit command parameter set for a writable feature. Unlike
+`set_feature`, this operation does not resolve dependencies, validate against
+the feature's single-value constraints, or update a `Device`: every supplied
+parameter is sent unchanged.
+
+Use it only when the caller already has the complete command payload, such as
+an advanced integration writing both heating-curve values at once.
+
+```python
+response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})
+```
+
 ## Next Steps
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.

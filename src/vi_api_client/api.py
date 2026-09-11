@@ -6,6 +6,7 @@ from dataclasses import replace
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from ._commands import _CommandAdapter, _LiveCommandAdapter
 from ._discovery import _DiscoveryAdapter, _LiveDiscoveryAdapter
 from .auth import AbstractAuth
 from .connection import ViConnector
@@ -42,6 +43,7 @@ class ViClient:
         self._discovery_adapter: _DiscoveryAdapter = _LiveDiscoveryAdapter(
             self.connector
         )
+        self._command_adapter: _CommandAdapter = _LiveCommandAdapter(self.connector)
 
     async def get_installations(self) -> list[Installation]:
         """Get list of installations.
@@ -297,10 +299,11 @@ class ViClient:
         Raises:
             ValueError: If feature is read-only or value is out of bounds.
         """
-        if not feature.control:
+        if not feature.is_writable:
             raise ValueError(f"Feature '{feature.name}' is read-only.")
 
         control = feature.control
+        assert control is not None
         _LOGGER.debug(
             "Setting %s to %s via %s",
             feature.name,
@@ -333,6 +336,29 @@ class ViClient:
         # Return unchanged device on failure
         return response, device
 
+    async def execute_command(
+        self, feature: Feature, parameters: dict[str, Any]
+    ) -> CommandResponse:
+        """Execute an explicit feature command without changing its parameters.
+
+        Args:
+            feature: A writable feature that identifies the command endpoint.
+            parameters: Complete command parameters to send exactly as supplied.
+
+        Returns:
+            The command response from the API.
+
+        Raises:
+            ValueError: If the feature is read-only.
+        """
+        if not feature.is_writable:
+            raise ValueError(f"Feature '{feature.name}' is read-only.")
+
+        control = feature.control
+        assert control is not None
+        _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
+        return await self._execute_command(control, parameters)
+
     # ------------------------------------------------------------------
     # Private Helper Methods
     # ------------------------------------------------------------------
@@ -354,19 +380,21 @@ class ViClient:
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, Any]
     ) -> CommandResponse:
-        """Execute a feature command through the live API connector.
-
-        Subclasses can override this boundary to provide alternative command
-        execution without changing validation or optimistic device updates.
+        """Execute a feature command through the configured command adapter.
 
         Args:
             control: The feature control describing the command endpoint.
-            payload: The resolved command parameters.
+            payload: The command parameters to send.
 
         Returns:
             The parsed command response.
         """
-        response_data = await self.connector.post(control.uri, payload)
+        response_data = await self._command_adapter.execute_command(control, payload)
+        if not isinstance(response_data, dict):
+            raise ViResponseError("Command response must be an object")
+        response = response_data.get("data", response_data)
+        if not isinstance(response, dict):
+            raise ViResponseError("Command response data must be an object")
         return CommandResponse.from_api(response_data)
 
     @staticmethod

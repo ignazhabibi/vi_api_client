@@ -3,11 +3,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
+from ._commands import _CommandAdapter
 from ._discovery import _DiscoveryAdapter
 from .api import ViClient
 from .auth import AbstractAuth
 from .models import (
-    CommandResponse,
     Device,
     FeatureControl,
     GatewayDeviceRefreshResult,
@@ -74,6 +74,21 @@ class _FixtureDiscoveryAdapter:
         return self._feature_data
 
 
+class _FixtureCommandAdapter:
+    """Return deterministic command responses without modifying fixtures."""
+
+    async def execute_command(
+        self, control: FeatureControl, parameters: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Return a successful fixture command response."""
+        print(
+            f"[MOCK] Executing command '{control.command_name}' for feature "
+            f"'{control.parent_feature_name}' (param: {control.param_name}) "
+            f"with params: {parameters}"
+        )
+        return {"data": {"success": True, "reason": "Mock Execution Success"}}
+
+
 # Mapping of fixture names to device types
 # This provides consistent device_type values for mock devices
 DEVICE_TYPE_MAP: dict[str, str] = {
@@ -108,6 +123,7 @@ class MockViClient(ViClient):
         self._discovery_adapter: _DiscoveryAdapter = _FixtureDiscoveryAdapter(
             device_name
         )
+        self._command_adapter: _CommandAdapter = _FixtureCommandAdapter()
 
     @staticmethod
     def get_available_mock_devices() -> list[str]:
@@ -148,24 +164,3 @@ class MockViClient(ViClient):
             ]
             updated_devices.append(replace(device, features=enabled_and_ready_features))
         return GatewayDeviceRefreshResult(updated_devices, {})
-
-    async def _execute_command(
-        self,
-        control: FeatureControl,
-        payload: dict[str, Any],
-    ) -> CommandResponse:
-        """Mock execution of a command (Success).
-
-        Args:
-            control: The feature control block being executed.
-            payload: Validated parameters for the command.
-
-        Returns:
-            A CommandResponse indicating success.
-        """
-        print(
-            f"[MOCK] Executing command '{control.command_name}' for feature "
-            f"'{control.parent_feature_name}' (param: {control.param_name}) "
-            f"with params: {payload}"
-        )
-        return CommandResponse(success=True, reason="Mock Execution Success")
