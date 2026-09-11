@@ -39,6 +39,17 @@ class MockAuth(AbstractAuth):
         return self._access_token
 
 
+@pytest.mark.asyncio
+async def test_live_client_hides_raw_transport_access():
+    """Live clients should expose only typed client workflows."""
+    # Arrange: Construct the client with an authenticated request provider.
+    async with aiohttp.ClientSession() as session:
+        client = ViClient(MockAuth(session))
+
+        # Assert: The former raw connector is not part of the client contract.
+        assert not hasattr(client, "connector")
+
+
 def _build_gateway_device(device_id: str) -> Device:
     """Build a device for gateway-scoped refresh tests."""
     return Device(

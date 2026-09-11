@@ -2,10 +2,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from ._commands import _CommandAdapter
-from ._discovery import _DiscoveryAdapter
+from ._adapter import _CommandAdapter, _DiscoveryAdapter
 from .api import ViClient
-from .auth import AbstractAuth
 from .models import (
     Device,
     FeatureControl,
@@ -115,13 +113,12 @@ class MockViClient(ViClient):
     Useful for testing, CLI usage without credentials, and development.
     """
 
-    def __init__(self, device_name: str, auth: AbstractAuth | None = None) -> None:
+    def __init__(self, device_name: str) -> None:
         """Initialize the mock client.
 
         Args:
             device_name: The name of the mock device (e.g. "Vitodens200W").
                 Must correspond to a file in the fixtures directory.
-            auth: Ignored compatibility argument; mock clients do not authenticate.
         """
         self.device_name = device_name
         self._discovery_adapter: _DiscoveryAdapter = _FixtureDiscoveryAdapter(

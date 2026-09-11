@@ -6,10 +6,8 @@ from dataclasses import replace
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
-from ._commands import _CommandAdapter, _LiveCommandAdapter
-from ._discovery import _DiscoveryAdapter, _LiveDiscoveryAdapter
+from ._adapter import _CommandAdapter, _DiscoveryAdapter, _LiveAdapter
 from .auth import AbstractAuth
-from .connection import ViConnector
 from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
@@ -26,11 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ViClient:
-    """Client for Viessmann Climate Solutions API.
-
-    Attributes:
-        connector: Example connector instance handling auth and HTTP requests.
-    """
+    """Client for Viessmann Climate Solutions API."""
 
     def __init__(self, auth: AbstractAuth) -> None:
         """Initialize the client.
@@ -38,11 +32,9 @@ class ViClient:
         Args:
             auth: Authentication handler providing the access token.
         """
-        self.connector = ViConnector(auth)
-        self._discovery_adapter: _DiscoveryAdapter = _LiveDiscoveryAdapter(
-            self.connector
-        )
-        self._command_adapter: _CommandAdapter = _LiveCommandAdapter(self.connector)
+        live_adapter = _LiveAdapter(auth)
+        self._discovery_adapter: _DiscoveryAdapter = live_adapter
+        self._command_adapter: _CommandAdapter = live_adapter
 
     async def get_installations(self) -> list[Installation]:
         """Get list of installations.

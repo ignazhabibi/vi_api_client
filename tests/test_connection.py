@@ -1,4 +1,4 @@
-"""Tests for Vi API connection handling."""
+"""Tests for private live adapter HTTP and authentication behavior."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -6,9 +6,9 @@ import aiohttp
 import pytest
 from aioresponses import aioresponses
 
+from vi_api_client._adapter import _LiveAdapter
 from vi_api_client.auth import AbstractAuth
-from vi_api_client.connection import ViConnector
-from vi_api_client.const import API_BASE_URL
+from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
 from vi_api_client.exceptions import (
     ViAuthError,
     ViConnectionError,
@@ -46,7 +46,7 @@ class _StaticAuth(AbstractAuth):
 
 
 @pytest.mark.asyncio
-async def test_connector_preserves_external_oauth_error() -> None:
+async def test_live_adapter_preserves_external_oauth_error() -> None:
     """External OAuth errors should reach the caller unchanged."""
     # Arrange: Configure auth to raise a response-shaped external OAuth error.
     oauth_error = _ExternalOAuthError(
@@ -56,26 +56,26 @@ async def test_connector_preserves_external_oauth_error() -> None:
         message="Refresh token rejected",
         headers=MagicMock(),
     )
-    connector = ViConnector(_RaisingAuth(oauth_error))
+    adapter = _LiveAdapter(_RaisingAuth(oauth_error))
 
-    # Act and assert: The connector should preserve the provider-owned exception.
+    # Act and assert: The adapter should preserve the provider-owned exception.
     with pytest.raises(_ExternalOAuthError) as raised_error:
-        await connector.get("/installations")
+        await adapter.get_installations()
     assert raised_error.value is oauth_error
 
 
 @pytest.mark.asyncio
-async def test_connector_wraps_aiohttp_connection_error() -> None:
+async def test_live_adapter_wraps_aiohttp_connection_error() -> None:
     """Aiohttp connection failures should remain library connection errors."""
     # Arrange: Configure the HTTP session to fail while opening the connection.
     connection_error = aiohttp.ClientConnectionError("Network unavailable")
     websession = MagicMock(spec=aiohttp.ClientSession)
     websession.request = AsyncMock(side_effect=connection_error)
-    connector = ViConnector(_StaticAuth(websession))
+    adapter = _LiveAdapter(_StaticAuth(websession))
 
-    # Act and assert: The connector should expose the library transport exception.
+    # Act and assert: The adapter should expose the library transport exception.
     with pytest.raises(ViConnectionError) as raised_error:
-        await connector.get("/installations")
+        await adapter.get_installations()
     assert raised_error.value.__cause__ is connection_error
 
 
@@ -92,11 +92,11 @@ async def test_connector_wraps_aiohttp_connection_error() -> None:
     ],
 )
 @pytest.mark.asyncio
-async def test_connector_preserves_viessmann_error_type(
+async def test_live_adapter_preserves_viessmann_error_type(
     status: int, expected_error: type[ViError]
 ) -> None:
     # Arrange: Return a structured Viessmann error from the HTTP boundary.
-    url = f"{API_BASE_URL}/features"
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
     payload = {
         "errorType": "DEVICE_COMMUNICATION_ERROR",
         "message": "Device communication failed",
@@ -106,11 +106,11 @@ async def test_connector_preserves_viessmann_error_type(
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=payload, status=status)
         async with aiohttp.ClientSession() as session:
-            connector = ViConnector(_StaticAuth(session))
+            adapter = _LiveAdapter(_StaticAuth(session))
 
             # Act and assert: The public exception retains API classification data.
             with pytest.raises(expected_error) as raised_error:
-                await connector.get("/features")
+                await adapter.get_installations()
             assert raised_error.value.error_id == "error-123"
             assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
 
