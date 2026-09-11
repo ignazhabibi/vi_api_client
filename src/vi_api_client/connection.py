@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+import aiohttp
+
 from .auth import AbstractAuth
 from .const import API_BASE_URL
 from .exceptions import (
@@ -10,6 +12,7 @@ from .exceptions import (
     ViError,
     ViNotFoundError,
     ViRateLimitError,
+    ViResponseError,
     ViServerInternalError,
     ViValidationError,
 )
@@ -114,8 +117,10 @@ class ViConnector:
             # Verify response status and raise exceptions if needed.
             await _raise_for_status(response)
 
-            # Return parsed JSON for success.
+            # Successful API responses must still satisfy the JSON contract.
             try:
                 return await response.json()
-            except Exception:
-                return {}
+            except (aiohttp.ClientError, ValueError) as error:
+                raise ViResponseError(
+                    "Successful API response was not valid JSON"
+                ) from error

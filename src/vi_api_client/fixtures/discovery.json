@@ -1,0 +1,24 @@
+{
+  "installations": {
+    "data": [
+      {
+        "id": "99999",
+        "description": "Mock Installation ({device_name})",
+        "alias": "Mock Home",
+        "address": {
+          "city": "Mock City"
+        }
+      }
+    ]
+  },
+  "gateways": {
+    "data": [
+      {
+        "serial": "MOCK_GATEWAY_SERIAL",
+        "version": "1.0.0",
+        "status": "connected",
+        "installationId": "99999"
+      }
+    ]
+  }
+}
