@@ -1,6 +1,7 @@
 """Tests for vitoclient.api module (Flat Architecture)."""
 
 import re
+from copy import deepcopy
 from dataclasses import replace
 
 import aiohttp
@@ -615,6 +616,45 @@ async def test_get_features(load_fixture_json):
             assert features[0].name == "heating.sensors.temperature.outside"
             assert features[0].value == 5.5
             assert features[1].name == "heating.circuits.0.active"
+
+
+@pytest.mark.asyncio
+async def test_get_features_applies_enabled_ready_and_name_filters_after_response(
+    load_fixture_json,
+):
+    """Live feature filtering should not rely only on server-side filter hints."""
+    # Arrange: Return requested, disabled, and not-ready features despite filter hints.
+    data = deepcopy(load_fixture_json("features_heating_sensors.json"))
+    data["data"][0]["isEnabled"] = False
+    not_ready_feature = deepcopy(data["data"][1])
+    not_ready_feature["feature"] = "test.notReady"
+    not_ready_feature["isEnabled"] = True
+    not_ready_feature["isReady"] = False
+    data["data"].append(not_ready_feature)
+    device = Device(
+        id="0",
+        gateway_serial="1234567890",
+        installation_id="123456",
+        model_id="test",
+        device_type="heating",
+        status="ok",
+    )
+    url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/123456/gateways/1234567890/devices/0/features/filter"
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act: Ask for a specific enabled and ready feature.
+            features = await client.get_features(
+                device,
+                only_enabled=True,
+                feature_names=["heating.circuits.0.active", "test.notReady.active"],
+            )
+
+    # Assert: Client-side filtering enforces the public semantics.
+    assert [feature.name for feature in features] == ["heating.circuits.0.active"]
 
 
 @pytest.mark.asyncio

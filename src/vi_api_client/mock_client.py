@@ -9,35 +9,69 @@ from .auth import AbstractAuth
 from .models import (
     CommandResponse,
     Device,
-    Feature,
     FeatureControl,
     GatewayDeviceRefreshResult,
 )
-from .parsing import parse_feature_flat
 
 
 class _FixtureDiscoveryAdapter:
-    """Return deterministic discovery envelopes without authentication or HTTP."""
+    """Return deterministic client envelopes without authentication or HTTP."""
 
     def __init__(self, device_name: str) -> None:
         """Initialize the adapter for a selected fixture device."""
         self._device_name = device_name
         fixture_path = Path(__file__).parent / "fixtures" / "discovery.json"
         with fixture_path.open(encoding="utf-8") as file:
-            self._data = cast(dict[str, dict[str, Any]], json.load(file))
+            self._discovery_data = cast(dict[str, dict[str, Any]], json.load(file))
+        self._feature_data: dict[str, Any] | None = None
 
     async def get_installations(self) -> dict[str, Any]:
         """Return the mock installation envelope."""
-        envelope = self._data["installations"]
-        installation = envelope["data"][0]
-        installation["description"] = installation["description"].format(
-            device_name=self._device_name
-        )
-        return envelope
+        return {
+            "data": [
+                {
+                    **self._discovery_data["installations"]["data"][0],
+                    "description": self._discovery_data["installations"]["data"][0][
+                        "description"
+                    ].format(device_name=self._device_name),
+                }
+            ]
+        }
 
     async def get_gateways(self) -> dict[str, Any]:
         """Return the mock gateway envelope."""
-        return self._data["gateways"]
+        return self._discovery_data["gateways"]
+
+    async def get_devices(
+        self, installation_id: str, gateway_serial: str
+    ) -> dict[str, Any]:
+        """Return the selected fixture as one deterministic device."""
+        return {
+            "data": [
+                {
+                    "id": "0",
+                    "modelId": self._device_name,
+                    "deviceType": DEVICE_TYPE_MAP.get(self._device_name, "heating"),
+                    "status": "connected",
+                }
+            ]
+        }
+
+    async def get_features(
+        self, device: Device, payload: dict[str, bool | list[str]]
+    ) -> dict[str, Any]:
+        """Return the selected fixture's raw feature envelope."""
+        return self._load_feature_data()
+
+    def _load_feature_data(self) -> dict[str, Any]:
+        """Load the selected fixture feature envelope once."""
+        if self._feature_data is None:
+            fixture_path = (
+                Path(__file__).parent / "fixtures" / f"{self._device_name}.json"
+            )
+            with fixture_path.open(encoding="utf-8") as file:
+                self._feature_data = cast(dict[str, Any], json.load(file))
+        return self._feature_data
 
 
 # Mapping of fixture names to device types
@@ -74,7 +108,6 @@ class MockViClient(ViClient):
         self._discovery_adapter: _DiscoveryAdapter = _FixtureDiscoveryAdapter(
             device_name
         )
-        self._data_cache = None
 
     @staticmethod
     def get_available_mock_devices() -> list[str]:
@@ -88,95 +121,6 @@ class MockViClient(ViClient):
             for file in fixtures_dir.glob("*.json")
             if file.stem != "discovery"
         )
-
-    def _load_data(self) -> dict[str, Any]:
-        """Load the JSON data for the selected device.
-
-        Returns:
-            The parsed JSON data as a dictionary.
-
-        Raises:
-            FileNotFoundError: If the fixture file does not exist.
-        """
-        if self._data_cache:
-            return self._data_cache
-
-        fixtures_dir = Path(__file__).parent / "fixtures"
-        file_path = fixtures_dir / f"{self.device_name}.json"
-
-        if not file_path.exists():
-            raise FileNotFoundError(
-                f"Mock device file not found: {self.device_name}.json. "
-                f"Available: {self.get_available_mock_devices()}"
-            )
-
-        with file_path.open(encoding="utf-8") as file:
-            self._data_cache = json.load(file)
-
-        return self._data_cache
-
-    async def get_devices(
-        self,
-        installation_id: str,
-        gateway_serial: str,
-        include_features: bool = False,
-        only_active_features: bool = False,
-    ) -> list[Device]:
-        """Return the mocked device as a typed model."""
-        device = Device(
-            id="0",
-            gateway_serial=gateway_serial,
-            installation_id=installation_id,
-            model_id=self.device_name,
-            device_type=DEVICE_TYPE_MAP.get(self.device_name, "heating"),
-            status="connected",
-        )
-
-        if include_features:
-            features = await self.get_features(
-                device, only_enabled=only_active_features
-            )
-            device = replace(device, features=features)
-
-        return [device]
-
-    async def get_features(
-        self,
-        device: Device,
-        only_enabled: bool = False,
-        feature_names: list[str] | None = None,
-    ) -> list[Feature]:
-        """Return the list of features from the loaded JSON file.
-
-        Args:
-            device: The device object (context).
-            only_enabled: If True, only return enabled features.
-            feature_names: Optional whitelist of feature names.
-
-        Returns:
-            List of flattened Feature objects.
-        """
-        data = self._load_data()
-        raw_features = data.get("data", [])
-
-        # Parse ALL features to flat list
-        all_features = []
-        for raw_feature in raw_features:
-            all_features.extend(parse_feature_flat(raw_feature))
-
-        # Filter
-        filtered = []
-        for feature in all_features:
-            if only_enabled and not feature.is_enabled:
-                continue
-
-            # Strict name matching (assuming feature_names are flat names)
-            if feature_names and feature.name not in feature_names:
-                continue
-
-            filtered.append(feature)
-
-        return filtered
 
     async def update_gateway_devices(
         self, devices: list[Device]
