@@ -2,6 +2,21 @@
 
 This section details the core data models used in the `vi_api_client` library.
 
+Import public models and helpers from the package root:
+
+```python
+from vi_api_client import (
+    CommandResponse,
+    Device,
+    Feature,
+    FeatureControl,
+    Gateway,
+    GatewayDeviceRefreshResult,
+    Installation,
+    format_feature,
+)
+```
+
 ## Installation
 
 Represents an installation site (House).
@@ -59,7 +74,7 @@ The core unit of information. A feature represents a single property (Sensor) or
 To format a feature value for display with units:
 
 ```python
-from vi_api_client.utils import format_feature
+from vi_api_client import format_feature
 
 print(format_feature(feature))  # "25.5 celsius"
 ```

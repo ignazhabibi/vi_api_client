@@ -15,6 +15,42 @@ Designed for integration with Home Assistant and other async Python applications
 - **Mock Client**: Runs the same client workflows against bundled real-device
   responses without authentication, sessions, or network requests.
 
+## Public API
+
+Import consumer-facing symbols from `vi_api_client`:
+
+```python
+from vi_api_client import (
+    AbstractAuth,
+    CommandResponse,
+    DEFAULT_SCOPES,
+    Device,
+    ENDPOINT_AUTHORIZE,
+    ENDPOINT_TOKEN,
+    Feature,
+    FeatureControl,
+    Gateway,
+    GatewayDeviceRefreshResult,
+    Installation,
+    MockViClient,
+    OAuth,
+    ViAuthError,
+    ViClient,
+    ViConnectionError,
+    ViError,
+    ViNotFoundError,
+    ViRateLimitError,
+    ViResponseError,
+    ViServerInternalError,
+    ViValidationError,
+    format_feature,
+)
+```
+
+`DEFAULT_SCOPES`, `ENDPOINT_AUTHORIZE`, and `ENDPOINT_TOKEN` support external
+OAuth integrations. CLI helpers, transport details, persistence, parsing, and
+utilities such as `mask_pii` remain available from their dedicated modules.
+
 ## Installation
 
 This is currently a local development package. **Requires Python 3.14+**.

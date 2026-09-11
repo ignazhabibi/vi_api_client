@@ -2,6 +2,7 @@
 
 from .api import ViClient
 from .auth import AbstractAuth, OAuth
+from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
 from .exceptions import (
     ViAuthError,
     ViConnectionError,
@@ -13,14 +14,29 @@ from .exceptions import (
     ViValidationError,
 )
 from .mock_client import MockViClient
-from .models import Device, Feature, GatewayDeviceRefreshResult
-from .utils import mask_pii
+from .models import (
+    CommandResponse,
+    Device,
+    Feature,
+    FeatureControl,
+    Gateway,
+    GatewayDeviceRefreshResult,
+    Installation,
+)
+from .utils import format_feature
 
 __all__ = [
+    "DEFAULT_SCOPES",
+    "ENDPOINT_AUTHORIZE",
+    "ENDPOINT_TOKEN",
     "AbstractAuth",
+    "CommandResponse",
     "Device",
     "Feature",
+    "FeatureControl",
+    "Gateway",
     "GatewayDeviceRefreshResult",
+    "Installation",
     "MockViClient",
     "OAuth",
     "ViAuthError",
@@ -32,5 +48,5 @@ __all__ = [
     "ViResponseError",
     "ViServerInternalError",
     "ViValidationError",
-    "mask_pii",
+    "format_feature",
 ]

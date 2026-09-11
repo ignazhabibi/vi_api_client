@@ -59,6 +59,13 @@ while sending the authenticated API request are exposed as `ViConnectionError`.
 
 Implements the OAuth2 PKCE flow (Proof Key for Code Exchange). This is the standard flow for Viessmann API.
 
+External OAuth integrations can import the default scope and authorization
+endpoints from the package root:
+
+```python
+from vi_api_client import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
+```
+
 ```python
 from vi_api_client import OAuth
 ```
