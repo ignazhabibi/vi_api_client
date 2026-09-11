@@ -360,13 +360,13 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
 
 
 @pytest.mark.asyncio
-async def test_cmd_exec_success(mock_cli_context, capsys):
-    """Test successful command execution via CLI (Legacy/Advanced)."""
+async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
+    """CLI executes every explicitly supplied advanced command parameter."""
     # Arrange: Create mock client, device, and fixture data for test.
     args = Namespace(
         feature_name="heating.curve.slope",
         command_name="setCurve",
-        params=["slope=1.4"],
+        params=["slope=1.4", "shift=0"],
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
@@ -401,16 +401,7 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
     mock_response.success = True
     mock_response.message = "OK"
     mock_response.reason = None
-    # Return tuple (response, device)
-    mock_device = Device(
-        id="DEV1",
-        gateway_serial="GW1",
-        installation_id="99",
-        model_id="Test",
-        device_type="heating",
-        status="ok",
-    )
-    mock_cli_context.client.set_feature.return_value = (mock_response, mock_device)
+    mock_cli_context.client.execute_command.return_value = mock_response
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -427,12 +418,10 @@ async def test_cmd_exec_success(mock_cli_context, capsys):
         assert args_list[0].id == "DEV1"
         assert mock_cli_context.client.get_features.call_args[1] == {}
 
-        # Should call set_feature
-        mock_cli_context.client.set_feature.assert_called()
-        # Verify call args for set_feature: (device, feature, value)
-        call_args_set = mock_cli_context.client.set_feature.call_args[0]
-        assert call_args_set[0].get_feature("heating.curve.slope") is mock_feature
-        assert call_args_set[2] == 1.4  # Value parsed from float
+        mock_cli_context.client.execute_command.assert_awaited_once_with(
+            mock_feature, {"slope": 1.4, "shift": 0}
+        )
+        mock_cli_context.client.set_feature.assert_not_called()
 
         # Verify output
         captured = capsys.readouterr()
@@ -537,7 +526,7 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     # If parsing fails to produce float, it might pass string to set_feature if logic allows,
     # OR if parse_cli_params works (it does strings).
     # "slope=invalid" -> params_dict={"slope": "invalid"} -> target_val="invalid"
-    mock_cli_context.client.set_feature.side_effect = error
+    mock_cli_context.client.execute_command.side_effect = error
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context

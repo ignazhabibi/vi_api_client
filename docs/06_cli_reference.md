@@ -91,6 +91,10 @@ If you need to execute a command with multiple parameters at once (rare), you ca
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
+`exec` sends every supplied parameter as one explicit command. It does not add
+dependent values or optimistically update a device; use `set` for the normal
+single-feature workflow.
+
 ## 8. Mock Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
 Mock mode does not read OAuth credentials or `tokens.json` and never makes network

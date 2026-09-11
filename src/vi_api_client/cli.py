@@ -8,7 +8,7 @@ import math
 import os
 import sys
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -515,16 +515,19 @@ async def cmd_exec(args) -> bool:  # noqa: PLR0911
             target = await _fetch_target_feature(ctx, args.feature_name)
             if target is None:
                 return False
-            device, feature = target
+            _device, feature = target
 
-            if not feature.control:
+            if not feature.is_writable:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
                 return False
 
+            control = feature.control
+            assert control is not None
+
             # 3. Validate Command Name
-            if feature.control.command_name != args.command_name:
+            if control.command_name != args.command_name:
                 print(
-                    f"Warning: Feature expects command '{feature.control.command_name}'"
+                    f"Warning: Feature expects command '{control.command_name}'"
                     f", but you specified '{args.command_name}'."
                 )
                 print("Error: Features only expose their primary control command.")
@@ -532,23 +535,9 @@ async def cmd_exec(args) -> bool:  # noqa: PLR0911
 
             print(f"Executing '{args.command_name}' on {feature.name}...")
 
-            # 4. Determine Value
-            target_val = _determine_target_value(args.params, params_dict, feature)
-
-            # 5. Execute
-            if target_val is not None:
-                print(f"Using high-level set_feature(target={target_val})...")
-                result, _updated_device = await ctx.client.set_feature(
-                    device,
-                    feature,
-                    target_val,
-                )
-            else:
-                print(f"Using low-level POST with params: {params_dict}")
-                result = await ctx.client.connector.post(
-                    feature.control.uri, params_dict
-                )
-                result = CommandResponse.from_api(result)
+            # 4. Execute the explicitly supplied parameter set unchanged.
+            print(f"Using execute_command with params: {params_dict}")
+            result = await ctx.client.execute_command(feature, params_dict)
 
             return _print_command_result(result)
 
@@ -587,25 +576,6 @@ def _transient_device(ctx: CLIContext) -> Device:
         device_type="unknown",
         status="online",
     )
-
-
-def _determine_target_value(
-    raw_params: list[str], params_dict: dict[str, Any], feature: Any
-) -> Any | None:
-    """Determine the target value from CLI params."""
-    # Try from dict
-    val = params_dict.get(feature.control.param_name)
-    if val is not None:
-        return val
-
-    # Try raw scalar
-    if raw_params and len(raw_params) == 1 and "=" not in raw_params[0]:
-        raw_arg = raw_params[0]
-        with suppress(ValueError):
-            return float(raw_arg)
-        return raw_arg
-
-    return None
 
 
 def _print_command_result(result: CommandResponse) -> bool:

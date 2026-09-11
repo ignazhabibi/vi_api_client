@@ -58,3 +58,22 @@ async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
 
     # Assert: Shared filtering retains the requested enabled and ready feature only.
     assert [feature.name for feature in features] == ["device.serial"]
+
+
+@pytest.mark.asyncio
+async def test_mock_execute_command_is_offline_and_stateless():
+    """Mock command execution should not alter the loaded fixture features."""
+    # Arrange: Load a writable fixture feature through the public workflow.
+    client = MockViClient("Vitocal250A")
+    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
+    device = await client.update_device(device)
+    feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+    assert feature is not None
+
+    # Act: Execute a command with an explicit payload.
+    response = await client.execute_command(feature, {"slope": 0.7, "shift": 7.0})
+
+    # Assert: The response is deterministic and the fixture-derived value is unchanged.
+    assert response.success
+    assert response.reason == "Mock Execution Success"
+    assert feature.value == 0.6

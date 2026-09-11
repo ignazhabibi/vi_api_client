@@ -1027,6 +1027,92 @@ async def test_set_feature_returns_updated_device(load_fixture_json):
 
 
 @pytest.mark.asyncio
+async def test_execute_command_preserves_explicit_parameters(load_fixture_json):
+    """Execute an explicit command without enriching its parameter payload."""
+    # Arrange: Load a writable feature and configure its command endpoint.
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+    parameters = {"slope": 0.7, "shift": 7.0}
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
+        mock_responses.post(command_url, payload={"data": {"success": True}})
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+            device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="Vitocal250A",
+                device_type="heatpump",
+                status="Online",
+            )
+            device = replace(device, features=await client.get_features(device))
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
+
+            # Act: Submit the caller's complete parameter set.
+            response = await client.execute_command(slope_feature, parameters)
+
+            # Assert: The adapter sends the supplied parameters unchanged.
+            assert response.success
+            found_call = next(
+                call
+                for (method, url), calls in mock_responses.requests.items()
+                if method == "POST" and str(url) == command_url
+                for call in calls
+            )
+            assert found_call.kwargs["json"] == parameters
+
+
+@pytest.mark.asyncio
+async def test_execute_command_rejects_malformed_success_response(load_fixture_json):
+    """Translate malformed successful command responses into library errors."""
+    # Arrange: Return a valid JSON value that violates the command response contract.
+    fixtures_data = load_fixture_json("feature_heating_curve.json")
+    install_id = "123"
+    gw_serial = "GW123"
+    device_id = "0"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
+        mock_responses.post(command_url, payload=["unexpected"])
+
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+            device = Device(
+                id=device_id,
+                gateway_serial=gw_serial,
+                installation_id=install_id,
+                model_id="Vitocal250A",
+                device_type="heatpump",
+                status="Online",
+            )
+            device = replace(device, features=await client.get_features(device))
+            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
+            assert slope_feature is not None
+
+            # Act and assert: The public client exposes a library exception.
+            with pytest.raises(
+                ViResponseError, match="Command response must be an object"
+            ):
+                await client.execute_command(slope_feature, {"slope": 0.7})
+
+
+@pytest.mark.asyncio
 async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json):
     """Verify device unchanged on command failure."""
     # Arrange: Load fixture and mock API failure.
