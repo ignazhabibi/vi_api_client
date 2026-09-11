@@ -13,6 +13,13 @@ Designed for integration with Home Assistant and other async Python applications
 - **Command Execution**: Supports writing values with automatic parameter resolution (e.g. `setCurve`).
 - **Mock Client**: Includes a robust `MockViClient` for offline development and testing.
 
+## Next Major Release
+
+The next major release will remove the deprecated Analytics API:
+`ViClient.get_consumption`, `MockViClient.get_consumption`, and the
+`vi-client get-consumption` command. Read consumption through Devices API features such as
+`heating.power.consumption.total` and their existing flattened aliases instead.
+
 ## Installation
 
 This is currently a local development package. **Requires Python 3.14+**.

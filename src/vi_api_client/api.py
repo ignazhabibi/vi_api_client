@@ -2,17 +2,13 @@
 
 import logging
 import re
-import warnings
 from dataclasses import replace
-from datetime import datetime
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
-from .analytics import parse_consumption_response, resolve_properties
 from .auth import AbstractAuth
 from .connection import ViConnector
 from .const import (
-    ENDPOINT_ANALYTICS_THERMAL,
     ENDPOINT_FEATURES,
     ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
@@ -327,58 +323,6 @@ class ViClient:
 
         # Return unchanged device on failure
         return response, device
-
-    async def get_consumption(
-        self,
-        device: Device,
-        start_dt: datetime | str,
-        end_dt: datetime | str,
-        metric: str = "summary",
-        resolution: str = "1d",
-    ) -> list[Feature]:
-        """Fetch aggregated energy consumption.
-
-        .. deprecated:: 1.x
-            The get_consumption method and analytics API are deprecated and will be
-            removed in a future major release.
-
-        Args:
-            device: The device to fetch data for.
-            start_dt: Start time (datetime or ISO string).
-            end_dt: End time (datetime or ISO string).
-            metric: The data metric to fetch (e.g. 'summary', 'dhw').
-            resolution: Data resolution (default: '1d').
-
-        Returns:
-            List of features representing the consumption data.
-        """
-        warnings.warn(
-            "The get_consumption method and Analytics API are deprecated "
-            "and will be removed in a future major version.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        # Ensure string format
-        if isinstance(start_dt, datetime):
-            start_dt = start_dt.isoformat()
-        if isinstance(end_dt, datetime):
-            end_dt = end_dt.isoformat()
-
-        properties = resolve_properties(metric)
-
-        payload = {
-            "gateway_id": device.gateway_serial,
-            "device_id": str(device.id),
-            "start_datetime": start_dt,
-            "end_datetime": end_dt,
-            "properties": properties,
-            "resolution": resolution,
-        }
-
-        data = await self.connector.post(ENDPOINT_ANALYTICS_THERMAL, payload)
-
-        return parse_consumption_response(data, properties)
 
     # ------------------------------------------------------------------
     # Private Helper Methods

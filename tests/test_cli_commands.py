@@ -8,7 +8,6 @@ from vi_api_client.cli import (
     _dispatch_command,
     async_main,
     cmd_exec,
-    cmd_get_consumption,
     cmd_get_feature,
     cmd_list_devices,
     cmd_list_features,
@@ -754,53 +753,6 @@ async def test_cmd_list_writable(mock_cli_context, capsys):
         assert "setCurve" in captured.out
         assert "slope" in captured.out
         assert "min: 0.2" in captured.out
-
-
-@pytest.mark.asyncio
-async def test_cmd_get_consumption(mock_cli_context, capsys):
-    """Test getting consumption data."""
-    # Arrange: Create mock client, device, and fixture data for test.
-    args = Namespace(
-        token_file="tokens.json",
-        client_id=None,
-        redirect_uri=None,
-        insecure=False,
-        mock_device=None,
-        installation_id=None,
-        gateway_serial=None,
-        device_id=None,
-        metric="summary",
-    )
-
-    # Mock consumption features
-    consumption_features = [
-        Feature(
-            name="analytics.heating.power.consumption.total",
-            value=15.5,
-            unit="kilowattHour",
-            is_enabled=True,
-            is_ready=True,
-        ),
-        Feature(
-            name="analytics.heating.power.consumption.heating",
-            value=10.0,
-            unit="kilowattHour",
-            is_enabled=True,
-            is_ready=True,
-        ),
-    ]
-    mock_cli_context.client.get_consumption.return_value = consumption_features
-
-    with patch("vi_api_client.cli.setup_client_context") as mock_setup:
-        mock_setup.return_value.__aenter__.return_value = mock_cli_context
-
-        # Act: Execute the function being tested.
-        assert await cmd_get_consumption(args) is True
-
-        # Assert: Verify the results match expectations.
-        captured = capsys.readouterr()
-        assert "analytics.heating.power.consumption.total" in captured.out
-        assert "15.5" in captured.out
 
 
 @pytest.mark.asyncio
