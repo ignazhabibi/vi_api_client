@@ -44,6 +44,7 @@ ruff check .
 ruff format --check .
 pyright --pythonpath python
 python -m pytest -q
+python -m build
 ```
 
 ## Quick Start
