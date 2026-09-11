@@ -3,12 +3,11 @@
 from typing import Any, Protocol
 
 from .connection import ViConnector
-from .const import ENDPOINT_FEATURES, ENDPOINT_GATEWAYS, ENDPOINT_INSTALLATIONS
-from .models import Device
+from .const import ENDPOINT_GATEWAYS, ENDPOINT_INSTALLATIONS
 
 
 class _DiscoveryAdapter(Protocol):
-    """Retrieve raw client envelopes without constructing domain objects."""
+    """Retrieve raw discovery envelopes without constructing domain objects."""
 
     async def get_installations(self) -> dict[str, Any]:
         """Return the raw installations API envelope."""
@@ -18,21 +17,9 @@ class _DiscoveryAdapter(Protocol):
         """Return the raw gateways API envelope."""
         raise NotImplementedError
 
-    async def get_devices(
-        self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]:
-        """Return the raw devices API envelope."""
-        raise NotImplementedError
-
-    async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]:
-        """Return the raw feature API envelope."""
-        raise NotImplementedError
-
 
 class _LiveDiscoveryAdapter:
-    """Retrieve client envelopes through the authenticated HTTP connector."""
+    """Retrieve discovery envelopes through the authenticated HTTP connector."""
 
     def __init__(self, connector: ViConnector) -> None:
         """Initialize the adapter with its authenticated connector."""
@@ -45,23 +32,3 @@ class _LiveDiscoveryAdapter:
     async def get_gateways(self) -> dict[str, Any]:
         """Return the raw gateways API envelope."""
         return await self._connector.get(ENDPOINT_GATEWAYS)
-
-    async def get_devices(
-        self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]:
-        """Return the raw devices API envelope."""
-        url = (
-            f"{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
-            f"{gateway_serial}/devices"
-        )
-        return await self._connector.get(url)
-
-    async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]:
-        """Return the raw feature API envelope."""
-        url = (
-            f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
-            f"{device.gateway_serial}/devices/{device.id}/features/filter"
-        )
-        return await self._connector.post(url, payload)
