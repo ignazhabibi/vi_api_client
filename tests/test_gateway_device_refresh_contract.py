@@ -1,6 +1,7 @@
 """Shared gateway-scoped device refresh contract tests."""
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -8,7 +9,7 @@ import pytest
 from vi_api_client.api import ViClient
 from vi_api_client.exceptions import ViResponseError, ViValidationError
 from vi_api_client.mock_client import MockViClient
-from vi_api_client.models import Device
+from vi_api_client.models import Device, Feature, FeatureControl
 
 
 class _ScriptedGatewayDiscoveryAdapter:
@@ -24,20 +25,26 @@ class _ScriptedGatewayDiscoveryAdapter:
         self.calls: list[str] = []
         self.gateway_error: ViValidationError | None = None
         self.device_errors: dict[str, ViValidationError] = {}
+        self.installations_response: dict[str, Any] = {"data": []}
+        self.gateways_response: dict[str, Any] = {"data": []}
+        self.devices_response: dict[str, Any] = {"data": []}
+        self.feature_response: dict[str, Any] = {"data": []}
+        self.command_response: dict[str, Any] = {"data": {"success": True}}
+        self.command_payloads: list[dict[str, Any]] = []
 
     async def get_installations(self) -> dict[str, Any]:
         """Return an unused empty installation envelope."""
-        return {"data": []}
+        return self.installations_response
 
     async def get_gateways(self) -> dict[str, Any]:
         """Return an unused empty gateway envelope."""
-        return {"data": []}
+        return self.gateways_response
 
     async def get_devices(
         self, installation_id: str, gateway_serial: str
     ) -> dict[str, Any]:
         """Return an unused empty device envelope."""
-        return {"data": []}
+        return self.devices_response
 
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
@@ -55,7 +62,14 @@ class _ScriptedGatewayDiscoveryAdapter:
         self.calls.append(f"device:{device.id}")
         if device.id in self.device_errors:
             raise self.device_errors[device.id]
-        return self.device_responses[device.id]
+        return self.device_responses.get(device.id, self.feature_response)
+
+    async def execute_command(
+        self, control: FeatureControl, parameters: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Return a scripted explicit command envelope."""
+        self.command_payloads.append(parameters)
+        return self.command_response
 
 
 def _build_gateway_device(device_id: str) -> Device:
@@ -74,6 +88,7 @@ def _create_live_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> ViClient:
     """Create a live client whose raw discovery boundary is scripted."""
     client = ViClient.__new__(ViClient)
     client._discovery_adapter = adapter
+    client._command_adapter = adapter
     return client
 
 
@@ -81,6 +96,7 @@ def _create_fixture_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> MockViC
     """Create a fixture client whose raw discovery boundary is scripted."""
     client = MockViClient.__new__(MockViClient)
     client._discovery_adapter = adapter
+    client._command_adapter = adapter
     return client
 
 
@@ -285,3 +301,77 @@ async def test_gateway_refresh_rejects_ambiguous_feature_ownership(
     with pytest.raises(ViResponseError, match="ambiguous device ownership"):
         await client.update_gateway_devices([_build_gateway_device("0")])
     assert adapter.calls == ["gateway"]
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_shared_client_workflows_preserve_typed_public_contracts(
+    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
+):
+    """Both adapters should share discovery, refresh, filtering, and write behavior."""
+    # Arrange: Script API-shaped envelopes for the public client methods.
+    adapter = _ScriptedGatewayDiscoveryAdapter({"data": []}, {})
+    adapter.installations_response = {"data": [{"id": "installation-1"}]}
+    adapter.gateways_response = {
+        "data": [{"serial": "gateway-1", "installationId": "installation-1"}]
+    }
+    adapter.devices_response = {
+        "data": [
+            {
+                "id": "0",
+                "modelId": "model-0",
+                "deviceType": "heating",
+                "status": "connected",
+            }
+        ]
+    }
+    adapter.feature_response = {
+        "data": [
+            {
+                "feature": "heating.status",
+                "properties": {"value": "ready"},
+            }
+        ]
+    }
+    client = create_client(adapter)
+
+    # Act: Exercise the shared public discovery, hydration, filtering, and refresh paths.
+    installations = await client.get_installations()
+    gateways = await client.get_gateways()
+    device = (
+        await client.get_devices("installation-1", "gateway-1", include_features=True)
+    )[0]
+    filtered = await client.get_features(device, feature_names=["heating.status"])
+    refreshed = await client.update_device(device)
+
+    # Assert: Both clients convert the same envelopes and retain immutable updates.
+    assert installations[0].id == "installation-1"
+    assert gateways[0].serial == "gateway-1"
+    assert [feature.name for feature in filtered] == ["heating.status"]
+    assert refreshed is not device
+    assert refreshed.features[0].value == "ready"
+
+    control = FeatureControl(
+        command_name="setStatus",
+        parent_feature_name="heating.status",
+        param_name="status",
+        required_params=["status"],
+        uri="/commands/setStatus",
+        value_type="string",
+    )
+    writable = Feature("heating.status", "ready", None, True, True, control)
+    writable_device = replace(device, features=[writable])
+
+    # Act: Use both safe and explicit public write operations.
+    response, updated = await client.set_feature(writable_device, writable, "away")
+    explicit_response = await client.execute_command(writable, {"status": "ready"})
+
+    # Assert: Writes use adapter envelopes without mutating the original device.
+    assert response.success and explicit_response.success
+    original_status = writable_device.get_feature("heating.status")
+    updated_status = updated.get_feature("heating.status")
+    assert original_status is not None
+    assert updated_status is not None
+    assert original_status.value == "ready"
+    assert updated_status.value == "away"
+    assert adapter.command_payloads == [{"status": "away"}, {"status": "ready"}]

@@ -14,6 +14,31 @@ from vi_api_client import ViClient
 | :--- | :--- | :--- |
 | `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `OAuth`). |
 
+## v2 Migration
+
+`ViClient` no longer exposes `connector`, and `ViConnector` plus the
+`vi_api_client.connection` module have been removed. Use the typed methods on
+this page instead; there is no generic raw HTTP replacement. Use
+`execute_command(feature, parameters)` for a complete explicit command payload,
+or `set_feature(device, feature, value)` for a safe single-feature write with
+dependency resolution.
+
+`MockViClient` remains a `ViClient` subtype, but its constructor is now
+`MockViClient(device_name)` only. Remove any unused mock authentication argument.
+Fixture-backed clients load local data only and never construct authentication,
+sessions, or transports.
+
+The high-level discovery, hydration, filtering, immutable `update_device`,
+gateway refresh, `set_feature`, and `execute_command` methods are unchanged.
+An application that supplies `OAuth(websession=session)` continues to own and
+close that session; an `AbstractAuth` provider still closes only a session it
+created itself.
+
+Downstream consumers, including `vi_climate_devices`, need a dependency update,
+removal of redundant mock authentication arguments, and package-root model
+imports such as `from vi_api_client import Device, Feature`. No changes to that
+separate repository are included here.
+
 ## Discovery Methods
 
 Methods to discover the structure of your heating system.

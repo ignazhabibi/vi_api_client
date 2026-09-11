@@ -5,6 +5,13 @@ import pytest
 from vi_api_client import MockViClient
 
 
+def test_mock_client_rejects_obsolete_authentication_argument():
+    """Fixture clients should accept only the selected fixture device name."""
+    # Act and assert: Mock clients must not accept unused authentication state.
+    with pytest.raises(TypeError, match="auth"):
+        MockViClient("Vitodens200W", auth=None)  # pyright: ignore[reportCallIssue]
+
+
 @pytest.mark.asyncio
 async def test_mock_device_hydration_uses_deterministic_fixture_topology():
     """Mock device discovery should use the selected fixture in one topology."""

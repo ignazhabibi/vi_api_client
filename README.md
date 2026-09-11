@@ -20,6 +20,22 @@ The next major release will remove the deprecated Analytics API:
 `vi-client get-consumption` command. Read consumption through Devices API features such as
 `heating.power.consumption.total` and their existing flattened aliases instead.
 
+It also removes raw transport access: `ViClient.connector`, `ViConnector`, and
+the `vi_api_client.connection` module are no longer supported. Use the typed
+discovery, refresh, and write methods on `ViClient` instead. For multi-parameter
+writes, use `execute_command(feature, parameters)`; use `set_feature` for a
+single writable feature and automatic dependency resolution.
+
+`MockViClient` now takes only a fixture device name. Remove any redundant mock
+authentication argument. It remains a `ViClient` subtype and all high-level
+methods continue to work unchanged. Fixture clients never create a session or
+make network requests.
+
+Consumers such as `vi_climate_devices` must update their dependency to this
+major release, remove mock authentication arguments, and import public models
+from the package root (for example, `from vi_api_client import Device, Feature`)
+rather than private transport modules.
+
 ## Installation
 
 This is currently a local development package. **Requires Python 3.14+**.
