@@ -191,3 +191,6 @@ The detailed documentation is available in the `docs/` directory:
 5.  **[Client Reference](docs/05_client_reference.md)**: The `ViClient` class methods.
 6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
 7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.
+8.  **[Architecture Guide](docs/08_architecture.md)**: System structure,
+    responsibilities, data flows, and diagrams explained for developers and
+    non-specialists.
