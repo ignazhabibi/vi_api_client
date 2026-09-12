@@ -565,12 +565,12 @@ async def _fetch_target_feature(
     """Fetch a target feature together with its complete device context."""
     device = _transient_device(ctx)
     features = await ctx.client.get_features(device)
-    hydrated_device = replace(device, features=features)
-    feature = hydrated_device.get_feature(name)
+    device_snapshot = replace(device, features=features)
+    feature = device_snapshot.get_feature(name)
     if feature is None:
         print(f"Error: Feature '{name}' not found.")
         return None
-    return hydrated_device, feature
+    return device_snapshot, feature
 
 
 def _transient_device(ctx: CLIContext) -> Device:
@@ -639,7 +639,7 @@ def _print_feature_constraints(ctrl: Any) -> None:
     """Helper to print constraints for a feature control.
 
     Args:
-        ctrl: The FeatureControl object containing constraint metadata.
+        ctrl: The FeatureControl command metadata containing constraints.
     """
     constraints = []
     if ctrl.min is not None:

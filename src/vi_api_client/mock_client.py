@@ -108,9 +108,10 @@ DEVICE_TYPE_MAP: dict[str, str] = {
 
 
 class MockViClient(ViClient):
-    """A mock client that returns static responses from JSON files.
+    """Fixture-backed client that runs public workflows without network access.
 
-    Useful for testing, CLI usage without credentials, and development.
+    It uses bundled JSON fixture responses without authentication, which makes
+    it useful for testing, CLI usage, and development.
     """
 
     def __init__(self, device_name: str) -> None:

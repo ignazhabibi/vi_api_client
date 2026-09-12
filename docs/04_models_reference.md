@@ -42,6 +42,10 @@ Represents a communication gateway (Connectivity Device).
 ## Device
 
 Represents a physical device attached to a gateway (e.g. Heating System).
+Each `Device` is a device snapshot: an immutable representation of the device
+and the features known when it was created. A snapshot with no features does
+not indicate whether device feature hydration has occurred, because an API
+feature response can validly be empty.
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
@@ -57,7 +61,9 @@ Represents a physical device attached to a gateway (e.g. Heating System).
 
 ## Feature
 
-The core unit of information. A feature represents a single property (Sensor) or a single setting (Control).
+A feature is one flat, addressable device property with its reported value and
+capabilities. A writable feature reports `is_writable=True` and has
+`FeatureControl` metadata describing how a feature command can target it.
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
@@ -81,7 +87,9 @@ print(format_feature(feature))  # "25.5 celsius"
 
 ## FeatureControl
 
-If a `Feature` is writable (`is_writable=True`), it contains a `control` object describing how to modify it.
+If a `Feature` is writable (`is_writable=True`), it contains `FeatureControl`
+command metadata describing how a feature command can modify it. `FeatureControl`
+is not an executed command.
 
 This object abstracts away the complexity of Viessmann Commands. You rarely interact with it directly, but it's useful for introspection (e.g. building a UI).
 
@@ -116,7 +124,7 @@ and as the first element of the tuple returned by `set_feature`.
 ```python
 response, updated_device = await client.set_feature(device, feature, value)
 if response.success:
-    # Command succeeded, device is optimistically updated
+    # Command succeeded; this is a command-updated device snapshot.
     pass
 ```
 
