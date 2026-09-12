@@ -5,6 +5,8 @@ This reference covers authentication strategies and connection management.
 ## Connection Management (`websession`)
 
 All Auth classes accept an optional `websession` argument (an `aiohttp.ClientSession`).
+The session relationship is fixed at construction: `auth.websession` is readable,
+but cannot be replaced after the auth provider has been created.
 
 *   **Provided**: The client uses your session but leaves its lifecycle under
     caller control. This is efficient for reusing connections in a larger app
@@ -41,7 +43,8 @@ async def main():
 Alternatively, call `await auth.async_close()` when the provider is no longer
 needed. `async_close()` never closes a session passed through `websession`.
 When it owns a session, it lets an already-running token refresh finish before
-closing that session.
+closing that session. Callers must let normal requests finish before closing an
+auth provider; the library does not coordinate or cancel those requests.
 
 ## Refresh Concurrency
 

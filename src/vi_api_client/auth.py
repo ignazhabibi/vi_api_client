@@ -24,8 +24,13 @@ class AbstractAuth(ABC):
 
     def __init__(self, websession: aiohttp.ClientSession | None = None) -> None:
         """Initialize the auth with an optional externally managed session."""
-        self.websession = websession
+        self._websession = websession
         self._owns_websession = False
+
+    @property
+    def websession(self) -> aiohttp.ClientSession | None:
+        """Return the session configured at construction or created lazily."""
+        return self._websession
 
     async def __aenter__(self) -> Self:
         """Enter the authentication context."""
@@ -47,19 +52,19 @@ class AbstractAuth(ABC):
 
     async def _async_get_websession(self) -> aiohttp.ClientSession:
         """Return an available session, creating an owned one when needed."""
-        if self.websession is None:
-            self.websession = aiohttp.ClientSession()
+        if self._websession is None:
+            self._websession = aiohttp.ClientSession()
             self._owns_websession = True
-        return self.websession
+        return self._websession
 
     async def async_close(self) -> None:
         """Close the web session only when it was created internally."""
-        if not self._owns_websession or self.websession is None:
+        if not self._owns_websession or self._websession is None:
             return
 
-        if not self.websession.closed:
-            await self.websession.close()
-        self.websession = None
+        if not self._websession.closed:
+            await self._websession.close()
+        self._websession = None
         self._owns_websession = False
 
     async def request(
