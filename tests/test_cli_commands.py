@@ -289,8 +289,8 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
         "environment-client-id",
         "http://localhost:8123/auth",
         str(token_file),
+        websession=mock_session,
     )
-    assert mock_auth.websession is mock_session
     assert saved_config == {
         "access_token": "existing-token",
         "client_id": "environment-client-id",

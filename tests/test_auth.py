@@ -6,7 +6,7 @@ import os
 import stat
 import time
 from pathlib import Path
-from typing import Self
+from typing import Self, cast
 from unittest.mock import MagicMock
 
 import aiohttp
@@ -96,6 +96,23 @@ def test_abstract_auth_cannot_be_instantiated():
         AbstractAuth(MagicMock())  # type: ignore[reportAbstractUsage]
 
 
+def test_oauth_websession_is_read_only_after_constructor_injection(tmp_path):
+    """OAuth should expose but not replace a caller-provided session."""
+    # Arrange: Construct OAuth with a caller-owned session reference.
+    external_websession = MagicMock(spec=aiohttp.ClientSession)
+    oauth = OAuth(
+        client_id="test_client_id",
+        redirect_uri="http://localhost:4200/",
+        token_file=tmp_path / "tokens.json",
+        websession=external_websession,
+    )
+
+    # Act and assert: The public reference is observable but cannot be replaced.
+    assert oauth.websession is external_websession
+    with pytest.raises(AttributeError):
+        oauth.websession = MagicMock(spec=aiohttp.ClientSession)  # type: ignore[misc]
+
+
 @pytest.fixture
 def oauth(tmp_path):
     """Create a ViessmannOAuth instance for testing."""
@@ -124,6 +141,21 @@ def oauth_with_tokens(tmp_path):
         redirect_uri="http://localhost:4200/",
         token_file=str(token_file),
     )
+
+
+def _oauth_with_websession(
+    oauth: OAuth, websession: aiohttp.ClientSession | _BlockingRefreshSession
+) -> OAuth:
+    """Recreate OAuth with the fixture credentials and a supplied session."""
+    oauth_with_websession = OAuth(
+        client_id=oauth.client_id,
+        redirect_uri=oauth.redirect_uri,
+        token_file=oauth.token_file,
+        websession=cast(aiohttp.ClientSession, websession),
+    )
+    oauth_with_websession._token_info = oauth._token_info.copy()
+    oauth_with_websession._pkce_verifier = oauth._pkce_verifier
+    return oauth_with_websession
 
 
 def test_get_authorization_url(oauth):
@@ -360,7 +392,7 @@ async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
     """Test getting access token when token is valid."""
     # Arrange: Create ViAuth instance and configure mock token endpoint.
     async with aiohttp.ClientSession() as session:
-        oauth_with_tokens.websession = session
+        oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
         # Act: Request token using authorization code.
         token = await oauth_with_tokens.async_get_access_token()
@@ -381,7 +413,7 @@ async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
         m.post(ENDPOINT_TOKEN, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            oauth_with_tokens.websession = session
+            oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
             # Act: Get access token (should trigger refresh).
             await oauth_with_tokens.async_refresh_access_token()
@@ -404,7 +436,7 @@ async def test_overlapping_access_token_refreshes_share_one_request(
     # Arrange: Expire the token and pause the first refresh at the HTTP boundary.
     oauth_with_tokens._token_info["expires_at"] = 0
     session = _BlockingRefreshSession()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
     # Act: Request a token concurrently from both callers.
     first_token, second_token, _ = await asyncio.gather(
@@ -429,7 +461,7 @@ async def test_overlapping_explicit_and_automatic_refreshes_share_one_request(
     # Arrange: Expire the token and delay the shared refresh.
     oauth_with_tokens._token_info["expires_at"] = 0
     session = _BlockingRefreshSession()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
     # Act: Start an explicit refresh alongside automatic token retrieval.
     _, token, _ = await asyncio.gather(
@@ -450,7 +482,7 @@ async def test_overlapping_explicit_refreshes_share_one_request(
     """Overlapping explicit refreshes should share one token request."""
     # Arrange: Delay the first explicit refresh at the HTTP boundary.
     session = _BlockingRefreshSession()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
     # Act: Start two explicit refreshes at the same time.
     _, _, _ = await asyncio.gather(
@@ -469,7 +501,7 @@ async def test_later_explicit_refresh_starts_a_new_request(oauth_with_tokens) ->
     # Arrange: Allow token responses to complete immediately.
     session = _BlockingRefreshSession()
     session.release.set()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
     # Act: Refresh twice without overlap.
     await oauth_with_tokens.async_refresh_access_token()
@@ -487,7 +519,7 @@ async def test_cancelling_one_refresh_waiter_keeps_the_shared_refresh_running(
     # Arrange: Start a delayed automatic refresh.
     oauth_with_tokens._token_info["expires_at"] = 0
     session = _BlockingRefreshSession()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
     cancelled_caller = asyncio.create_task(oauth_with_tokens.async_get_access_token())
     await session.started.wait()
 
@@ -516,7 +548,7 @@ async def test_failed_shared_refresh_is_visible_to_waiters_and_can_retry(
     # Arrange: Make the shared refresh fail after both callers have started.
     oauth_with_tokens._token_info["expires_at"] = 0
     session = _BlockingRefreshSession(status=400)
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
     first_caller, second_caller, _ = await asyncio.gather(
         asyncio.create_task(oauth_with_tokens.async_get_access_token()),
@@ -570,7 +602,7 @@ async def test_close_keeps_an_external_session_open_while_refreshing(
     # Arrange: Start a delayed refresh through an externally managed session.
     oauth_with_tokens._token_info["expires_at"] = 0
     session = _BlockingRefreshSession()
-    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
     refresh = asyncio.create_task(oauth_with_tokens.async_get_access_token())
     await session.started.wait()
 
@@ -654,7 +686,7 @@ async def test_code_exchange_persists_token_json(oauth, load_fixture_json):
         mock_responses.post(ENDPOINT_TOKEN, payload=token_data)
 
         async with aiohttp.ClientSession() as session:
-            oauth.websession = session
+            oauth = _oauth_with_websession(oauth, session)
 
             # Act: Exchange the authorization code for tokens.
             await oauth.async_fetch_details_from_code("accepted-code")
@@ -678,7 +710,7 @@ async def test_code_exchange_failure_does_not_write_tokens(oauth):
         )
 
         async with aiohttp.ClientSession() as session:
-            oauth.websession = session
+            oauth = _oauth_with_websession(oauth, session)
 
             # Act and assert: A rejected token exchange should raise a library error.
             with pytest.raises(ViAuthError, match="Failed to fetch token"):
@@ -771,6 +803,47 @@ async def test_oauth_creates_and_closes_internal_websession(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_oauth_recreates_an_internal_websession_after_closing(tmp_path):
+    """OAuth should create a new owned session for a request after closing."""
+    # Arrange: Store a valid token and mock repeated installation requests.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text(
+        json.dumps(
+            {
+                "access_token": "test_access_token",
+                "expires_at": time.time() + 3600,
+            }
+        ),
+        encoding="utf-8",
+    )
+    oauth = OAuth(
+        client_id="test_client_id",
+        redirect_uri="http://localhost:4200/",
+        token_file=token_file,
+    )
+    installations_url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(installations_url, payload={"data": []}, repeat=True)
+
+        # Act: Request, close its owned session, then request again.
+        await ViClient(oauth).get_installations()
+        first_websession = oauth.websession
+        await oauth.async_close()
+        await ViClient(oauth).get_installations()
+        second_websession = oauth.websession
+        await oauth.async_close()
+
+    # Assert: The second request creates and closes a distinct owned session.
+    assert first_websession is not None
+    assert first_websession.closed is True
+    assert second_websession is not None
+    assert second_websession is not first_websession
+    assert second_websession.closed is True
+    assert oauth.websession is None
+
+
+@pytest.mark.asyncio
 async def test_oauth_keeps_external_websession_open(tmp_path):
     """OAuth should not close a session supplied by the caller."""
     # Arrange: Create an external session and an OAuth provider that uses it.
@@ -789,3 +862,4 @@ async def test_oauth_keeps_external_websession_open(tmp_path):
 
         # Assert: OAuth should leave the caller-owned session open.
         assert external_websession.closed is False
+        assert oauth.websession is external_websession

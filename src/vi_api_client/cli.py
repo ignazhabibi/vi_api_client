@@ -78,15 +78,14 @@ async def cmd_login(args) -> bool:
     """
     client_id, redirect_uri = get_client_config(args)
 
-    auth = OAuth(client_id, redirect_uri, args.token_file)
-    url = auth.get_authorization_url()
-
-    print(f"Please visit the following URL to log in:\n\n{url}\n")
-    print(f"After verifying, you will be redirected to {redirect_uri}?code=...")
-    code = input("Paste the 'code' parameter from the URL here: ").strip()
-
     async with await create_session(args) as session:
-        auth.websession = session
+        auth = OAuth(client_id, redirect_uri, args.token_file, websession=session)
+        url = auth.get_authorization_url()
+
+        print(f"Please visit the following URL to log in:\n\n{url}\n")
+        print(f"After verifying, you will be redirected to {redirect_uri}?code=...")
+        code = input("Paste the 'code' parameter from the URL here: ").strip()
+
         await auth.async_fetch_details_from_code(code)
 
     CredentialDocument(Path(args.token_file)).update(

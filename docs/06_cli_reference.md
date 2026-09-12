@@ -125,6 +125,10 @@ vi-client list-devices --insecure
 vi-client get-feature "heating.circuits.0" --insecure
 ```
 
+The CLI creates its HTTP session before constructing `OAuth` and injects that
+session into the auth provider. Normal commands verify TLS; `--insecure`
+explicitly disables verification and emits a warning.
+
 ## Next Steps
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
