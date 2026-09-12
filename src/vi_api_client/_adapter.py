@@ -1,6 +1,9 @@
 """Private API adapters for live and fixture-backed client workflows."""
 
 import logging
+import math
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any, Protocol
 
 import aiohttp
@@ -170,7 +173,12 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     if status == 404:
         raise ViNotFoundError(f"Not Found: {error_message}", vi_error_id, error_type)
     if status == 429:
-        raise ViRateLimitError("Rate Limit Exceeded", vi_error_id, error_type)
+        raise ViRateLimitError(
+            "Rate Limit Exceeded",
+            vi_error_id,
+            error_type,
+            retry_after=_parse_retry_after(response.headers.get("Retry-After")),
+        )
     if status in (400, 422):
         raise ViValidationError(
             error_message, vi_error_id, validation_details, error_type
@@ -180,3 +188,26 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
             f"Server Error {status}: {error_message}", vi_error_id, error_type
         )
     raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id, error_type)
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    """Return a non-negative retry duration from an HTTP Retry-After value."""
+    if value is None:
+        return None
+
+    try:
+        numeric_delay = float(value)
+    except ValueError:
+        numeric_delay = None
+    if numeric_delay is not None:
+        if not math.isfinite(numeric_delay) or numeric_delay < 0:
+            return None
+        return numeric_delay
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except IndexError, TypeError, ValueError:
+        return None
+    if retry_at.tzinfo is None:
+        return None
+    return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())

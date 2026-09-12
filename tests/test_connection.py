@@ -1,5 +1,7 @@
 """Tests for private live adapter HTTP and authentication behavior."""
 
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -7,6 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._adapter import _LiveAdapter
+from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
 from vi_api_client.exceptions import (
@@ -126,3 +129,70 @@ def test_validation_error_keeps_existing_positional_arguments() -> None:
     assert error.error_id == "error-123"
     assert error.error_type is None
     assert error.validation_errors == validation_errors
+
+
+def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
+    """Rate-limit errors should retain their existing positional signature."""
+    # Arrange and Act: Construct with positional arguments supported before retry data.
+    error = ViRateLimitError("Rate limited", "error-123", "RATE_LIMIT")
+
+    # Assert: Existing values retain their meanings and retry data defaults to none.
+    assert error.error_id == "error-123"
+    assert error.error_type == "RATE_LIMIT"
+    assert error.retry_after is None
+
+
+@pytest.mark.parametrize(
+    ("retry_after_header", "expected_retry_after"),
+    [
+        ("12.5", 12.5),
+        ("-5", None),
+        ("not-a-duration", None),
+        (None, None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying(
+    retry_after_header: str | None, expected_retry_after: float | None
+) -> None:
+    """A 429 should expose numeric guidance through one client request."""
+    # Arrange: Configure a rate-limited public client request.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    headers = (
+        {"Retry-After": retry_after_header} if retry_after_header is not None else {}
+    )
+    async with aiohttp.ClientSession() as session:
+        client = ViClient(_StaticAuth(session))
+        with aioresponses() as mock_responses:
+            mock_responses.get(url, status=429, headers=headers)
+
+            # Act and assert: The request raises once with parsed retry guidance.
+            with pytest.raises(ViRateLimitError) as raised_error:
+                await client.get_installations()
+
+    # Assert: The error guidance and request count match the response.
+    assert raised_error.value.retry_after == expected_retry_after
+    assert len(mock_responses.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_client_normalizes_http_date_retry_after_without_retrying() -> None:
+    """A 429 HTTP-date header should become a non-negative delay in seconds."""
+    # Arrange: Configure a public client request with a future HTTP-date header.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    retry_at = datetime.now(UTC) + timedelta(seconds=30)
+    async with aiohttp.ClientSession() as session:
+        client = ViClient(_StaticAuth(session))
+        with aioresponses() as mock_responses:
+            mock_responses.get(
+                url, status=429, headers={"Retry-After": format_datetime(retry_at)}
+            )
+
+            # Act and assert: The client exposes the server delay without retrying.
+            with pytest.raises(ViRateLimitError) as raised_error:
+                await client.get_installations()
+
+    # Assert: The date becomes an approximate non-negative duration from one request.
+    assert raised_error.value.retry_after is not None
+    assert 0 <= raised_error.value.retry_after <= 30
+    assert len(mock_responses.requests) == 1

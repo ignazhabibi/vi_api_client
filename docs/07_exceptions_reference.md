@@ -25,7 +25,7 @@ from vi_api_client import (
     *   `ViConnectionError`: Network issues (DNS, Timeout, Connection Refused).
     *   `ViAuthError`: Authentication failed (401/403). check your tokens.
     *   `ViNotFoundError`: Resource not found (404). Typically happens if you request a feature that does not exist on the device.
-    *   `ViRateLimitError`: API Rate Limit exceeded (429). You should back off.
+    *   `ViRateLimitError`: API Rate Limit exceeded (429), optionally with server retry guidance.
     *   `ViResponseError`: A successful HTTP response violates the expected response contract.
     *   `ViValidationError`: Bad Request (400) or Validation Error (422). Includes detailed validation messages from the API.
     *   `ViServerInternalError`: Server issues (500+).
@@ -76,16 +76,21 @@ except ViNotFoundError:
 ```
 
 ### Rate Limits
-If you hit a rate limit (429), `ViRateLimitError` is raised. The API might imply a cooldown period.
+If you hit a rate limit (429), `ViRateLimitError` is raised. Its optional
+`retry_after` attribute is a non-negative delay in seconds parsed from a valid
+`Retry-After` response header; it is `None` when the server does not provide
+usable guidance. The library never sleeps or retries automatically, so the
+calling application owns the backoff decision.
 
 ```python
 from asyncio import sleep
 
 try:
     data = await client.get_features(...)
-except ViRateLimitError:
-    print("Rate limit hit! Waiting 60s...")
-    await sleep(60)
+except ViRateLimitError as error:
+    delay = error.retry_after if error.retry_after is not None else 60
+    print(f"Rate limit hit! Waiting {delay}s...")
+    await sleep(delay)
 ```
 
 ## Next Steps

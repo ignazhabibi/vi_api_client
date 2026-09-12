@@ -40,6 +40,20 @@ async def main():
 
 Alternatively, call `await auth.async_close()` when the provider is no longer
 needed. `async_close()` never closes a session passed through `websession`.
+When it owns a session, it lets an already-running token refresh finish before
+closing that session.
+
+## Refresh Concurrency
+
+One standalone `OAuth` instance coordinates token refreshes for tasks on one
+event loop. Overlapping automatic access-token refreshes and explicit
+`async_refresh_access_token()` calls share one in-flight refresh; cancelling a
+caller does not cancel that refresh for the other waiters. A refresh failure is
+returned to the waiting callers, and a later call can try again.
+
+Share one `OAuth` instance within a running application context. The library
+does not synchronize token refreshes across threads, event loops, instances,
+processes, or token files.
 
 ## Base Class: `AbstractAuth`
 

@@ -1,10 +1,12 @@
 """Tests for vitoclient.auth module."""
 
+import asyncio
 import json
 import os
 import stat
 import time
 from pathlib import Path
+from typing import Self
 from unittest.mock import MagicMock
 
 import aiohttp
@@ -15,6 +17,76 @@ from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth, OAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_TOKEN
 from vi_api_client.exceptions import ViAuthError
+
+
+class _BlockingRefreshResponse:
+    """Delay a token response until a test releases it."""
+
+    def __init__(
+        self,
+        started: asyncio.Event,
+        release: asyncio.Event,
+        status: int,
+        error: Exception | None,
+    ) -> None:
+        """Initialize the controllable response."""
+        self.status = status
+        self._started = started
+        self._release = release
+        self._error = error
+
+    async def __aenter__(self) -> Self:
+        """Wait until the test releases the token response."""
+        self._started.set()
+        await self._release.wait()
+        if self._error is not None:
+            raise self._error
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """Leave the token response context."""
+
+    async def json(self) -> dict[str, object]:
+        """Return a successful refreshed token payload."""
+        return {
+            "access_token": "refreshed_access_token",
+            "refresh_token": "refreshed_refresh_token",
+            "expires_in": 3600,
+        }
+
+    async def text(self) -> str:
+        """Return a token endpoint failure body."""
+        return "refresh rejected"
+
+
+class _BlockingRefreshSession:
+    """Provide one controllable refresh request boundary."""
+
+    def __init__(self, status: int = 200, error: Exception | None = None) -> None:
+        """Initialize refresh request tracking."""
+        self.calls = 0
+        self.status = status
+        self.error = error
+        self.closed = False
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    def post(self, *args: object, **kwargs: object) -> _BlockingRefreshResponse:
+        """Record and return a delayed token response."""
+        self.calls += 1
+        return _BlockingRefreshResponse(
+            self.started, self.release, self.status, self.error
+        )
+
+    async def close(self) -> None:
+        """Record that an owned session was closed."""
+        self.closed = True
+
+
+async def _release_refresh_when_started(session: _BlockingRefreshSession) -> None:
+    """Release a delayed refresh after its HTTP request has started."""
+    await session.started.wait()
+    session.release.set()
 
 
 def test_abstract_auth_cannot_be_instantiated():
@@ -322,6 +394,253 @@ async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
             ]
             == "refreshed_access_token"
         )
+
+
+@pytest.mark.asyncio
+async def test_overlapping_access_token_refreshes_share_one_request(
+    oauth_with_tokens,
+) -> None:
+    """Overlapping automatic refreshes should share one token request."""
+    # Arrange: Expire the token and pause the first refresh at the HTTP boundary.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+
+    # Act: Request a token concurrently from both callers.
+    first_token, second_token, _ = await asyncio.gather(
+        oauth_with_tokens.async_get_access_token(),
+        oauth_with_tokens.async_get_access_token(),
+        _release_refresh_when_started(session),
+    )
+
+    # Assert: Both callers receive the refresh result from one HTTP request.
+    assert (first_token, second_token) == (
+        "refreshed_access_token",
+        "refreshed_access_token",
+    )
+    assert session.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_overlapping_explicit_and_automatic_refreshes_share_one_request(
+    oauth_with_tokens,
+) -> None:
+    """Explicit and automatic refresh callers should share one refresh."""
+    # Arrange: Expire the token and delay the shared refresh.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+
+    # Act: Start an explicit refresh alongside automatic token retrieval.
+    _, token, _ = await asyncio.gather(
+        oauth_with_tokens.async_refresh_access_token(),
+        oauth_with_tokens.async_get_access_token(),
+        _release_refresh_when_started(session),
+    )
+
+    # Assert: Both calls use the same successful refresh.
+    assert token == "refreshed_access_token"
+    assert session.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_overlapping_explicit_refreshes_share_one_request(
+    oauth_with_tokens,
+) -> None:
+    """Overlapping explicit refreshes should share one token request."""
+    # Arrange: Delay the first explicit refresh at the HTTP boundary.
+    session = _BlockingRefreshSession()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+
+    # Act: Start two explicit refreshes at the same time.
+    _, _, _ = await asyncio.gather(
+        oauth_with_tokens.async_refresh_access_token(),
+        oauth_with_tokens.async_refresh_access_token(),
+        _release_refresh_when_started(session),
+    )
+
+    # Assert: Both calls use the same token request.
+    assert session.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_later_explicit_refresh_starts_a_new_request(oauth_with_tokens) -> None:
+    """A completed explicit refresh should not suppress a later forced refresh."""
+    # Arrange: Allow token responses to complete immediately.
+    session = _BlockingRefreshSession()
+    session.release.set()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+
+    # Act: Refresh twice without overlap.
+    await oauth_with_tokens.async_refresh_access_token()
+    await oauth_with_tokens.async_refresh_access_token()
+
+    # Assert: Each completed explicit refresh sends a new request.
+    assert session.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_cancelling_one_refresh_waiter_keeps_the_shared_refresh_running(
+    oauth_with_tokens,
+) -> None:
+    """Cancelling one caller should not cancel a shared refresh."""
+    # Arrange: Start a delayed automatic refresh.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    cancelled_caller = asyncio.create_task(oauth_with_tokens.async_get_access_token())
+    await session.started.wait()
+
+    async def cancel_and_release() -> None:
+        """Cancel one waiter after the remaining waiter joins the refresh."""
+        cancelled_caller.cancel()
+        session.release.set()
+
+    # Act: Join the refresh from a second caller while cancelling the first.
+    remaining_token, _ = await asyncio.gather(
+        oauth_with_tokens.async_get_access_token(), cancel_and_release()
+    )
+
+    # Assert: The remaining caller receives the result from the one request.
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled_caller
+    assert remaining_token == "refreshed_access_token"
+    assert session.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_shared_refresh_is_visible_to_waiters_and_can_retry(
+    oauth_with_tokens,
+) -> None:
+    """Shared failures should propagate once and permit a later retry."""
+    # Arrange: Make the shared refresh fail after both callers have started.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession(status=400)
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+
+    first_caller, second_caller, _ = await asyncio.gather(
+        asyncio.create_task(oauth_with_tokens.async_get_access_token()),
+        asyncio.create_task(oauth_with_tokens.async_get_access_token()),
+        asyncio.create_task(_release_refresh_when_started(session)),
+        return_exceptions=True,
+    )
+
+    # Assert: Both waiters observe the refresh failure.
+    assert isinstance(first_caller, ViAuthError)
+    assert isinstance(second_caller, ViAuthError)
+    assert session.calls == 1
+
+    # Act: Allow a later caller to refresh successfully.
+    session.status = 200
+    token = await oauth_with_tokens.async_get_access_token()
+
+    # Assert: The failed operation was not retained indefinitely.
+    assert token == "refreshed_access_token"
+    assert session.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_close_waits_for_refresh_then_closes_an_owned_session(
+    oauth_with_tokens, monkeypatch
+) -> None:
+    """Closing should settle a refresh before closing its owned session."""
+    # Arrange: Make OAuth lazily create a delayed, owned transport session.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession()
+    monkeypatch.setattr("vi_api_client.auth.aiohttp.ClientSession", lambda: session)
+    refresh = asyncio.create_task(oauth_with_tokens.async_get_access_token())
+    await session.started.wait()
+
+    # Act: Begin closing while the refresh remains in flight, then release it.
+    close = asyncio.create_task(oauth_with_tokens.async_close())
+    session.release.set()
+    token, _ = await asyncio.gather(refresh, close)
+
+    # Assert: The refresh completes and the internally owned session closes.
+    assert token == "refreshed_access_token"
+    assert session.closed is True
+    assert oauth_with_tokens.websession is None
+
+
+@pytest.mark.asyncio
+async def test_close_keeps_an_external_session_open_while_refreshing(
+    oauth_with_tokens,
+) -> None:
+    """Closing should not close a caller-provided session around a refresh."""
+    # Arrange: Start a delayed refresh through an externally managed session.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession()
+    oauth_with_tokens.websession = session  # type: ignore[assignment]
+    refresh = asyncio.create_task(oauth_with_tokens.async_get_access_token())
+    await session.started.wait()
+
+    # Act: Close the provider while the refresh is in flight.
+    close = asyncio.create_task(oauth_with_tokens.async_close())
+    session.release.set()
+    await asyncio.gather(refresh, close)
+
+    # Assert: Caller-owned sessions remain available.
+    assert session.closed is False
+
+
+@pytest.mark.asyncio
+async def test_close_logs_and_cleans_up_a_cancelled_callers_refresh_failure(
+    oauth_with_tokens, monkeypatch, caplog
+) -> None:
+    """Closing should handle a refresh failure left by a cancelled caller."""
+    # Arrange: Start a failed refresh with an owned delayed transport session.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession(status=400)
+    monkeypatch.setattr("vi_api_client.auth.aiohttp.ClientSession", lambda: session)
+    cancelled_caller = asyncio.create_task(oauth_with_tokens.async_get_access_token())
+    await session.started.wait()
+    cancelled_caller.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled_caller
+
+    # Act: Let close observe the failed shared refresh.
+    session.release.set()
+    await oauth_with_tokens.async_close()
+    await oauth_with_tokens.async_close()
+
+    # Assert: Closing does not retry, logs once, and closes the owned session.
+    assert session.calls == 1
+    assert session.closed is True
+    assert (
+        sum(
+            "Token refresh failed while closing authentication" in record.message
+            for record in caplog.records
+        )
+        == 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_close_cleans_up_a_cancelled_callers_transport_failure(
+    oauth_with_tokens, monkeypatch, caplog
+) -> None:
+    """Closing should still close an owned session after a transport failure."""
+    # Arrange: Start a refresh that fails while opening the token response.
+    oauth_with_tokens._token_info["expires_at"] = 0
+    session = _BlockingRefreshSession(error=aiohttp.ClientConnectionError())
+    monkeypatch.setattr("vi_api_client.auth.aiohttp.ClientSession", lambda: session)
+    cancelled_caller = asyncio.create_task(oauth_with_tokens.async_get_access_token())
+    await session.started.wait()
+    cancelled_caller.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled_caller
+
+    # Act: Let close observe and clean up the transport failure.
+    session.release.set()
+    await oauth_with_tokens.async_close()
+
+    # Assert: Closing logs the failure and releases the owned transport session.
+    assert session.calls == 1
+    assert session.closed is True
+    assert any(
+        "Token refresh failed while closing authentication" in record.message
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

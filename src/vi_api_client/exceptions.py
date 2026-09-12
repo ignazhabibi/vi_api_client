@@ -43,9 +43,26 @@ class ViNotFoundError(ViError):
 
 
 class ViRateLimitError(ViError):
-    """429 Rate Limit Exceeded."""
+    """429 Rate Limit Exceeded with optional server retry guidance."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        error_id: str | None = None,
+        error_type: str | None = None,
+        *,
+        retry_after: float | None = None,
+    ) -> None:
+        """Initialize a rate-limit error.
+
+        Args:
+            message: The error message.
+            error_id: Optional unique error identifier from the API.
+            error_type: Optional Viessmann API error classification.
+            retry_after: Optional server-recommended delay in seconds.
+        """
+        super().__init__(message, error_id, error_type)
+        self.retry_after = retry_after
 
 
 class ViResponseError(ViError):

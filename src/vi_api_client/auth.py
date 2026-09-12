@@ -1,5 +1,6 @@
 """Authentication module for Viessmann API."""
 
+import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -115,6 +116,7 @@ class OAuth(AbstractAuth):
         self.scope = scope
         self._token_info: dict[str, Any] = {}
         self._pkce_verifier: str | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
 
         # Load existing tokens if available.
         self._load_tokens()
@@ -175,8 +177,8 @@ class OAuth(AbstractAuth):
 
             self._update_tokens(await resp.json())
 
-    async def async_refresh_access_token(self) -> None:
-        """Refresh the access token."""
+    async def _async_refresh_access_token(self) -> None:
+        """Refresh the access token through the token endpoint."""
         refresh_token = self._token_info.get("refresh_token")
         if not refresh_token:
             raise ViAuthError("No refresh token available.")
@@ -195,6 +197,43 @@ class OAuth(AbstractAuth):
                 raise ViAuthError(f"Failed to refresh token: {text}")
 
             self._update_tokens(await resp.json())
+
+    async def async_refresh_access_token(self) -> None:
+        """Refresh the access token, sharing an in-flight refresh per instance.
+
+        Raises:
+            ViAuthError: If the refresh token is unavailable or rejected.
+        """
+        refresh_task = self._refresh_task
+        if refresh_task is None or refresh_task.done():
+            refresh_task = asyncio.create_task(self._async_refresh_access_token())
+            self._refresh_task = refresh_task
+
+        try:
+            await asyncio.shield(refresh_task)
+        finally:
+            if refresh_task.done() and self._refresh_task is refresh_task:
+                self._refresh_task = None
+
+    async def async_close(self) -> None:
+        """Let an in-flight refresh settle before closing an owned session."""
+        refresh_task = self._refresh_task
+        if refresh_task is not None:
+            try:
+                await asyncio.shield(refresh_task)
+            except (
+                ViAuthError,
+                aiohttp.ClientError,
+                OSError,
+                TimeoutError,
+                ValueError,
+            ):
+                _LOGGER.exception("Token refresh failed while closing authentication")
+            finally:
+                if refresh_task.done() and self._refresh_task is refresh_task:
+                    self._refresh_task = None
+
+        await super().async_close()
 
     async def async_get_access_token(self) -> str:
         """Return valid access token, refreshing if necessary."""
