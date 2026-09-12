@@ -9,8 +9,8 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._adapter import _LiveAdapter
-from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
+from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
 from vi_api_client.exceptions import (
     ViAuthError,

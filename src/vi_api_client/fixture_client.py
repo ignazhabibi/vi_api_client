@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from ._adapter import _CommandAdapter, _DiscoveryAdapter
-from .api import ViClient
+from .client import ViClient
 from .models import (
     Device,
     FeatureControl,
@@ -53,7 +53,7 @@ class _FixtureDiscoveryAdapter:
         self._feature_data: dict[str, Any] | None = None
 
     async def get_installations(self) -> dict[str, Any]:
-        """Return the mock installation envelope."""
+        """Return the fixture installation envelope."""
         return {
             "data": [
                 {
@@ -66,7 +66,7 @@ class _FixtureDiscoveryAdapter:
         }
 
     async def get_gateways(self) -> dict[str, Any]:
-        """Return the mock gateway envelope."""
+        """Return the fixture gateway envelope."""
         return self._discovery_data["gateways"]
 
     async def get_devices(
@@ -121,10 +121,10 @@ class _FixtureCommandAdapter:
             control.param_name,
             parameters,
         )
-        return {"data": {"success": True, "reason": "Mock Execution Success"}}
+        return {"data": {"success": True, "reason": "Fixture Execution Success"}}
 
 
-class MockViClient(ViClient):
+class FixtureViClient(ViClient):
     """Fixture-backed client that runs public workflows without network access.
 
     It uses bundled JSON fixture responses without authentication, which makes
@@ -132,10 +132,10 @@ class MockViClient(ViClient):
     """
 
     def __init__(self, device_name: str) -> None:
-        """Initialize the mock client.
+        """Initialize the fixture client.
 
         Args:
-            device_name: The name of the mock device (e.g. "Vitodens200W").
+            device_name: The name of the fixture device (e.g. "Vitodens200W").
                 Must correspond to a file in the fixtures directory.
         """
         self.device_name = device_name
@@ -145,7 +145,7 @@ class MockViClient(ViClient):
         self._command_adapter: _CommandAdapter = _FixtureCommandAdapter()
 
     @staticmethod
-    def get_available_mock_devices() -> list[str]:
+    def get_available_fixture_devices() -> list[str]:
         """Return fixture names accepted by the fixture-backed client.
 
         Returns:

@@ -16,7 +16,7 @@ from typing import Any
 import aiohttp
 
 from vi_api_client import (
-    MockViClient,
+    FixtureViClient,
     OAuth,
     ViClient,
     ViNotFoundError,
@@ -45,7 +45,7 @@ class CLIContext:
     """Context for CLI commands."""
 
     session: aiohttp.ClientSession | None
-    client: ViClient | MockViClient
+    client: ViClient | FixtureViClient
     # Found IDs (either from args or auto-discovery)
     inst_id: str
     gw_serial: str
@@ -126,12 +126,12 @@ async def setup_client_context(
     args, discover: bool = True
 ) -> AsyncGenerator[CLIContext]:
     """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
-    if args.mock_device:
-        client = MockViClient(args.mock_device)
+    if args.fixture_device:
+        client = FixtureViClient(args.fixture_device)
         inst_id = getattr(args, "installation_id", None) or "99999"
         gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
         dev_id = getattr(args, "device_id", None) or "0"
-        _print_diagnostic(args, f"Using Mock Device: {args.mock_device}")
+        _print_diagnostic(args, f"Using Fixture Device: {args.fixture_device}")
         yield CLIContext(None, client, inst_id, gw_serial, dev_id)
         return
 
@@ -662,16 +662,16 @@ def _print_feature_constraints(ctrl: Any) -> None:
         print(f"    Constraints: {', '.join(constraints)}")
 
 
-async def cmd_list_mock_devices(args) -> bool:
-    """List available mock devices.
+async def cmd_list_fixture_devices(args) -> bool:
+    """List available fixture devices.
 
     Lists fixture files that can be used for offline testing.
 
     Args:
         args: Parsed command line arguments (unused but required for dispatch).
     """
-    devices = MockViClient.get_available_mock_devices()
-    print("Available Mock Devices:")
+    devices = FixtureViClient.get_available_fixture_devices()
+    print("Available Fixture Devices:")
     for device in devices:
         print(f"- {device}")
     return True
@@ -692,7 +692,7 @@ async def async_main() -> int:
         "--insecure", action="store_true", help="Disable SSL verification"
     )
     common_parser.add_argument(
-        "--mock-device", help="Use a mock device (e.g. Vitodens200W)"
+        "--fixture-device", help="Use a fixture device (e.g. Vitodens200W)"
     )
 
     parser = argparse.ArgumentParser(description="Viessmann API CLI")
@@ -743,9 +743,11 @@ async def async_main() -> int:
         "--raw", action="store_true", help="Show raw JSON response"
     )
 
-    # List available mock devices
+    # List available fixture devices
     subparsers.add_parser(
-        "list-mock-devices", help="List available mock devices", parents=[common_parser]
+        "list-fixture-devices",
+        help="List available fixture devices",
+        parents=[common_parser],
     )
 
     # List Writable Features
@@ -827,7 +829,7 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
         "list-devices": cmd_list_devices,
         "list-features": cmd_list_features,
         "get-feature": cmd_get_feature,
-        "list-mock-devices": cmd_list_mock_devices,
+        "list-fixture-devices": cmd_list_fixture_devices,
         "list-writable": cmd_list_writable,
         "set": cmd_set,
         "exec": cmd_exec,

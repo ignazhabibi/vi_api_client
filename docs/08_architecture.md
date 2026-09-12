@@ -223,9 +223,9 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | Module | Responsibility | Deliberately not responsible for |
 | --- | --- | --- |
 | `__init__.py` | Curated public imports | Internal adapters and helpers |
-| `api.py` | Shared domain client workflows | HTTP details and fixture paths |
+| `client.py` | Shared domain client workflows | HTTP details and fixture paths |
 | `_adapter.py` | Ports, live adapter, HTTP error mapping | Building domain models |
-| `mock_client.py` | Fixture adapters and `MockViClient` | Alternative domain logic |
+| `fixture_client.py` | Fixture adapters and `FixtureViClient` | Alternative domain logic |
 | `parsing.py` | Convert nested API features into flat features | Network and consumer state |
 | `models.py` | Immutable snapshots and command metadata | Polling and persistence |
 | `auth.py` | Authenticated requests, OAuth, session lifecycle | General retries |
@@ -460,7 +460,7 @@ flowchart TB
 `ViClient(auth)` uses `_LiveAdapter`, which builds URLs, performs
 authenticated requests, and validates transport responses.
 
-`MockViClient(device_name)` uses fixture adapters and needs no authentication,
+`FixtureViClient(device_name)` uses fixture adapters and needs no authentication,
 network, or session. Fixtures in `src/vi_api_client/fixtures/` are bundled
 product data representing real or realistic complete device responses.
 
@@ -595,7 +595,7 @@ scheduling, availability, and rate-limit policy.
 Consumers import public symbols from the package root:
 
 ```python
-from vi_api_client import Device, Feature, MockViClient, OAuth, ViClient
+from vi_api_client import Device, Feature, FixtureViClient, OAuth, ViClient
 ```
 
 The package root is `vi_api_client/__init__.py`. It is the curated public
@@ -616,9 +616,9 @@ flowchart LR
     Args["CLI arguments"] --> Context["Create session and context"]
     Context --> Choice{"Live or fixture?"}
     Choice -->|Live| Live["OAuth + ViClient"]
-    Choice -->|Fixture| Mock["MockViClient"]
+    Choice -->|Fixture| Fixture["FixtureViClient"]
     Live --> Methods["Shared client methods"]
-    Mock --> Methods
+    Fixture --> Methods
     Methods --> Output{"Output format"}
     Output -->|Human| Text["Readable stdout"]
     Output -->|--json| Json["One JSON document on stdout"]
@@ -633,7 +633,7 @@ behavior.
 ## 19. Fixtures and tests
 
 `src/vi_api_client/fixtures/` contains complete device responses for the
-public `MockViClient`. They are bundled product assets and represent real or
+public `FixtureViClient`. They are bundled product assets and represent real or
 realistic anonymized devices.
 
 `tests/fixtures/` contains smaller scenario-specific inputs. They should derive
@@ -696,7 +696,7 @@ implementation convenience.
   frozen.
 - **“`set_feature()` reads the value back.”** No. It returns a locally
   command-updated snapshot. A later read returns refreshed state.
-- **“`MockViClient` has simplified domain logic.”** No. It replaces only
+- **“`FixtureViClient` has simplified domain logic.”** No. It replaces only
   environment adapters.
 - **“Async means everything runs concurrently.”** No. Consumers decide domain
   concurrency.
@@ -716,7 +716,7 @@ implementation convenience.
 6. Use `set_feature()` for ordinary writes and adopt its returned snapshot.
 7. Read again later when authoritative values are required.
 8. Own polling, availability, concurrency, retry, and backoff.
-9. Use the same workflow with `MockViClient(device_name)` offline.
+9. Use the same workflow with `FixtureViClient(device_name)` offline.
 
 ```text
 The consumer owns time and retained state.

@@ -11,7 +11,7 @@ Keep changes small and directly related to the request. Do not refactor or clean
 - This is `vi_api_client`, an asynchronous Python library for the Viessmann Climate Solutions API. Library code is in `src/vi_api_client/`; tests are in `tests/`; user-facing documentation is in `docs/`.
 - The library has a flat feature model: use dot-named `Feature` objects from `device.get_feature(...)` rather than navigating raw nested API payloads. Read values from `feature.value` and use `feature.is_writable` to determine whether a feature can be changed.
 - `update_device` returns a new `Device`; do not mutate device instances in place. Use `set_feature` for writes rather than constructing raw API payloads.
-- `MockViClient` uses the bundled fixtures in `src/vi_api_client/fixtures/` and is the preferred client for offline smoke, CLI, and integration-style tests. Use `aioresponses` for HTTP and OAuth request-flow tests against `ViClient`.
+- `FixtureViClient` uses the bundled fixtures in `src/vi_api_client/fixtures/` and is the preferred client for offline smoke, CLI, and integration-style tests. Use `aioresponses` for HTTP and OAuth request-flow tests against `ViClient`.
 - `vi_climate_devices` and other consumers are separate codebases. Do not edit them or add consumer-specific library behavior without an explicit request. Explain compatibility impact, expected consumer follow-up, and required version bump instead.
 
 ## Python and Tests

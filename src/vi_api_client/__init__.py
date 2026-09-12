@@ -1,7 +1,7 @@
 """Viessmann API Client."""
 
-from .api import ViClient
 from .auth import AbstractAuth, OAuth
+from .client import ViClient
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
 from .exceptions import (
     ViAuthError,
@@ -13,7 +13,7 @@ from .exceptions import (
     ViServerInternalError,
     ViValidationError,
 )
-from .mock_client import MockViClient
+from .fixture_client import FixtureViClient
 from .models import (
     CommandResponse,
     Device,
@@ -34,10 +34,10 @@ __all__ = [
     "Device",
     "Feature",
     "FeatureControl",
+    "FixtureViClient",
     "Gateway",
     "GatewayDeviceRefreshResult",
     "Installation",
-    "MockViClient",
     "OAuth",
     "ViAuthError",
     "ViClient",

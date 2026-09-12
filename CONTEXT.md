@@ -61,7 +61,7 @@ not the executed command.
 `ViClient` configured with authentication that reads from the Viessmann API.
 
 **Fixture-backed client**:
-`MockViClient`, which runs the public client workflows against bundled fixture
+`FixtureViClient`, which runs the public client workflows against bundled fixture
 responses without authentication or network requests.
 
 **Credential document**:

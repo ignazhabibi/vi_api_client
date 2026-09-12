@@ -1,6 +1,6 @@
-"""Tests/Verification for device response fixtures (Mock Data).
+"""Tests/Verification for device response fixtures (Fixture Data).
 
-These tests ensure that the bundled JSON mock data (used for the MockViClient
+These tests ensure that the bundled JSON fixture data (used for the FixtureViClient
 and delivered to users) is valid and can be correctly parsed by the library.
 """
 
@@ -14,14 +14,14 @@ import pytest
 from vi_api_client.parsing import parse_feature_flat
 
 # Path to the bundled fixtures (src/vi_api_client/fixtures)
-# We test these to ensure the MockClient works correctly for downstream users.
+# We test these to ensure the FixtureViClient works correctly for downstream users.
 MOCK_DATA_DIR = os.path.join(
     os.path.dirname(__file__), "..", "src", "vi_api_client", "fixtures"
 )
 
 
-def get_mock_data_files():
-    """Get all bundled mock device JSON files."""
+def get_fixture_data_files():
+    """Get all bundled fixture device JSON files."""
     return sorted(
         file_path
         for file_path in glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
@@ -29,7 +29,7 @@ def get_mock_data_files():
     )
 
 
-def test_mock_discovery_metadata_matches_bundled_device_fixtures():
+def test_fixture_discovery_metadata_matches_bundled_device_fixtures():
     """Each bundled device fixture should have exactly one metadata definition."""
     # Arrange: Read the catalog that drives fixture enumeration and discovery.
     discovery_path = Path(MOCK_DATA_DIR) / "discovery.json"
@@ -39,7 +39,7 @@ def test_mock_discovery_metadata_matches_bundled_device_fixtures():
     # Act: Compare catalog fixture names with bundled feature-response filenames.
     catalogued_fixture_names = {device["fixtureName"] for device in device_metadata}
     bundled_fixture_names = {
-        Path(file_path).stem for file_path in get_mock_data_files()
+        Path(file_path).stem for file_path in get_fixture_data_files()
     }
 
     # Assert: Metadata is complete, unique, and has the discovery identity fields.
@@ -51,12 +51,12 @@ def test_mock_discovery_metadata_matches_bundled_device_fixtures():
     )
 
 
-@pytest.mark.parametrize("file_path", get_mock_data_files(), ids=os.path.basename)
-def test_mock_data_integrity(file_path):
-    """Verify that each mock device file parses successfully and features extract correctly."""
-    # Arrange: Load mock device JSON file and extract features array.
+@pytest.mark.parametrize("file_path", get_fixture_data_files(), ids=os.path.basename)
+def test_fixture_data_integrity(file_path):
+    """Verify that each fixture device file parses successfully and features extract correctly."""
+    # Arrange: Load fixture device JSON file and extract features array.
     file_name = os.path.basename(file_path)
-    print(f"Testing mock data file: {file_name}")
+    print(f"Testing fixture data file: {file_name}")
 
     with open(file_path) as f:
         data = json.load(f)
@@ -78,7 +78,7 @@ def test_mock_data_integrity(file_path):
         all_features.extend(parsed)
 
     # Assert: Verify features parsed successfully and have correct constraints.
-    assert len(all_features) > 0, f"Mock data {file_name} resulted in 0 features"
+    assert len(all_features) > 0, f"Fixture data {file_name} resulted in 0 features"
 
     # Specific assertions for known patterns to ensure data quality
     writables = [feature for feature in all_features if feature.is_writable]

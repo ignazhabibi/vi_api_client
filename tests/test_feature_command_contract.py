@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from vi_api_client.api import ViClient
-from vi_api_client.mock_client import MockViClient
+from vi_api_client.client import ViClient
+from vi_api_client.fixture_client import FixtureViClient
 from vi_api_client.models import Device, Feature, FeatureControl
 
 
@@ -34,9 +34,9 @@ def _create_live_client(adapter: _RecordingCommandAdapter) -> ViClient:
     return client
 
 
-def _create_fixture_client(adapter: _RecordingCommandAdapter) -> MockViClient:
+def _create_fixture_client(adapter: _RecordingCommandAdapter) -> FixtureViClient:
     """Create a fixture-backed client with a recording command adapter."""
-    client = MockViClient.__new__(MockViClient)
+    client = FixtureViClient.__new__(FixtureViClient)
     client._command_adapter = adapter
     return client
 
