@@ -12,10 +12,10 @@ from .exceptions import ViError
 
 @dataclass(frozen=True)
 class FeatureControl:
-    """Encapsulates write logic for a specific feature.
+    """Command metadata for a writable feature, not an executed command.
 
     Attributes:
-        command_name: Name of the command to execute (e.g. 'setCurve').
+        command_name: Name of the feature command (e.g. 'setCurve').
         param_name: Name of the parameter mapping to this feature (e.g. 'slope').
         required_params: Read-only parameter names required by this command.
             Used for dependency resolution (e.g. ['slope', 'shift']).
@@ -64,7 +64,8 @@ class Feature:
         unit: Optional unit string (e.g. 'celsius').
         is_enabled: Whether the feature is currently enabled on the device.
         is_ready: Whether the feature is ready for interaction.
-        control: Optional control object if the feature is writable.
+        control: Optional `FeatureControl` command metadata if the feature is
+            writable.
     """
 
     name: str
@@ -82,7 +83,7 @@ class Feature:
 
 @dataclass(frozen=True)
 class Device:
-    """Representation of a Viessmann device.
+    """Immutable device snapshot.
 
     Attributes:
         id: Unique device identifier (GUID).
@@ -91,7 +92,7 @@ class Device:
         model_id: Model identifier (e.g. 'Simple_Device').
         device_type: Type classification (e.g. 'heating').
         status: Connection status (e.g. 'Online').
-        features: Read-only associated features.
+        features: Read-only features known when this snapshot was created.
     """
 
     id: str

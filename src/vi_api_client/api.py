@@ -84,7 +84,8 @@ class ViClient:
             only_active_features: If include_features is True, fetch only enabled ones.
 
         Returns:
-            List of Device objects (populated with features if requested).
+            Device snapshots. When requested, device feature hydration produces
+            new snapshots from the feature responses.
         """
         devices_data = await self._discovery_adapter.get_devices(
             installation_id, gateway_serial
@@ -200,14 +201,14 @@ class ViClient:
         return all_devices
 
     async def update_device(self, device: Device, only_enabled: bool = True) -> Device:
-        """Refresh the features of an existing device.
+        """Return a refreshed device snapshot from an API feature read.
 
         Args:
             device: The device object to refresh.
             only_enabled: Whether to fetch only enabled features.
 
         Returns:
-            A new Device instance with updated features (immutable update).
+            A refreshed device snapshot with features from the API response.
         """
         features = await self.get_features(device, only_enabled=only_enabled)
         return replace(device, features=features)
@@ -280,7 +281,7 @@ class ViClient:
     async def set_feature(
         self, device: Device, feature: Feature, target_value: Any
     ) -> tuple[CommandResponse, Device]:
-        """Set a value for a feature and return optimistically updated device.
+        """Set a feature value and return a command-updated device snapshot.
 
         Automatically resolves dependencies (other required parameters for the command)
         by looking them up in the device's feature list.
@@ -292,8 +293,9 @@ class ViClient:
 
         Returns:
             Tuple of (command_response, updated_device).
-            - If successful: device with optimistically updated feature value.
-            - If failed: original device unchanged.
+            - If successful: command-updated device snapshot with the feature
+              value set locally, without an API read-back.
+            - If failed: original device snapshot unchanged.
 
         Raises:
             ValueError: If feature is read-only or value is out of bounds.
@@ -319,9 +321,9 @@ class ViClient:
         # 3. Execution
         response = await self._execute_command(control, payload)
 
-        # 4. Optimistic Device Update
+        # 4. Build a command-updated device snapshot.
         if response.success:
-            # Update feature value optimistically
+            # Preserve all other feature values from the input snapshot.
             updated_feature = replace(feature, value=target_value)
             updated_features = [
                 updated_feature

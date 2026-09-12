@@ -96,7 +96,7 @@ vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
 `exec` sends every supplied parameter as one explicit command. It does not add
-dependent values or optimistically update a device; use `set` for the normal
+dependent values or create a command-updated device snapshot; use `set` for the normal
 single-feature workflow.
 
 ## 8. Mock Devices (Offline Mode)

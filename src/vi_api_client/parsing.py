@@ -208,7 +208,7 @@ def _find_control(
         prop_data: Optional property metadata for constraint fallback.
 
     Returns:
-        FeatureControl object if a matching command is found, else None.
+        FeatureControl command metadata if a matching command is found, else None.
     """
     # 1. Direct Command Search
     # Iterate all commands to see if any parameter matches this property
@@ -230,7 +230,7 @@ def _find_control(
 def _build_control(
     cmd_name: str, cmd_data: dict, target_param: str, parent_name: str, prop_data: Any
 ) -> FeatureControl:
-    """Construct FeatureControl object from command data."""
+    """Construct FeatureControl command metadata from command data."""
     params = cmd_data.get("params", {})
     p_data = params[target_param]
     constraints_dict = p_data.get("constraints", {})

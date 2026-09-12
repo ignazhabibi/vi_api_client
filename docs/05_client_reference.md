@@ -25,9 +25,10 @@ already known.
 An application that supplies `OAuth(websession=session)` owns and closes that
 session. An `AbstractAuth` provider closes only a session it created itself.
 
-`MockViClient(device_name)` is a `ViClient` subtype backed by bundled device
-responses. It supports the same high-level methods without constructing
-authentication, sessions, or network transports.
+`ViClient` is the live client when configured with authentication: its public
+workflows read from the Viessmann API. `MockViClient(device_name)` is the
+fixture-backed client: it runs those public workflows against bundled fixture
+responses without authentication or network requests.
 
 ## Discovery Methods
 
@@ -47,17 +48,19 @@ Fetches devices attached to a specific gateway.
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
-    *   `include_features`: If `True`, automatically populates the `features` list (Default `False`).
+    *   `include_features`: If `True`, performs device feature hydration (Default `False`).
     *   `only_active_features`: If `include_features=True`, only returns enabled and ready features (Default `False`).
-*   **Returns**: List of `Device` objects. If `include_features=True`, the `features` property will be populated.
+*   **Returns**: List of device snapshots. If `include_features=True`, device
+    feature hydration produces new snapshots from the feature responses.
 
 ### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> list[Device]`
-Fetches the complete status of an installation, including all devices and their features.
+Fetches the complete status of an installation as refreshed device snapshots.
 
 *   **Parameters**:
     *   `installation_id`: The ID of the installation to scan.
     *   `only_enabled`: if `True` (default), only returns enabled and ready features.
-*   **Returns**: List of `Device` objects, where each device has its `features` attribute fully populated.
+*   **Returns**: List of refreshed device snapshots whose features came from API
+    read responses.
 *   **Use Case**: Initial startup (e.g., Home Assistant integration load) to populate the entire entity registry at once.
 
 ## Feature Methods
@@ -80,7 +83,7 @@ Refreshes a specific device by refetching all its features.
 *   **Parameters**:
     *   `device`: The `Device` object to update.
     *   `only_enabled`: if `True`, only returns enabled and ready features (default `True`).
-*   **Returns**: A new `Device` instance with updated features.
+*   **Returns**: A refreshed device snapshot with features from an API read response.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
 ### `update_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
@@ -113,7 +116,8 @@ for device_id, error in result.errors_by_device_id.items():
 semantics rather than this gateway-scoped partial-result contract.
 
 ### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
-Sets a new value for a writable feature and returns an optimistically updated device.
+Sends a feature command for a writable feature and returns a command-updated
+device snapshot after a successful command response, without an API read-back.
 
 *   **Parameters**:
     *   `device`: The `Device` object.
@@ -121,7 +125,8 @@ Sets a new value for a writable feature and returns an optimistically updated de
     *   `target_value`: The new value you want to set.
 *   **Returns**: Tuple of `(CommandResponse, Device)`:
     *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
-    *   `Device`: Updated device with the feature value optimistically set (on success) or unchanged (on failure).
+    *   `Device`: Command-updated device snapshot with the feature value set
+        locally on success, or the original snapshot on failure.
 *   **Raises**:
     *   `ValueError` if the feature is read-only or the value violates client-side constraints.
     *   `ViValidationError` if the API rejects the generated command payload.
