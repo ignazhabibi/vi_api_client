@@ -25,6 +25,13 @@ already known.
 An application that supplies `OAuth(websession=session)` owns and closes that
 session. An `AbstractAuth` provider closes only a session it created itself.
 
+Applications own request concurrency, retry, backoff, polling, and stale-state
+policy. `ViClient` does not automatically retry authentication, rate-limit,
+server, or connection failures, and does not provide a client-wide rate limiter
+or concurrency control. A gateway-scoped device refresh keeps its existing
+partial-result behavior; consumers decide how to use stale state and partial
+availability.
+
 `ViClient` is the live client when configured with authentication: its public
 workflows read from the Viessmann API. `MockViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
