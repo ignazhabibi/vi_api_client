@@ -4,23 +4,23 @@ import logging
 
 import pytest
 
-from vi_api_client import MockViClient
+from vi_api_client import FixtureViClient
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.mock_client import _FixtureDiscoveryAdapter
+from vi_api_client.fixture_client import _FixtureDiscoveryAdapter
 
 
-def test_mock_client_rejects_obsolete_authentication_argument():
+def test_fixture_client_rejects_obsolete_authentication_argument():
     """Fixture clients should accept only the selected fixture device name."""
-    # Act and assert: Mock clients must not accept unused authentication state.
+    # Act and assert: Fixture clients must not accept unused authentication state.
     with pytest.raises(TypeError, match="auth"):
-        MockViClient("Vitodens200W", auth=None)  # pyright: ignore[reportCallIssue]
+        FixtureViClient("Vitodens200W", auth=None)  # pyright: ignore[reportCallIssue]
 
 
 @pytest.mark.asyncio
-async def test_mock_device_hydration_uses_deterministic_fixture_topology():
+async def test_fixture_device_hydration_uses_deterministic_fixture_topology():
     """Mock device discovery should use the selected fixture in one topology."""
     # Arrange: Select a known fixture device.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
 
     # Act: Discover and hydrate through the public client workflow.
     devices = await client.get_devices(
@@ -56,7 +56,7 @@ async def test_mock_discovery_uses_each_fixture_metadata_definition(
 ):
     """Fixture discovery should expose each catalogued model and device type."""
     # Arrange: Select one bundled fixture from the public fixture catalog.
-    client = MockViClient(fixture_name)
+    client = FixtureViClient(fixture_name)
 
     # Act: Discover the fixture through the public client workflow.
     devices = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
@@ -67,9 +67,9 @@ async def test_mock_discovery_uses_each_fixture_metadata_definition(
     ]
 
 
-def test_mock_device_catalog_lists_each_fixture_metadata_definition():
+def test_fixture_device_catalog_lists_each_fixture_metadata_definition():
     """Fixture enumeration should use the same catalog as fixture discovery."""
-    assert MockViClient.get_available_mock_devices() == [
+    assert FixtureViClient.get_available_fixture_devices() == [
         "Vitocal200S",
         "Vitocal222S",
         "Vitocal250A",
@@ -84,7 +84,7 @@ def test_mock_device_catalog_lists_each_fixture_metadata_definition():
 async def test_mock_update_device_returns_hydrated_copy_without_mutating_input():
     """Mock refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
     # Act: Refresh through the public client workflow.
@@ -100,7 +100,7 @@ async def test_mock_update_device_returns_hydrated_copy_without_mutating_input()
 async def test_mock_gateway_refresh_uses_the_fixture_adapter_without_authentication():
     """Mock gateway refresh should reuse the client workflow without credentials."""
     # Arrange: Discover the deterministic fixture device through an offline client.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
     # Act: Refresh the discovered device through the inherited gateway operation.
@@ -117,7 +117,7 @@ async def test_mock_gateway_refresh_uses_the_fixture_adapter_without_authenticat
 async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
     """Mock filtering should retain only requested enabled and ready features."""
     # Arrange: Select a fixture that includes disabled features.
-    client = MockViClient("Vitocal200S")
+    client = FixtureViClient("Vitocal200S")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
     # Act: Request enabled and ready features by explicit names.
@@ -135,10 +135,10 @@ async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
 
 
 @pytest.mark.asyncio
-async def test_mock_client_rejects_malformed_fixture_feature_envelopes():
+async def test_fixture_client_rejects_malformed_fixture_feature_envelopes():
     """Fixture feature responses should use the same envelope validation as live ones."""
     # Arrange: Replace the cached fixture response with an invalid collection entry.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
     fixture_adapter = client._discovery_adapter
     assert isinstance(fixture_adapter, _FixtureDiscoveryAdapter)
@@ -153,8 +153,8 @@ async def test_mock_client_rejects_malformed_fixture_feature_envelopes():
 async def test_mock_execute_command_is_offline_and_stateless(capsys, caplog):
     """Mock command execution should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
-    caplog.set_level(logging.DEBUG, logger="vi_api_client.mock_client")
-    client = MockViClient("Vitocal250A")
+    caplog.set_level(logging.DEBUG, logger="vi_api_client.fixture_client")
+    client = FixtureViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
     device = await client.update_device(device)
     feature = device.get_feature("heating.circuits.0.heating.curve.slope")

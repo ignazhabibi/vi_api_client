@@ -12,7 +12,7 @@ Designed for integration with Home Assistant and other async Python applications
 - **Gateway-Scoped Refresh**: Refreshes multiple known devices with one normal-case request while preserving partial successes.
 - **Command Execution**: Supports safe single-feature writes with automatic
   parameter resolution and explicit multi-parameter commands.
-- **Mock Client**: Runs the same client workflows against bundled real-device
+- **Fixture-backed Client**: Runs the same client workflows against bundled real-device
   responses without authentication, sessions, or network requests.
 
 ## Public API
@@ -32,7 +32,7 @@ from vi_api_client import (
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
-    MockViClient,
+    FixtureViClient,
     OAuth,
     ViAuthError,
     ViClient,

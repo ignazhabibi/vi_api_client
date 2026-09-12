@@ -1,4 +1,4 @@
-"""Viessmann API Client."""
+"""Live and shared client workflows for the Viessmann API."""
 
 import logging
 import re

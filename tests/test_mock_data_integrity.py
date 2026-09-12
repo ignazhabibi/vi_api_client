@@ -1,6 +1,6 @@
 """Tests/Verification for device response fixtures (Mock Data).
 
-These tests ensure that the bundled JSON mock data (used for the MockViClient
+These tests ensure that the bundled JSON mock data (used for the FixtureViClient
 and delivered to users) is valid and can be correctly parsed by the library.
 """
 
@@ -21,7 +21,7 @@ MOCK_DATA_DIR = os.path.join(
 
 
 def get_mock_data_files():
-    """Get all bundled mock device JSON files."""
+    """Get all bundled fixture device JSON files."""
     return sorted(
         file_path
         for file_path in glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
@@ -53,8 +53,8 @@ def test_mock_discovery_metadata_matches_bundled_device_fixtures():
 
 @pytest.mark.parametrize("file_path", get_mock_data_files(), ids=os.path.basename)
 def test_mock_data_integrity(file_path):
-    """Verify that each mock device file parses successfully and features extract correctly."""
-    # Arrange: Load mock device JSON file and extract features array.
+    """Verify that each fixture device file parses successfully and features extract correctly."""
+    # Arrange: Load fixture device JSON file and extract features array.
     file_name = os.path.basename(file_path)
     print(f"Testing mock data file: {file_name}")
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from vi_api_client import MockViClient
+from vi_api_client import FixtureViClient
 from vi_api_client.models import Device
 
 
@@ -11,7 +11,7 @@ from vi_api_client.models import Device
 async def test_mock_discovery_uses_shared_domain_conversion_without_auth():
     """Mock discovery should share client conversion without a live connector."""
     # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
 
     # Act: Discover installations and gateways through the inherited workflow.
     installations = await client.get_installations()
@@ -29,8 +29,8 @@ async def test_mock_discovery_uses_shared_domain_conversion_without_auth():
 @pytest.mark.asyncio
 async def test_mock_workflow_vitodens():
     """Verify Vitodens (gas boiler) workflow with mock data."""
-    # Arrange: Prepare the mock client and device.
-    client = MockViClient("Vitodens200W")
+    # Arrange: Prepare the fixture client and device.
+    client = FixtureViClient("Vitodens200W")
     device = Device(
         id="0",
         gateway_serial="MOCK_GW",
@@ -83,8 +83,8 @@ async def test_mock_workflow_vitodens():
 @pytest.mark.asyncio
 async def test_mock_workflow_vitocal():
     """Verify heat pump specific features (compressor) with mock data."""
-    # Arrange: Prepare the mock client for a heat pump device.
-    client = MockViClient("Vitocal250A")
+    # Arrange: Prepare the fixture client for a heat pump device.
+    client = FixtureViClient("Vitocal250A")
     device = Device(
         id="0",
         gateway_serial="MOCK_GW_HP",
@@ -130,7 +130,7 @@ async def test_mock_workflow_vitocal():
 async def test_mock_set_feature_stays_offline():
     """Verify mock writes use simulated execution without live resources."""
     # Arrange: Hydrate a mock heat pump without authentication or HTTP resources.
-    client = MockViClient("Vitocal250A")
+    client = FixtureViClient("Vitocal250A")
     device = (
         await client.get_devices(
             installation_id="99999",
@@ -157,7 +157,7 @@ async def test_mock_set_feature_stays_offline():
 async def test_mock_workflow_auto_hydration():
     """Verify that get_devices(include_features=True) works with MockClient."""
     # Arrange
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
 
     # Act: Use the new single-step hydration (Smart get_devices)
     # IDs don't matter much for MockClient, but we provide them for consistency
@@ -184,7 +184,7 @@ async def test_mock_workflow_auto_hydration():
 async def test_mock_gateway_device_refresh_stays_offline():
     """Verify gateway-scoped refresh has offline mock parity."""
     # Arrange: Use two known devices on the same mock gateway.
-    client = MockViClient("Vitodens200W")
+    client = FixtureViClient("Vitodens200W")
     devices = [
         Device(
             id=device_id,

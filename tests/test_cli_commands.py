@@ -11,7 +11,7 @@ from vi_api_client.cli import (
     cmd_get_feature,
     cmd_list_devices,
     cmd_list_features,
-    cmd_list_mock_devices,
+    cmd_list_fixture_devices,
     cmd_list_writable,
     cmd_login,
     cmd_set,
@@ -25,9 +25,9 @@ from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Insta
 @pytest.fixture
 def mock_cli_context():
     """Fixture to mock setup_client_context functionality."""
-    mock_client = AsyncMock()
+    fixture_client = AsyncMock()
     mock_ctx = MagicMock()
-    mock_ctx.client = mock_client
+    mock_ctx.client = fixture_client
     mock_ctx.inst_id = 99
     mock_ctx.gw_serial = "GW1"
     mock_ctx.dev_id = "DEV1"
@@ -37,7 +37,7 @@ def mock_cli_context():
 @pytest.mark.asyncio
 async def test_cmd_set_success(mock_cli_context, capsys):
     """Test successful feature setting via CLI."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         feature_name="heating.curve.slope",
         value="1.4",
@@ -45,7 +45,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -76,7 +76,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
     mock_response.message = "OK"
     mock_response.reason = None
     # Return tuple (response, device)
-    mock_device = Device(
+    fixture_device = Device(
         id="DEV1",
         gateway_serial="GW1",
         installation_id="99",
@@ -84,7 +84,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         device_type="heating",
         status="ok",
     )
-    mock_cli_context.client.set_feature.return_value = (mock_response, mock_device)
+    mock_cli_context.client.set_feature.return_value = (mock_response, fixture_device)
 
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
@@ -118,7 +118,7 @@ async def test_cmd_set_preserves_string_values(mock_cli_context):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -167,7 +167,7 @@ async def test_cmd_set_parses_boolean_values(mock_cli_context):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -215,7 +215,7 @@ async def test_cmd_set_rejects_invalid_numeric_values(mock_cli_context, capsys):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -362,7 +362,7 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
 @pytest.mark.asyncio
 async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
     """CLI executes every explicitly supplied advanced command parameter."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         feature_name="heating.curve.slope",
         command_name="setCurve",
@@ -371,7 +371,7 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,  # Context defaults
@@ -439,7 +439,7 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -489,7 +489,7 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
 @pytest.mark.asyncio
 async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     """Test that ValidationErrors are printed nicely."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         feature_name="heating.curve.slope",
         command_name="setCurve",
@@ -498,7 +498,7 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -544,14 +544,14 @@ async def test_cmd_exec_validation_error(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
     """Test finding feature failure handling."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         feature_name="missing.feature",
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -574,13 +574,13 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_features_json(mock_cli_context, capsys):
     """Test listing features with JSON output."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -607,14 +607,14 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_async_main_json_output_with_mock_device_is_machine_readable(
+async def test_async_main_json_output_with_fixture_device_is_machine_readable(
     monkeypatch, capsys
 ):
     """The real CLI path must reserve stdout for a JSON feature list."""
     # Arrange: Use a bundled fixture without replacing client context setup.
     monkeypatch.setattr(
         "sys.argv",
-        ["vi-client", "list-features", "--mock-device", "Vitocal250A", "--json"],
+        ["vi-client", "list-features", "--fixture-device", "Vitocal250A", "--json"],
     )
 
     # Act: Invoke the parser, dispatcher, and context setup through the CLI entry path.
@@ -624,11 +624,11 @@ async def test_async_main_json_output_with_mock_device_is_machine_readable(
     captured = capsys.readouterr()
     assert exit_status == 0
     assert json.loads(captured.out)
-    assert "Using Mock Device: Vitocal250A" in captured.err
+    assert "Using Fixture Device: Vitocal250A" in captured.err
 
 
 @pytest.mark.asyncio
-async def test_async_main_json_feature_values_with_mock_device_are_machine_readable(
+async def test_async_main_json_feature_values_with_fixture_device_are_machine_readable(
     monkeypatch, capsys
 ):
     """The real CLI path must reserve stdout for JSON feature values."""
@@ -638,7 +638,7 @@ async def test_async_main_json_feature_values_with_mock_device_are_machine_reada
         [
             "vi-client",
             "list-features",
-            "--mock-device",
+            "--fixture-device",
             "Vitocal250A",
             "--values",
             "--json",
@@ -654,7 +654,7 @@ async def test_async_main_json_feature_values_with_mock_device_are_machine_reada
     features = json.loads(captured.out)
     assert features
     assert all("value" in feature for feature in features)
-    assert "Using Mock Device: Vitocal250A" in captured.err
+    assert "Using Fixture Device: Vitocal250A" in captured.err
 
 
 @pytest.mark.asyncio
@@ -688,13 +688,13 @@ async def test_async_main_json_setup_error_is_written_to_stderr(
 @pytest.mark.asyncio
 async def test_cmd_list_features_enabled(mock_cli_context, capsys):
     """Test listing only enabled features (should use only_enabled=True)."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -725,13 +725,13 @@ async def test_cmd_list_features_enabled(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_devices(mock_cli_context, capsys):
     """Test listing installations, gateways, and devices."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -775,13 +775,13 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
 @pytest.mark.asyncio
 async def test_cmd_list_writable(mock_cli_context, capsys):
     """Test listing available writable features for a device."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
         installation_id=None,
         gateway_serial=None,
         device_id=None,
@@ -824,26 +824,28 @@ async def test_cmd_list_writable(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_mock_devices(capsys):
-    """Test listing mock devices."""
-    # Arrange: Create mock client, device, and fixture data for test.
+async def test_cmd_list_fixture_devices(capsys):
+    """Test listing fixture devices."""
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
         token_file="tokens.json",
         client_id=None,
         redirect_uri=None,
         insecure=False,
-        mock_device=None,
+        fixture_device=None,
     )
 
-    with patch("vi_api_client.cli.MockViClient.get_available_mock_devices") as mock_get:
+    with patch(
+        "vi_api_client.cli.FixtureViClient.get_available_fixture_devices"
+    ) as mock_get:
         mock_get.return_value = ["MockDev1", "MockDev2"]
 
         # Act: Execute the function being tested.
-        assert await cmd_list_mock_devices(args) is True
+        assert await cmd_list_fixture_devices(args) is True
 
         # Assert: Verify the results match expectations.
         captured = capsys.readouterr()
-        assert "Available Mock Devices:" in captured.out
+        assert "Available Fixture Devices:" in captured.out
         assert "- MockDev1" in captured.out
         assert "- MockDev2" in captured.out
 

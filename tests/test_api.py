@@ -8,8 +8,8 @@ import aiohttp
 import pytest
 from aioresponses import aioresponses
 
-from vi_api_client.api import ViClient
 from vi_api_client.auth import AbstractAuth
+from vi_api_client.client import ViClient
 from vi_api_client.const import (
     API_BASE_URL,
     ENDPOINT_FEATURES,
@@ -637,7 +637,7 @@ async def test_get_full_installation_status_rejects_malformed_device_responses()
 @pytest.mark.asyncio
 async def test_get_devices(load_fixture_json):
     """Test fetching devices for a gateway."""
-    # Arrange: Load device fixture and mock devices endpoint.
+    # Arrange: Load device fixture and fixture devices endpoint.
     data = load_fixture_json("devices_heating.json")
     inst_id = "123456"
     gw_serial = "1234567890"
@@ -932,7 +932,7 @@ async def test_get_devices_with_hydration(load_fixture_json):
     )
 
     with aioresponses() as m:
-        # 1. Mock Devices Call
+        # 1. Fixture Devices Call
         m.get(devices_url, payload=devices_data)
 
         # 2. Mock Features Call (for any device ID on this gateway)

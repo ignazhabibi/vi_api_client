@@ -14,7 +14,7 @@ async def test_cli_context_mock_mode_does_not_create_oauth_or_session(tmp_path):
     token_file = tmp_path / "tokens.json"
     token_file.write_text("{invalid", encoding="utf-8")
     args = Namespace(
-        mock_device="Vitodens200W",
+        fixture_device="Vitodens200W",
         client_id=None,
         redirect_uri=None,
         token_file=token_file,
@@ -34,7 +34,7 @@ async def test_cli_context_mock_mode_does_not_create_oauth_or_session(tmp_path):
             "Mock mode must not create an HTTP session"
         )
 
-        # Act: Build a context for the bundled mock device.
+        # Act: Build a context for the bundled fixture device.
         async with setup_client_context(args) as ctx:
             # Assert: The mock context should use deterministic offline defaults.
             assert isinstance(ctx, CLIContext)
@@ -51,9 +51,9 @@ async def test_cli_context_mock_mode_does_not_create_oauth_or_session(tmp_path):
 @pytest.mark.asyncio
 async def test_cli_context_explicit_ids():
     """Test CLI context with explicit IDs (no auto-discovery)."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
-        mock_device=None,
+        fixture_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
         token_file="tokens.json",
@@ -87,9 +87,9 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
     tmp_path, capsys
 ):
     """Test CLI context auto-discovery by mocking the Client completely."""
-    # Arrange: Create mock client, device, and fixture data for test.
+    # Arrange: Create fixture client, device, and fixture data for test.
     args = Namespace(
-        mock_device=None,
+        fixture_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
         token_file=tmp_path / "tokens.json",
@@ -105,16 +105,16 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
         patch("vi_api_client.cli.ViClient") as MockClientCls,
         patch("vi_api_client.cli.OAuth"),
     ):
-        # Setup the mock client instance
-        mock_client = MockClientCls.return_value
+        # Setup the fixture client instance
+        fixture_client = MockClientCls.return_value
 
         # Configure async methods
-        mock_client.get_gateways = AsyncMock(
+        fixture_client.get_gateways = AsyncMock(
             return_value=[
                 Gateway(serial="GW123", version="1", status="ok", installation_id="100")
             ]
         )
-        mock_client.get_devices = AsyncMock(
+        fixture_client.get_devices = AsyncMock(
             return_value=[
                 Device(
                     id="0",
@@ -130,14 +130,14 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
         # Act: Execute the function being tested.
         async with setup_client_context(args) as ctx:
             # Assert: Verify the results match expectations.
-            # Verify context values derived from mock client responses
+            # Verify context values derived from fixture client responses
             assert ctx.inst_id == "100"
             assert ctx.gw_serial == "GW123"
             assert ctx.dev_id == "0"
 
             # Verify client method calls
-            mock_client.get_gateways.assert_called_once()
-            mock_client.get_devices.assert_called_once_with("100", "GW123")
+            fixture_client.get_gateways.assert_called_once()
+            fixture_client.get_devices.assert_called_once_with("100", "GW123")
 
     # Assert: JSON output callers receive setup context as a diagnostic.
     captured = capsys.readouterr()
@@ -165,7 +165,7 @@ async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
 async def test_cli_context_discovery_uses_provided_gateway_scope(tmp_path):
     """A supplied gateway serial should determine its missing installation ID."""
     args = Namespace(
-        mock_device=None,
+        fixture_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
         token_file=tmp_path / "tokens.json",
@@ -176,17 +176,17 @@ async def test_cli_context_discovery_uses_provided_gateway_scope(tmp_path):
     )
 
     with (
-        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.ViClient") as fixture_client_cls,
         patch("vi_api_client.cli.OAuth"),
     ):
-        mock_client = mock_client_cls.return_value
-        mock_client.get_gateways = AsyncMock(
+        fixture_client = fixture_client_cls.return_value
+        fixture_client.get_gateways = AsyncMock(
             return_value=[
                 Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
                 Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
             ]
         )
-        mock_client.get_devices = AsyncMock(
+        fixture_client.get_devices = AsyncMock(
             return_value=[
                 Device(
                     id="0",
@@ -202,14 +202,14 @@ async def test_cli_context_discovery_uses_provided_gateway_scope(tmp_path):
         async with setup_client_context(args) as ctx:
             assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "0")
 
-        mock_client.get_devices.assert_called_once_with("B", "GW-B")
+        fixture_client.get_devices.assert_called_once_with("B", "GW-B")
 
 
 @pytest.mark.asyncio
 async def test_cli_context_discovery_uses_provided_installation_scope(tmp_path):
     """A supplied installation ID should select one of its gateways."""
     args = Namespace(
-        mock_device=None,
+        fixture_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
         token_file=tmp_path / "tokens.json",
@@ -220,17 +220,17 @@ async def test_cli_context_discovery_uses_provided_installation_scope(tmp_path):
     )
 
     with (
-        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.ViClient") as fixture_client_cls,
         patch("vi_api_client.cli.OAuth"),
     ):
-        mock_client = mock_client_cls.return_value
-        mock_client.get_gateways = AsyncMock(
+        fixture_client = fixture_client_cls.return_value
+        fixture_client.get_gateways = AsyncMock(
             return_value=[
                 Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
                 Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
             ]
         )
-        mock_client.get_devices = AsyncMock(
+        fixture_client.get_devices = AsyncMock(
             return_value=[
                 Device(
                     id="0",
@@ -246,14 +246,14 @@ async def test_cli_context_discovery_uses_provided_installation_scope(tmp_path):
         async with setup_client_context(args) as ctx:
             assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "0")
 
-        mock_client.get_devices.assert_called_once_with("B", "GW-B")
+        fixture_client.get_devices.assert_called_once_with("B", "GW-B")
 
 
 @pytest.mark.asyncio
 async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     """Partially specified IDs must not be combined across installations."""
     args = Namespace(
-        mock_device=None,
+        fixture_device=None,
         client_id="test_id",
         redirect_uri="http://localhost",
         token_file=tmp_path / "tokens.json",
@@ -264,11 +264,11 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     )
 
     with (
-        patch("vi_api_client.cli.ViClient") as mock_client_cls,
+        patch("vi_api_client.cli.ViClient") as fixture_client_cls,
         patch("vi_api_client.cli.OAuth"),
     ):
-        mock_client = mock_client_cls.return_value
-        mock_client.get_gateways = AsyncMock(
+        fixture_client = fixture_client_cls.return_value
+        fixture_client.get_gateways = AsyncMock(
             return_value=[
                 Gateway(serial="GW-A", version="1", status="ok", installation_id="A"),
                 Gateway(serial="GW-B", version="1", status="ok", installation_id="B"),
@@ -282,4 +282,4 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
             async with setup_client_context(args):
                 pass
 
-        mock_client.get_devices.assert_not_called()
+        fixture_client.get_devices.assert_not_called()

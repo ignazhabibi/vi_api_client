@@ -99,17 +99,17 @@ vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 dependent values or create a command-updated device snapshot; use `set` for the normal
 single-feature workflow.
 
-## 8. Mock Devices (Offline Mode)
+## 8. Fixture Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
 Mock mode does not read OAuth credentials or `tokens.json` and never makes network
 requests.
 
 ```bash
-# List available mock devices
-vi-client list-mock-devices
+# List available fixture devices
+vi-client list-fixture-devices
 
-# Use a mock device to list its features
-vi-client list-features --mock-device Vitocal250A --values
+# Use a fixture device to list its features
+vi-client list-features --fixture-device Vitocal250A --values
 ```
 
 ## SSL Certificate Issues
