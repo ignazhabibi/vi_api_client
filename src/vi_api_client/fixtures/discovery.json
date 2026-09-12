@@ -20,5 +20,42 @@
         "installationId": "99999"
       }
     ]
-  }
+  },
+  "devices": [
+    {
+      "fixtureName": "Vitocal200S",
+      "modelId": "Vitocal200S",
+      "deviceType": "heating"
+    },
+    {
+      "fixtureName": "Vitocal222S",
+      "modelId": "Vitocal222S",
+      "deviceType": "heating"
+    },
+    {
+      "fixtureName": "Vitocal250A",
+      "modelId": "Vitocal250A",
+      "deviceType": "heating"
+    },
+    {
+      "fixtureName": "Vitocal333G-with-Vitovent300F",
+      "modelId": "Vitocal333G-with-Vitovent300F",
+      "deviceType": "heating"
+    },
+    {
+      "fixtureName": "Vitocharge03",
+      "modelId": "Vitocharge03",
+      "deviceType": "battery"
+    },
+    {
+      "fixtureName": "Vitodens200W",
+      "modelId": "Vitodens200W",
+      "deviceType": "heating"
+    },
+    {
+      "fixtureName": "Vitopure350",
+      "modelId": "Vitopure350",
+      "deviceType": "ventilation"
+    }
+  ]
 }

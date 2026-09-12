@@ -35,7 +35,9 @@ availability.
 `ViClient` is the live client when configured with authentication: its public
 workflows read from the Viessmann API. `MockViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
-responses without authentication or network requests.
+responses without authentication or network requests. Its bundled fixture
+catalog defines each selectable fixture name, model identity, and device type;
+`MockViClient.get_available_mock_devices()` lists those selectable names.
 
 ## Discovery Methods
 

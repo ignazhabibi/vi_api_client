@@ -7,6 +7,7 @@ and delivered to users) is valid and can be correctly parsed by the library.
 import glob
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -25,6 +26,28 @@ def get_mock_data_files():
         file_path
         for file_path in glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
         if not file_path.endswith("discovery.json")
+    )
+
+
+def test_mock_discovery_metadata_matches_bundled_device_fixtures():
+    """Each bundled device fixture should have exactly one metadata definition."""
+    # Arrange: Read the catalog that drives fixture enumeration and discovery.
+    discovery_path = Path(MOCK_DATA_DIR) / "discovery.json"
+    discovery_data = json.loads(discovery_path.read_text(encoding="utf-8"))
+    device_metadata = discovery_data["devices"]
+
+    # Act: Compare catalog fixture names with bundled feature-response filenames.
+    catalogued_fixture_names = {device["fixtureName"] for device in device_metadata}
+    bundled_fixture_names = {
+        Path(file_path).stem for file_path in get_mock_data_files()
+    }
+
+    # Assert: Metadata is complete, unique, and has the discovery identity fields.
+    assert catalogued_fixture_names == bundled_fixture_names
+    assert len(device_metadata) == len(catalogued_fixture_names)
+    assert all(
+        isinstance(device["modelId"], str) and isinstance(device["deviceType"], str)
+        for device in device_metadata
     )
 
 
