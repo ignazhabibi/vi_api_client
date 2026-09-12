@@ -113,14 +113,12 @@ To change settings (e.g., set heating mode), you use the high-level `set_feature
 async def set_heating_mode(client, device):
     feature_name = "heating.circuits.0.operating.modes.active"
 
-    # 1. Fetch the feature
-    # We use get_features with feature_names list for efficiency
-    features = await client.get_features(device, feature_names=[feature_name])
-    if not features:
+    # 1. Refresh the device snapshot so command dependencies are current.
+    device = await client.update_device(device)
+    feature = device.get_feature(feature_name)
+    if feature is None:
         print("Feature not found")
         return
-
-    feature = features[0]
 
     # 2. Check if writable
     if feature.is_writable:

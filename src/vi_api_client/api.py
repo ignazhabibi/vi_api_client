@@ -281,14 +281,14 @@ class ViClient:
     async def set_feature(
         self, device: Device, feature: Feature, target_value: Any
     ) -> tuple[CommandResponse, Device]:
-        """Set a feature value and return a command-updated device snapshot.
+        """Set a current device feature and return a command-updated snapshot.
 
-        Automatically resolves dependencies (other required parameters for the command)
-        by looking them up in the device's feature list.
+        Resolves ``feature.name`` against ``device`` before validating its current
+        command availability, constraints, and required sibling parameters.
 
         Args:
             device: The device allowing context lookup for dependencies.
-            feature: The feature to set.
+            feature: A feature whose name identifies the current device feature.
             target_value: The value to write.
 
         Returns:
@@ -298,16 +298,18 @@ class ViClient:
             - If failed: original device snapshot unchanged.
 
         Raises:
-            ValueError: If feature is read-only or value is out of bounds.
+            ValueError: If the named feature is absent or unavailable, a required
+                sibling is absent, unavailable, or has no value, or the target
+                value violates its constraints.
         """
-        if not feature.is_writable:
-            raise ValueError(f"Feature '{feature.name}' is read-only.")
+        canonical_feature = device.get_feature(feature.name)
+        if canonical_feature is None:
+            raise ValueError(f"Feature '{feature.name}' is not present on the device.")
 
-        control = feature.control
-        assert control is not None
+        control = self._get_writable_command_control(canonical_feature)
         _LOGGER.debug(
             "Setting %s to %s via %s",
-            feature.name,
+            canonical_feature.name,
             target_value,
             control.command_name,
         )
@@ -324,10 +326,10 @@ class ViClient:
         # 4. Build a command-updated device snapshot.
         if response.success:
             # Preserve all other feature values from the input snapshot.
-            updated_feature = replace(feature, value=target_value)
+            updated_feature = replace(canonical_feature, value=target_value)
             updated_features = [
                 updated_feature
-                if existing_feature.name == feature.name
+                if existing_feature.name == canonical_feature.name
                 else existing_feature
                 for existing_feature in device.features
             ]
@@ -340,29 +342,66 @@ class ViClient:
     async def execute_command(
         self, feature: Feature, parameters: dict[str, Any]
     ) -> CommandResponse:
-        """Execute an explicit feature command without changing its parameters.
+        """Execute an explicit available-feature command without changing parameters.
 
         Args:
-            feature: A writable feature that identifies the command endpoint.
+            feature: A writable, enabled, and ready feature identifying the command.
             parameters: Complete command parameters to send exactly as supplied.
 
         Returns:
             The command response from the API.
 
         Raises:
-            ValueError: If the feature is read-only.
+            ValueError: If the feature is unavailable or the payload omits its
+                target or a required parameter.
         """
-        if not feature.is_writable:
-            raise ValueError(f"Feature '{feature.name}' is read-only.")
-
-        control = feature.control
-        assert control is not None
+        control = self._get_writable_command_control(feature)
+        self._validate_explicit_command_payload(control, parameters)
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
         return await self._execute_command(control, parameters)
 
     # ------------------------------------------------------------------
     # Private Helper Methods
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_writable_command_control(feature: Feature) -> FeatureControl:
+        """Validate a feature's command availability and return its control.
+
+        Raises:
+            ValueError: If the feature cannot currently execute a command.
+        """
+        if not feature.is_writable:
+            raise ValueError(f"Feature '{feature.name}' is read-only.")
+        if not feature.is_enabled:
+            raise ValueError(f"Feature '{feature.name}' is disabled.")
+        if not feature.is_ready:
+            raise ValueError(f"Feature '{feature.name}' is not ready.")
+
+        control = feature.control
+        assert control is not None
+        return control
+
+    @staticmethod
+    def _validate_explicit_command_payload(
+        control: FeatureControl, parameters: dict[str, Any]
+    ) -> None:
+        """Validate the caller-supplied explicit command payload.
+
+        Raises:
+            ValueError: If a target or required parameter is absent.
+        """
+        if control.param_name not in parameters:
+            raise ValueError(
+                f"Command '{control.command_name}' is missing target parameter "
+                f"'{control.param_name}'."
+            )
+        for parameter in control.required_params:
+            if parameter not in parameters:
+                raise ValueError(
+                    f"Command '{control.command_name}' is missing required parameter "
+                    f"'{parameter}'."
+                )
 
     @staticmethod
     def _get_discovery_data(
@@ -541,12 +580,11 @@ class ViClient:
         Returns:
             Dictionary of parameters to be sent as JSON payload.
         """
-        payload = {}
+        payload = {ctrl.param_name: target_value}
 
         for param_key in ctrl.required_params:
             # Case A: The value we want to set
             if param_key == ctrl.param_name:
-                payload[param_key] = target_value
                 continue
 
             # Case B: A dependency parameter (e.g. 'shift' when setting 'slope')
@@ -554,20 +592,32 @@ class ViClient:
             sibling_name = f"{ctrl.parent_feature_name}.{param_key}"
             sibling = device.get_feature(sibling_name)
 
-            if sibling:
-                payload[param_key] = sibling.value
-                _LOGGER.debug(
-                    "  -> Resolved dependency '%s' with value %s",
-                    param_key,
-                    sibling.value,
+            if sibling is None:
+                raise ValueError(
+                    f"Required dependency '{sibling_name}' for command "
+                    f"'{ctrl.command_name}' is not present on the device."
                 )
-            else:
-                _LOGGER.warning(
-                    "  -> Dependency '%s' for command '%s' not found in "
-                    "device features. Sending without it.",
-                    param_key,
-                    ctrl.command_name,
+            if not sibling.is_enabled:
+                raise ValueError(
+                    f"Required dependency '{sibling_name}' for command "
+                    f"'{ctrl.command_name}' is disabled."
                 )
+            if not sibling.is_ready:
+                raise ValueError(
+                    f"Required dependency '{sibling_name}' for command "
+                    f"'{ctrl.command_name}' is not ready."
+                )
+            if sibling.value is None:
+                raise ValueError(
+                    f"Required dependency '{sibling_name}' for command "
+                    f"'{ctrl.command_name}' has no value."
+                )
+            payload[param_key] = sibling.value
+            _LOGGER.debug(
+                "  -> Resolved dependency '%s' with value %s",
+                param_key,
+                sibling.value,
+            )
         return payload
 
     def _validate_constraints(self, ctrl: FeatureControl, value: Any) -> None:

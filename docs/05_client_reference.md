@@ -116,23 +116,32 @@ for device_id, error in result.errors_by_device_id.items():
 semantics rather than this gateway-scoped partial-result contract.
 
 ### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
-Sends a feature command for a writable feature and returns a command-updated
-device snapshot after a successful command response, without an API read-back.
+Sends a feature command for the feature with the same name in the supplied
+current device snapshot and returns a command-updated device snapshot after a
+successful command response, without an API read-back.
 
 *   **Parameters**:
     *   `device`: The `Device` object.
-    *   `feature`: The `Feature` object you want to change (must be writable).
+    *   `feature`: A `Feature` whose name is present in `device`; the current
+        device feature must be writable, enabled, and ready.
     *   `target_value`: The new value you want to set.
 *   **Returns**: Tuple of `(CommandResponse, Device)`:
     *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
     *   `Device`: Command-updated device snapshot with the feature value set
         locally on success, or the original snapshot on failure.
 *   **Raises**:
-    *   `ValueError` if the feature is read-only or the value violates client-side constraints.
+    *   `ValueError` if the feature is absent from the device, unavailable,
+        missing a required enabled and ready sibling value, or violates
+        client-side constraints.
     *   `ViValidationError` if the API rejects the generated command payload.
     *   `ViConnectionError` if the API call fails.
-*   **Magic**: This method automatically resolves the correct command name and parameter name from the feature's definition.
-*   **Important**: Always use the returned `Device` for subsequent calls to ensure correct dependency resolution for interdependent features.
+*   **Magic**: This method uses the current device feature's command metadata,
+    always includes its target parameter, and resolves each other required
+    parameter from an enabled, ready sibling feature with a non-`None` value.
+    Optional sibling parameters are not added automatically.
+*   **Important**: The returned device is a local command-updated snapshot, not
+    an API refresh. Always use it for subsequent commands, then refresh when
+    authoritative API state is needed.
 
 **Example**:
 ```python
@@ -153,8 +162,11 @@ parameter is sent unchanged.
 Use it only when the caller already has the complete command payload, such as
 an advanced integration writing both heating-curve values at once.
 
-The method raises `ValueError` when the supplied feature is read-only. API and
-connection failures use the corresponding `ViError` subclasses.
+The feature must be writable, enabled, and ready. The supplied payload must
+contain the target parameter and every required parameter; additional
+parameters are allowed and the mapping is sent unchanged. The method raises
+`ValueError` for local contract violations. API and connection failures use the
+corresponding `ViError` subclasses.
 
 ```python
 response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})

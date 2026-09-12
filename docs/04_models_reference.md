@@ -97,7 +97,7 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | :--- | :--- | :--- | :--- |
 | `command_name` | `str` | The internal command name. | `'setCurve'` |
 | `param_name` | `str` | The parameter name this feature maps to. | `'slope'` |
-| `required_params` | `Sequence[str]` | Read-only parameter names used to assemble the command payload. | `('slope', 'shift')` |
+| `required_params` | `Sequence[str]` | Read-only parameters marked required by the API (or with no marker); explicitly optional parameters are excluded. | `('slope', 'shift')` |
 | `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
 | `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
 | `min` | `float \| None` | Minimum allowed value (numeric). | `0.2` |
