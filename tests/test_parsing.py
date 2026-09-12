@@ -19,6 +19,33 @@ def test_feature_simple_value(load_fixture_json):
     assert feature.unit == "celsius"
 
 
+def test_feature_control_parses_required_parameter_markers():
+    """Command controls include true and unspecified parameters but exclude false."""
+    # Arrange: The command has explicit required, explicit optional, and unspecified params.
+    raw_feature = {
+        "feature": "heating.mode",
+        "properties": {"target": {"value": "old"}},
+        "commands": {
+            "setMode": {
+                "uri": "/commands/setMode",
+                "params": {
+                    "target": {"required": False},
+                    "requiredSibling": {"required": True},
+                    "unspecifiedSibling": {},
+                    "optionalSibling": {"required": False},
+                },
+            }
+        },
+    }
+
+    # Act: Parse the API-shaped feature response.
+    feature = parse_feature_flat(raw_feature)[0]
+
+    # Assert: Explicit false is optional while missing markers remain conservative.
+    assert feature.control is not None
+    assert feature.control.required_params == ("requiredSibling", "unspecifiedSibling")
+
+
 def test_feature_status(load_fixture_json):
     # Arrange: Load fixture for circulation pump status feature.
     data = load_fixture_json("parsing/status_feature.json")

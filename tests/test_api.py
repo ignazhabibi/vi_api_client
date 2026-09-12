@@ -1231,7 +1231,7 @@ async def test_execute_command_rejects_malformed_success_response(load_fixture_j
             with pytest.raises(
                 ViResponseError, match="Command response must be an object"
             ):
-                await client.execute_command(slope_feature, {"slope": 0.7})
+                await client.execute_command(slope_feature, {"slope": 0.7, "shift": 4})
 
 
 @pytest.mark.asyncio

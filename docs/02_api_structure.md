@@ -78,7 +78,9 @@ If a feature is writable, it has a `.control` attribute with metadata:
 
 *   `command_name`: The internal command to send (e.g., `setCurve`)
 *   `param_name`: The parameter this feature maps to (e.g., `slope`)
-*   `required_params`: Parameter names used to assemble the command payload, including `param_name` (e.g., `['slope', 'shift']`)
+*   `required_params`: API parameters marked required, plus parameters with no
+    `required` marker; explicitly optional parameters are excluded (e.g.,
+    `['slope', 'shift']`)
 *   `parent_feature_name`: Name of the parent feature, used to resolve sibling dependencies (e.g., `heating.circuits.0.heating.curve`)
 *   `uri`: The API URI endpoint for executing the command
 *   `min` / `max` / `step`: Numerical constraints
