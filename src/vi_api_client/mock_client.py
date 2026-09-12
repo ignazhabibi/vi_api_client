@@ -1,6 +1,9 @@
+"""Fixture-backed client adapters and deterministic command simulation."""
+
 import json
+import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from ._adapter import _CommandAdapter, _DiscoveryAdapter
 from .api import ViClient
@@ -9,6 +12,31 @@ from .models import (
     FeatureControl,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
+
+class _FixtureMetadata(TypedDict):
+    """The discovery identity of one bundled feature fixture."""
+
+    fixtureName: str
+    modelId: str
+    deviceType: str
+
+
+class _FixtureDiscoveryData(TypedDict):
+    """The bundled fixture discovery envelopes and metadata catalog."""
+
+    installations: dict[str, list[dict[str, Any]]]
+    gateways: dict[str, list[dict[str, Any]]]
+    devices: list[_FixtureMetadata]
+
+
+def _load_fixture_discovery_data() -> _FixtureDiscoveryData:
+    """Load the bundled fixture discovery envelopes and metadata catalog."""
+    fixture_path = Path(__file__).parent / "fixtures" / "discovery.json"
+    with fixture_path.open(encoding="utf-8") as file:
+        return cast(_FixtureDiscoveryData, json.load(file))
+
 
 class _FixtureDiscoveryAdapter:
     """Return deterministic client envelopes without authentication or HTTP."""
@@ -16,9 +44,12 @@ class _FixtureDiscoveryAdapter:
     def __init__(self, device_name: str) -> None:
         """Initialize the adapter for a selected fixture device."""
         self._device_name = device_name
-        fixture_path = Path(__file__).parent / "fixtures" / "discovery.json"
-        with fixture_path.open(encoding="utf-8") as file:
-            self._discovery_data = cast(dict[str, dict[str, Any]], json.load(file))
+        self._discovery_data = _load_fixture_discovery_data()
+        self._device_metadata = next(
+            metadata
+            for metadata in self._discovery_data["devices"]
+            if metadata["fixtureName"] == device_name
+        )
         self._feature_data: dict[str, Any] | None = None
 
     async def get_installations(self) -> dict[str, Any]:
@@ -46,8 +77,8 @@ class _FixtureDiscoveryAdapter:
             "data": [
                 {
                     "id": "0",
-                    "modelId": self._device_name,
-                    "deviceType": DEVICE_TYPE_MAP.get(self._device_name, "heating"),
+                    "modelId": self._device_metadata["modelId"],
+                    "deviceType": self._device_metadata["deviceType"],
                     "status": "connected",
                 }
             ]
@@ -83,28 +114,14 @@ class _FixtureCommandAdapter:
         self, control: FeatureControl, parameters: dict[str, Any]
     ) -> dict[str, Any]:
         """Return a successful fixture command response."""
-        print(
-            f"[MOCK] Executing command '{control.command_name}' for feature "
-            f"'{control.parent_feature_name}' (param: {control.param_name}) "
-            f"with params: {parameters}"
+        _LOGGER.debug(
+            "Executing fixture command %r for feature %r (param: %s) with params: %s",
+            control.command_name,
+            control.parent_feature_name,
+            control.param_name,
+            parameters,
         )
         return {"data": {"success": True, "reason": "Mock Execution Success"}}
-
-
-# Mapping of fixture names to device types
-# This provides consistent device_type values for mock devices
-DEVICE_TYPE_MAP: dict[str, str] = {
-    "Vitocal151A": "heating",
-    "Vitocal200": "heating",
-    "Vitocal250A": "heating",
-    "Vitocal252": "heating",
-    "Vitocal300G": "heating",
-    "Vitodens050W": "heating",
-    "Vitodens200W": "heating",
-    "Vitodens300W": "heating",
-    "VitolaUniferral": "heating",
-    "Vitopure350": "ventilation",
-}
 
 
 class MockViClient(ViClient):
@@ -129,13 +146,10 @@ class MockViClient(ViClient):
 
     @staticmethod
     def get_available_mock_devices() -> list[str]:
-        """Return a list of available mock device names."""
-        fixtures_dir = Path(__file__).parent / "fixtures"
-        if not fixtures_dir.exists():
-            return []
+        """Return fixture names accepted by the fixture-backed client.
 
-        return sorted(
-            file.stem
-            for file in fixtures_dir.glob("*.json")
-            if file.stem != "discovery"
-        )
+        Returns:
+            Sorted fixture names from the bundled metadata catalog.
+        """
+        discovery_data = _load_fixture_discovery_data()
+        return sorted(metadata["fixtureName"] for metadata in discovery_data["devices"])

@@ -1,5 +1,7 @@
 """Public workflow tests for the fixture-backed client."""
 
+import logging
+
 import pytest
 
 from vi_api_client import MockViClient
@@ -30,6 +32,52 @@ async def test_mock_device_hydration_uses_deterministic_fixture_topology():
     assert devices[0].id == "0"
     assert devices[0].model_id == "Vitodens200W"
     assert devices[0].features
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("fixture_name", "model_id", "device_type"),
+    [
+        ("Vitocal200S", "Vitocal200S", "heating"),
+        ("Vitocal222S", "Vitocal222S", "heating"),
+        ("Vitocal250A", "Vitocal250A", "heating"),
+        (
+            "Vitocal333G-with-Vitovent300F",
+            "Vitocal333G-with-Vitovent300F",
+            "heating",
+        ),
+        ("Vitocharge03", "Vitocharge03", "battery"),
+        ("Vitodens200W", "Vitodens200W", "heating"),
+        ("Vitopure350", "Vitopure350", "ventilation"),
+    ],
+)
+async def test_mock_discovery_uses_each_fixture_metadata_definition(
+    fixture_name, model_id, device_type
+):
+    """Fixture discovery should expose each catalogued model and device type."""
+    # Arrange: Select one bundled fixture from the public fixture catalog.
+    client = MockViClient(fixture_name)
+
+    # Act: Discover the fixture through the public client workflow.
+    devices = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    # Assert: The device identity comes from the fixture metadata definition.
+    assert [(device.model_id, device.device_type) for device in devices] == [
+        (model_id, device_type)
+    ]
+
+
+def test_mock_device_catalog_lists_each_fixture_metadata_definition():
+    """Fixture enumeration should use the same catalog as fixture discovery."""
+    assert MockViClient.get_available_mock_devices() == [
+        "Vitocal200S",
+        "Vitocal222S",
+        "Vitocal250A",
+        "Vitocal333G-with-Vitovent300F",
+        "Vitocharge03",
+        "Vitodens200W",
+        "Vitopure350",
+    ]
 
 
 @pytest.mark.asyncio
@@ -102,9 +150,10 @@ async def test_mock_client_rejects_malformed_fixture_feature_envelopes():
 
 
 @pytest.mark.asyncio
-async def test_mock_execute_command_is_offline_and_stateless():
+async def test_mock_execute_command_is_offline_and_stateless(capsys, caplog):
     """Mock command execution should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
+    caplog.set_level(logging.DEBUG, logger="vi_api_client.mock_client")
     client = MockViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
     device = await client.update_device(device)
@@ -118,3 +167,5 @@ async def test_mock_execute_command_is_offline_and_stateless():
     assert response.success
     assert response.reason == "Mock Execution Success"
     assert feature.value == 0.6
+    assert capsys.readouterr().out == ""
+    assert "Executing fixture command 'setCurve'" in caplog.text
