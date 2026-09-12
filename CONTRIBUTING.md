@@ -20,6 +20,6 @@
 - Use pytest functions, not `unittest.TestCase` classes. Mark async tests with `@pytest.mark.asyncio` and mirror the source layout where practical.
 - Structure each non-trivial test with Arrange-Act-Assert. Add explicit, test-specific `# Arrange:`, `# Act:`, and `# Assert:` comments when phases are not immediately clear, the test has multiple phases or state changes, or fixture and mock setup is substantial. Exception-focused tests may use `# Act and assert:`.
 - Prefer native `assert` for values and state, mock assertion helpers for interactions, and `pytest.raises` for expected exceptions.
-- Store substantial API payloads in `tests/fixtures/` and load them through shared helpers. Keep fixtures aligned with the real API contract and the bundled mock fixtures; inspect `tests/test_mock_data_integrity.py` when changing fixture assumptions.
+- Store substantial API payloads in `tests/fixtures/` and load them through shared helpers. Keep fixtures aligned with the real API contract and the bundled bundled product fixtures; inspect `tests/test_fixture_data_integrity.py` when changing fixture assumptions.
 - Use `aioresponses` for HTTP and authentication tests against real client request flows. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows.
 - Inspect fixture or snapshot diffs rather than accepting them blindly. Run the focused test first, then the full quality gate before proposing a commit.

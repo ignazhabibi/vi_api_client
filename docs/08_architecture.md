@@ -223,7 +223,7 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | Module | Responsibility | Deliberately not responsible for |
 | --- | --- | --- |
 | `__init__.py` | Curated public imports | Internal adapters and helpers |
-| `api.py` | Shared domain client workflows | HTTP details and fixture paths |
+| `client.py` | Shared domain client workflows | HTTP details and fixture paths |
 | `_adapter.py` | Ports, live adapter, HTTP error mapping | Building domain models |
 | `fixture_client.py` | Fixture adapters and `FixtureViClient` | Alternative domain logic |
 | `parsing.py` | Convert nested API features into flat features | Network and consumer state |
@@ -616,9 +616,9 @@ flowchart LR
     Args["CLI arguments"] --> Context["Create session and context"]
     Context --> Choice{"Live or fixture?"}
     Choice -->|Live| Live["OAuth + ViClient"]
-    Choice -->|Fixture| Mock["FixtureViClient"]
+    Choice -->|Fixture| Fixture["FixtureViClient"]
     Live --> Methods["Shared client methods"]
-    Mock --> Methods
+    Fixture --> Methods
     Methods --> Output{"Output format"}
     Output -->|Human| Text["Readable stdout"]
     Output -->|--json| Json["One JSON document on stdout"]

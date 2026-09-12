@@ -101,7 +101,7 @@ single-feature workflow.
 
 ## 8. Fixture Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
-Mock mode does not read OAuth credentials or `tokens.json` and never makes network
+Fixture mode does not read OAuth credentials or `tokens.json` and never makes network
 requests.
 
 ```bash

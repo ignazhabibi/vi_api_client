@@ -8,8 +8,8 @@ from vi_api_client.models import Device
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_discovery_uses_shared_domain_conversion_without_auth():
-    """Mock discovery should share client conversion without a live connector."""
+async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
+    """Fixture discovery should share client conversion without a live connector."""
     # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
     client = FixtureViClient("Vitodens200W")
 
@@ -27,8 +27,8 @@ async def test_mock_discovery_uses_shared_domain_conversion_without_auth():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_workflow_vitodens():
-    """Verify Vitodens (gas boiler) workflow with mock data."""
+async def test_fixture_workflow_vitodens():
+    """Verify Vitodens (gas boiler) workflow with fixture data."""
     # Arrange: Prepare the fixture client and device.
     client = FixtureViClient("Vitodens200W")
     device = Device(
@@ -40,7 +40,7 @@ async def test_mock_workflow_vitodens():
         status="Online",
     )
 
-    # Act: Fetch all enabled features from the mock API.
+    # Act: Fetch all enabled features from the fixture-backed API.
     features = await client.get_features(device, only_enabled=True)
 
     # Assert: Verify feature count and critical heating curve properties.
@@ -81,8 +81,8 @@ async def test_mock_workflow_vitodens():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_workflow_vitocal():
-    """Verify heat pump specific features (compressor) with mock data."""
+async def test_fixture_workflow_vitocal():
+    """Verify heat pump specific features (compressor) with fixture data."""
     # Arrange: Prepare the fixture client for a heat pump device.
     client = FixtureViClient("Vitocal250A")
     device = Device(
@@ -94,7 +94,7 @@ async def test_mock_workflow_vitocal():
         status="Online",
     )
 
-    # Act: Fetch all enabled features from the mock API.
+    # Act: Fetch all enabled features from the fixture-backed API.
     features = await client.get_features(device, only_enabled=True)
 
     # Assert: Verify basic feature count.
@@ -127,9 +127,9 @@ async def test_mock_workflow_vitocal():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_set_feature_stays_offline():
-    """Verify mock writes use simulated execution without live resources."""
-    # Arrange: Hydrate a mock heat pump without authentication or HTTP resources.
+async def test_fixture_set_feature_stays_offline():
+    """Verify fixture-backed writes use simulated execution without live resources."""
+    # Arrange: Hydrate a fixture-backed heat pump without authentication or HTTP resources.
     client = FixtureViClient("Vitocal250A")
     device = (
         await client.get_devices(
@@ -154,13 +154,13 @@ async def test_mock_set_feature_stays_offline():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_workflow_auto_hydration():
-    """Verify that get_devices(include_features=True) works with MockClient."""
+async def test_fixture_workflow_auto_hydration():
+    """Verify that get_devices(include_features=True) works with FixtureViClient."""
     # Arrange
     client = FixtureViClient("Vitodens200W")
 
     # Act: Use the new single-step hydration (Smart get_devices)
-    # IDs don't matter much for MockClient, but we provide them for consistency
+    # IDs don't matter much for FixtureViClient, but we provide them for consistency
     devices = await client.get_devices(
         installation_id="99999", gateway_serial="MOCK_GW", include_features=True
     )
@@ -181,9 +181,9 @@ async def test_mock_workflow_auto_hydration():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mock_gateway_device_refresh_stays_offline():
+async def test_fixture_gateway_device_refresh_stays_offline():
     """Verify gateway-scoped refresh has offline mock parity."""
-    # Arrange: Use two known devices on the same mock gateway.
+    # Arrange: Use two known devices on the same fixture gateway.
     client = FixtureViClient("Vitodens200W")
     devices = [
         Device(
@@ -200,7 +200,7 @@ async def test_mock_gateway_device_refresh_stays_offline():
     # Act: Refresh both devices through the gateway-scoped public API.
     result = await client.update_gateway_devices(devices)
 
-    # Assert: Mock refresh preserves order and metadata without HTTP access.
+    # Assert: Fixture refresh preserves order and metadata without HTTP access.
     assert result.is_complete
     assert [device.id for device in result.updated_devices] == ["10", "0"]
     assert [device.model_id for device in result.updated_devices] == [

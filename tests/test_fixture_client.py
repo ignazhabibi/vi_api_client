@@ -18,7 +18,7 @@ def test_fixture_client_rejects_obsolete_authentication_argument():
 
 @pytest.mark.asyncio
 async def test_fixture_device_hydration_uses_deterministic_fixture_topology():
-    """Mock device discovery should use the selected fixture in one topology."""
+    """Fixture device discovery should use the selected fixture in one topology."""
     # Arrange: Select a known fixture device.
     client = FixtureViClient("Vitodens200W")
 
@@ -27,7 +27,7 @@ async def test_fixture_device_hydration_uses_deterministic_fixture_topology():
         "99999", "MOCK_GATEWAY_SERIAL", include_features=True
     )
 
-    # Assert: The public mock represents exactly its selected fixture device.
+    # Assert: The public fixture client represents exactly its selected fixture device.
     assert len(devices) == 1
     assert devices[0].id == "0"
     assert devices[0].model_id == "Vitodens200W"
@@ -51,7 +51,7 @@ async def test_fixture_device_hydration_uses_deterministic_fixture_topology():
         ("Vitopure350", "Vitopure350", "ventilation"),
     ],
 )
-async def test_mock_discovery_uses_each_fixture_metadata_definition(
+async def test_fixture_discovery_uses_each_fixture_metadata_definition(
     fixture_name, model_id, device_type
 ):
     """Fixture discovery should expose each catalogued model and device type."""
@@ -81,8 +81,8 @@ def test_fixture_device_catalog_lists_each_fixture_metadata_definition():
 
 
 @pytest.mark.asyncio
-async def test_mock_update_device_returns_hydrated_copy_without_mutating_input():
-    """Mock refresh should have the same immutable public contract as live refresh."""
+async def test_fixture_update_device_returns_hydrated_copy_without_mutating_input():
+    """Fixture refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
@@ -97,8 +97,8 @@ async def test_mock_update_device_returns_hydrated_copy_without_mutating_input()
 
 
 @pytest.mark.asyncio
-async def test_mock_gateway_refresh_uses_the_fixture_adapter_without_authentication():
-    """Mock gateway refresh should reuse the client workflow without credentials."""
+async def test_fixture_gateway_refresh_uses_the_fixture_adapter_without_authentication():
+    """Fixture gateway refresh should reuse the client workflow without credentials."""
     # Arrange: Discover the deterministic fixture device through an offline client.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
@@ -114,8 +114,8 @@ async def test_mock_gateway_refresh_uses_the_fixture_adapter_without_authenticat
 
 
 @pytest.mark.asyncio
-async def test_mock_feature_filters_apply_shared_enabled_and_name_semantics():
-    """Mock filtering should retain only requested enabled and ready features."""
+async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics():
+    """Fixture filtering should retain only requested enabled and ready features."""
     # Arrange: Select a fixture that includes disabled features.
     client = FixtureViClient("Vitocal200S")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
@@ -150,8 +150,8 @@ async def test_fixture_client_rejects_malformed_fixture_feature_envelopes():
 
 
 @pytest.mark.asyncio
-async def test_mock_execute_command_is_offline_and_stateless(capsys, caplog):
-    """Mock command execution should not alter the loaded fixture features."""
+async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
+    """Fixture command execution should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
     caplog.set_level(logging.DEBUG, logger="vi_api_client.fixture_client")
     client = FixtureViClient("Vitocal250A")
@@ -165,7 +165,7 @@ async def test_mock_execute_command_is_offline_and_stateless(capsys, caplog):
 
     # Assert: The response is deterministic and the fixture-derived value is unchanged.
     assert response.success
-    assert response.reason == "Mock Execution Success"
+    assert response.reason == "Fixture Execution Success"
     assert feature.value == 0.6
     assert capsys.readouterr().out == ""
     assert "Executing fixture command 'setCurve'" in caplog.text

@@ -53,7 +53,7 @@ class _FixtureDiscoveryAdapter:
         self._feature_data: dict[str, Any] | None = None
 
     async def get_installations(self) -> dict[str, Any]:
-        """Return the mock installation envelope."""
+        """Return the fixture installation envelope."""
         return {
             "data": [
                 {
@@ -66,7 +66,7 @@ class _FixtureDiscoveryAdapter:
         }
 
     async def get_gateways(self) -> dict[str, Any]:
-        """Return the mock gateway envelope."""
+        """Return the fixture gateway envelope."""
         return self._discovery_data["gateways"]
 
     async def get_devices(
@@ -121,7 +121,7 @@ class _FixtureCommandAdapter:
             control.param_name,
             parameters,
         )
-        return {"data": {"success": True, "reason": "Mock Execution Success"}}
+        return {"data": {"success": True, "reason": "Fixture Execution Success"}}
 
 
 class FixtureViClient(ViClient):
