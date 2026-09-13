@@ -45,6 +45,7 @@ and mock combination.
 - Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` job before treating a PR as merge-ready. Squash merge only with explicit authorization.
 - After a merge, fast-forward local `main` and delete the confirmed merged local branch.
 - For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump through a PR, then create an annotated `vX.Y.Z` tag on the merged `main` commit. Its message becomes the GitHub Release body. A release is complete only after the tag workflow is green.
+- Write release notes as `# Changelog`, followed by non-empty sections in this order: `### Breaking Changes 🚨`, `### New Features 💫`, `### Other Changes ☀️`, and `### Bug Fixes 🐞`. List each user-facing change as `- \`<short SHA>\` Description ([#<number>](<GitHub issue or pull-request URL>)).` where a related Issue or PR exists.
 
 ## Documentation Drift
 
