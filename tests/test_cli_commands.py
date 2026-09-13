@@ -769,7 +769,58 @@ async def test_cmd_list_devices(mock_cli_context, capsys):
         assert "Found 1 gateways" in captured.out
         assert "Serial: GW1" in captured.out
         assert "Found 1 devices" in captured.out
-        assert "ID: 0" in captured.out
+    assert "ID: 0" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_devices_does_not_require_device_context(capsys):
+    """List devices without installation, gateway, or device IDs."""
+    # Arrange: Construct the real CLI context without any device-specific IDs.
+    args = Namespace(
+        token_file="tokens.json",
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        insecure=False,
+        fixture_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+    installation = Installation(
+        id="123", description="Home", alias="MyHome", address={}
+    )
+    gateway = Gateway(serial="GW1", version="1.0", status="ok", installation_id="123")
+    device = Device(
+        id="0",
+        gateway_serial="GW1",
+        installation_id="123",
+        model_id="Test",
+        device_type="heating",
+        status="ok",
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as mock_client_class,
+        patch("vi_api_client.cli.OAuth"),
+        patch(
+            "vi_api_client.cli.create_session", new_callable=AsyncMock
+        ) as mock_session,
+    ):
+        mock_session.return_value.__aenter__.return_value = MagicMock()
+        client = mock_client_class.return_value
+        client.get_installations = AsyncMock(return_value=[installation])
+        client.get_gateways = AsyncMock(return_value=[gateway])
+        client.get_devices = AsyncMock(return_value=[device])
+
+        # Act: List all account devices without choosing a device context first.
+        assert await cmd_list_devices(args) is True
+
+        # Assert: The command queries the account hierarchy directly.
+        client.get_installations.assert_awaited_once()
+        client.get_gateways.assert_awaited_once()
+        client.get_devices.assert_awaited_once_with("123", "GW1")
+
+    assert "Found 1 installations" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
