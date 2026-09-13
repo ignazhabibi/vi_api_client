@@ -47,9 +47,9 @@ class CLIContext:
     session: aiohttp.ClientSession | None
     client: ViClient | FixtureViClient
     # Found IDs (either from args or auto-discovery)
-    inst_id: str
-    gw_serial: str
-    dev_id: str
+    inst_id: str | None
+    gw_serial: str | None
+    dev_id: str | None
 
 
 async def create_session(args) -> aiohttp.ClientSession:
@@ -198,7 +198,7 @@ async def setup_client_context(
                     f"Dev={dev_id}",
                 )
 
-        if not (inst_id and gw_serial and dev_id):
+        if discover and not (inst_id and gw_serial and dev_id):
             raise ValueError(
                 "Installation ID, gateway serial, and device ID are required when "
                 "auto-discovery is disabled."
@@ -299,7 +299,7 @@ async def cmd_list_features(args) -> bool:
             elif args.json:
                 print(json.dumps([f.name for f in features]))
             else:
-                _print_simple_feature_list(features, ctx.dev_id)
+                _print_simple_feature_list(features, device.id)
 
     except Exception as e:
         _LOGGER.error("Error listing features: %s", e)
@@ -574,6 +574,9 @@ async def _fetch_target_feature(
 
 def _transient_device(ctx: CLIContext) -> Device:
     """Create a transient device object from context."""
+    if not (ctx.inst_id and ctx.gw_serial and ctx.dev_id):
+        raise ValueError("A device context is required for this command.")
+
     return Device(
         id=ctx.dev_id,
         gateway_serial=ctx.gw_serial,
