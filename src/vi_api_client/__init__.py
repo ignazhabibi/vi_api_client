@@ -1,5 +1,6 @@
 """Viessmann API Client."""
 
+from ._types import FeatureValue, JsonValue, ValidationDetail
 from .auth import AbstractAuth, OAuth
 from .client import ViClient
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
@@ -24,6 +25,7 @@ from .models import (
     Installation,
 )
 from .utils import format_feature
+from .validation import validate_json_value
 
 __all__ = [
     "DEFAULT_SCOPES",
@@ -34,11 +36,14 @@ __all__ = [
     "Device",
     "Feature",
     "FeatureControl",
+    "FeatureValue",
     "FixtureViClient",
     "Gateway",
     "GatewayDeviceRefreshResult",
     "Installation",
+    "JsonValue",
     "OAuth",
+    "ValidationDetail",
     "ViAuthError",
     "ViClient",
     "ViConnectionError",
@@ -49,4 +54,5 @@ __all__ = [
     "ViServerInternalError",
     "ViValidationError",
     "format_feature",
+    "validate_json_value",
 ]

@@ -9,6 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._adapter import _LiveAdapter
+from vi_api_client._types import ValidationDetail
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
@@ -120,7 +121,9 @@ async def test_live_adapter_preserves_viessmann_error_type(
 
 def test_validation_error_keeps_existing_positional_arguments() -> None:
     # Arrange: Use the public positional signature supported before error types.
-    validation_errors = [{"message": "Invalid", "path": "feature"}]
+    validation_errors: list[ValidationDetail] = [
+        {"message": "Invalid", "path": "feature"}
+    ]
 
     # Act: Construct the error with its existing three positional arguments.
     error = ViValidationError("Bad request", "error-123", validation_errors)

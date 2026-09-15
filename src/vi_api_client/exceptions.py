@@ -1,6 +1,8 @@
 """Exceptions for Viessmann API Client."""
 
-from typing import Any
+from collections.abc import Sequence
+
+from ._types import ValidationDetail
 
 
 class ViError(Exception):
@@ -78,7 +80,7 @@ class ViValidationError(ViError):
         self,
         message: str,
         error_id: str | None = None,
-        validation_errors: list[dict[str, Any]] | None = None,
+        validation_errors: Sequence[ValidationDetail] | None = None,
         error_type: str | None = None,
     ) -> None:
         """Initialize validation error.

@@ -7,6 +7,8 @@ import re
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+from ._types import JsonValue
+
 if TYPE_CHECKING:
     from .models import Feature
 
@@ -100,7 +102,7 @@ def format_feature(feature: Feature) -> str:
     return f"{value} {unit}".strip() if unit else str(value)
 
 
-def _format_schedule(schedule: dict[str, list]) -> str:
+def _format_schedule(schedule: dict[str, JsonValue]) -> str:
     """Format a schedule object (day -> list of time slots).
 
     Args:
@@ -121,10 +123,14 @@ def _format_schedule(schedule: dict[str, list]) -> str:
     parts = []
     for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
         slots = schedule.get(day, [])
-        if slots:
-            slot_strs = [
-                f"{slot.get('start', '?')}-{slot.get('end', '?')}" for slot in slots
-            ]
+        if not isinstance(slots, list) or not slots:
+            continue
+        slot_strs = [
+            f"{slot.get('start', '?')}-{slot.get('end', '?')}"
+            for slot in slots
+            if isinstance(slot, dict)
+        ]
+        if slot_strs:
             parts.append(f"{day_abbr[day]}[{', '.join(slot_strs)}]")
     return " ".join(parts) if parts else "(empty)"
 

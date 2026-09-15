@@ -10,12 +10,29 @@ from vi_api_client import (
     Device,
     Feature,
     FeatureControl,
+    FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    JsonValue,
+    ValidationDetail,
     format_feature,
+    validate_json_value,
 )
 ```
+
+## Dynamic JSON values
+
+`JsonValue` is the library's recursive JSON contract: `None`, `bool`, `int`,
+`float`, `str`, `list[JsonValue]`, or `dict[str, JsonValue]`. `FeatureValue`
+uses that same contract because a feature can report any of those shapes.
+`ValidationDetail` is a dictionary-shaped `dict[str, JsonValue]` API validation
+detail. The client preserves the normal Python list and dictionary shapes.
+
+At a response or persisted-data boundary, `validate_json_value(value)` rejects
+non-JSON Python objects with `ViResponseError`. Additional unknown object fields
+remain representable; later response-specific validators decide which known
+fields are required.
 
 ## Installation
 
@@ -26,7 +43,7 @@ Represents an installation site (House).
 | `id` | `str` | Unique installation ID. | `'123456789'` |
 | `description` | `str` | Description of the installation. | `'Home'` |
 | `alias` | `str` | Alias name. | `'My House'` |
-| `address` | `Mapping[str, Any]` | Read-only address information. | `{'city': 'Berlin', ...}` |
+| `address` | `Mapping[str, JsonValue]` | Read-only address information. | `{'city': 'Berlin', ...}` |
 
 ## Gateway
 
@@ -68,7 +85,7 @@ capabilities. A writable feature reports `is_writable=True` and has
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
-| `value` | `Any` | Primary value of the feature (scalar). | `1.4` |
+| `value` | `FeatureValue` | Primary value of the feature; scalar, null, list, or object. | `1.4` |
 | `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
@@ -104,7 +121,7 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | `max` | `float \| None` | Maximum allowed value (numeric). | `3.5` |
 | `step` | `float \| None` | Step increment (numeric). | `0.1` |
 | `value_type` | `str \| None` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
-| `options` | `Sequence[Any] \| None` | Read-only valid enum values. | `('eco', 'comfort')` |
+| `options` | `Sequence[JsonValue] \| None` | Read-only valid enum values. | `('eco', 'comfort')` |
 | `pattern` | `str \| None` | Regex pattern for validation (string). | `'^[a-z]+$'` |
 | `min_length` | `int \| None` | Minimum string length. | `1` |
 | `max_length` | `int \| None` | Maximum string length. | `20` |
