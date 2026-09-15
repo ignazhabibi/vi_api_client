@@ -18,7 +18,7 @@ from .models import (
     GatewayDeviceRefreshResult,
     Installation,
 )
-from .parsing import parse_feature_flat
+from .parsing import _validate_feature_entry, parse_feature_flat
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -468,8 +468,8 @@ class ViClient:
             if not isinstance(raw_feature, dict):
                 raise ViResponseError("Gateway feature entries must be objects")
             device_id = self._get_feature_device_id(raw_feature.get("uri"))
+            _validate_feature_entry(raw_feature)
             if device_id in grouped_features:
-                self._validate_gateway_feature(raw_feature)
                 grouped_features[device_id].append(raw_feature)
                 seen_device_ids.add(device_id)
 
