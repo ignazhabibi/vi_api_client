@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from math import isfinite
 from typing import Any
 
+from ._types import JsonValue
+from .exceptions import ViResponseError
 from .models import Feature, FeatureControl
+from .validation import validate_json_value
 
 # Keys that indicate complex data structures which should NOT be flattened.
 COMPLEX_DATA_INDICATORS = {
@@ -46,12 +50,13 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
 
     Returns:
         List of flattened Feature objects.
+
+    Raises:
+        ViResponseError: If a known feature response field violates the API contract.
     """
-    base_name = data.get("feature", "unknown")
-    properties = data.get("properties", {})
-    commands = data.get("commands", {})
-    is_enabled = data.get("isEnabled", True)
-    is_ready = data.get("isReady", True)
+    base_name, properties, commands, is_enabled, is_ready = _validate_feature_entry(
+        data
+    )
 
     # Check for complex data that should stay complex
     prop_keys = set(properties.keys())
@@ -102,6 +107,10 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
     if not data_keys and "value" in properties:
         data_keys = ["value"]
 
+    default_unit = properties.get("unit")
+    if not isinstance(default_unit, str):
+        default_unit = None
+
     for key in data_keys:
         # Determine strict name
         if key == "value":
@@ -112,7 +121,7 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
             prop_data = properties[key]
 
         # Extract value and unit
-        value, unit = _extract_value_and_unit(prop_data, properties.get("unit"))
+        value, unit = _extract_value_and_unit(prop_data, default_unit)
 
         # Find control logic
         control = _find_control(key, commands, base_name, prop_data)
@@ -129,6 +138,114 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
         )
 
     return features_out
+
+
+def _validate_feature_entry(
+    data: dict[str, Any],
+) -> tuple[str, dict[str, JsonValue], dict[str, Any], bool, bool]:
+    """Validate the known API fields needed to parse one feature entry."""
+    base_name = data.get("feature")
+    if not isinstance(base_name, str) or not base_name:
+        raise ViResponseError(
+            "Feature name must be a non-empty string (no valid feature name)"
+        )
+    raw_properties = data.get("properties")
+    if not isinstance(raw_properties, dict):
+        raise ViResponseError("Feature properties must be an object")
+    properties = validate_json_value(raw_properties, path="Feature properties")
+    if not isinstance(properties, dict):
+        raise ViResponseError("Feature properties must be an object")
+    _validate_property_constraints(properties)
+    commands = data.get("commands", {})
+    if not isinstance(commands, dict):
+        raise ViResponseError("Feature commands must be an object")
+    _validate_commands(commands)
+    is_enabled = data.get("isEnabled", True)
+    is_ready = data.get("isReady", True)
+    if not isinstance(is_enabled, bool) or not isinstance(is_ready, bool):
+        raise ViResponseError("Feature enabled and ready fields must be booleans")
+    unit = properties.get("unit")
+    if unit is not None and not isinstance(unit, str):
+        raise ViResponseError("Feature unit must be a string")
+    return base_name, properties, commands, is_enabled, is_ready
+
+
+def _validate_commands(commands: dict[str, Any]) -> None:  # noqa: PLR0912
+    """Validate known command and parameter metadata without closing the schema."""
+    for command_name, command in commands.items():
+        if not isinstance(command_name, str) or not isinstance(command, dict):
+            raise ViResponseError("Feature commands must contain named objects")
+        uri = command.get("uri")
+        if uri is not None and not isinstance(uri, str):
+            raise ViResponseError("Feature command uri must be a string")
+        executable = command.get("isExecutable")
+        if executable is not None and not isinstance(executable, bool):
+            raise ViResponseError("Feature command isExecutable must be a boolean")
+        params = command.get("params", {})
+        if not isinstance(params, dict):
+            raise ViResponseError("Feature command params must be an object")
+        for parameter_name, parameter in params.items():
+            if not isinstance(parameter_name, str) or not isinstance(parameter, dict):
+                raise ViResponseError(
+                    "Feature command params must contain named objects"
+                )
+            _validate_constraint_values(parameter)
+            required = parameter.get("required")
+            if required is not None and not isinstance(required, bool):
+                raise ViResponseError("Feature command required must be a boolean")
+            value_type = parameter.get("type")
+            if value_type is not None and not isinstance(value_type, str):
+                raise ViResponseError("Feature command type must be a string")
+            enum = parameter.get("enum")
+            if enum is not None and not isinstance(enum, list):
+                raise ViResponseError("Feature command enum must be a list")
+            if enum is not None:
+                validate_json_value(enum, path="Feature command enum")
+            constraints = parameter.get("constraints")
+            if constraints is not None and not isinstance(constraints, dict):
+                raise ViResponseError("Feature command constraints must be an object")
+            if isinstance(constraints, dict):
+                _validate_constraint_values(constraints)
+
+
+def _validate_property_constraints(properties: dict[str, JsonValue]) -> None:
+    """Validate known property constraint metadata used for control construction."""
+    for property_data in properties.values():
+        if not isinstance(property_data, dict):
+            continue
+        _validate_constraint_values(property_data)
+        constraints = property_data.get("constraints")
+        if constraints is not None and not isinstance(constraints, dict):
+            raise ViResponseError("Feature property constraints must be an object")
+        if isinstance(constraints, dict):
+            _validate_constraint_values(constraints)
+
+
+def _validate_constraint_values(constraints: dict[str, Any]) -> None:
+    """Validate known constraint value shapes while retaining unknown fields."""
+    for name in ("min", "max", "step", "stepping"):
+        value = constraints.get(name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, (int, float))
+        ):
+            raise ViResponseError(f"Feature constraint {name} must be a number")
+        if isinstance(value, float) and not isfinite(value):
+            raise ViResponseError(f"Feature constraint {name} must be a finite number")
+    for name in ("minLength", "maxLength"):
+        value = constraints.get(name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int)
+        ):
+            raise ViResponseError(f"Feature constraint {name} must be an integer")
+    for name in ("pattern", "regEx"):
+        value = constraints.get(name)
+        if value is not None and not isinstance(value, str):
+            raise ViResponseError(f"Feature constraint {name} must be a string")
+    enum = constraints.get("enum")
+    if enum is not None:
+        if not isinstance(enum, list):
+            raise ViResponseError("Feature constraint enum must be a list")
+        validate_json_value(enum, path="Feature constraint enum")
 
 
 def _build_consumption_alias_features(

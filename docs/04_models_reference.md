@@ -39,6 +39,12 @@ and device snapshots. Required identifiers accept documented string or integer
 representations and are normalized to strings; malformed known fields raise
 `ViResponseError`. Unknown additional API fields remain forward-compatible.
 
+Feature reads apply the same boundary rule before flattening: each response
+entry needs a non-empty feature name, JSON-object properties, object-shaped
+commands, and boolean enabled/ready flags. Known command and parameter metadata
+is validated before `FeatureControl` construction; unknown additional fields
+remain allowed. This behavior is identical for live and fixture-backed reads.
+
 ## Installation
 
 Represents an installation site (House).
