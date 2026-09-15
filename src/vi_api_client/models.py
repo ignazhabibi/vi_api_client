@@ -8,7 +8,32 @@ from types import MappingProxyType
 from typing import Any
 
 from ._types import FeatureValue, JsonValue
-from .exceptions import ViError
+from .exceptions import ViError, ViResponseError
+from .validation import validate_json_value
+
+
+def _required_identifier(data: dict[str, Any], field_name: str, resource: str) -> str:
+    """Return a required string or integer API identifier as text."""
+    value = data.get(field_name)
+    if isinstance(value, bool) or not isinstance(value, (str, int)) or value == "":
+        raise ViResponseError(f"{resource} {field_name} must be a string or integer")
+    return str(value)
+
+
+def _required_string(data: dict[str, Any], field_name: str, resource: str) -> str:
+    """Return a required non-empty text API field."""
+    value = data.get(field_name)
+    if not isinstance(value, str) or not value:
+        raise ViResponseError(f"{resource} {field_name} must be a non-empty string")
+    return value
+
+
+def _optional_string(data: dict[str, Any], field_name: str, resource: str) -> str:
+    """Return an optional text API field while rejecting malformed values."""
+    value = data.get(field_name, "")
+    if not isinstance(value, str):
+        raise ViResponseError(f"{resource} {field_name} must be a string")
+    return value
 
 
 @dataclass(frozen=True)
@@ -150,14 +175,17 @@ class Device:
 
         Returns:
             A new Device instance.
+
+        Raises:
+            ViResponseError: If a known device identity or text field is malformed.
         """
         return cls(
-            id=data.get("id", ""),
+            id=_required_identifier(data, "id", "Device"),
             gateway_serial=gateway_serial,
             installation_id=installation_id,
-            model_id=data.get("modelId", ""),
-            device_type=data.get("deviceType", ""),
-            status=data.get("status", ""),
+            model_id=_required_string(data, "modelId", "Device"),
+            device_type=_required_string(data, "deviceType", "Device"),
+            status=_optional_string(data, "status", "Device"),
         )
 
 
@@ -254,12 +282,15 @@ class Installation:
 
         Returns:
             A new Installation instance.
+
+        Raises:
+            ViResponseError: If a known installation field or address is malformed.
         """
         return cls(
-            id=str(data.get("id", "")),
-            description=data.get("description", ""),
-            alias=data.get("alias", ""),
-            address=data.get("address", {}),
+            id=_required_identifier(data, "id", "Installation"),
+            description=_optional_string(data, "description", "Installation"),
+            alias=_optional_string(data, "alias", "Installation"),
+            address=_parse_address(data),
         )
 
 
@@ -288,10 +319,21 @@ class Gateway:
 
         Returns:
             A new Gateway instance.
+
+        Raises:
+            ViResponseError: If a known gateway identity or text field is malformed.
         """
         return cls(
-            serial=data.get("serial", ""),
-            version=data.get("version", ""),
-            status=data.get("status", ""),
-            installation_id=str(data.get("installationId", "")),
+            serial=_required_string(data, "serial", "Gateway"),
+            version=_optional_string(data, "version", "Gateway"),
+            status=_optional_string(data, "status", "Gateway"),
+            installation_id=_required_identifier(data, "installationId", "Gateway"),
         )
+
+
+def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
+    """Return an optional installation address as a validated JSON object."""
+    address = validate_json_value(data.get("address", {}), path="Installation address")
+    if not isinstance(address, dict):
+        raise ViResponseError("Installation address must be an object")
+    return address

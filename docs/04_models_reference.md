@@ -34,6 +34,11 @@ non-JSON Python objects with `ViResponseError`. Additional unknown object fields
 remain representable; later response-specific validators decide which known
 fields are required.
 
+Discovery validates the known fields used to construct installation, gateway,
+and device snapshots. Required identifiers accept documented string or integer
+representations and are normalized to strings; malformed known fields raise
+`ViResponseError`. Unknown additional API fields remain forward-compatible.
+
 ## Installation
 
 Represents an installation site (House).
