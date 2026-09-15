@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from ._types import FeatureValue, JsonValue
 from .exceptions import ViError
 
 
@@ -42,7 +43,7 @@ class FeatureControl:
     max: float | None = None
     step: float | None = None
     value_type: str | None = None
-    options: Sequence[Any] | None = None
+    options: Sequence[JsonValue] | None = None
     min_length: int | None = None
     max_length: int | None = None
     pattern: str | None = None
@@ -69,7 +70,7 @@ class Feature:
     """
 
     name: str
-    value: Any
+    value: FeatureValue
     unit: str | None
     is_enabled: bool
     is_ready: bool
@@ -238,7 +239,7 @@ class Installation:
     id: str
     description: str
     alias: str
-    address: Mapping[str, Any] = field(default_factory=dict)
+    address: Mapping[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Store caller-owned address data as an immutable snapshot."""

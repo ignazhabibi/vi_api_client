@@ -19,11 +19,14 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ENDPOINT_TOKEN",
         "Feature",
         "FeatureControl",
+        "FeatureValue",
         "Gateway",
         "GatewayDeviceRefreshResult",
         "Installation",
+        "JsonValue",
         "FixtureViClient",
         "OAuth",
+        "ValidationDetail",
         "ViAuthError",
         "ViClient",
         "ViConnectionError",
@@ -34,6 +37,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ViServerInternalError",
         "ViValidationError",
         "format_feature",
+        "validate_json_value",
     }
 
     assert set(vi_api_client.__all__) == expected_exports

@@ -107,7 +107,11 @@ def test_feature_do_not_flatten_history(load_fixture_json):
     feature = features[0]
     assert feature.name == "heating.power.consumption"
     assert isinstance(feature.value, dict)
-    assert feature.value["day"]["value"] == [1.1, 2.2, 3.3]
+    day = feature.value["day"]
+    assert isinstance(day, dict)
+    values = day["value"]
+    assert isinstance(values, list)
+    assert values == [1.1, 2.2, 3.3]
 
 
 def test_feature_adds_consumption_alias_for_cooling(load_fixture_json):
@@ -127,7 +131,11 @@ def test_feature_adds_consumption_alias_for_cooling(load_fixture_json):
         if feature.name == "heating.power.consumption.cooling"
     )
     assert isinstance(base_feature.value, dict)
-    assert base_feature.value["year"]["value"][0] == 12.5
+    year = base_feature.value["year"]
+    assert isinstance(year, dict)
+    values = year["value"]
+    assert isinstance(values, list)
+    assert values[0] == 12.5
 
     current_year_feature = next(
         feature
@@ -159,7 +167,11 @@ def test_feature_adds_consumption_aliases_for_heating(load_fixture_json):
         if feature.name == "heating.power.consumption.heating"
     )
     assert isinstance(base_feature.value, dict)
-    assert base_feature.value["day"]["value"][0] == 4.6
+    day = base_feature.value["day"]
+    assert isinstance(day, dict)
+    values = day["value"]
+    assert isinstance(values, list)
+    assert values[0] == 4.6
 
     current_year_feature = next(
         feature

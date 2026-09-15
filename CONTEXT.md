@@ -48,6 +48,11 @@ _Avoid_: Optimistic update
 **Feature**:
 One flat, addressable device property with its reported value and capabilities.
 
+**Feature value**:
+The `FeatureValue` data reported for a feature. Its concrete shape follows the
+recursive `JsonValue` contract: scalar, no value, list, or string-keyed object.
+_Avoid_: Raw value, arbitrary value
+
 **Writable feature**:
 A feature that reports `is_writable=True` and has `FeatureControl` metadata
 describing how a feature command can target it.

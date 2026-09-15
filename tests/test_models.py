@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 import pytest
 
 import vi_api_client
+from vi_api_client import JsonValue
 from vi_api_client.exceptions import ViError, ViResponseError
 from vi_api_client.models import (
     Device,
@@ -34,13 +35,15 @@ def test_feature_dataclass():
 
 def test_feature_value_is_not_recursively_frozen():
     # Arrange: Create a feature with a caller-owned arbitrary payload.
-    value = {"entries": [1]}
+    value: dict[str, JsonValue] = {"entries": [1]}
     feature = Feature(
         name="test.feature", value=value, unit=None, is_enabled=True, is_ready=True
     )
 
     # Act: Mutate the arbitrary value after construction.
-    value["entries"].append(2)
+    entries = value["entries"]
+    assert isinstance(entries, list)
+    entries.append(2)
 
     # Assert: The model collection contract does not recursively freeze Any values.
     assert feature.value == {"entries": [1, 2]}
