@@ -199,31 +199,6 @@ def test_oauth_rejects_malformed_known_credential_fields(tmp_path):
         OAuth("client", "https://example.invalid", token_file)
 
 
-def test_oauth_rejects_malformed_successful_token_response_without_mutation(oauth):
-    """A successful HTTP response cannot replace token state before validation."""
-    # Arrange: Retain existing token state and provide an invalid token response.
-    oauth._token_info = {"access_token": "existing"}
-
-    # Act and assert: The malformed response preserves the existing state.
-    with pytest.raises(ViAuthError, match="access_token"):
-        oauth._update_tokens({"access_token": 1})
-    assert oauth._token_info == {"access_token": "existing"}
-
-
-@pytest.mark.parametrize("token_data", [{"refresh_token": "new"}, []])
-def test_oauth_rejects_incomplete_or_non_object_token_responses(oauth, token_data):
-    """Successful token responses must be JSON objects with an access token."""
-    with pytest.raises(ViAuthError):
-        oauth._update_tokens(token_data)
-
-
-def test_oauth_preserves_unexpected_token_response_fields(oauth):
-    """Unknown JSON fields remain available for forward-compatible responses."""
-    oauth._update_tokens({"access_token": "new", "future": {"enabled": True}})
-
-    assert oauth._token_info["future"] == {"enabled": True}
-
-
 @pytest.mark.parametrize(
     "token_data",
     [{"access_token": 1}, {"client_id": 1}, {"nested": object()}],
@@ -746,6 +721,7 @@ async def test_code_exchange_persists_token_json(oauth, load_fixture_json):
     # Arrange: Start OAuth and mock a successful token endpoint response.
     oauth.get_authorization_url()
     token_data = load_fixture_json("auth_token.json")
+    token_data["future"] = {"enabled": True}
 
     with aioresponses() as mock_responses:
         mock_responses.post(ENDPOINT_TOKEN, payload=token_data)
@@ -761,6 +737,7 @@ async def test_code_exchange_persists_token_json(oauth, load_fixture_json):
     assert saved_tokens["access_token"] == token_data["access_token"]
     assert saved_tokens["refresh_token"] == token_data["refresh_token"]
     assert saved_tokens["expires_in"] == token_data["expires_in"]
+    assert saved_tokens["future"] == {"enabled": True}
     assert isinstance(saved_tokens["expires_at"], float)
 
 
@@ -799,6 +776,32 @@ async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
                 await oauth.async_fetch_details_from_code("accepted-code")
 
     assert not oauth.token_file.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "token_data", [{"access_token": 1}, {"refresh_token": "new"}, []]
+)
+async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
+    oauth, token_data
+):
+    """Invalid successful token data must preserve stored credentials."""
+    # Arrange: Persist a valid token before receiving an invalid success response.
+    original_content = '{"access_token": "existing"}'
+    oauth.token_file.write_text(original_content, encoding="utf-8")
+    oauth.get_authorization_url()
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, status=200, payload=token_data)
+        async with aiohttp.ClientSession() as session:
+            oauth = _oauth_with_websession(oauth, session)
+
+            # Act and assert: The public code exchange rejects malformed token data.
+            with pytest.raises(ViAuthError):
+                await oauth.async_fetch_details_from_code("accepted-code")
+
+    # Assert: No invalid response can replace the saved credential document.
+    assert oauth.token_file.read_text(encoding="utf-8") == original_content
 
 
 def test_token_persistence(tmp_path):

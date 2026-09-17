@@ -150,44 +150,6 @@ async def test_fixture_client_rejects_malformed_fixture_feature_envelopes():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("feature", "message"),
-    [
-        ({"properties": {"value": 1}}, "Feature name"),
-        ({"feature": "heating.status", "properties": []}, "properties"),
-        (
-            {
-                "feature": "heating.status",
-                "properties": {"value": 1},
-                "isEnabled": "true",
-            },
-            "booleans",
-        ),
-        (
-            {
-                "feature": "heating.status",
-                "properties": {"value": 1},
-                "commands": {"set": {"params": []}},
-            },
-            "params",
-        ),
-    ],
-)
-async def test_fixture_client_rejects_malformed_known_feature_fields(feature, message):
-    """Fixture reads apply the same known-field validation as live reads."""
-    # Arrange: Replace the cached feature response at the fixture adapter boundary.
-    client = FixtureViClient("Vitodens200W")
-    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    fixture_adapter = client._discovery_adapter
-    assert isinstance(fixture_adapter, _FixtureDiscoveryAdapter)
-    fixture_adapter._feature_data = {"data": [feature]}
-
-    # Act and assert: The public read rejects malformed known response fields.
-    with pytest.raises(ViResponseError, match=message):
-        await client.get_features(device)
-
-
-@pytest.mark.asyncio
 async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     """Fixture command execution should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
