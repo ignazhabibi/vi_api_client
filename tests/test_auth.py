@@ -16,6 +16,7 @@ from aioresponses import aioresponses
 from vi_api_client.auth import AbstractAuth, OAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_TOKEN
+from vi_api_client.credentials import CredentialDocument
 from vi_api_client.exceptions import ViAuthError
 
 
@@ -185,6 +186,70 @@ def test_has_tokens_with_token(oauth_with_tokens):
     """Token info should be populated when token file exists."""
     # Act and Assert: Execute and verify in one step.
     assert oauth_with_tokens._token_info.get("access_token") == "test_access_token"
+
+
+def test_oauth_rejects_malformed_known_credential_fields(tmp_path):
+    """Persisted credential fields must satisfy the authentication contract."""
+    # Arrange: Store a syntactically valid document with an invalid token field.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text('{"access_token": 1}', encoding="utf-8")
+
+    # Act and assert: Loading does not normalize malformed credential data.
+    with pytest.raises(ViAuthError, match="access_token"):
+        OAuth("client", "https://example.invalid", token_file)
+
+
+def test_oauth_rejects_malformed_successful_token_response_without_mutation(oauth):
+    """A successful HTTP response cannot replace token state before validation."""
+    # Arrange: Retain existing token state and provide an invalid token response.
+    oauth._token_info = {"access_token": "existing"}
+
+    # Act and assert: The malformed response preserves the existing state.
+    with pytest.raises(ViAuthError, match="access_token"):
+        oauth._update_tokens({"access_token": 1})
+    assert oauth._token_info == {"access_token": "existing"}
+
+
+@pytest.mark.parametrize("token_data", [{"refresh_token": "new"}, []])
+def test_oauth_rejects_incomplete_or_non_object_token_responses(oauth, token_data):
+    """Successful token responses must be JSON objects with an access token."""
+    with pytest.raises(ViAuthError):
+        oauth._update_tokens(token_data)
+
+
+def test_oauth_preserves_unexpected_token_response_fields(oauth):
+    """Unknown JSON fields remain available for forward-compatible responses."""
+    oauth._update_tokens({"access_token": "new", "future": {"enabled": True}})
+
+    assert oauth._token_info["future"] == {"enabled": True}
+
+
+@pytest.mark.parametrize(
+    "token_data",
+    [{"access_token": 1}, {"client_id": 1}, {"nested": object()}],
+)
+def test_credential_updates_reject_invalid_data_without_overwriting(
+    tmp_path, token_data
+):
+    """Invalid direct credential updates must leave the existing document intact."""
+    token_file = tmp_path / "tokens.json"
+    original_content = '{"access_token": "existing"}'
+    token_file.write_text(original_content, encoding="utf-8")
+
+    with pytest.raises(ViAuthError):
+        CredentialDocument(token_file).update(token_data)
+
+    assert token_file.read_text(encoding="utf-8") == original_content
+
+
+@pytest.mark.parametrize("field_name", ["client_id", "redirect_uri"])
+def test_oauth_rejects_malformed_saved_credential_configuration(tmp_path, field_name):
+    """Authentication configuration stored in credentials must be string data."""
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text(json.dumps({field_name: 1}), encoding="utf-8")
+
+    with pytest.raises(ViAuthError, match=field_name):
+        OAuth("client", "https://example.invalid", token_file)
 
 
 def test_oauth_rejects_malformed_token_file_without_modifying_it(tmp_path):
@@ -717,6 +782,22 @@ async def test_code_exchange_failure_does_not_write_tokens(oauth):
                 await oauth.async_fetch_details_from_code("rejected-code")
 
     # Assert: Failed authentication should not create a token file.
+    assert not oauth.token_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
+    """A 200 response with malformed JSON should raise a library auth error."""
+    oauth.get_authorization_url()
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, status=200, body="{invalid")
+
+        async with aiohttp.ClientSession() as session:
+            oauth = _oauth_with_websession(oauth, session)
+
+            with pytest.raises(ViAuthError, match="invalid JSON"):
+                await oauth.async_fetch_details_from_code("accepted-code")
+
     assert not oauth.token_file.exists()
 
 

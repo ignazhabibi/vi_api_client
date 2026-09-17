@@ -107,6 +107,12 @@ If the token file contains invalid JSON, `OAuth` leaves it untouched and raises
 `ViAuthError`. Repair or remove that file before authenticating again; this avoids
 silently losing credentials or saved client configuration.
 
+Successful OAuth token responses and persisted credential documents are checked
+before they update authentication state. Known token fields such as
+`access_token`, `refresh_token`, and expiration values must have their expected
+string or finite numeric forms; malformed values raise `ViAuthError` and are not
+silently coerced or written back. Unknown additional JSON fields remain allowed.
+
 Credential updates preserve unrelated JSON fields, are written through a temporary
 file in the same directory, and then atomically replace the previous file. On
 platforms that support POSIX permissions, the resulting credential file is

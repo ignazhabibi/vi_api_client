@@ -1,9 +1,11 @@
 """Authentication module for Viessmann API."""
 
 import asyncio
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from math import isfinite
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -12,9 +14,11 @@ from urllib.parse import urlencode
 import aiohttp
 import pkce
 
+from ._types import JsonValue
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
 from .credentials import CredentialDocument
-from .exceptions import ViAuthError, ViConnectionError
+from .exceptions import ViAuthError, ViConnectionError, ViResponseError
+from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,7 +123,7 @@ class OAuth(AbstractAuth):
         self.token_file = Path(token_file)
         self._credential_document = CredentialDocument(self.token_file)
         self.scope = scope
-        self._token_info: dict[str, Any] = {}
+        self._token_info: dict[str, JsonValue] = {}
         self._pkce_verifier: str | None = None
         self._refresh_task: asyncio.Task[None] | None = None
 
@@ -149,13 +153,15 @@ class OAuth(AbstractAuth):
 
         return f"{ENDPOINT_AUTHORIZE}?{urlencode(params)}"
 
-    def _update_tokens(self, token_data: dict[str, Any]) -> None:
+    def _update_tokens(self, token_data: object) -> None:
         """Update internal token state and save."""
-        self._token_info.update(token_data)
+        validated_token_data = _validate_token_response(token_data)
+        self._token_info.update(validated_token_data)
 
         # Calculate absolute expiration time if 'expires_in' is present
-        if "expires_in" in token_data:
-            self._token_info["expires_at"] = time.time() + token_data["expires_in"]
+        expires_in = validated_token_data.get("expires_in")
+        if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool):
+            self._token_info["expires_at"] = time.time() + expires_in
 
         self._save_tokens()
 
@@ -180,7 +186,7 @@ class OAuth(AbstractAuth):
                 text = await resp.text()
                 raise ViAuthError(f"Failed to fetch token: {text}")
 
-            self._update_tokens(await resp.json())
+            self._update_tokens(await _read_token_response(resp))
 
     async def _async_refresh_access_token(self) -> None:
         """Refresh the access token through the token endpoint."""
@@ -201,7 +207,7 @@ class OAuth(AbstractAuth):
                 # If refresh fails, we might need to re-auth, but here we just raise
                 raise ViAuthError(f"Failed to refresh token: {text}")
 
-            self._update_tokens(await resp.json())
+            self._update_tokens(await _read_token_response(resp))
 
     async def async_refresh_access_token(self) -> None:
         """Refresh the access token, sharing an in-flight refresh per instance.
@@ -249,13 +255,61 @@ class OAuth(AbstractAuth):
         now = time.time()
         expires_at = self._token_info.get("expires_at")
 
-        if expires_at and now < expires_at - 60:
-            return self._token_info["access_token"]
+        if (
+            isinstance(expires_at, (int, float))
+            and not isinstance(expires_at, bool)
+            and now < expires_at - 60
+        ):
+            return self._access_token_value()
 
         # If expired or unknown: try refresh
         if "refresh_token" in self._token_info:
             await self.async_refresh_access_token()
-            return self._token_info["access_token"]
+            return self._access_token_value()
 
         # Fallback: return what we have (e.g. if offline_access scope was missing)
-        return self._token_info.get("access_token", "")
+        return self._access_token_value()
+
+    def _access_token_value(self) -> str:
+        """Return the validated current access token."""
+        access_token = self._token_info.get("access_token")
+        if not isinstance(access_token, str) or not access_token:
+            raise ViAuthError("No valid access token available.")
+        return access_token
+
+
+def _validate_token_response(token_data: object) -> dict[str, JsonValue]:
+    """Validate a successful OAuth token response before updating state."""
+    try:
+        validated_token_data = validate_json_value(token_data, path="Token response")
+    except ViResponseError as error:
+        raise ViAuthError("Token response contains invalid JSON data") from error
+    if not isinstance(validated_token_data, dict):
+        raise ViAuthError("Token response must be a JSON object")
+
+    access_token = validated_token_data.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise ViAuthError("Token response access_token must be a non-empty string")
+    for field_name in ("refresh_token", "token_type"):
+        value = validated_token_data.get(field_name)
+        if value is not None and not isinstance(value, str):
+            raise ViAuthError(f"Token response {field_name} must be a string")
+    expires_in = validated_token_data.get("expires_in")
+    if expires_in is not None and (
+        isinstance(expires_in, bool)
+        or not isinstance(expires_in, (int, float))
+        or not isfinite(expires_in)
+        or expires_in < 0
+    ):
+        raise ViAuthError(
+            "Token response expires_in must be a non-negative finite number"
+        )
+    return validated_token_data
+
+
+async def _read_token_response(response: aiohttp.ClientResponse) -> object:
+    """Read a successful token response as JSON with library-owned errors."""
+    try:
+        return await response.json()
+    except (aiohttp.ClientError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ViAuthError("Token response contains invalid JSON data") from error

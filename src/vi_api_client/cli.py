@@ -99,15 +99,15 @@ def get_client_config(args) -> tuple[str, str]:
     """Get client_id and redirect_uri from args or file."""
     config = CredentialDocument(Path(args.token_file)).read()
 
-    client_id = (
-        args.client_id or os.getenv("VIESSMANN_CLIENT_ID") or config.get("client_id")
-    )
-    redirect_uri = (
-        args.redirect_uri
-        or os.getenv("VIESSMANN_REDIRECT_URI")
-        or config.get("redirect_uri")
-        or DEFAULT_REDIRECT_URI
-    )
+    configured_client_id = config.get("client_id")
+    configured_redirect_uri = config.get("redirect_uri")
+    client_id = args.client_id or os.getenv("VIESSMANN_CLIENT_ID")
+    if not client_id and isinstance(configured_client_id, str):
+        client_id = configured_client_id
+    redirect_uri = args.redirect_uri or os.getenv("VIESSMANN_REDIRECT_URI")
+    if not redirect_uri and isinstance(configured_redirect_uri, str):
+        redirect_uri = configured_redirect_uri
+    redirect_uri = redirect_uri or DEFAULT_REDIRECT_URI
 
     if not client_id:
         _print_diagnostic(
