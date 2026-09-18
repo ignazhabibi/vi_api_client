@@ -1,6 +1,7 @@
 """Validation helpers for JSON values crossing client trust boundaries."""
 
 from math import isfinite
+from typing import cast
 
 from ._types import JsonValue
 from .exceptions import ViResponseError
@@ -26,13 +27,18 @@ def validate_json_value(value: object, *, path: str = "value") -> JsonValue:
             raise ViResponseError(f"{path} must be a finite number")
         return value
     if isinstance(value, list):
+        # Narrowing ``object`` to a bare generic container leaves the element
+        # types unknown; every element is re-validated one by one below.
+        items = cast("list[object]", value)
         validated_list: list[JsonValue] = []
-        for index, item in enumerate(value):
+        for index, item in enumerate(items):
             validated_list.append(validate_json_value(item, path=f"{path}[{index}]"))
         return validated_list
     if isinstance(value, dict):
+        # Same narrowing limitation as lists; every entry is re-validated below.
+        entries = cast("dict[object, object]", value)
         validated_object: dict[str, JsonValue] = {}
-        for key, item in value.items():
+        for key, item in entries.items():
             if not isinstance(key, str):
                 raise ViResponseError(f"{path} object keys must be strings")
             validated_object[key] = validate_json_value(item, path=f"{path}.{key}")

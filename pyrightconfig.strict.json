@@ -1,0 +1,7 @@
+{
+  "include": ["src/vi_api_client"],
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.14",
+  "venvPath": ".",
+  "venv": ".venv"
+}

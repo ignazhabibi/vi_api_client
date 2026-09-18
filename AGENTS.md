@@ -30,19 +30,26 @@ python -m pip install -c constraints-ci.txt '.[dev]'
 ruff check .
 ruff format --check .
 pyright --pythonpath python
+pyright --project pyrightconfig.strict.json
 python -m pytest -q
 python -m build
+python scripts/verify_distributions.py
 ```
 
-The quality gate builds both distribution artifacts after linting, formatting,
-type checking, and tests. `constraints-ci.txt` defines the CI-tested HTTP-client
-and mock combination.
+The quality gate keeps tests and demos in standard type checking while the
+shipped package must pass the strict configuration in
+`pyrightconfig.strict.json`. It also verifies the built wheel and source
+distribution as typed PEP 561 consumer artifacts. `python
+scripts/quality_check.py` runs the complete gate and CI runs the same script.
+`constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
 
 ## Git, Pull Requests, and Releases
 
 - `main` is protected. Use short-lived branches and pull requests; never commit or merge directly to `main` without an explicitly confirmed emergency bypass.
+- When a pull request implements an issue, include `Closes #<issue-number>` in its body so GitHub closes the issue when the pull request merges.
 - Stage only requested files. Before committing, show the files, summary, and proposed Conventional Commit message; no additional confirmation is needed.
 - Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` job before treating a PR as merge-ready. Squash merge only with explicit authorization.
+- For multi-line GitHub issue or PR bodies, use a heredoc or `--body-file` so GitHub receives real newlines, then verify the rendered body.
 - After a merge, fast-forward local `main` and delete the confirmed merged local branch.
 - For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump through a PR, then create an annotated `vX.Y.Z` tag on the merged `main` commit. Its message becomes the GitHub Release body. A release is complete only after the tag workflow is green.
 - Write release notes as `# Changelog`, followed by non-empty sections in this order: `### Breaking Changes 🚨`, `### New Features 💫`, `### Other Changes ☀️`, and `### Bug Fixes 🐞`. List each user-facing change as `- \`<short SHA>\` Description ([#<number>](<GitHub issue or pull-request URL>)).` where a related Issue or PR exists.

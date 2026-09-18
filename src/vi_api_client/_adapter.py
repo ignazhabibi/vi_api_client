@@ -5,7 +5,7 @@ import math
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import aiohttp
 
@@ -33,7 +33,7 @@ from .validation import validate_json_value
 _LOGGER = logging.getLogger(__name__)
 
 
-class _DiscoveryAdapter(Protocol):
+class DiscoveryAdapter(Protocol):
     """Retrieve API envelopes without constructing domain objects."""
 
     async def get_installations(self) -> dict[str, Any]: ...
@@ -53,15 +53,15 @@ class _DiscoveryAdapter(Protocol):
     ) -> dict[str, Any]: ...
 
 
-class _CommandAdapter(Protocol):
+class CommandAdapter(Protocol):
     """Execute feature commands without constructing domain objects."""
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
 
-class _LiveAdapter:
+class LiveAdapter:
     """Retrieve live API envelopes through an authenticated request provider."""
 
     def __init__(self, auth: AbstractAuth) -> None:
@@ -158,14 +158,17 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     except aiohttp.ClientError, ValueError:
         data = None
     if isinstance(data, dict):
-        # Structured error fields are validated before exposure; values that
-        # violate the contract keep their HTTP-level defaults.
-        vi_error_id = _structured_error_text(data.get("viErrorId"))
-        error_type = _structured_error_text(data.get("errorType"))
-        message = data.get("message")
+        # The untyped aiohttp JSON boundary yields an unknown container shape;
+        # each known error field is re-narrowed and validated below.
+        error_body = cast("dict[str, Any]", data)
+        vi_error_id = _structured_error_text(error_body.get("viErrorId"))
+        error_type = _structured_error_text(error_body.get("errorType"))
+        message = error_body.get("message")
         if isinstance(message, str):
             error_message = message
-        validation_details = _parse_validation_details(data.get("validationErrors"))
+        validation_details = _parse_validation_details(
+            error_body.get("validationErrors")
+        )
 
     _LOGGER.error(
         "API Error %s (%s): %s (ID: %s)",
@@ -208,19 +211,21 @@ def _parse_validation_details(value: object) -> list[ValidationDetail]:
     """Return validated validation details, dropping unusable collections.
 
     Every exposed detail is a string-keyed JSON object and unknown detail
-    fields remain allowed. A collection that violates the shape is not
-    partially exposed.
+    fields remain allowed. A collection that violates the shape — or that
+    JSON cannot represent — is dropped entirely rather than masking the
+    HTTP error being reported.
     """
-    if not isinstance(value, list):
+    try:
+        validated = validate_json_value(value, path="API validationErrors")
+    except ViResponseError:
+        return []
+    if not isinstance(validated, list):
         return []
     details: list[ValidationDetail] = []
-    for entry in value:
+    for entry in validated:
         if not isinstance(entry, dict):
             return []
-        detail = validate_json_value(entry, path="API validation detail")
-        if not isinstance(detail, dict):
-            return []
-        details.append(detail)
+        details.append(entry)
     return details
 
 

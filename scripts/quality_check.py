@@ -12,8 +12,13 @@ COMMANDS = (
     (sys.executable, "-m", "ruff", "check", "."),
     (sys.executable, "-m", "ruff", "format", "--check", "."),
     (sys.executable, "-m", "pyright", "--pythonpath", sys.executable),
+    (sys.executable, "-m", "pyright", "--project", "pyrightconfig.strict.json"),
     (sys.executable, "-m", "pytest", "-q"),
     (sys.executable, "-m", "build"),
+    (
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "verify_distributions.py"),
+    ),
 )
 
 

@@ -79,9 +79,17 @@ pre-commit install
 ruff check .
 ruff format --check .
 pyright --pythonpath python
+pyright --project pyrightconfig.strict.json
 python -m pytest -q
 python -m build
+python scripts/verify_distributions.py
 ```
+
+The shipped package is strictly typed and PEP 561 complete: the strict
+Pyright pass covers `src/vi_api_client`, the built wheel and source
+distribution ship `py.typed`, and the installed wheel passes
+`pyright --verifytypes vi_api_client --ignoreexternal`. Tests and demos
+remain under standard type checking.
 
 ## Quick Start
 

@@ -114,22 +114,25 @@ companion values, and constraints must be validated before sending a command.
 
 **What is it?** A seam is a defined boundary at which one implementation can be
 replaced by another without changing the domain logic above it.
-`_DiscoveryAdapter` and `_CommandAdapter` form the main seam in this library.
+`DiscoveryAdapter` and `CommandAdapter` form the main seam in this library.
 
 **Why?** HTTP access and local fixtures are two real execution paths. Both must
 use the same discovery, parsing, refresh, and command rules.
 
-**Impact:** The seam remains private and adds no public complexity. Live and
-fixture behavior can be tested against the same contract. This seam is
-justified by two existing implementations; it is not a general requirement to
-add a seam around every function.
+**Impact:** The seam stays private inside the `_adapter` module and adds no
+public complexity. The command adapter returns the raw JSON value and the
+core validates its shape, so no unvalidated transport data enters domain
+logic. Live and fixture behavior can be tested against the same contract.
+This seam is justified by two existing implementations; it is not a general
+requirement to add a seam around every function.
 
 ### Port and adapter
 
 **What is it?**
 
-- A **port** defines operations the core requires from its environment. Private
-  Python `Protocol` types express these requirements.
+- A **port** defines operations the core requires from its environment.
+  Python `Protocol` types in the private `_adapter` module express these
+  requirements.
 - An **adapter** implements those operations for a specific environment.
 
 **Why?** HTTP, OAuth, and file access are infrastructure concerns. Parsing and
@@ -457,7 +460,7 @@ flowchart TB
     Port --> Fixture["Fixture adapter<br/>JSON + simulation"]
 ```
 
-`ViClient(auth)` uses `_LiveAdapter`, which builds URLs, performs
+`ViClient(auth)` uses `LiveAdapter`, which builds URLs, performs
 authenticated requests, and validates transport responses.
 
 `FixtureViClient(device_name)` uses fixture adapters and needs no authentication,
@@ -603,11 +606,32 @@ surface and includes clients, auth types, models, results, the exception
 hierarchy, external OAuth constants, and `format_feature`.
 
 Private adapters, parsers, credential persistence, endpoints, and CLI helpers
-are not consumer contracts. A leading underscore reinforces this intent.
-`mask_pii` remains a direct utility import rather than a package-root export.
+are not consumer contracts. The curated package root and the private module
+names reinforce this intent. `mask_pii` remains a direct utility import rather
+than a package-root export.
 
 This boundary lets internal structure evolve without making every module path a
 compatibility promise.
+
+### Typed package contract
+
+The package ships as a strictly typed PEP 561 package:
+
+- Strict Pyright mode covers all of `src/vi_api_client` and reports zero
+  diagnostics (`pyrightconfig.strict.json`); tests and demos stay in standard
+  mode.
+- The wheel and source distribution contain `py.typed` and the bundled device
+  fixtures. The quality gate installs each built artifact in its own isolated
+  environment — building the source distribution from its own packaging files —
+  and requires a complete public type contract through
+  `pyright --verifytypes vi_api_client --ignoreexternal`.
+- Remaining `Any` annotations and casts exist only at documented dynamic
+  boundaries: raw API envelopes and entries use `dict[str, Any]` and are
+  validated field by field per ADR 0003; casts re-narrow containers that a
+  runtime shape check has already validated at the transport boundary;
+  aiohttp request keyword arguments stay `Any`; and bundled fixture files
+  are trusted package data. The CLI narrows dynamic argparse values through
+  runtime-checked accessors instead of casts.
 
 ## 18. CLI architecture
 
@@ -645,7 +669,7 @@ flowchart TB
     Contract["Contract and integration tests<br/>live/fixture behavior"]
     Focused["Focused tests<br/>parser · models · auth · CLI"]
     Fixtures["Fixture integrity<br/>realistic response shapes"]
-    Quality["Quality gate<br/>Ruff · format · Pyright · Pytest · build"]
+    Quality["Quality gate<br/>Ruff · format · Pyright standard · Pyright strict<br/>Pytest · build · typed artifacts"]
     Contract --> Quality
     Focused --> Quality
     Fixtures --> Quality

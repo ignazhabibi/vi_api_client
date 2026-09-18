@@ -3,10 +3,10 @@
 import logging
 import re
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 from urllib.parse import unquote, urlsplit
 
-from ._adapter import _CommandAdapter, _DiscoveryAdapter, _LiveAdapter
+from ._adapter import CommandAdapter, DiscoveryAdapter, LiveAdapter
 from ._types import FeatureValue, JsonValue
 from .auth import AbstractAuth
 from .exceptions import ViError, ViResponseError, ViValidationError
@@ -19,7 +19,7 @@ from .models import (
     GatewayDeviceRefreshResult,
     Installation,
 )
-from .parsing import _validate_feature_entry, parse_feature_flat
+from .parsing import parse_feature_flat, validate_feature_entry
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,9 +49,9 @@ class ViClient:
         Args:
             auth: Authentication handler providing the access token.
         """
-        live_adapter = _LiveAdapter(auth)
-        self._discovery_adapter: _DiscoveryAdapter = live_adapter
-        self._command_adapter: _CommandAdapter = live_adapter
+        live_adapter = LiveAdapter(auth)
+        self._discovery_adapter: DiscoveryAdapter = live_adapter
+        self._command_adapter: CommandAdapter = live_adapter
 
     async def get_installations(self) -> list[Installation]:
         """Get list of installations.
@@ -118,7 +118,7 @@ class ViClient:
                 len(devices),
                 only_active_features,
             )
-            populated_devices = []
+            populated_devices: list[Device] = []
             for device in devices:
                 features = await self.get_features(
                     device, only_enabled=only_active_features
@@ -162,7 +162,7 @@ class ViClient:
         response = await self._discovery_adapter.get_features(device, payload)
         raw_features = self._get_discovery_data(response, "Feature")
 
-        flat_features = []
+        flat_features: list[Feature] = []
         for raw_feature in raw_features:
             flat_features.extend(parse_feature_flat(raw_feature))
 
@@ -201,7 +201,7 @@ class ViClient:
             List of Devices with their `features` list populated.
         """
         gateways = await self.get_gateways()
-        all_devices = []
+        all_devices: list[Device] = []
 
         for gateway in gateways:
             if gateway.installation_id != installation_id:
@@ -436,14 +436,18 @@ class ViClient:
         """Validate and return the data collection from a discovery envelope."""
         if not isinstance(envelope, dict):
             raise ViResponseError(f"{resource_name} response must be an object")
-        data = envelope.get("data")
+        # Runtime-checked containers from the transport boundary; every entry
+        # is re-validated field by field by the parsers.
+        body = cast("dict[str, Any]", envelope)
+        data = body.get("data")
         if not isinstance(data, list):
             raise ViResponseError(f"{resource_name} response data must be a list")
-        if not all(isinstance(item, dict) for item in data):
+        items = cast("list[object]", data)
+        if not all(isinstance(item, dict) for item in items):
             raise ViResponseError(
                 f"{resource_name} response data entries must be objects"
             )
-        return data
+        return cast("list[dict[str, Any]]", data)
 
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, JsonValue]
@@ -463,7 +467,10 @@ class ViClient:
         response_data = await self._command_adapter.execute_command(control, payload)
         if not isinstance(response_data, dict):
             raise ViResponseError("Command response must be an object")
-        return CommandResponse.from_api(response_data)
+        # The container shape was runtime-checked; known fields are validated
+        # by the response parser.
+        command_response = cast("dict[str, Any]", response_data)
+        return CommandResponse.from_api(command_response)
 
     @staticmethod
     def _validate_gateway_devices(devices: list[Device]) -> None:
@@ -482,21 +489,26 @@ class ViClient:
         """Validate and group a gateway response by requested device ID."""
         if not isinstance(response, dict):
             raise ViResponseError("Gateway feature response must be an object")
-        raw_response_features = response.get("data")
+        # Runtime-checked containers from the transport boundary; every entry
+        # is re-validated field by field by the feature parsers.
+        body = cast("dict[str, Any]", response)
+        raw_response_features = body.get("data")
         if not isinstance(raw_response_features, list):
             raise ViResponseError("Gateway feature response data must be a list")
+        raw_features = cast("list[object]", raw_response_features)
 
         grouped_features: dict[str, list[dict[str, Any]]] = {
             device_id: [] for device_id in requested_device_ids
         }
         seen_device_ids: set[str] = set()
-        for raw_feature in raw_response_features:
+        for raw_feature in raw_features:
             if not isinstance(raw_feature, dict):
                 raise ViResponseError("Gateway feature entries must be objects")
-            device_id = self._get_feature_device_id(raw_feature.get("uri"))
-            _validate_feature_entry(raw_feature)
+            entry = cast("dict[str, Any]", raw_feature)
+            device_id = self._get_feature_device_id(entry.get("uri"))
+            validate_feature_entry(entry)
             if device_id in grouped_features:
-                grouped_features[device_id].append(raw_feature)
+                grouped_features[device_id].append(entry)
                 seen_device_ids.add(device_id)
 
         return grouped_features, seen_device_ids
@@ -517,7 +529,7 @@ class ViClient:
         device_id: str, raw_features: list[dict[str, Any]]
     ) -> list[Feature]:
         """Parse one device's features and expose contract failures consistently."""
-        features = []
+        features: list[Feature] = []
         try:
             for raw_feature in raw_features:
                 features.extend(parse_feature_flat(raw_feature))
@@ -567,7 +579,7 @@ class ViClient:
         self, devices: list[Device]
     ) -> GatewayDeviceRefreshResult:
         """Refresh devices individually and isolate known device failures."""
-        updated_devices = []
+        updated_devices: list[Device] = []
         errors_by_device_id: dict[str, ViError] = {}
         device_error_types = {
             "DEVICE_COMMUNICATION_ERROR",

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
 from ._types import FeatureValue, JsonValue
 from .exceptions import ViError, ViResponseError
@@ -190,8 +190,6 @@ class Device:
         Returns:
             The feature object if found, otherwise None.
         """
-        if self._features_by_name is None:
-            return None
         return self._features_by_name.get(name)
 
     @classmethod
@@ -280,10 +278,13 @@ class CommandResponse:
         root = data.get("data", data)
         if not isinstance(root, dict):
             raise ViResponseError("Command response data must be an object")
+        # The container shape was runtime-checked; every known field is
+        # validated individually below.
+        command_data = cast("dict[str, Any]", root)
         return cls(
-            success=_parse_command_success(root.get("success")),
-            message=_optional_response_text(root, "message"),
-            reason=_optional_response_text(root, "reason"),
+            success=_parse_command_success(command_data.get("success")),
+            message=_optional_response_text(command_data, "message"),
+            reason=_optional_response_text(command_data, "reason"),
         )
 
 
@@ -301,7 +302,7 @@ class Installation:
     id: str
     description: str
     alias: str
-    address: Mapping[str, JsonValue] = field(default_factory=dict)
+    address: Mapping[str, JsonValue] = field(default_factory=dict[str, JsonValue])
 
     def __post_init__(self) -> None:
         """Store caller-owned address data as an immutable snapshot."""

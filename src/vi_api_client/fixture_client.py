@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-from ._adapter import _CommandAdapter, _DiscoveryAdapter
+from ._adapter import CommandAdapter, DiscoveryAdapter
 from ._types import JsonValue
 from .client import ViClient
 from .models import (
@@ -140,10 +140,10 @@ class FixtureViClient(ViClient):
                 Must correspond to a file in the fixtures directory.
         """
         self.device_name = device_name
-        self._discovery_adapter: _DiscoveryAdapter = _FixtureDiscoveryAdapter(
+        self._discovery_adapter: DiscoveryAdapter = _FixtureDiscoveryAdapter(
             device_name
         )
-        self._command_adapter: _CommandAdapter = _FixtureCommandAdapter()
+        self._command_adapter: CommandAdapter = _FixtureCommandAdapter()
 
     @staticmethod
     def get_available_fixture_devices() -> list[str]:
