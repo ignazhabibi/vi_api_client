@@ -8,6 +8,7 @@ import aiohttp
 import pytest
 from aioresponses import aioresponses
 
+from vi_api_client._types import JsonValue
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import (
@@ -1161,7 +1162,7 @@ async def test_execute_command_preserves_explicit_parameters(load_fixture_json):
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
-    parameters = {"slope": 0.7, "shift": 7.0}
+    parameters: dict[str, JsonValue] = {"slope": 0.7, "shift": 7.0}
 
     with aioresponses() as mock_responses:
         mock_responses.post(features_url, payload={"data": fixtures_data})

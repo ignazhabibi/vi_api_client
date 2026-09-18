@@ -9,7 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._adapter import _LiveAdapter
-from vi_api_client._types import ValidationDetail
+from vi_api_client._types import JsonValue, ValidationDetail
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
@@ -132,6 +132,99 @@ def test_validation_error_keeps_existing_positional_arguments() -> None:
     assert error.error_id == "error-123"
     assert error.error_type is None
     assert error.validation_errors == validation_errors
+
+
+@pytest.mark.asyncio
+async def test_live_adapter_exposes_validated_validation_details() -> None:
+    """Validated validation details stay dictionary-shaped on the exception."""
+    # Arrange: Return one structured validation detail with an unknown field.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    payload: dict[str, JsonValue] = {
+        "errorType": "VALIDATION_FAILED",
+        "message": "Invalid command parameters",
+        "viErrorId": "error-123",
+        "validationErrors": [
+            {"message": "out of range", "path": "slope", "extra": 1},
+        ],
+    }
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=payload, status=400)
+        async with aiohttp.ClientSession() as session:
+            adapter = _LiveAdapter(_StaticAuth(session))
+
+            # Act: The public exception exposes the validated detail.
+            with pytest.raises(ViValidationError) as raised_error:
+                await adapter.get_installations()
+
+    # Assert: The detail remains a dictionary with dictionary access and
+    # contributes to the formatted message.
+    error = raised_error.value
+    details = error.validation_errors
+    assert details is not None
+    assert isinstance(details[0], dict)
+    assert details[0]["message"] == "out of range"
+    assert details[0].get("path") == "slope"
+    assert "out of range (path: slope)" in str(error)
+
+
+@pytest.mark.parametrize(
+    "validation_errors",
+    ["not-a-list", 42, [{"message": "ok"}, "entry"], ["entry", 42]],
+)
+@pytest.mark.asyncio
+async def test_live_adapter_drops_unusable_validation_details(
+    validation_errors: JsonValue,
+) -> None:
+    """Validation detail collections that violate the contract are not exposed."""
+    # Arrange: Return a validationErrors value outside the detail contract.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    payload: dict[str, JsonValue] = {
+        "errorType": "VALIDATION_FAILED",
+        "message": "Invalid command parameters",
+        "viErrorId": "error-123",
+        "validationErrors": validation_errors,
+    }
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=payload, status=400)
+        async with aiohttp.ClientSession() as session:
+            adapter = _LiveAdapter(_StaticAuth(session))
+
+            # Act: The public exception is still raised for the HTTP error.
+            with pytest.raises(ViValidationError) as raised_error:
+                await adapter.get_installations()
+
+    # Assert: The unusable collection is not partially exposed.
+    assert raised_error.value.validation_errors == []
+
+
+@pytest.mark.asyncio
+async def test_live_adapter_drops_malformed_structured_error_fields() -> None:
+    """Malformed structured error fields must not reach the public exception."""
+    # Arrange: Return structured error fields that violate their contracts.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    payload: dict[str, JsonValue] = {
+        "errorType": 404,
+        "message": {"text": "broken"},
+        "viErrorId": ["not-an-id"],
+    }
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=payload, status=400)
+        async with aiohttp.ClientSession() as session:
+            adapter = _LiveAdapter(_StaticAuth(session))
+
+            # Act: The HTTP error still maps to its library exception.
+            with pytest.raises(ViValidationError) as raised_error:
+                await adapter.get_installations()
+
+    # Assert: HTTP-level defaults replace every malformed field.
+    error = raised_error.value
+    assert error.error_id is None
+    assert error.error_type is None
+    assert error.validation_errors == []
+    assert str(error) == "HTTP 400"
 
 
 def test_rate_limit_error_keeps_existing_positional_arguments() -> None:

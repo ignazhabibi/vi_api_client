@@ -51,6 +51,15 @@ except ViValidationError as e:
         print(f" - {err['message']} @ {err['path']}")
 ```
 
+Structured Viessmann error fields are validated before exposure. `error_id`
+and `error_type` are exposed only when the API reports strings, the message
+must be a string, and `validation_errors` is exposed only when the API reports
+a list of string-keyed JSON objects; malformed fields keep their HTTP-level
+defaults instead of being exposed. `validation_errors` is a sequence of
+`ValidationDetail` dictionaries, so iteration, indexing, and `.get` keep
+working. Rate-limit retry guidance is exposed only as the validated,
+non-negative `retry_after` delay.
+
 `update_gateway_devices` uses `error_type` to keep
 `DEVICE_COMMUNICATION_ERROR`, `DEVICE_NOT_FOUND`, and
 `PACKAGE_NOT_PAID_FOR` failures from concrete per-device fallbacks in its

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from ._adapter import _CommandAdapter, _DiscoveryAdapter
+from ._types import JsonValue
 from .client import ViClient
 from .models import (
     Device,
@@ -111,7 +112,7 @@ class _FixtureCommandAdapter:
     """Return deterministic command responses without modifying fixtures."""
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, Any]
+        self, control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]:
         """Return a successful fixture command response."""
         _LOGGER.debug(

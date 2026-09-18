@@ -45,6 +45,10 @@ commands, and boolean enabled/ready flags. Known command and parameter metadata
 is validated before `FeatureControl` construction; unknown additional fields
 remain allowed. This behavior is identical for live and fixture-backed reads.
 
+Feature commands apply the same contract to their inputs: `set_feature`
+target values and `execute_command` parameter values must be JSON values.
+Non-JSON parameter values raise `ValueError` before any request is sent.
+
 ## Installation
 
 Represents an installation site (House).
@@ -147,6 +151,13 @@ and as the first element of the tuple returned by `set_feature`.
 | `success` | `bool` | `True` if the command succeeded. | `True` |
 | `message` | `str \| None` | Optional message from the API. | `'Command accepted'` |
 | `reason` | `str \| None` | Optional failure reason or details. | `'Feature not ready'` |
+
+Command responses validate their known fields: `success` accepts the
+documented boolean representations — a JSON boolean or a case-insensitive
+`"true"`/`"false"` string — and normalizes them to a boolean. A missing or
+otherwise malformed `success`, or a non-string `message` or `reason`, raises
+`ViResponseError`; unknown additional fields remain allowed. Responses may
+arrive as the root object or wrapped in a `data` envelope.
 
 **Usage**:
 ```python

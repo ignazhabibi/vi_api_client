@@ -36,6 +36,33 @@ def _optional_string(data: dict[str, Any], field_name: str, resource: str) -> st
     return value
 
 
+def _parse_command_success(value: Any) -> bool:
+    """Return a normalized command success flag.
+
+    The API reports success as a JSON boolean or one of the documented
+    case-insensitive boolean string representations.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.lower()
+        if normalized == "true":
+            return True
+        if normalized == "false":
+            return False
+    raise ViResponseError(
+        "Command response success must be a boolean or a 'true'/'false' string"
+    )
+
+
+def _optional_response_text(root: dict[str, Any], field_name: str) -> str | None:
+    """Return an optional command response text field."""
+    value = root.get(field_name)
+    if value is not None and not isinstance(value, str):
+        raise ViResponseError(f"Command response {field_name} must be a string")
+    return value
+
+
 @dataclass(frozen=True)
 class FeatureControl:
     """Command metadata for a writable feature, not an executed command.
@@ -235,21 +262,23 @@ class CommandResponse:
         """Create from API response.
 
         Args:
-            data: The JSON response dictionary from the API.
+            data: The JSON response dictionary from the API, either as the
+                root object or wrapped in a ``data`` envelope.
 
         Returns:
             A CommandResponse instance indicating success/failure.
+
+        Raises:
+            ViResponseError: If a known command response field violates the
+                API contract.
         """
         root = data.get("data", data)
-        # Handle string "True"/"False" or boolean
-        success_raw = root.get("success")
-        if isinstance(success_raw, str):
-            success = success_raw.lower() == "true"
-        else:
-            success = bool(success_raw)
-
+        if not isinstance(root, dict):
+            raise ViResponseError("Command response data must be an object")
         return cls(
-            success=success, message=root.get("message"), reason=root.get("reason")
+            success=_parse_command_success(root.get("success")),
+            message=_optional_response_text(root, "message"),
+            reason=_optional_response_text(root, "reason"),
         )
 
 

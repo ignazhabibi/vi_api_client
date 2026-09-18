@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from ._adapter import _CommandAdapter, _DiscoveryAdapter, _LiveAdapter
+from ._types import FeatureValue, JsonValue
 from .auth import AbstractAuth
 from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
@@ -19,8 +20,24 @@ from .models import (
     Installation,
 )
 from .parsing import _validate_feature_entry, parse_feature_flat
+from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _validate_command_parameters(parameters: dict[str, JsonValue]) -> None:
+    """Reject command parameter values the JSON value contract excludes.
+
+    Args:
+        parameters: The command parameter mapping to check.
+
+    Raises:
+        ValueError: If a parameter key or value is not JSON-compatible.
+    """
+    try:
+        validate_json_value(parameters, path="Command parameters")
+    except ViResponseError as error:
+        raise ValueError(str(error)) from error
 
 
 class ViClient:
@@ -279,7 +296,7 @@ class ViClient:
         )
 
     async def set_feature(
-        self, device: Device, feature: Feature, target_value: Any
+        self, device: Device, feature: Feature, target_value: FeatureValue
     ) -> tuple[CommandResponse, Device]:
         """Set a current device feature and return a command-updated snapshot.
 
@@ -289,7 +306,7 @@ class ViClient:
         Args:
             device: The device allowing context lookup for dependencies.
             feature: A feature whose name identifies the current device feature.
-            target_value: The value to write.
+            target_value: The JSON value to write.
 
         Returns:
             Tuple of (command_response, updated_device).
@@ -298,9 +315,12 @@ class ViClient:
             - If failed: original device snapshot unchanged.
 
         Raises:
-            ValueError: If the named feature is absent or unavailable, a required
-                sibling is absent, unavailable, or has no value, or the target
-                value violates its constraints.
+            ValueError: If the named feature is absent or unavailable, a
+                required sibling is absent, unavailable, or has no value, the
+                target value violates its constraints, or a command parameter
+                value is not a JSON value.
+            ViResponseError: If the successful command response violates the
+                API contract.
         """
         canonical_feature = device.get_feature(feature.name)
         if canonical_feature is None:
@@ -318,6 +338,7 @@ class ViClient:
         payload = self._resolve_command_payload(device, control, target_value)
 
         # 2. Client-Side Validation
+        _validate_command_parameters(payload)
         self._validate_constraints(control, target_value)
 
         # 3. Execution
@@ -340,23 +361,28 @@ class ViClient:
         return response, device
 
     async def execute_command(
-        self, feature: Feature, parameters: dict[str, Any]
+        self, feature: Feature, parameters: dict[str, JsonValue]
     ) -> CommandResponse:
         """Execute an explicit available-feature command without changing parameters.
 
         Args:
             feature: A writable, enabled, and ready feature identifying the command.
-            parameters: Complete command parameters to send exactly as supplied.
+            parameters: Complete command parameters to send exactly as supplied;
+                every parameter value must be within the JSON value contract.
 
         Returns:
             The command response from the API.
 
         Raises:
-            ValueError: If the feature is unavailable or the payload omits its
-                target or a required parameter.
+            ValueError: If the feature is unavailable, the payload omits its
+                target or a required parameter, or a parameter value is not a
+                JSON value.
+            ViResponseError: If the successful command response violates the
+                API contract.
         """
         control = self._get_writable_command_control(feature)
         self._validate_explicit_command_payload(control, parameters)
+        _validate_command_parameters(parameters)
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
         return await self._execute_command(control, parameters)
 
@@ -384,7 +410,7 @@ class ViClient:
 
     @staticmethod
     def _validate_explicit_command_payload(
-        control: FeatureControl, parameters: dict[str, Any]
+        control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> None:
         """Validate the caller-supplied explicit command payload.
 
@@ -420,23 +446,23 @@ class ViClient:
         return data
 
     async def _execute_command(
-        self, control: FeatureControl, payload: dict[str, Any]
+        self, control: FeatureControl, payload: dict[str, JsonValue]
     ) -> CommandResponse:
         """Execute a feature command through the configured command adapter.
 
         Args:
             control: The feature control describing the command endpoint.
-            payload: The command parameters to send.
+            payload: The validated command parameters to send.
 
         Returns:
             The parsed command response.
+
+        Raises:
+            ViResponseError: If the command response violates the API contract.
         """
         response_data = await self._command_adapter.execute_command(control, payload)
         if not isinstance(response_data, dict):
             raise ViResponseError("Command response must be an object")
-        response = response_data.get("data", response_data)
-        if not isinstance(response, dict):
-            raise ViResponseError("Command response data must be an object")
         return CommandResponse.from_api(response_data)
 
     @staticmethod
@@ -566,8 +592,8 @@ class ViClient:
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
     def _resolve_command_payload(
-        self, device: Device, ctrl: FeatureControl, target_value: Any
-    ) -> dict[str, Any]:
+        self, device: Device, ctrl: FeatureControl, target_value: FeatureValue
+    ) -> dict[str, JsonValue]:
         """Resolve all parameters required for a command.
 
         Includes the target value itself and any dependencies found on the device.
@@ -578,7 +604,7 @@ class ViClient:
             target_value: The main value to set.
 
         Returns:
-            Dictionary of parameters to be sent as JSON payload.
+            Dictionary of JSON command parameters to be sent as payload.
         """
         payload = {ctrl.param_name: target_value}
 
@@ -620,12 +646,12 @@ class ViClient:
             )
         return payload
 
-    def _validate_constraints(self, ctrl: FeatureControl, value: Any) -> None:
+    def _validate_constraints(self, ctrl: FeatureControl, value: FeatureValue) -> None:
         """Validate value against all constraints using type-based dispatch.
 
         Args:
             ctrl: The feature control definition containing constraints.
-            value: The value to check.
+            value: The JSON value to check.
 
         Raises:
             ValueError: If value violates any constraints.
@@ -664,9 +690,11 @@ class ViClient:
                     f"(starting from {base})"
                 )
 
-    def _validate_enum_constraints(self, ctrl: FeatureControl, value: Any) -> None:
+    def _validate_enum_constraints(
+        self, ctrl: FeatureControl, value: FeatureValue
+    ) -> None:
         """Validate enum options."""
-        if value not in ctrl.options:
+        if ctrl.options is not None and value not in ctrl.options:
             raise ValueError(f"Value {value} is not in allowed options: {ctrl.options}")
 
     def _validate_string_constraints(self, ctrl: FeatureControl, value: str) -> None:
