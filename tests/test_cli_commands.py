@@ -487,6 +487,29 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
 
 
 @pytest.mark.asyncio
+async def test_cmd_exec_rejects_non_json_parameter_arguments():
+    """Artificial namespaces with non-JSON params reject as local errors."""
+    # Arrange: Supply a params argument JSON cannot represent.
+    args = Namespace(
+        feature_name="heating.curve.slope",
+        command_name="setCurve",
+        params=object(),
+        token_file="tokens.json",
+        client_id=None,
+        redirect_uri=None,
+        insecure=False,
+        fixture_device=None,
+        installation_id=None,
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    # Act and assert: The local contract violation surfaces as a ValueError.
+    with pytest.raises(ValueError, match="Command parameters"):
+        await cmd_exec(args)
+
+
+@pytest.mark.asyncio
 async def test_cmd_exec_validation_error(mock_cli_context, capsys):
     """Test that ValidationErrors are printed nicely."""
     # Arrange: Create fixture client, device, and fixture data for test.

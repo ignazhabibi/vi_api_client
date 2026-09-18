@@ -19,6 +19,7 @@ from vi_api_client import (
     OAuth,
     ViClient,
     ViNotFoundError,
+    ViResponseError,
     ViValidationError,
 )
 
@@ -89,9 +90,12 @@ def _params_argument(args: argparse.Namespace) -> list[str]:
     Raises:
         ValueError: If the argument is present but not a list of strings.
     """
-    value = validate_json_value(
-        getattr(args, "params", None), path="Command parameters"
-    )
+    try:
+        value = validate_json_value(
+            getattr(args, "params", None), path="Command parameters"
+        )
+    except ViResponseError as error:
+        raise ValueError(str(error)) from error
     if value is None:
         return []
     if not isinstance(value, list):
