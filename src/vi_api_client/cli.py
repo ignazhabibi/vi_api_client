@@ -7,16 +7,16 @@ import logging
 import math
 import os
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
 
 import aiohttp
 
 from vi_api_client import (
     FixtureViClient,
+    JsonValue,
     OAuth,
     ViClient,
     ViNotFoundError,
@@ -24,7 +24,7 @@ from vi_api_client import (
 )
 
 from .credentials import CredentialDocument
-from .models import CommandResponse, Device, Feature
+from .models import CommandResponse, Device, Feature, FeatureControl
 from .utils import format_feature, parse_cli_params
 
 # Default file to store tokens and config
@@ -35,9 +35,89 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 _LOGGER = logging.getLogger(__name__)
 
 
-def _print_diagnostic(args, message: str) -> None:
+def _argument_value(args: argparse.Namespace, name: str) -> JsonValue:
+    """Return one parsed command line argument, or None when absent.
+
+    Parsed command line arguments are JSON-compatible values; each caller
+    narrows an argument to its concrete expected shape.
+    """
+    return getattr(args, name, None)
+
+
+def _str_argument(args: argparse.Namespace, name: str) -> str:
+    """Return a required string command line argument.
+
+    Raises:
+        ValueError: If the argument is absent or not a string.
+    """
+    value = _argument_value(args, name)
+    if not isinstance(value, str):
+        raise ValueError(f"Command line argument '{name}' must be a string")
+    return value
+
+
+def _optional_str_argument(args: argparse.Namespace, name: str) -> str | None:
+    """Return an optional string command line argument."""
+    value = _argument_value(args, name)
+    return value if isinstance(value, str) else None
+
+
+def _flag_argument(args: argparse.Namespace, name: str) -> bool:
+    """Return a boolean command line flag."""
+    return _argument_value(args, name) is True
+
+
+def _token_file_argument(args: argparse.Namespace) -> str | Path:
+    """Return the credential document path argument.
+
+    Raises:
+        ValueError: If the argument is absent or not a path.
+    """
+    value: object = _argument_value(args, "token_file")
+    if isinstance(value, str | Path):
+        return value
+    raise ValueError("Command line argument 'token_file' must be a path")
+
+
+def _str_list_argument(args: argparse.Namespace, name: str) -> list[str] | None:
+    """Return an optional command line argument holding a string list.
+
+    Raises:
+        ValueError: If the argument is present but not a list of strings.
+    """
+    value = _argument_value(args, name)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError(f"Command line argument '{name}' must be a list")
+    strings: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"Command line argument '{name}' must be a list of strings"
+            )
+        strings.append(item)
+    return strings
+
+
+def _installation_id_argument(args: argparse.Namespace) -> str | None:
+    """Return the installation ID argument in its API string form.
+
+    The parser reports ``--installation-id`` as an integer while the API
+    reports installation identifiers as strings, so both shapes normalize
+    to text. Identifiers that are absent or empty stay absent.
+    """
+    value = _argument_value(args, "installation_id")
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, int) and not isinstance(value, bool) and value:
+        return str(value)
+    return None
+
+
+def _print_diagnostic(args: argparse.Namespace, message: str) -> None:
     """Print setup information without contaminating requested JSON output."""
-    print(message, file=sys.stderr if getattr(args, "json", False) else sys.stdout)
+    print(message, file=sys.stderr if _flag_argument(args, "json") else sys.stdout)
 
 
 @dataclass
@@ -52,7 +132,7 @@ class CLIContext:
     dev_id: str | None
 
 
-async def create_session(args) -> aiohttp.ClientSession:
+async def create_session(args: argparse.Namespace) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL.
 
     Args:
@@ -61,14 +141,14 @@ async def create_session(args) -> aiohttp.ClientSession:
     Returns:
         An aiohttp ClientSession configured according to args.
     """
-    if args.insecure:
+    if _flag_argument(args, "insecure"):
         _print_diagnostic(args, "WARNING: SSL verification disabled via --insecure")
         connector = aiohttp.TCPConnector(ssl=False)
         return aiohttp.ClientSession(connector=connector)
     return aiohttp.ClientSession()
 
 
-async def cmd_login(args) -> bool:
+async def cmd_login(args: argparse.Namespace) -> bool:
     """Handle login command.
 
     Guides the user through OAuth authorization flow.
@@ -77,9 +157,10 @@ async def cmd_login(args) -> bool:
         args: Parsed command line arguments including client_id and redirect_uri.
     """
     client_id, redirect_uri = get_client_config(args)
+    token_file = _token_file_argument(args)
 
     async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, websession=session)
+        auth = OAuth(client_id, redirect_uri, token_file, websession=session)
         url = auth.get_authorization_url()
 
         print(f"Please visit the following URL to log in:\n\n{url}\n")
@@ -88,23 +169,27 @@ async def cmd_login(args) -> bool:
 
         await auth.async_fetch_details_from_code(code)
 
-    CredentialDocument(Path(args.token_file)).update(
+    CredentialDocument(Path(token_file)).update(
         {"client_id": client_id, "redirect_uri": redirect_uri}
     )
-    print(f"Successfully authenticated! Tokens and config saved to {args.token_file}")
+    print(f"Successfully authenticated! Tokens and config saved to {token_file}")
     return True
 
 
-def get_client_config(args) -> tuple[str, str]:
+def get_client_config(args: argparse.Namespace) -> tuple[str, str]:
     """Get client_id and redirect_uri from args or file."""
-    config = CredentialDocument(Path(args.token_file)).read()
+    config = CredentialDocument(Path(_token_file_argument(args))).read()
 
     configured_client_id = config.get("client_id")
     configured_redirect_uri = config.get("redirect_uri")
-    client_id = args.client_id or os.getenv("VIESSMANN_CLIENT_ID")
+    client_id = _optional_str_argument(args, "client_id") or os.getenv(
+        "VIESSMANN_CLIENT_ID"
+    )
     if not client_id and isinstance(configured_client_id, str):
         client_id = configured_client_id
-    redirect_uri = args.redirect_uri or os.getenv("VIESSMANN_REDIRECT_URI")
+    redirect_uri = _optional_str_argument(args, "redirect_uri") or os.getenv(
+        "VIESSMANN_REDIRECT_URI"
+    )
     if not redirect_uri and isinstance(configured_redirect_uri, str):
         redirect_uri = configured_redirect_uri
     redirect_uri = redirect_uri or DEFAULT_REDIRECT_URI
@@ -123,27 +208,28 @@ def get_client_config(args) -> tuple[str, str]:
 
 @asynccontextmanager
 async def setup_client_context(
-    args, discover: bool = True
+    args: argparse.Namespace, discover: bool = True
 ) -> AsyncGenerator[CLIContext]:
     """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
-    if args.fixture_device:
-        client = FixtureViClient(args.fixture_device)
-        inst_id = getattr(args, "installation_id", None) or "99999"
-        gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
-        dev_id = getattr(args, "device_id", None) or "0"
-        _print_diagnostic(args, f"Using Fixture Device: {args.fixture_device}")
+    fixture_device = _optional_str_argument(args, "fixture_device")
+    if fixture_device:
+        client = FixtureViClient(fixture_device)
+        inst_id = _installation_id_argument(args) or "99999"
+        gw_serial = _optional_str_argument(args, "gateway_serial") or "MOCK_GATEWAY"
+        dev_id = _optional_str_argument(args, "device_id") or "0"
+        _print_diagnostic(args, f"Using Fixture Device: {fixture_device}")
         yield CLIContext(None, client, inst_id, gw_serial, dev_id)
         return
 
     client_id, redirect_uri = get_client_config(args)
 
     async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
+        auth = OAuth(client_id, redirect_uri, _token_file_argument(args), session)
 
         client = ViClient(auth)
-        inst_id = getattr(args, "installation_id", None)
-        gw_serial = getattr(args, "gateway_serial", None)
-        dev_id = getattr(args, "device_id", None)
+        inst_id = _installation_id_argument(args)
+        gw_serial = _optional_str_argument(args, "gateway_serial")
+        dev_id = _optional_str_argument(args, "device_id")
 
         # Perform Auto-Discovery if IDs are missing.
         if discover and not (inst_id and gw_serial and dev_id):
@@ -207,7 +293,7 @@ async def setup_client_context(
         yield CLIContext(session, client, inst_id, gw_serial, dev_id)
 
 
-async def cmd_list_devices(args) -> bool:
+async def cmd_list_devices(args: argparse.Namespace) -> bool:
     """List installations and devices.
 
     Fetches and prints all installations, gateways, and devices.
@@ -254,7 +340,7 @@ async def cmd_list_devices(args) -> bool:
     return True
 
 
-async def cmd_list_features(args) -> bool:
+async def cmd_list_features(args: argparse.Namespace) -> bool:
     """List all features for a device.
 
     Supports filtering and formatting options.
@@ -268,10 +354,12 @@ async def cmd_list_features(args) -> bool:
             device = _transient_device(ctx)
 
             # NOTE: get_features now returns FLATTENED features directly.
-            features = await ctx.client.get_features(device, only_enabled=args.enabled)
+            features = await ctx.client.get_features(
+                device, only_enabled=_flag_argument(args, "enabled")
+            )
 
-            if args.values:
-                if args.json:
+            if _flag_argument(args, "values"):
+                if _flag_argument(args, "json"):
                     # Output clean JSON list of objects
                     out_data = [
                         {
@@ -296,7 +384,7 @@ async def cmd_list_features(args) -> bool:
                     print("(* = writable)")
 
             # Simple Listing
-            elif args.json:
+            elif _flag_argument(args, "json"):
                 print(json.dumps([f.name for f in features]))
             else:
                 _print_simple_feature_list(features, device.id)
@@ -308,14 +396,14 @@ async def cmd_list_features(args) -> bool:
     return True
 
 
-def _print_simple_feature_list(features: list[Any], dev_id: str) -> None:
+def _print_simple_feature_list(features: Sequence[Feature], dev_id: str) -> None:
     """Print a simple list of feature names."""
     print(f"Found {len(features)} Features for device {dev_id}:")
     for feature in features:
         print(f"- {feature.name}")
 
 
-async def cmd_get_feature(args) -> bool:
+async def cmd_get_feature(args: argparse.Namespace) -> bool:
     """Get a specific feature.
 
     Fetches and displays details for a single feature by name.
@@ -323,17 +411,18 @@ async def cmd_get_feature(args) -> bool:
     Args:
         args: Parsed command line arguments including feature_name and raw flag.
     """
+    feature_name = _str_argument(args, "feature_name")
     try:
         async with setup_client_context(args) as ctx:
             device = _transient_device(ctx)
             features = await ctx.client.get_features(
-                device, feature_names=[args.feature_name]
+                device, feature_names=[feature_name]
             )
             if not features:
-                raise ViNotFoundError(f"Feature '{args.feature_name}' not found.")
+                raise ViNotFoundError(f"Feature '{feature_name}' not found.")
             feature = features[0]
 
-            if args.raw:
+            if _flag_argument(args, "raw"):
                 # Show internal object structure
                 print(
                     json.dumps(
@@ -364,7 +453,7 @@ async def cmd_get_feature(args) -> bool:
                         print(f"  Options: {ctrl.options}")
 
     except ViNotFoundError:  # Catch before Exception
-        print(f"Feature '{args.feature_name}' not found.")
+        print(f"Feature '{feature_name}' not found.")
         return False
     except Exception as e:
         _LOGGER.error("Error fetching feature: %s", e)
@@ -373,7 +462,7 @@ async def cmd_get_feature(args) -> bool:
     return True
 
 
-async def cmd_set(args) -> bool:  # noqa: PLR0911
+async def cmd_set(args: argparse.Namespace) -> bool:  # noqa: PLR0911
     """Set a feature value (User Friendly).
 
     Sets a feature to a new value using the high-level set_feature API.
@@ -381,9 +470,11 @@ async def cmd_set(args) -> bool:  # noqa: PLR0911
     Args:
         args: Parsed command line arguments including feature_name and value.
     """
+    feature_name = _str_argument(args, "feature_name")
+    raw_value = _str_argument(args, "value")
     try:
         async with setup_client_context(args) as ctx:
-            target = await _fetch_target_feature(ctx, args.feature_name)
+            target = await _fetch_target_feature(ctx, feature_name)
             if target is None:
                 return False
             device, feature = target
@@ -392,14 +483,14 @@ async def cmd_set(args) -> bool:  # noqa: PLR0911
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
                 return False
 
-            print(f"Setting '{feature.name}' to '{args.value}'...")
+            print(f"Setting '{feature.name}' to '{raw_value}'...")
             # We show this for transparency but it's not needed by user
             print(
                 f"  (Command: {feature.control.command_name}, "
                 f"Param: {feature.control.param_name})"
             )
 
-            target_val = _parse_set_value(args.value, feature)
+            target_val = _parse_set_value(raw_value, feature)
 
             result, _updated_device = await ctx.client.set_feature(
                 device, feature, target_val
@@ -499,7 +590,7 @@ def _infer_feature_value_type(feature: Feature) -> str:
     return "string"
 
 
-async def cmd_exec(args) -> bool:  # noqa: PLR0911
+async def cmd_exec(args: argparse.Namespace) -> bool:  # noqa: PLR0911
     """Execute a command (Advanced).
 
     Executes a raw command with parameters. For advanced users.
@@ -508,9 +599,13 @@ async def cmd_exec(args) -> bool:  # noqa: PLR0911
         args: Parsed command line arguments including feature_name,
             command_name, and params.
     """
+    feature_name = _str_argument(args, "feature_name")
+    command_name = _str_argument(args, "command_name")
+    params = _str_list_argument(args, "params")
+
     # 1. Parse params
     try:
-        params_dict = parse_cli_params(args.params) if args.params else {}
+        params_dict = parse_cli_params(params) if params else {}
     except ValueError as e:
         print(f"Error parsing parameters: {e}")
         return False
@@ -518,28 +613,26 @@ async def cmd_exec(args) -> bool:  # noqa: PLR0911
     try:
         async with setup_client_context(args) as ctx:
             # 2. Find Feature
-            target = await _fetch_target_feature(ctx, args.feature_name)
+            target = await _fetch_target_feature(ctx, feature_name)
             if target is None:
                 return False
             _device, feature = target
 
-            if not feature.is_writable:
+            control = feature.control
+            if control is None:
                 print(f"Error: Feature '{feature.name}' is read-only (no control).")
                 return False
 
-            control = feature.control
-            assert control is not None
-
             # 3. Validate Command Name
-            if control.command_name != args.command_name:
+            if control.command_name != command_name:
                 print(
                     f"Warning: Feature expects command '{control.command_name}'"
-                    f", but you specified '{args.command_name}'."
+                    f", but you specified '{command_name}'."
                 )
                 print("Error: Features only expose their primary control command.")
                 return False
 
-            print(f"Executing '{args.command_name}' on {feature.name}...")
+            print(f"Executing '{command_name}' on {feature.name}...")
 
             # 4. Execute the explicitly supplied parameter set unchanged.
             print(f"Using execute_command with params: {params_dict}")
@@ -602,7 +695,7 @@ def _print_command_result(result: CommandResponse) -> bool:
     return result.success
 
 
-async def cmd_list_writable(args) -> bool:
+async def cmd_list_writable(args: argparse.Namespace) -> bool:
     """List all writable features for a device.
 
     Displays features that have a control block (can be modified).
@@ -637,13 +730,13 @@ async def cmd_list_writable(args) -> bool:
     return True
 
 
-def _print_feature_constraints(ctrl: Any) -> None:
+def _print_feature_constraints(ctrl: FeatureControl) -> None:
     """Helper to print constraints for a feature control.
 
     Args:
         ctrl: The FeatureControl command metadata containing constraints.
     """
-    constraints = []
+    constraints: list[str] = []
     if ctrl.min is not None:
         constraints.append(f"min: {ctrl.min}")
     if ctrl.max is not None:
@@ -654,18 +747,18 @@ def _print_feature_constraints(ctrl: Any) -> None:
         constraints.append(f"options: {ctrl.options}")
 
     # String Constraints
-    if hasattr(ctrl, "min_length") and ctrl.min_length is not None:
+    if ctrl.min_length is not None:
         constraints.append(f"min_length: {ctrl.min_length}")
-    if hasattr(ctrl, "max_length") and ctrl.max_length is not None:
+    if ctrl.max_length is not None:
         constraints.append(f"max_length: {ctrl.max_length}")
-    if hasattr(ctrl, "pattern") and ctrl.pattern is not None:
+    if ctrl.pattern is not None:
         constraints.append(f"pattern: {ctrl.pattern}")
 
     if constraints:
         print(f"    Constraints: {', '.join(constraints)}")
 
 
-async def cmd_list_fixture_devices(args) -> bool:
+async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     """List available fixture devices.
 
     Lists fixture files that can be used for offline testing.
@@ -799,7 +892,7 @@ async def async_main() -> int:
 
     args = parser.parse_args()
 
-    if not args.command:
+    if not _optional_str_argument(args, "command"):
         parser.print_help()
         return 0
 
@@ -814,12 +907,15 @@ async def async_main() -> int:
 
 async def _dispatch_command(args: argparse.Namespace) -> int:
     """Dispatch command to appropriate handler."""
+    command = _optional_str_argument(args, "command")
+
     # Pre-checks for login
-    if args.command == "login" and (
-        not args.client_id and not os.getenv("VIESSMANN_CLIENT_ID")
+    if command == "login" and (
+        not _optional_str_argument(args, "client_id")
+        and not os.getenv("VIESSMANN_CLIENT_ID")
     ):
         # Check config one last time before failing
-        config = CredentialDocument(Path(args.token_file)).read()
+        config = CredentialDocument(Path(_token_file_argument(args))).read()
         if not config.get("client_id"):
             print(
                 "Error: --client-id is required for initial login "
@@ -827,7 +923,7 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
             )
             return 1
 
-    handlers = {
+    handlers: dict[str, Callable[[argparse.Namespace], Awaitable[bool]]] = {
         "login": cmd_login,
         "list-devices": cmd_list_devices,
         "list-features": cmd_list_features,
@@ -838,11 +934,10 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
         "exec": cmd_exec,
     }
 
-    handler = handlers.get(args.command)
-    if not handler:
+    if command is None or command not in handlers:
         return 2
 
-    return 0 if await handler(args) else 1
+    return 0 if await handlers[command](args) else 1
 
 
 def main() -> None:

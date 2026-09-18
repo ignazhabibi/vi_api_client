@@ -53,7 +53,7 @@ vi-client list-features --json
 JSON output writes one parseable document to standard output; setup diagnostics
 and warnings are written to standard error.
 
-*Note: This auto-detects the first device. You can specify `--gateway-serial` and `--device-id` if needed.*
+*Note: This auto-detects the first device. You can specify `--installation-id`, `--gateway-serial`, and `--device-id` if needed. A numeric installation ID matches the API's string identifier.*
 *Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic `...currentYear` alias per base feature. `currentDay` and `currentMonth` aliases are not generated.*
 
 ## 4. Fetch Feature Details
