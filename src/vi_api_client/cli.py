@@ -38,8 +38,9 @@ _LOGGER = logging.getLogger(__name__)
 def _argument_value(args: argparse.Namespace, name: str) -> JsonValue:
     """Return one parsed command line argument, or None when absent.
 
-    Parsed command line arguments are JSON-compatible values; each caller
-    narrows an argument to its concrete expected shape.
+    Every JSON-command argument is a JSON-compatible value; each caller
+    narrows an argument to its concrete expected shape. Path-shaped
+    arguments are read separately.
     """
     return getattr(args, name, None)
 
@@ -73,7 +74,7 @@ def _token_file_argument(args: argparse.Namespace) -> str | Path:
     Raises:
         ValueError: If the argument is absent or not a path.
     """
-    value: object = _argument_value(args, "token_file")
+    value: object = getattr(args, "token_file", None)
     if isinstance(value, str | Path):
         return value
     raise ValueError("Command line argument 'token_file' must be a path")
