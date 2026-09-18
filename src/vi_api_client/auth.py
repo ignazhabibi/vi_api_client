@@ -120,7 +120,7 @@ class OAuth(AbstractAuth):
         super().__init__(websession)
         self.client_id = client_id
         self.redirect_uri = redirect_uri
-        self.token_file = Path(token_file)
+        self.token_file: Path = Path(token_file)
         self._credential_document = CredentialDocument(self.token_file)
         self.scope = scope
         self._token_info: dict[str, JsonValue] = {}

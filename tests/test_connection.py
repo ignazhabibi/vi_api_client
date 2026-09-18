@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 from aioresponses import aioresponses
 
-from vi_api_client._adapter import _LiveAdapter
+from vi_api_client._adapter import LiveAdapter
 from vi_api_client._types import JsonValue, ValidationDetail
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
@@ -60,7 +60,7 @@ async def test_live_adapter_preserves_external_oauth_error() -> None:
         message="Refresh token rejected",
         headers=MagicMock(),
     )
-    adapter = _LiveAdapter(_RaisingAuth(oauth_error))
+    adapter = LiveAdapter(_RaisingAuth(oauth_error))
 
     # Act and assert: The adapter should preserve the provider-owned exception.
     with pytest.raises(_ExternalOAuthError) as raised_error:
@@ -75,7 +75,7 @@ async def test_live_adapter_wraps_aiohttp_connection_error() -> None:
     connection_error = aiohttp.ClientConnectionError("Network unavailable")
     websession = MagicMock(spec=aiohttp.ClientSession)
     websession.request = AsyncMock(side_effect=connection_error)
-    adapter = _LiveAdapter(_StaticAuth(websession))
+    adapter = LiveAdapter(_StaticAuth(websession))
 
     # Act and assert: The adapter should expose the library transport exception.
     with pytest.raises(ViConnectionError) as raised_error:
@@ -110,7 +110,7 @@ async def test_live_adapter_preserves_viessmann_error_type(
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=payload, status=status)
         async with aiohttp.ClientSession() as session:
-            adapter = _LiveAdapter(_StaticAuth(session))
+            adapter = LiveAdapter(_StaticAuth(session))
 
             # Act and assert: The public exception retains API classification data.
             with pytest.raises(expected_error) as raised_error:
@@ -151,7 +151,7 @@ async def test_live_adapter_exposes_validated_validation_details() -> None:
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=payload, status=400)
         async with aiohttp.ClientSession() as session:
-            adapter = _LiveAdapter(_StaticAuth(session))
+            adapter = LiveAdapter(_StaticAuth(session))
 
             # Act: The public exception exposes the validated detail.
             with pytest.raises(ViValidationError) as raised_error:
@@ -189,13 +189,37 @@ async def test_live_adapter_drops_unusable_validation_details(
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=payload, status=400)
         async with aiohttp.ClientSession() as session:
-            adapter = _LiveAdapter(_StaticAuth(session))
+            adapter = LiveAdapter(_StaticAuth(session))
 
             # Act: The public exception is still raised for the HTTP error.
             with pytest.raises(ViValidationError) as raised_error:
                 await adapter.get_installations()
 
     # Assert: The unusable collection is not partially exposed.
+    assert raised_error.value.validation_errors == []
+
+
+@pytest.mark.asyncio
+async def test_live_adapter_drops_non_json_validation_details() -> None:
+    """Validation details JSON cannot represent are dropped, not raised."""
+    # Arrange: Return validation details containing a non-finite number.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    payload: dict[str, JsonValue] = {
+        "errorType": "VALIDATION_FAILED",
+        "message": "Invalid command parameters",
+        "viErrorId": "error-123",
+        "validationErrors": [float("inf")],
+    }
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=payload, status=400)
+        async with aiohttp.ClientSession() as session:
+            adapter = LiveAdapter(_StaticAuth(session))
+
+            # Act and assert: The HTTP error surfaces with the details dropped.
+            with pytest.raises(ViValidationError) as raised_error:
+                await adapter.get_installations()
+
     assert raised_error.value.validation_errors == []
 
 
@@ -213,7 +237,7 @@ async def test_live_adapter_drops_malformed_structured_error_fields() -> None:
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=payload, status=400)
         async with aiohttp.ClientSession() as session:
-            adapter = _LiveAdapter(_StaticAuth(session))
+            adapter = LiveAdapter(_StaticAuth(session))
 
             # Act: The HTTP error still maps to its library exception.
             with pytest.raises(ViValidationError) as raised_error:

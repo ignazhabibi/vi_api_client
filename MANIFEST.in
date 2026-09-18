@@ -4,6 +4,7 @@ include pyproject.toml
 
 
 recursive-include src/vi_api_client *.py
+include src/vi_api_client/py.typed
 recursive-include src/vi_api_client/fixtures *.json
 
 # Exclude documentation and local config

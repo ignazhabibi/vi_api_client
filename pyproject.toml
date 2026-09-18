@@ -35,6 +35,9 @@ dev = [
 [project.scripts]
 vi-client = "vi_api_client.cli:main"
 
+[tool.setuptools.package-data]
+vi_api_client = ["py.typed"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"

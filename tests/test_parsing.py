@@ -1,6 +1,23 @@
 """Tests for feature parsing logic (Flat Architecture)."""
 
+import pytest
+
+from vi_api_client.exceptions import ViResponseError
 from vi_api_client.parsing import parse_feature_flat
+
+
+def test_feature_rejects_non_string_command_keys():
+    """Programmatic mappings with non-string command keys are rejected."""
+    # Arrange: Build a feature entry whose command mapping uses an integer key.
+    raw_feature = {
+        "feature": "heating.curve",
+        "properties": {"slope": {"value": 1.0}},
+        "commands": {5: {"uri": "/commands/setCurve"}},
+    }
+
+    # Act and assert: The malformed command metadata raises a response error.
+    with pytest.raises(ViResponseError, match="named objects"):
+        parse_feature_flat(raw_feature)
 
 
 def test_feature_simple_value(load_fixture_json):
