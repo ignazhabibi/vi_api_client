@@ -250,6 +250,97 @@ async def test_cli_context_discovery_uses_provided_installation_scope(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_cli_context_normalizes_integer_installation_scope(tmp_path):
+    """An integer installation argument should match its API string form."""
+    # Arrange: The parser reports --installation-id as an integer.
+    args = Namespace(
+        fixture_device=None,
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file=tmp_path / "tokens.json",
+        insecure=False,
+        installation_id=123,
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as client_cls,
+        patch("vi_api_client.cli.OAuth"),
+    ):
+        client = client_cls.return_value
+        client.get_gateways = AsyncMock(
+            return_value=[
+                Gateway(serial="GW-A", version="1", status="ok", installation_id="120"),
+                Gateway(serial="GW-B", version="1", status="ok", installation_id="123"),
+            ]
+        )
+        client.get_devices = AsyncMock(
+            return_value=[
+                Device(
+                    id="0",
+                    gateway_serial="GW-B",
+                    installation_id="123",
+                    model_id="m1",
+                    device_type="heating",
+                    status="ok",
+                )
+            ]
+        )
+
+        # Act: Discover with the integer installation argument.
+        async with setup_client_context(args) as ctx:
+            # Assert: The normalized installation ID matches its API form.
+            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("123", "GW-B", "0")
+
+        client.get_devices.assert_called_once_with("123", "GW-B")
+
+
+@pytest.mark.asyncio
+async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
+    """An empty installation argument should stay absent during discovery."""
+    # Arrange: Provide an empty installation ID that must not scope discovery.
+    args = Namespace(
+        fixture_device=None,
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file=tmp_path / "tokens.json",
+        insecure=False,
+        installation_id="",
+        gateway_serial=None,
+        device_id=None,
+    )
+
+    with (
+        patch("vi_api_client.cli.ViClient") as client_cls,
+        patch("vi_api_client.cli.OAuth"),
+    ):
+        client = client_cls.return_value
+        client.get_gateways = AsyncMock(
+            return_value=[
+                Gateway(serial="GW-A", version="1", status="ok", installation_id="A")
+            ]
+        )
+        client.get_devices = AsyncMock(
+            return_value=[
+                Device(
+                    id="0",
+                    gateway_serial="GW-A",
+                    installation_id="A",
+                    model_id="m1",
+                    device_type="heating",
+                    status="ok",
+                )
+            ]
+        )
+
+        # Act: Discover without a usable installation scope.
+        async with setup_client_context(args) as ctx:
+            # Assert: Auto-discovery selects the first gateway and device.
+            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("A", "GW-A", "0")
+
+
+@pytest.mark.asyncio
 async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     """Partially specified IDs must not be combined across installations."""
     args = Namespace(

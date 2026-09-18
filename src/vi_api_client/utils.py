@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ._types import JsonValue
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .models import Feature
 
 
-def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
+def parse_cli_params(params_list: list[str]) -> dict[str, JsonValue]:
     """Parse a list of CLI parameter strings into a dictionary.
 
     Supports two formats:
@@ -26,53 +26,60 @@ def parse_cli_params(params_list: list[str]) -> dict[str, Any]:
         params_list: List of strings from the command line (e.g. argparse nargs='*').
 
     Returns:
-        Dictionary of parsed parameters.
+        Dictionary of parsed JSON-compatible parameters.
 
     Raises:
         ValueError: If JSON parsing fails or format is invalid.
     """
-    params = {}
-
     if not params_list:
-        return params
+        return {}
 
     # Case 1: Single argument that looks like JSON
     if len(params_list) == 1 and params_list[0].strip().startswith("{"):
         try:
-            return json.loads(params_list[0])
+            parsed: JsonValue = json.loads(params_list[0])
         except json.JSONDecodeError:
             raise ValueError(
                 "Example appears to be JSON but could not be parsed."
             ) from None
+        if not isinstance(parsed, dict):
+            raise ValueError("JSON parameters must form a string-keyed object.")
+        return parsed
 
     # Case 2: Key=Value pairs
+    params: dict[str, JsonValue] = {}
+
     for item in params_list:
         if "=" not in item:
             raise ValueError(f"Invalid argument format '{item}'. Expected key=value.")
 
         key, value_string = item.split("=", 1)
-
-        # Type inference
-        value = value_string
-        if value_string.lower() == "true":
-            value = True
-        elif value_string.lower() == "false":
-            value = False
-        else:
-            try:
-                value = int(value_string)
-            except ValueError:
-                try:
-                    value = float(value_string)
-                except ValueError:
-                    # Try parsing as JSON (e.g. for nested objects or lists)
-                    if value_string.startswith("[") or value_string.startswith("{"):
-                        with suppress(json.JSONDecodeError):
-                            value = json.loads(value_string)
-
-        params[key] = value
+        params[key] = _parse_cli_value(value_string)
 
     return params
+
+
+def _parse_cli_value(value_string: str) -> JsonValue:
+    """Infer one JSON-compatible parameter value from its command line text."""
+    if value_string.lower() == "true":
+        return True
+    if value_string.lower() == "false":
+        return False
+    try:
+        return int(value_string)
+    except ValueError:
+        pass
+    try:
+        return float(value_string)
+    except ValueError:
+        pass
+    # Try parsing as JSON (e.g. for nested objects or lists)
+    if value_string.startswith("[") or value_string.startswith("{"):
+        with suppress(json.JSONDecodeError):
+            parsed: JsonValue = json.loads(value_string)
+            return parsed
+
+    return value_string
 
 
 def format_feature(feature: Feature) -> str:
@@ -120,7 +127,7 @@ def _format_schedule(schedule: dict[str, JsonValue]) -> str:
         "sat": "Sa",
         "sun": "Su",
     }
-    parts = []
+    parts: list[str] = []
     for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
         slots = schedule.get(day, [])
         if not isinstance(slots, list) or not slots:
