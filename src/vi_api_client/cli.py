@@ -16,7 +16,6 @@ import aiohttp
 
 from vi_api_client import (
     FixtureViClient,
-    JsonValue,
     OAuth,
     ViClient,
     ViNotFoundError,
@@ -26,6 +25,7 @@ from vi_api_client import (
 from .credentials import CredentialDocument
 from .models import CommandResponse, Device, Feature, FeatureControl
 from .utils import format_feature, parse_cli_params
+from .validation import validate_json_value
 
 # Default file to store tokens and config
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
@@ -35,10 +35,10 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 _LOGGER = logging.getLogger(__name__)
 
 
-def _argument_value(args: argparse.Namespace, name: str) -> JsonValue:
+def _argument_value(args: argparse.Namespace, name: str) -> object:
     """Return one parsed command line argument, or None when absent.
 
-    Every JSON-command argument is a JSON-compatible value; each caller
+    Arguments come from the dynamic argparse namespace; each caller
     narrows an argument to its concrete expected shape. Path-shaped
     arguments are read separately.
     """
@@ -80,23 +80,26 @@ def _token_file_argument(args: argparse.Namespace) -> str | Path:
     raise ValueError("Command line argument 'token_file' must be a path")
 
 
-def _str_list_argument(args: argparse.Namespace, name: str) -> list[str] | None:
-    """Return an optional command line argument holding a string list.
+def _params_argument(args: argparse.Namespace) -> list[str]:
+    """Return the exec command's parameter list argument.
+
+    The list is validated at the dynamic argparse boundary; the exec
+    subparser always provides the argument, so absent means empty.
 
     Raises:
         ValueError: If the argument is present but not a list of strings.
     """
-    value = _argument_value(args, name)
+    value = validate_json_value(
+        getattr(args, "params", None), path="Command parameters"
+    )
     if value is None:
-        return None
+        return []
     if not isinstance(value, list):
-        raise ValueError(f"Command line argument '{name}' must be a list")
+        raise ValueError("Command line argument 'params' must be a list")
     strings: list[str] = []
     for item in value:
         if not isinstance(item, str):
-            raise ValueError(
-                f"Command line argument '{name}' must be a list of strings"
-            )
+            raise ValueError("Command line argument 'params' must be a list of strings")
         strings.append(item)
     return strings
 
@@ -602,7 +605,7 @@ async def cmd_exec(args: argparse.Namespace) -> bool:  # noqa: PLR0911
     """
     feature_name = _str_argument(args, "feature_name")
     command_name = _str_argument(args, "command_name")
-    params = _str_list_argument(args, "params")
+    params = _params_argument(args)
 
     # 1. Parse params
     try:
