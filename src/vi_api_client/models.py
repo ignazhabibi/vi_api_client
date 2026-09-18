@@ -56,9 +56,14 @@ def _parse_command_success(value: Any) -> bool:
 
 
 def _optional_response_text(root: dict[str, Any], field_name: str) -> str | None:
-    """Return an optional command response text field."""
-    value = root.get(field_name)
-    if value is not None and not isinstance(value, str):
+    """Return an optional command response text field.
+
+    An absent field is `None`; a supplied field must be a string.
+    """
+    if field_name not in root:
+        return None
+    value = root[field_name]
+    if not isinstance(value, str):
         raise ViResponseError(f"Command response {field_name} must be a string")
     return value
 

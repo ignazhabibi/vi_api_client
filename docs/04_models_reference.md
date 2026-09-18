@@ -155,8 +155,9 @@ and as the first element of the tuple returned by `set_feature`.
 Command responses validate their known fields: `success` accepts the
 documented boolean representations — a JSON boolean or a case-insensitive
 `"true"`/`"false"` string — and normalizes them to a boolean. A missing or
-otherwise malformed `success`, or a non-string `message` or `reason`, raises
-`ViResponseError`; unknown additional fields remain allowed. Responses may
+otherwise malformed `success`, or a supplied `message` or `reason` that is
+not a string, raises `ViResponseError`; absent optional text fields stay
+`None`. Unknown additional fields remain allowed. Responses may
 arrive as the root object or wrapped in a `data` envelope.
 
 **Usage**:

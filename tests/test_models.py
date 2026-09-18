@@ -332,11 +332,22 @@ def test_command_response_allows_absent_optional_text_fields():
     assert response.reason is None
 
 
-@pytest.mark.parametrize("field_name", ["message", "reason"])
-def test_command_response_rejects_malformed_optional_text_fields(field_name: str):
-    """Non-string message and reason fields fail the response contract."""
-    # Arrange: The response reports a text field with a non-string value.
-    data: dict[str, JsonValue] = {"data": {"success": True, field_name: 42}}
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("message", 42),
+        ("message", None),
+        ("reason", 42),
+        ("reason", None),
+    ],
+)
+def test_command_response_rejects_malformed_optional_text_fields(
+    field_name: str, value: JsonValue
+):
+    """Supplied non-string message and reason fields fail the response contract."""
+    # Arrange: The response supplies a known text field with a non-string
+    # value, including an explicitly supplied JSON null.
+    data: dict[str, JsonValue] = {"data": {"success": True, field_name: value}}
 
     # Act and assert: The malformed known field raises a response error.
     with pytest.raises(ViResponseError, match=field_name):
