@@ -2,12 +2,14 @@
 
 import logging
 import math
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Protocol
 
 import aiohttp
 
+from ._types import JsonValue, ValidationDetail
 from .auth import AbstractAuth
 from .const import (
     API_BASE_URL,
@@ -26,6 +28,7 @@ from .exceptions import (
 )
 from .models import Device, FeatureControl
 from .utils import mask_pii
+from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ class _CommandAdapter(Protocol):
     """Execute feature commands without constructing domain objects."""
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, Any]
+        self, control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]: ...
 
 
@@ -104,7 +107,7 @@ class _LiveAdapter:
         )
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, Any]
+        self, control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]:
         """Return the command API envelope."""
         return await self._post(control.uri, parameters)
@@ -113,7 +116,7 @@ class _LiveAdapter:
         """Execute a GET request through authentication."""
         return await self._request("GET", url)
 
-    async def _post(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    async def _post(self, url: str, payload: Mapping[str, object]) -> dict[str, Any]:
         """Execute a POST request through authentication."""
         return await self._request("POST", url, json=payload)
 
@@ -146,19 +149,23 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     if status < 400:
         return
 
-    vi_error_id = None
     error_message = f"HTTP {status}"
-    validation_details = []
-    error_type = None
+    vi_error_id: str | None = None
+    error_type: str | None = None
+    validation_details: list[ValidationDetail] = []
     try:
         data = await response.json()
-        if isinstance(data, dict):
-            vi_error_id = data.get("viErrorId")
-            error_message = data.get("message", error_message)
-            error_type = data.get("errorType")
-            validation_details = data.get("validationErrors", [])
     except aiohttp.ClientError, ValueError:
-        pass
+        data = None
+    if isinstance(data, dict):
+        # Structured error fields are validated before exposure; values that
+        # violate the contract keep their HTTP-level defaults.
+        vi_error_id = _structured_error_text(data.get("viErrorId"))
+        error_type = _structured_error_text(data.get("errorType"))
+        message = data.get("message")
+        if isinstance(message, str):
+            error_message = message
+        validation_details = _parse_validation_details(data.get("validationErrors"))
 
     _LOGGER.error(
         "API Error %s (%s): %s (ID: %s)",
@@ -188,6 +195,33 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
             f"Server Error {status}: {error_message}", vi_error_id, error_type
         )
     raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id, error_type)
+
+
+def _structured_error_text(value: object) -> str | None:
+    """Return a structured API error text field, or None when unusable."""
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _parse_validation_details(value: object) -> list[ValidationDetail]:
+    """Return validated validation details, dropping unusable collections.
+
+    Every exposed detail is a string-keyed JSON object and unknown detail
+    fields remain allowed. A collection that violates the shape is not
+    partially exposed.
+    """
+    if not isinstance(value, list):
+        return []
+    details: list[ValidationDetail] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            return []
+        detail = validate_json_value(entry, path="API validation detail")
+        if not isinstance(detail, dict):
+            return []
+        details.append(detail)
+    return details
 
 
 def _parse_retry_after(value: str | None) -> float | None:

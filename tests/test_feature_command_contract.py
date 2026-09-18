@@ -2,10 +2,11 @@
 
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from vi_api_client import FeatureValue, JsonValue
 from vi_api_client.client import ViClient
 from vi_api_client.fixture_client import FixtureViClient
 from vi_api_client.models import Device, Feature, FeatureControl
@@ -256,6 +257,104 @@ async def test_execute_command_requires_complete_available_command_without_mutat
     assert response.success
     assert adapter.calls == [(control, parameters)]
     assert parameters == {"target": "new", "dependency": None, "extra": "kept"}
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_accepts_json_object_target_value(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+):
+    """Target values may use any JSON value shape, including nested objects."""
+    # Arrange: The unconstrained target accepts a structured JSON value.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    control = _control()
+    target = _feature("heating.mode.target", "old", control)
+    device = _device([target])
+    target_value: FeatureValue = {"entries": [1, "two", None]}
+
+    # Act: Write the structured JSON value.
+    response, updated_device = await client.set_feature(device, target, target_value)
+
+    # Assert: The payload carries the exact JSON value and the snapshot updates.
+    assert response.success
+    assert adapter.calls == [(control, {"target": target_value})]
+    updated = updated_device.get_feature("heating.mode.target")
+    assert updated == replace(target, value=target_value)
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_rejects_non_finite_target_value_without_adapter_io(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+):
+    """Target values outside the JSON value contract reject before adapter I/O."""
+    # Arrange: A non-finite number is outside the JSON value contract.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    target = _feature("heating.mode.target", "old", _control())
+    device = _device([target])
+
+    # Act and assert: The invalid target never reaches the adapter.
+    with pytest.raises(ValueError, match="finite"):
+        await client.set_feature(device, target, float("nan"))
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_rejects_non_json_target_value_without_adapter_io(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+):
+    """Target values JSON cannot represent reject before adapter I/O."""
+    # Arrange: The target value is a Python object JSON cannot represent.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    target = _feature("heating.mode.target", "old", _control())
+    device = _device([target])
+
+    # Act and assert: The invalid target never reaches the adapter.
+    with pytest.raises(ValueError, match="non-JSON"):
+        await client.set_feature(device, target, cast(FeatureValue, object()))
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_rejects_non_json_required_dependency_value_without_adapter_io(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+):
+    """Resolved dependency values outside the JSON contract reject before I/O."""
+    # Arrange: The required sibling reports a value JSON cannot represent.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    control = _control(required_params=["target", "other"])
+    target = _feature("heating.mode.target", "old", control)
+    sibling = _feature("heating.mode.other", cast(FeatureValue, object()))
+    device = _device([target, sibling])
+
+    # Act and assert: The invalid dependency never reaches the adapter.
+    with pytest.raises(ValueError, match="non-JSON"):
+        await client.set_feature(device, target, "new")
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_execute_command_rejects_non_json_parameter_values_without_adapter_io(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+):
+    """Parameter values outside the JSON value contract reject before I/O."""
+    # Arrange: One explicit parameter value is outside the JSON value contract.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    feature = _feature("heating.mode.target", "old", _control())
+    parameters: dict[str, JsonValue] = {"target": float("nan")}
+
+    # Act and assert: The invalid parameter never reaches the adapter.
+    with pytest.raises(ValueError, match="finite"):
+        await client.execute_command(feature, parameters)
+    assert adapter.calls == []
 
 
 @pytest.mark.parametrize(

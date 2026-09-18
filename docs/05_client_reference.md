@@ -124,7 +124,7 @@ for device_id, error in result.errors_by_device_id.items():
 `get_full_installation_status` use their single-device request and error
 semantics rather than this gateway-scoped partial-result contract.
 
-### `set_feature(device: Device, feature: Feature, target_value: Any) -> tuple[CommandResponse, Device]`
+### `set_feature(device: Device, feature: Feature, target_value: FeatureValue) -> tuple[CommandResponse, Device]`
 Sends a feature command for the feature with the same name in the supplied
 current device snapshot and returns a command-updated device snapshot after a
 successful command response, without an API read-back.
@@ -133,16 +133,20 @@ successful command response, without an API read-back.
     *   `device`: The `Device` object.
     *   `feature`: A `Feature` whose name is present in `device`; the current
         device feature must be writable, enabled, and ready.
-    *   `target_value`: The new value you want to set.
+    *   `target_value`: The new value to set; any `JsonValue` (null, boolean,
+        number, string, list, or string-keyed object).
 *   **Returns**: Tuple of `(CommandResponse, Device)`:
     *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
     *   `Device`: Command-updated device snapshot with the feature value set
         locally on success, or the original snapshot on failure.
 *   **Raises**:
     *   `ValueError` if the feature is absent from the device, unavailable,
-        missing a required enabled and ready sibling value, or violates
-        client-side constraints.
+        missing a required enabled and ready sibling value, violates
+        client-side constraints, or a command parameter value is not a JSON
+        value.
     *   `ViValidationError` if the API rejects the generated command payload.
+    *   `ViResponseError` if the successful command response violates the API
+        contract.
     *   `ViConnectionError` if the API call fails.
 *   **Magic**: This method uses the current device feature's command metadata,
     always includes its target parameter, and resolves each other required
@@ -161,7 +165,7 @@ if response.success:
     response, device = await client.set_feature(device, shift_feature, 7.0)
 ```
 
-### `execute_command(feature: Feature, parameters: dict[str, Any]) -> CommandResponse`
+### `execute_command(feature: Feature, parameters: dict[str, JsonValue]) -> CommandResponse`
 
 Executes an explicit command parameter set for a writable feature. Unlike
 `set_feature`, this operation does not resolve dependencies, validate against
@@ -173,9 +177,12 @@ an advanced integration writing both heating-curve values at once.
 
 The feature must be writable, enabled, and ready. The supplied payload must
 contain the target parameter and every required parameter; additional
-parameters are allowed and the mapping is sent unchanged. The method raises
-`ValueError` for local contract violations. API and connection failures use the
-corresponding `ViError` subclasses.
+parameters are allowed and the mapping is sent unchanged. Every parameter
+value must be within the JSON value contract; a non-JSON value raises
+`ValueError` before any request is sent. The method raises `ValueError` for
+local contract violations. API and connection failures use the corresponding
+`ViError` subclasses, and a successful command response that violates the
+response contract raises `ViResponseError`.
 
 ```python
 response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})

@@ -8,6 +8,7 @@ import vi_api_client
 from vi_api_client import JsonValue
 from vi_api_client.exceptions import ViError, ViResponseError
 from vi_api_client.models import (
+    CommandResponse,
     Device,
     Feature,
     FeatureControl,
@@ -249,3 +250,144 @@ def test_gateway_refresh_public_types_are_exported():
     # Act and assert: New public contracts are available from the package root.
     assert vi_api_client.GatewayDeviceRefreshResult is GatewayDeviceRefreshResult
     assert vi_api_client.ViResponseError is ViResponseError
+
+
+@pytest.mark.parametrize(
+    ("raw_success", "expected"),
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("false", False),
+        ("False", False),
+    ],
+)
+def test_command_response_normalizes_supported_success_representations(
+    raw_success: JsonValue, expected: bool
+):
+    """Supported API success representations normalize to booleans."""
+    # Arrange: The API reports success in a documented representation.
+    data: dict[str, JsonValue] = {"data": {"success": raw_success}}
+
+    # Act: Parse the command response.
+    response = CommandResponse.from_api(data)
+
+    # Assert: The success flag is a normalized boolean.
+    assert response.success is expected
+
+
+@pytest.mark.parametrize(
+    "raw_success",
+    ["yes", "1", 1, 0, 1.5, None, [], {}, ["true"]],
+)
+def test_command_response_rejects_malformed_success_representations(
+    raw_success: JsonValue,
+):
+    """Unsupported success representations fail the response contract."""
+    # Arrange: The API reports success in an unsupported representation.
+    data: dict[str, JsonValue] = {"data": {"success": raw_success}}
+
+    # Act and assert: The malformed known field raises a response error.
+    with pytest.raises(ViResponseError, match="success"):
+        CommandResponse.from_api(data)
+
+
+@pytest.mark.parametrize("data", [{"data": {}}, {}])
+def test_command_response_requires_success_field(data: dict[str, JsonValue]):
+    """A command response without a success flag violates the contract."""
+    # Act and assert: The missing known field raises a response error.
+    with pytest.raises(ViResponseError, match="success"):
+        CommandResponse.from_api(data)
+
+
+def test_command_response_validates_optional_text_fields():
+    """Optional message and reason fields pass through as strings."""
+    # Arrange: A successful response carries message and reason text.
+    data: dict[str, JsonValue] = {
+        "data": {"success": True, "message": "Command accepted", "reason": "queued"}
+    }
+
+    # Act: Parse the command response.
+    response = CommandResponse.from_api(data)
+
+    # Assert: The known text fields are exposed unchanged.
+    assert response.success
+    assert response.message == "Command accepted"
+    assert response.reason == "queued"
+
+
+def test_command_response_allows_absent_optional_text_fields():
+    """Absent message and reason fields default to None."""
+    # Arrange: A successful response carries only the success flag.
+    data: dict[str, JsonValue] = {"data": {"success": True}}
+
+    # Act: Parse the command response.
+    response = CommandResponse.from_api(data)
+
+    # Assert: The optional text fields stay absent.
+    assert response.success
+    assert response.message is None
+    assert response.reason is None
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("message", 42),
+        ("message", None),
+        ("reason", 42),
+        ("reason", None),
+    ],
+)
+def test_command_response_rejects_malformed_optional_text_fields(
+    field_name: str, value: JsonValue
+):
+    """Supplied non-string message and reason fields fail the response contract."""
+    # Arrange: The response supplies a known text field with a non-string
+    # value, including an explicitly supplied JSON null.
+    data: dict[str, JsonValue] = {"data": {"success": True, field_name: value}}
+
+    # Act and assert: The malformed known field raises a response error.
+    with pytest.raises(ViResponseError, match=field_name):
+        CommandResponse.from_api(data)
+
+
+def test_command_response_accepts_root_and_envelope_payloads():
+    """Command responses may arrive as the root object or inside data."""
+    # Arrange: The same success flag arrives in both documented shapes.
+    root_payload: dict[str, JsonValue] = {"success": "true"}
+    envelope_payload: dict[str, JsonValue] = {"data": {"success": "true"}}
+
+    # Act: Parse both command responses.
+    root_response = CommandResponse.from_api(root_payload)
+    envelope_response = CommandResponse.from_api(envelope_payload)
+
+    # Assert: Both shapes expose the same normalized result.
+    assert root_response.success
+    assert envelope_response.success
+
+
+def test_command_response_allows_unknown_fields():
+    """Unknown additional command response fields remain forward-compatible."""
+    # Arrange: The response carries an unknown additional field.
+    data: dict[str, JsonValue] = {
+        "data": {"success": True, "unknown": {"kept": ["field"]}}
+    }
+
+    # Act: Parse the command response.
+    response = CommandResponse.from_api(data)
+
+    # Assert: The unknown field does not fail parsing.
+    assert response.success
+
+
+def test_command_response_rejects_non_object_data():
+    """A non-object data field fails the response contract."""
+    # Arrange: The response envelope wraps a non-object data field.
+    data: dict[str, JsonValue] = {"data": "unexpected"}
+
+    # Act and assert: The malformed envelope raises a response error.
+    with pytest.raises(ViResponseError, match="object"):
+        CommandResponse.from_api(data)
