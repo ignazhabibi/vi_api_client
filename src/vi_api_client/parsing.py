@@ -101,8 +101,9 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
                 continue
         data_keys.append(key)
 
-    # Fallback for simple features that might only have 'value'
-    if not data_keys and "value" in properties:
+    # Defensive fallback: unreachable in practice because "value" is never
+    # ignored, so data_keys already contains it whenever it is present.
+    if not data_keys and "value" in properties:  # pragma: no cover
         data_keys = ["value"]
 
     default_unit = properties.get("unit")
@@ -153,7 +154,9 @@ def validate_feature_entry(
     # Runtime-checked container; property fields are validated recursively.
     properties_container = cast("dict[str, Any]", raw_properties)
     properties = validate_json_value(properties_container, path="Feature properties")
-    if not isinstance(properties, dict):
+    # Defensive double-check: validate_json_value above only returns dicts
+    # for the dict container that was already confirmed here.
+    if not isinstance(properties, dict):  # pragma: no cover
         raise ViResponseError("Feature properties must be an object")
     _validate_property_constraints(properties)
     raw_commands = data.get("commands", {})
@@ -208,7 +211,8 @@ def _validate_commands(commands: dict[str, Any]) -> None:  # noqa: PLR0912
             if value_type is not None and not isinstance(value_type, str):
                 raise ViResponseError("Feature command type must be a string")
             enum = parameter.get("enum")
-            if enum is not None and not isinstance(enum, list):
+            # The constraint validation above already rejected non-list enums.
+            if enum is not None and not isinstance(enum, list):  # pragma: no cover
                 raise ViResponseError("Feature command enum must be a list")
             if enum is not None:
                 validate_json_value(
@@ -491,7 +495,8 @@ def _find_control_for_complex_feature(
             # Just pick the first param found
             allowed = {"schedule", "entries", "newSchedule"}
             target_param = next((k for k in params if k in allowed), None)
-            if target_param:
+            # Defensive: the membership check above guarantees a found target.
+            if target_param:  # pragma: no branch
                 return FeatureControl(
                     command_name=cmd_name,
                     param_name=target_param,

@@ -52,7 +52,8 @@ class AbstractAuth(ABC):
     @abstractmethod
     async def async_get_access_token(self) -> str:
         """Return a valid access token."""
-        pass
+        # Abstract method bodies never execute in concrete subclasses.
+        pass  # pragma: no cover
 
     async def _async_get_websession(self) -> aiohttp.ClientSession:
         """Return an available session, creating an owned one when needed."""

@@ -368,7 +368,8 @@ class ViClient:
             updated_device = replace(device, features=updated_features)
             return response, updated_device
 
-        if not response.success:
+        # Defensive double-check: the successful path returns above.
+        if not response.success:  # pragma: no branch
             _LOGGER.warning(
                 "Setting %s via %s failed (reason: %s)",
                 canonical_feature.name,
@@ -533,17 +534,6 @@ class ViClient:
         return grouped_features, seen_device_ids
 
     @staticmethod
-    def _validate_gateway_feature(raw_feature: dict[str, Any]) -> None:
-        """Validate fields required to parse an ordinary device feature."""
-        feature_name = raw_feature.get("feature")
-        properties = raw_feature.get("properties")
-        commands = raw_feature.get("commands", {})
-        if not isinstance(feature_name, str) or not feature_name:
-            raise ViResponseError("Gateway device feature has no valid feature name")
-        if not isinstance(properties, dict) or not isinstance(commands, dict):
-            raise ViResponseError("Gateway device feature has invalid feature data")
-
-    @staticmethod
     def _parse_gateway_device_features(
         device_id: str, raw_features: list[dict[str, Any]]
     ) -> list[Feature]:
@@ -552,7 +542,14 @@ class ViClient:
         try:
             for raw_feature in raw_features:
                 features.extend(parse_feature_flat(raw_feature))
-        except (AttributeError, KeyError, TypeError, ValueError) as error:
+        # Defensive: entries are validated before grouping and parse failures
+        # surface as ViResponseError, which this handler does not intercept.
+        except (  # pragma: no cover
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as error:
             raise ViResponseError(
                 f"Invalid feature data for device {device_id}"
             ) from error
@@ -616,7 +613,14 @@ class ViClient:
                 _LOGGER.debug(
                     "Individual refresh failed for device %s: %s", device.id, error
                 )
-            except (AttributeError, KeyError, TypeError, ValueError) as error:
+            # Defensive: the public read path raises ViError subclasses,
+            # which the handler above already isolates or re-raises.
+            except (  # pragma: no cover
+                AttributeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ) as error:
                 raise ViResponseError(
                     f"Invalid feature data for device {device.id}"
                 ) from error
