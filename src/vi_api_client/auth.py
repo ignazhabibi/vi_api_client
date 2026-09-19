@@ -187,6 +187,7 @@ class OAuth(AbstractAuth):
                 raise ViAuthError(f"Failed to fetch token: {text}")
 
             self._update_tokens(await _read_token_response(resp))
+        _LOGGER.debug("Exchanged authorization code for tokens")
 
     async def _async_refresh_access_token(self) -> None:
         """Refresh the access token through the token endpoint."""
@@ -199,6 +200,7 @@ class OAuth(AbstractAuth):
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
+        _LOGGER.debug("Refreshing access token")
 
         websession = await self._async_get_websession()
         async with websession.post(ENDPOINT_TOKEN, data=data) as resp:
@@ -208,6 +210,9 @@ class OAuth(AbstractAuth):
                 raise ViAuthError(f"Failed to refresh token: {text}")
 
             self._update_tokens(await _read_token_response(resp))
+        _LOGGER.debug(
+            "Access token refreshed (expires_in=%s)", self._token_info.get("expires_in")
+        )
 
     async def async_refresh_access_token(self) -> None:
         """Refresh the access token, sharing an in-flight refresh per instance.
@@ -268,6 +273,9 @@ class OAuth(AbstractAuth):
             return self._access_token_value()
 
         # Fallback: return what we have (e.g. if offline_access scope was missing)
+        _LOGGER.warning(
+            "No refresh token available; using possibly expired access token"
+        )
         return self._access_token_value()
 
     def _access_token_value(self) -> str:
