@@ -23,6 +23,7 @@
 - Store substantial API payloads in `tests/fixtures/` and load them through shared helpers. Keep fixtures aligned with the real API contract and the bundled product fixtures; inspect `tests/test_fixture_data_integrity.py` when changing fixture assumptions.
 - Use `aioresponses` for HTTP and authentication tests against real client request flows. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows.
 - Inspect fixture or snapshot diffs rather than accepting them blindly. Run the focused test first, then the full quality gate before proposing a commit.
+- Aim for at least 95% line and branch coverage over `src/vi_api_client`; the quality gate enforces both. Reach branches with behavioral tests. Where defensive code is provably unreachable, mark it with a narrowly scoped `# pragma: no cover` or `# pragma: no branch` plus a one-line justification instead of writing a test that only exercises a line.
 
 ## Quality Gate
 
@@ -34,6 +35,9 @@ proposing a commit or push. The gate covers, in order:
 - `pyright --project pyrightconfig.strict.json` for the complete shipped
   package (strict mode, zero errors)
 - `python -m pytest -q`
+- `python scripts/check_coverage.py`, which fails below 95% line or branch
+  coverage measured over `src/vi_api_client` from the `coverage.xml` written
+  by the pytest run
 - `python -m build` followed by `python scripts/verify_distributions.py`,
   which checks that the wheel and source distribution ship `py.typed` and pass
   `pyright --verifytypes vi_api_client --ignoreexternal`
