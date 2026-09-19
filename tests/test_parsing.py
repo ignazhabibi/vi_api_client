@@ -131,123 +131,42 @@ def test_feature_do_not_flatten_history(load_fixture_json):
     assert values == [1.1, 2.2, 3.3]
 
 
-def test_feature_adds_consumption_alias_for_cooling(load_fixture_json):
-    """Test that cooling consumption gets a synthetic currentYear alias."""
-    # Arrange: Load fixture for cooling power consumption with year array data.
-    data = load_fixture_json("parsing/consumption_alias_cooling.json")
+@pytest.mark.parametrize(
+    ("fixture_name", "base_name"),
+    [
+        ("parsing/consumption_alias_cooling.json", "heating.power.consumption.cooling"),
+        ("parsing/consumption_alias_dhw.json", "heating.power.consumption.dhw"),
+        ("parsing/consumption_alias_heating.json", "heating.power.consumption.heating"),
+        ("parsing/consumption_alias_total.json", "heating.power.consumption.total"),
+    ],
+)
+def test_feature_adds_current_year_consumption_alias(
+    load_fixture_json, fixture_name: str, base_name: str
+):
+    """Consumption series expose the first year value as a currentYear feature."""
+    # Arrange: Load the consumption fixture with day, month, and year arrays.
+    data = load_fixture_json(fixture_name)
 
-    # Act: Parse the feature using flat architecture parser.
+    # Act: Parse the feature using the flat architecture parser.
     features = parse_feature_flat(data)
 
-    # Assert: Original feature and only the currentYear alias should be available.
+    # Assert: The base series and only the currentYear alias are available.
     assert len(features) == 2
 
-    base_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.cooling"
-    )
+    base_feature = next(feature for feature in features if feature.name == base_name)
     assert isinstance(base_feature.value, dict)
     year = base_feature.value["year"]
     assert isinstance(year, dict)
-    values = year["value"]
-    assert isinstance(values, list)
-    assert values[0] == 12.5
 
     current_year_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.cooling.currentYear"
+        feature for feature in features if feature.name == f"{base_name}.currentYear"
     )
-    assert current_year_feature.value == 12.5
+    year_values = year["value"]
+    assert isinstance(year_values, list)
+    assert current_year_feature.value == year_values[0]
     assert current_year_feature.unit == "kilowattHour"
     assert not any(
-        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
-        for feature in features
-    )
-
-
-def test_feature_adds_consumption_aliases_for_heating(load_fixture_json):
-    """Test that heating consumption gets a synthetic currentYear alias."""
-    # Arrange: Load fixture for heating power consumption with day/month/year arrays.
-    data = load_fixture_json("parsing/consumption_alias_heating.json")
-
-    # Act: Parse the feature using flat architecture parser.
-    features = parse_feature_flat(data)
-
-    # Assert: Original feature and only the currentYear alias should be available.
-    assert len(features) == 2
-
-    base_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.heating"
-    )
-    assert isinstance(base_feature.value, dict)
-    day = base_feature.value["day"]
-    assert isinstance(day, dict)
-    values = day["value"]
-    assert isinstance(values, list)
-    assert values[0] == 4.6
-
-    current_year_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.heating.currentYear"
-    )
-    assert current_year_feature.value == 2565.7
-    assert current_year_feature.unit == "kilowattHour"
-    assert not any(
-        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
-        for feature in features
-    )
-
-
-def test_feature_adds_consumption_aliases_for_dhw(load_fixture_json):
-    """Test that DHW consumption gets a synthetic currentYear alias."""
-    # Arrange: Load fixture for DHW power consumption with day/month/year arrays.
-    data = load_fixture_json("parsing/consumption_alias_dhw.json")
-
-    # Act: Parse the feature using flat architecture parser.
-    features = parse_feature_flat(data)
-
-    # Assert: Original feature and only the currentYear alias should be available.
-    assert len(features) == 2
-
-    current_year_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.dhw.currentYear"
-    )
-    assert current_year_feature.value == 875.0999999999999
-    assert current_year_feature.unit == "kilowattHour"
-    assert not any(
-        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
-        for feature in features
-    )
-
-
-def test_feature_adds_consumption_aliases_for_total(load_fixture_json):
-    """Test that total consumption gets a synthetic currentYear alias."""
-    # Arrange: Load fixture for total power consumption with day/month/year arrays.
-    data = load_fixture_json("parsing/consumption_alias_total.json")
-
-    # Act: Parse the feature using flat architecture parser.
-    features = parse_feature_flat(data)
-
-    # Assert: Original feature and only the currentYear alias should be available.
-    assert len(features) == 2
-
-    current_year_feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.power.consumption.total.currentYear"
-    )
-    assert current_year_feature.value == 3440.8
-    assert current_year_feature.unit == "kilowattHour"
-    assert not any(
-        feature.name.endswith(".currentDay") or feature.name.endswith(".currentMonth")
-        for feature in features
+        feature.name.endswith((".currentDay", ".currentMonth")) for feature in features
     )
 
 
@@ -299,3 +218,175 @@ def test_feature_control_association(load_fixture_json):
     assert feature_shift.control is not None
     assert feature_shift.control.command_name == "setCurve"
     assert feature_shift.control.param_name == "shift"
+
+
+def test_hysteresis_commands_create_writable_switch_point_features(load_fixture_json):
+    """Hysteresis value and switch points become separate writable features."""
+    # Arrange: Load the fixture with hysteresis value and switch point commands.
+    raw_feature = load_fixture_json("parsing/hysteresis_raw.json")
+
+    # Act: Parse the hysteresis feature with its command-linked properties.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The base value and both switch points are writable with their commands.
+    assert len(features) == 3
+    expected_commands = {
+        "heating.dhw.temperature.hysteresis": "setHysteresis",
+        "heating.dhw.temperature.hysteresis.switchOnValue": (
+            "setHysteresisSwitchOnValue"
+        ),
+        "heating.dhw.temperature.hysteresis.switchOffValue": (
+            "setHysteresisSwitchOffValue"
+        ),
+    }
+    for feature in features:
+        assert feature.name in expected_commands
+        assert feature.is_writable
+        assert feature.control is not None
+        assert feature.control.command_name == expected_commands[feature.name]
+
+
+def test_feature_treats_scalar_min_max_as_metadata():
+    """Scalar min/max properties should be skipped during flattening."""
+    # Arrange: Build a feature with scalar min/max metadata around the value.
+    raw_feature = {
+        "feature": "heating.curve",
+        "properties": {"min": 5, "max": 10, "value": 3},
+    }
+
+    # Act: Parse the feature using the flat architecture parser.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: Only the value flattens into a feature.
+    assert len(features) == 1
+    assert features[0].name == "heating.curve"
+    assert features[0].value == 3
+
+
+def test_feature_treats_nested_min_max_as_properties():
+    """Object-shaped min/max properties should flatten into sub-features."""
+    # Arrange: Build a feature with a nested min object beside the value.
+    raw_feature = {
+        "feature": "heating.curve",
+        "properties": {"min": {"value": 1}, "value": 3},
+    }
+
+    # Act: Parse the feature using the flat architecture parser.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The nested object flattens beside the base value.
+    assert len(features) == 2
+    assert {feature.name for feature in features} == {
+        "heating.curve",
+        "heating.curve.min",
+    }
+
+
+def test_feature_value_only_property_keeps_default_unit():
+    """A value-only feature should flatten with its declared unit."""
+    # Arrange: Build a feature whose only data property is its value.
+    raw_feature = {
+        "feature": "heating.sensors.temperature.outside",
+        "properties": {"unit": "celsius", "type": "number", "value": 5},
+    }
+
+    # Act: Parse the feature using the flat architecture parser.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The value flattens with the declared default unit.
+    assert len(features) == 1
+    assert features[0].name == "heating.sensors.temperature.outside"
+    assert features[0].value == 5
+    assert features[0].unit == "celsius"
+
+
+@pytest.mark.parametrize(
+    ("year_property", "expect_alias"),
+    [
+        (None, False),
+        ({"type": "array", "unit": "kilowattHour", "value": []}, False),
+        ({"type": "array", "unit": "kilowattHour", "value": [5.5]}, True),
+    ],
+    ids=["year-absent", "year-empty", "year-populated"],
+)
+def test_current_year_alias_requires_a_populated_year_series(
+    year_property: dict | None, expect_alias: bool
+):
+    """The currentYear alias should only mirror a populated year series."""
+    # Arrange: Build a consumption feature with the given year property.
+    properties: dict = {
+        "day": {"type": "array", "unit": "kilowattHour", "value": [1.0]}
+    }
+    if year_property is not None:
+        properties["year"] = year_property
+    raw_feature = {
+        "feature": "heating.power.consumption.cooling",
+        "properties": properties,
+    }
+
+    # Act: Parse the consumption feature.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The alias exists exactly when the year series is populated.
+    alias_names = [
+        feature.name
+        for feature in features
+        if feature.name == "heating.power.consumption.cooling.currentYear"
+    ]
+    assert bool(alias_names) is expect_alias
+
+
+def test_temperature_property_binds_target_temperature_command():
+    """A temperature property should bind to a targetTemperature command."""
+    # Arrange: Build a feature whose command parameter uses the alias spelling.
+    raw_feature = {
+        "feature": "heating.dhw.temperature.main",
+        "properties": {"temperature": {"value": 45, "unit": "celsius"}},
+        "commands": {
+            "setTargetTemperature": {
+                "uri": "/commands/setTargetTemperature",
+                "params": {"targetTemperature": {"type": "number", "required": True}},
+            }
+        },
+    }
+
+    # Act: Parse the feature using the flat architecture parser.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The temperature property exposes the aliased command control.
+    assert len(features) == 1
+    feature = features[0]
+    assert feature.name == "heating.dhw.temperature.main.temperature"
+    assert feature.control is not None
+    assert feature.control.command_name == "setTargetTemperature"
+    assert feature.control.param_name == "targetTemperature"
+
+
+def test_command_enum_maps_to_control_options():
+    """Command enum metadata should surface as the control's value options."""
+    # Arrange: Build a writable feature whose parameter declares an enum.
+    raw_feature = {
+        "feature": "heating.mode",
+        "properties": {"mode": {"value": "auto"}},
+        "commands": {
+            "setMode": {
+                "uri": "/commands/setMode",
+                "params": {
+                    "mode": {
+                        "type": "string",
+                        "enum": ["auto", "eco"],
+                        "required": True,
+                    }
+                },
+            }
+        },
+    }
+
+    # Act: Parse the feature using the flat architecture parser.
+    features = parse_feature_flat(raw_feature)
+
+    # Assert: The enum members become the control's allowed options.
+    assert len(features) == 1
+    control = features[0].control
+    assert control is not None
+    assert list(control.options or []) == ["auto", "eco"]

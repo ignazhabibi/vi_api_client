@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
@@ -71,15 +71,18 @@ async def test_live_adapter_preserves_external_oauth_error() -> None:
 @pytest.mark.asyncio
 async def test_live_adapter_wraps_aiohttp_connection_error() -> None:
     """Aiohttp connection failures should remain library connection errors."""
-    # Arrange: Configure the HTTP session to fail while opening the connection.
+    # Arrange: Make the installations request fail while opening the connection.
     connection_error = aiohttp.ClientConnectionError("Network unavailable")
-    websession = MagicMock(spec=aiohttp.ClientSession)
-    websession.request = AsyncMock(side_effect=connection_error)
-    adapter = LiveAdapter(_StaticAuth(websession))
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
 
-    # Act and assert: The adapter should expose the library transport exception.
-    with pytest.raises(ViConnectionError) as raised_error:
-        await adapter.get_installations()
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, exception=connection_error)
+        async with aiohttp.ClientSession() as session:
+            adapter = LiveAdapter(_StaticAuth(session))
+
+            # Act and assert: The adapter exposes the library transport exception.
+            with pytest.raises(ViConnectionError) as raised_error:
+                await adapter.get_installations()
     assert raised_error.value.__cause__ is connection_error
 
 
@@ -268,6 +271,7 @@ def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
         ("12.5", 12.5),
         ("-5", None),
         ("not-a-duration", None),
+        ("Wed, 21 Oct 2015 07:28:00", None),
         (None, None),
     ],
 )
@@ -316,3 +320,39 @@ async def test_client_normalizes_http_date_retry_after_without_retrying() -> Non
     assert raised_error.value.retry_after is not None
     assert 0 <= raised_error.value.retry_after <= 30
     assert len(mock_responses.requests) == 1
+
+
+def test_prepare_url_composes_relative_and_absolute_paths() -> None:
+    """Adapter URLs should compose into absolute Vi API URLs."""
+    # Arrange: Cover absolute, rooted, and relative URL spellings.
+
+    # Act and assert: Each spelling resolves to the documented absolute form.
+    assert (
+        LiveAdapter._prepare_url("https://example.invalid/api")
+        == "https://example.invalid/api"
+    )
+    assert (
+        LiveAdapter._prepare_url("/iot/v2/features")
+        == f"{API_BASE_URL}/iot/v2/features"
+    )
+    assert (
+        LiveAdapter._prepare_url("iot/v2/features") == f"{API_BASE_URL}/iot/v2/features"
+    )
+
+
+@pytest.mark.asyncio
+async def test_live_adapter_maps_non_json_error_bodies() -> None:
+    """Error bodies that are not JSON should still map to their library error."""
+    # Arrange: Return an HTML error page with a server error status.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    with aioresponses() as mock_responses:
+        mock_responses.get(
+            url, status=502, body="<html>Bad Gateway</html>", content_type="text/html"
+        )
+        async with aiohttp.ClientSession() as session:
+            adapter = LiveAdapter(_StaticAuth(session))
+
+            # Act and assert: The error surfaces with the HTTP-level message.
+            with pytest.raises(ViServerInternalError) as raised_error:
+                await adapter.get_installations()
+    assert str(raised_error.value) == "Server Error 502: HTTP 502"

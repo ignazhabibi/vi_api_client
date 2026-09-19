@@ -215,6 +215,80 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io(
     assert adapter.calls == []
 
 
+@pytest.mark.parametrize(
+    ("initial_value", "written_value", "options"),
+    [
+        ("low", "high", ["low", "high"]),
+        (1, 2, [1, 2, 3]),
+    ],
+    ids=["string-options", "numeric-options"],
+)
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_accepts_declared_option_values(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+    initial_value: Any,
+    written_value: Any,
+    options: list,
+):
+    """Enum-constrained targets accept values from the declared options."""
+    # Arrange: The target declares a closed set of allowed values.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    control = replace(_control(), options=options)
+    target = _feature("heating.mode.target", initial_value, control)
+    device = _device([target])
+
+    # Act: Write one of the declared option values.
+    response, updated_device = await client.set_feature(device, target, written_value)
+
+    # Assert: The payload carries the option value and the snapshot updates.
+    assert response.success
+    assert adapter.calls == [(control, {"target": written_value})]
+    updated = updated_device.get_feature("heating.mode.target")
+    assert updated is not None
+    assert updated == replace(target, value=written_value)
+
+
+@pytest.mark.parametrize(
+    ("control_overrides", "target_value", "error"),
+    [
+        ({"min": 2.0}, 1, "< min"),
+        ({"options": ["low", "high"]}, "medium", "allowed options"),
+        ({"min_length": 3}, "ab", "min_length"),
+        ({"max_length": 3}, "toolong", "max_length"),
+        ({"pattern": "^[a-z]+$"}, "UPPER", "does not match pattern"),
+    ],
+    ids=[
+        "below-min",
+        "outside-options",
+        "below-min-length",
+        "above-max-length",
+        "pattern-mismatch",
+    ],
+)
+@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
+@pytest.mark.asyncio
+async def test_set_feature_rejects_values_outside_canonical_constraints(
+    create_client: Callable[[_RecordingCommandAdapter], ViClient],
+    control_overrides: dict[str, Any],
+    target_value: Any,
+    error: str,
+):
+    """Canonical constraints reject invalid values before adapter I/O."""
+    # Arrange: The current device feature carries the violated constraint.
+    adapter = _RecordingCommandAdapter()
+    client = create_client(adapter)
+    control = replace(_control(), **control_overrides)
+    target = _feature("heating.mode.target", "old", control)
+    device = _device([target])
+
+    # Act and assert: The constraint violation rejects before I/O.
+    with pytest.raises(ValueError, match=error):
+        await client.set_feature(device, target, target_value)
+    assert adapter.calls == []
+
+
 @pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device(
