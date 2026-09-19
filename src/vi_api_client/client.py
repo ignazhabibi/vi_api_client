@@ -262,6 +262,11 @@ class ViClient:
             )
         except ViValidationError as error:
             if error.error_type == "DEVICE_COMMUNICATION_ERROR":
+                _LOGGER.debug(
+                    "Gateway-wide feature fetch failed with %s; "
+                    "falling back to individual device refreshes",
+                    error.error_type,
+                )
                 return await self._refresh_devices_individually(devices)
             raise
 
@@ -281,6 +286,12 @@ class ViClient:
         missing_devices = [
             device for device in devices if device.id not in seen_device_ids
         ]
+        if missing_devices:
+            _LOGGER.debug(
+                "Gateway feature response omitted %s requested device(s); "
+                "refreshing them individually",
+                len(missing_devices),
+            )
         fallback_result = await self._refresh_devices_individually(missing_devices)
         updated_devices_by_id.update(
             {device.id: device for device in fallback_result.updated_devices}
@@ -356,6 +367,14 @@ class ViClient:
             ]
             updated_device = replace(device, features=updated_features)
             return response, updated_device
+
+        if not response.success:
+            _LOGGER.warning(
+                "Setting %s via %s failed (reason: %s)",
+                canonical_feature.name,
+                control.command_name,
+                response.reason,
+            )
 
         # Return unchanged device on failure
         return response, device
@@ -594,6 +613,9 @@ class ViClient:
                 if error.error_type not in device_error_types:
                     raise
                 errors_by_device_id[device.id] = error
+                _LOGGER.debug(
+                    "Individual refresh failed for device %s: %s", device.id, error
+                )
             except (AttributeError, KeyError, TypeError, ValueError) as error:
                 raise ViResponseError(
                     f"Invalid feature data for device {device.id}"
@@ -652,7 +674,7 @@ class ViClient:
                 )
             payload[param_key] = sibling.value
             _LOGGER.debug(
-                "  -> Resolved dependency '%s' with value %s",
+                "Resolved dependency '%s' with value %s",
                 param_key,
                 sibling.value,
             )

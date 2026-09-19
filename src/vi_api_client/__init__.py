@@ -1,5 +1,7 @@
 """Viessmann API Client."""
 
+import logging
+
 from ._types import FeatureValue, JsonValue, ValidationDetail
 from .auth import AbstractAuth, OAuth
 from .client import ViClient
@@ -26,6 +28,10 @@ from .models import (
 )
 from .utils import format_feature
 from .validation import validate_json_value
+
+# Library best practice: consume the package logger without requiring
+# consumer-side logging configuration.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [
     "DEFAULT_SCOPES",

@@ -1,4 +1,7 @@
 import json
+import logging
+import subprocess
+import sys
 from argparse import Namespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -947,3 +950,51 @@ def test_main_exits_with_async_command_status():
         main()
 
     assert exit_error.value.code == 1
+
+
+@pytest.mark.parametrize(
+    ("extra_argv", "expected_level"),
+    [
+        ([], logging.INFO),
+        (["--verbose"], logging.DEBUG),
+    ],
+)
+@pytest.mark.asyncio
+async def test_async_main_configures_logging_after_parsing(
+    monkeypatch, extra_argv, expected_level
+):
+    """The CLI should configure root logging itself, honoring the --verbose flag."""
+    # Arrange: Request a fixture listing with or without verbose logging.
+    monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices", *extra_argv])
+    configured_levels = []
+    monkeypatch.setattr(
+        logging,
+        "basicConfig",
+        lambda **kwargs: configured_levels.append(kwargs.get("level")),
+    )
+
+    # Act: Invoke the parser and dispatcher through the CLI entry path.
+    exit_status = await async_main()
+
+    # Assert: Logging is configured once with the requested level.
+    assert exit_status == 0
+    assert configured_levels == [expected_level]
+
+
+def test_importing_cli_leaves_root_logging_unconfigured():
+    """Importing the CLI module should not touch root logging configuration."""
+    # Arrange: Probe the import side effect in a fresh interpreter.
+    probe = (
+        "import logging, vi_api_client.cli; print(len(logging.getLogger().handlers))"
+    )
+
+    # Act: Import the CLI in a clean process.
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    # Assert: No handler is installed on the root logger at import time.
+    assert result.stdout.strip() == "0"

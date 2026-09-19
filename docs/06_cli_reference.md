@@ -115,6 +115,22 @@ vi-client list-fixture-devices
 vi-client list-features --fixture-device Vitocal250A --values
 ```
 
+## Debug Logging
+
+Every command accepts `--verbose` to enable debug logging for the CLI and the
+library:
+
+```bash
+vi-client list-devices --verbose
+vi-client list-features --fixture-device Vitocal250A --verbose
+```
+
+Without the flag, the CLI logs informational messages only. With `--verbose`,
+debug output from the library workflows (feature fetches, hydration, token
+refreshes, fallback strategies) is printed as well. Library log records use the
+`vi_api_client` logger namespace, so embedding applications can filter or
+configure them independently of the CLI.
+
 ## SSL Certificate Issues
 
 If you encounter SSL errors (e.g., `CERTIFICATE_VERIFY_FAILED`), this is often due to:

@@ -170,7 +170,9 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
             error_body.get("validationErrors")
         )
 
-    _LOGGER.error(
+    # The raised library exception carries all error details, so the log
+    # stays at debug level to avoid double-reporting normal control flow.
+    _LOGGER.debug(
         "API Error %s (%s): %s (ID: %s)",
         status,
         error_type,

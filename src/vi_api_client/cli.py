@@ -32,7 +32,6 @@ from .validation import validate_json_value
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -781,7 +780,7 @@ async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     return True
 
 
-async def async_main() -> int:
+async def async_main() -> int:  # noqa: PLR0915
     """Main CLI entrypoint."""
     # Parent parser for common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -797,6 +796,11 @@ async def async_main() -> int:
     )
     common_parser.add_argument(
         "--fixture-device", help="Use a fixture device (e.g. Vitodens200W)"
+    )
+    common_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging for the CLI and the library",
     )
 
     parser = argparse.ArgumentParser(description="Viessmann API CLI")
@@ -899,6 +903,11 @@ async def async_main() -> int:
     parser_exec.add_argument("--device-id", help="Device ID (optional)")
 
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if _flag_argument(args, "verbose") else logging.INFO,
+        format="%(message)s",
+    )
 
     if not _optional_str_argument(args, "command"):
         parser.print_help()

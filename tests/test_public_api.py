@@ -1,11 +1,19 @@
 """Contract tests for the consumer-facing package-root API."""
 
 import importlib
+import logging
 
 import pytest
 
 import vi_api_client
 from vi_api_client.utils import mask_pii
+
+
+def test_package_logger_has_a_null_handler():
+    """The package logger should not require consumer logging configuration."""
+    # Assert: Importing the package installs a NullHandler on its logger.
+    package_handlers = logging.getLogger("vi_api_client").handlers
+    assert any(isinstance(handler, logging.NullHandler) for handler in package_handlers)
 
 
 def test_package_root_exposes_only_the_documented_consumer_api():
