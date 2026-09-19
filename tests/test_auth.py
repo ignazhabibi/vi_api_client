@@ -1,7 +1,8 @@
-"""Tests for vitoclient.auth module."""
+"""Tests for the OAuth authentication and credential workflows."""
 
 import asyncio
 import json
+import logging
 import os
 import stat
 import time
@@ -116,7 +117,7 @@ def test_oauth_websession_is_read_only_after_constructor_injection(tmp_path):
 
 @pytest.fixture
 def oauth(tmp_path):
-    """Create a ViessmannOAuth instance for testing."""
+    """Create an OAuth instance for testing."""
     token_file = tmp_path / "tokens.json"
     return OAuth(
         client_id="test_client_id",
@@ -161,13 +162,10 @@ def _oauth_with_websession(
 
 def test_get_authorization_url(oauth):
     """Test authorization URL generation."""
-    # Arrange: Prepare test data and fixtures.
-    # Included in fixture
-
-    # Act: Execute the function being tested.
+    # Act: Generate the authorization URL with its PKCE challenge.
     url = oauth.get_authorization_url()
 
-    # Assert: Verify the results match expectations.
+    # Assert: The URL carries the OAuth and PKCE contract parameters.
     assert "authorize" in url
     assert "client_id=test_client_id" in url
     assert "redirect_uri=" in url
@@ -178,13 +176,13 @@ def test_get_authorization_url(oauth):
 
 def test_has_tokens_no_token(oauth):
     """Token info should be empty when no token exists."""
-    # Act and Assert: Execute and verify in one step.
+    # Act and assert: A fresh instance loads an empty token document.
     assert oauth._token_info == {}
 
 
 def test_has_tokens_with_token(oauth_with_tokens):
     """Token info should be populated when token file exists."""
-    # Act and Assert: Execute and verify in one step.
+    # Act and assert: Construction loads the persisted token document.
     assert oauth_with_tokens._token_info.get("access_token") == "test_access_token"
 
 
@@ -207,22 +205,27 @@ def test_credential_updates_reject_invalid_data_without_overwriting(
     tmp_path, token_data
 ):
     """Invalid direct credential updates must leave the existing document intact."""
+    # Arrange: Persist a valid credential document that must survive the update.
     token_file = tmp_path / "tokens.json"
     original_content = '{"access_token": "existing"}'
     token_file.write_text(original_content, encoding="utf-8")
 
+    # Act and assert: The invalid update rejects without writing.
     with pytest.raises(ViAuthError):
         CredentialDocument(token_file).update(token_data)
 
+    # Assert: The stored document is byte-for-byte unchanged.
     assert token_file.read_text(encoding="utf-8") == original_content
 
 
 @pytest.mark.parametrize("field_name", ["client_id", "redirect_uri"])
 def test_oauth_rejects_malformed_saved_credential_configuration(tmp_path, field_name):
     """Authentication configuration stored in credentials must be string data."""
+    # Arrange: Persist a non-string known configuration field.
     token_file = tmp_path / "tokens.json"
     token_file.write_text(json.dumps({field_name: 1}), encoding="utf-8")
 
+    # Act and assert: Loading rejects the malformed configuration field.
     with pytest.raises(ViAuthError, match=field_name):
         OAuth("client", "https://example.invalid", token_file)
 
@@ -430,22 +433,21 @@ def test_save_tokens_restricts_file_permissions_to_owner(oauth):
 @pytest.mark.asyncio
 async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
     """Test getting access token when token is valid."""
-    # Arrange: Create ViAuth instance and configure mock token endpoint.
+    # Arrange: Bind the preloaded OAuth instance to a real client session.
     async with aiohttp.ClientSession() as session:
         oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
 
-        # Act: Request token using authorization code.
+        # Act: Request the access token.
         token = await oauth_with_tokens.async_get_access_token()
 
-        # Assert: Verify the results match expectations.
+        # Assert: The unexpired persisted token returns without refresh.
         assert token == "test_access_token"
 
 
 @pytest.mark.asyncio
 async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
     """Test token refresh."""
-    # Arrange: Create ViAuth with expired token and mock refresh endpoint.
-    # Set expires_at to past to force refresh
+    # Arrange: Expire the persisted token and mock the refresh endpoint.
     oauth_with_tokens._token_info["expires_at"] = 0
     data = load_fixture_json("auth_token.json")
 
@@ -458,7 +460,7 @@ async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
             # Act: Get access token (should trigger refresh).
             await oauth_with_tokens.async_refresh_access_token()
 
-        # Assert: Verify the results match expectations.
+        # Assert: The refresh result is retained in memory and on disk.
         assert oauth_with_tokens._token_info["access_token"] == "refreshed_access_token"
         assert (
             json.loads(oauth_with_tokens.token_file.read_text(encoding="utf-8"))[
@@ -765,6 +767,7 @@ async def test_code_exchange_failure_does_not_write_tokens(oauth):
 @pytest.mark.asyncio
 async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
     """A 200 response with malformed JSON should raise a library auth error."""
+    # Arrange: Start the flow and return a 200 body that is not valid JSON.
     oauth.get_authorization_url()
     with aioresponses() as mock_responses:
         mock_responses.post(ENDPOINT_TOKEN, status=200, body="{invalid")
@@ -772,9 +775,11 @@ async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
         async with aiohttp.ClientSession() as session:
             oauth = _oauth_with_websession(oauth, session)
 
+            # Act and assert: The malformed success body rejects as a library error.
             with pytest.raises(ViAuthError, match="invalid JSON"):
                 await oauth.async_fetch_details_from_code("accepted-code")
 
+    # Assert: No credential document is created from the failed exchange.
     assert not oauth.token_file.exists()
 
 
@@ -805,48 +810,44 @@ async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
 
 
 def test_token_persistence(tmp_path):
-    """Test that tokens are saved and loaded correctly."""
-    # Arrange: Prepare test data and fixtures.
+    """Saved tokens should load again from disk into a fresh instance."""
+    # Arrange: Create an OAuth whose in-memory tokens are not yet persisted.
     token_file = tmp_path / "tokens.json"
 
-    # Create OAuth and manually set token info
     oauth = OAuth(
         client_id="test_client_id",
         redirect_uri="http://localhost:4200/",
         token_file=str(token_file),
     )
 
-    # Manually set token info to simulate successful auth
     oauth._token_info = {
         "access_token": "saved_token",
         "refresh_token": "saved_refresh",
         "expires_in": 3600,
     }
 
-    # Act: Execute the function being tested.
+    # Act: Persist the tokens, then construct a fresh instance from the same file.
     oauth._save_tokens()
-
-    # Create new instance and verify tokens are loaded
     oauth2 = OAuth(
         client_id="test_client_id",
         redirect_uri="http://localhost:4200/",
         token_file=str(token_file),
     )
 
-    # Assert: Verify the results match expectations.
+    # Assert: The fresh instance loads exactly the persisted token fields.
     assert oauth2._token_info["access_token"] == "saved_token"
     assert oauth2._token_info["refresh_token"] == "saved_refresh"
 
 
 def test_pkce_verifier_generated_on_auth_url(oauth):
-    """Test that PKCE verifier is generated when auth URL is requested."""
-    # Arrange: Prepare test data and fixtures.
+    """Requesting the authorization URL should generate a PKCE verifier."""
+    # Arrange: Confirm the fresh instance has no verifier yet.
     assert oauth._pkce_verifier is None
 
-    # Act: Execute the function being tested.
+    # Act: Start the authorization flow.
     oauth.get_authorization_url()
 
-    # Assert: Verify the results match expectations.
+    # Assert: The verifier is generated alongside the URL.
     assert oauth._pkce_verifier is not None
 
 
@@ -947,3 +948,139 @@ async def test_oauth_keeps_external_websession_open(tmp_path):
         # Assert: OAuth should leave the caller-owned session open.
         assert external_websession.closed is False
         assert oauth.websession is external_websession
+
+
+@pytest.mark.asyncio
+async def test_async_get_access_token_without_tokens_raises(oauth):
+    """Requesting a token before authentication should explain the requirement."""
+    # Act and assert: The token request raises with actionable guidance.
+    with pytest.raises(ViAuthError, match="No tokens loaded"):
+        await oauth.async_get_access_token()
+
+
+@pytest.mark.asyncio
+async def test_expired_tokens_without_refresh_token_fall_back_with_warning(
+    oauth, caplog
+):
+    """Expired tokens without a refresh token should fall back with a warning."""
+    # Arrange: Store an expired access token without a refresh token.
+    oauth._token_info = {"access_token": "expired-token", "expires_at": 0}
+
+    # Act: Request the access token.
+    with caplog.at_level(logging.WARNING):
+        token = await oauth.async_get_access_token()
+
+    # Assert: The possibly expired token returns with a logged warning.
+    assert token == "expired-token"
+    assert any(
+        "No refresh token available" in record.message for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_token_state_without_access_token_raises(oauth):
+    """Token state without a usable access token should reject the request."""
+    # Arrange: Store expiry state without a usable access token value.
+    oauth._token_info = {"expires_at": 9999999999}
+
+    # Act and assert: The token request explains the invalid state.
+    with pytest.raises(ViAuthError, match="No valid access token"):
+        await oauth.async_get_access_token()
+
+
+@pytest.mark.asyncio
+async def test_code_exchange_without_pkce_verifier_raises(oauth):
+    """Exchanging a code before generating the authorization URL should reject."""
+    # Act and assert: The exchange explains the missing verifier.
+    with pytest.raises(ViAuthError, match="PKCE Verifier missing"):
+        await oauth.async_fetch_details_from_code("accepted-code")
+
+
+@pytest.mark.asyncio
+async def test_refresh_without_refresh_token_raises(oauth_with_tokens):
+    """Refreshing without a stored refresh token should reject the request."""
+    # Arrange: Remove the refresh token from the persisted token state.
+    oauth_with_tokens._token_info.pop("refresh_token")
+
+    # Act and assert: The refresh explains the missing token.
+    with pytest.raises(ViAuthError, match="No refresh token available"):
+        await oauth_with_tokens.async_refresh_access_token()
+
+
+@pytest.mark.parametrize(
+    ("token_body", "message"),
+    [
+        ('{"access_token": "t", "expires_in": NaN}', "invalid JSON data"),
+        ('{"access_token": "t", "refresh_token": 5}', "refresh_token must be a string"),
+        ('{"access_token": "t", "token_type": 5}', "token_type must be a string"),
+        ('{"access_token": "t", "expires_in": -1}', "non-negative finite number"),
+        ('{"access_token": "t", "expires_in": true}', "non-negative finite number"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_code_exchange_rejects_malformed_token_fields(
+    oauth, token_body: str, message: str
+):
+    """Invalid successful token fields should reject without writing."""
+    # Arrange: Start the flow and return a 200 body with malformed fields.
+    oauth.get_authorization_url()
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, status=200, body=token_body)
+
+        async with aiohttp.ClientSession() as session:
+            oauth = _oauth_with_websession(oauth, session)
+
+            # Act and assert: The exchange rejects the malformed field.
+            with pytest.raises(ViAuthError, match=message):
+                await oauth.async_fetch_details_from_code("accepted-code")
+
+    # Assert: No credential document is created from the failed exchange.
+    assert not oauth.token_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_code_exchange_without_expires_in_skips_computed_expiry(oauth):
+    """Token responses without expires_in should not compute an absolute expiry."""
+    # Arrange: Start the flow and return a minimal valid token response.
+    oauth.get_authorization_url()
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, status=200, payload={"access_token": "t"})
+
+        async with aiohttp.ClientSession() as session:
+            oauth = _oauth_with_websession(oauth, session)
+
+            # Act: Exchange the code for the minimal token.
+            await oauth.async_fetch_details_from_code("accepted-code")
+
+    # Assert: The token persists without a computed absolute expiry.
+    saved = json.loads(oauth.token_file.read_text(encoding="utf-8"))
+    assert saved == {"access_token": "t"}
+
+
+@pytest.mark.asyncio
+async def test_async_close_tolerates_an_externally_closed_owned_session(tmp_path):
+    """Closing should stay safe when the owned session was already closed."""
+    # Arrange: Create an owned session and close it out from under the provider.
+    token_file = tmp_path / "tokens.json"
+    token_file.write_text(
+        json.dumps({"access_token": "t", "expires_at": time.time() + 3600}),
+        encoding="utf-8",
+    )
+    oauth = OAuth(
+        client_id="test_client_id",
+        redirect_uri="http://localhost:4200/",
+        token_file=token_file,
+    )
+    installations_url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(installations_url, payload={"data": []})
+        await ViClient(oauth).get_installations()
+        assert oauth.websession is not None
+
+        # Act: Close the provider after its owned session already closed.
+        await oauth.websession.close()
+        await oauth.async_close()
+
+    # Assert: The close completes and clears the session reference.
+    assert oauth.websession is None

@@ -4,7 +4,6 @@ import aiohttp
 import pytest
 from aioresponses import aioresponses
 
-from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import (
     API_BASE_URL,
@@ -12,14 +11,6 @@ from vi_api_client.const import (
     ENDPOINT_INSTALLATIONS,
 )
 from vi_api_client.exceptions import ViResponseError
-
-
-class _StaticAuth(AbstractAuth):
-    """Provide a static token for live client request-flow tests."""
-
-    async def async_get_access_token(self) -> str:
-        """Return the access token used by mocked HTTP requests."""
-        return "access-token"
 
 
 @pytest.mark.asyncio
@@ -50,17 +41,49 @@ class _StaticAuth(AbstractAuth):
             {"data": [{"id": "device-1", "deviceType": "heating"}]},
             "modelId",
         ),
+        (
+            "gateways",
+            ENDPOINT_GATEWAYS,
+            {
+                "data": [
+                    {
+                        "serial": "gateway-1",
+                        "installationId": "123",
+                        "version": 123,
+                    }
+                ]
+            },
+            "version must be a string",
+        ),
+        (
+            "installations",
+            ENDPOINT_INSTALLATIONS,
+            {
+                "data": [
+                    {
+                        "id": "1",
+                        "description": "Home",
+                        "address": ["not-an-object"],
+                    }
+                ]
+            },
+            "Installation address must be an object",
+        ),
     ],
 )
 async def test_discovery_rejects_missing_or_malformed_known_fields(
-    operation: str, endpoint: str, envelope: dict[str, object], message: str
+    static_token_auth,
+    operation: str,
+    endpoint: str,
+    envelope: dict[str, object],
+    message: str,
 ) -> None:
     """Public discovery methods reject invalid known snapshot fields."""
     # Arrange: Return the invalid envelope through the live client HTTP boundary.
     with aioresponses() as mock_responses:
         mock_responses.get(f"{API_BASE_URL}{endpoint}", payload=envelope)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(_StaticAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: Known violations become library-owned response errors.
             with pytest.raises(ViResponseError, match=message):
@@ -73,7 +96,9 @@ async def test_discovery_rejects_missing_or_malformed_known_fields(
 
 
 @pytest.mark.asyncio
-async def test_discovery_keeps_unknown_installation_fields_and_json_address() -> None:
+async def test_discovery_keeps_unknown_installation_fields_and_json_address(
+    static_token_auth,
+) -> None:
     """Forward-compatible discovery preserves only the documented snapshot data."""
     # Arrange: Return valid fields and future API data through the live client.
     with aioresponses() as mock_responses:
@@ -91,7 +116,7 @@ async def test_discovery_keeps_unknown_installation_fields_and_json_address() ->
             },
         )
         async with aiohttp.ClientSession() as session:
-            client = ViClient(_StaticAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Read the public discovery snapshot.
             installations = await client.get_installations()

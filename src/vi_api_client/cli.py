@@ -291,7 +291,8 @@ async def setup_client_context(
                     f"Dev={dev_id}",
                 )
 
-        if discover and not (inst_id and gw_serial and dev_id):
+        # Defensive: discovery above either raises or completes every ID.
+        if discover and not (inst_id and gw_serial and dev_id):  # pragma: no cover
             raise ValueError(
                 "Installation ID, gateway serial, and device ID are required when "
                 "auto-discovery is disabled."
@@ -538,7 +539,8 @@ def _parse_set_value(raw_value: str, feature: Feature) -> bool | float | int | s
     Raises:
         ViValidationError: If a numeric or boolean command value is malformed.
     """
-    if feature.control is None:
+    # Defensive: cmd_set rejects read-only features before parsing values.
+    if feature.control is None:  # pragma: no cover
         return raw_value
 
     value_type = feature.control.value_type
@@ -723,7 +725,8 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
 
             for feature in writable_features:
                 ctrl = feature.control
-                if ctrl is None:
+                # Defensive: is_writable implies a control is present.
+                if ctrl is None:  # pragma: no cover
                     continue
                 print(f"- {feature.name}")
                 print(f"    Param:   {ctrl.param_name} (via {ctrl.command_name})")
@@ -962,5 +965,5 @@ def main() -> None:
     raise SystemExit(asyncio.run(async_main()))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

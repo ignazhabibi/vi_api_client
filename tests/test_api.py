@@ -1,4 +1,4 @@
-"""Tests for vitoclient.api module (Flat Architecture)."""
+"""Tests for the ViClient public workflows (Flat Architecture)."""
 
 import re
 from copy import deepcopy
@@ -26,7 +26,7 @@ from vi_api_client.exceptions import (
     ViServerInternalError,
     ViValidationError,
 )
-from vi_api_client.models import Device, FeatureControl
+from vi_api_client.models import Device
 
 
 class MockAuth(AbstractAuth):
@@ -237,6 +237,55 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(response):
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
+@pytest.mark.parametrize(
+    "uri",
+    [None, 5],
+    ids=["missing-uri", "non-string-uri"],
+)
+@pytest.mark.asyncio
+async def test_update_gateway_devices_rejects_entries_without_valid_uris(uri):
+    """Bulk entries without a usable device URI should reject as response errors."""
+    # Arrange: Return a bulk entry whose device URI is missing or malformed.
+    entry = {"feature": "heating.status", "properties": {"value": "ready"}, "uri": uri}
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": [entry]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The unusable URI becomes a public response error.
+            with pytest.raises(ViResponseError, match="no valid URI"):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_rejects_undecodable_device_uris():
+    """Device URIs that fail strict decoding should reject as response errors."""
+    # Arrange: Return a URI whose percent sequence is invalid UTF-8.
+    entry = {
+        "feature": "heating.status",
+        "properties": {"value": "ready"},
+        "uri": "/devices/%FF/features/heating.status",
+    }
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": [entry]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(MockAuth(session))
+
+            # Act and assert: The undecodable URI becomes a public response error.
+            with pytest.raises(ViResponseError, match="an invalid URI"):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
 @pytest.mark.asyncio
 async def test_update_gateway_devices_falls_back_only_for_missing_devices(
     load_fixture_json,
@@ -429,7 +478,7 @@ async def test_get_installations_error():
             auth = MockAuth(session)
             client = ViClient(auth)
 
-            # Act and Assert: Fetch should raise ViServerInternalError.
+            # Act and assert: The public client raises the server error type.
             with pytest.raises(ViServerInternalError):
                 await client.get_installations()
 
@@ -820,7 +869,7 @@ async def test_get_feature_not_found(load_fixture_json):
                 status="ok",
             )
 
-            # Act and Assert: Execute and verify in one step.
+            # Act and assert: The missing feature surfaces as a not-found error.
             with pytest.raises(ViNotFoundError):
                 await client.get_features(device, feature_names=["nonexistent.feature"])
 
@@ -828,7 +877,7 @@ async def test_get_feature_not_found(load_fixture_json):
 @pytest.mark.asyncio
 async def test_update_device(load_fixture_json):
     """Test efficient device update."""
-    # Arrange: Prepare test data and fixtures.
+    # Arrange: Load the refresh response fixture for one new feature.
     data = load_fixture_json("update_device_response.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
 
@@ -848,10 +897,10 @@ async def test_update_device(load_fixture_json):
         async with aiohttp.ClientSession() as session:
             client = ViClient(MockAuth(session))
 
-            # Act: Execute the function being tested.
+            # Act: Refresh the device through the public client method.
             updated_dev = await client.update_device(dev)
 
-            # Assert: Verify the results match expectations.
+            # Assert: The refreshed device exposes the fixture feature.
             assert updated_dev.id == "0"
             assert len(updated_dev.features) == 1
             assert updated_dev.features[0].name == "new.feature"
@@ -874,48 +923,6 @@ async def test_update_device_rejects_malformed_feature_responses():
             # Act and assert: The composed refresh keeps the public response error.
             with pytest.raises(ViResponseError, match="entries must be objects"):
                 await client.update_device(device)
-
-
-@pytest.mark.asyncio
-async def test_validate_constraints_step():
-    """Test step validation logic."""
-    # Arrange: Create test values for step validation.
-    # Use a mock/stub since we just want to test the _validate_constraints method logic
-    client = ViClient(None)  # type: ignore
-
-    # Mode 1: Valid Step
-    ctrl = FeatureControl(
-        command_name="set",
-        param_name="p",
-        required_params=[],
-        parent_feature_name="x",
-        uri="x",
-        min=10,
-        max=30,
-        step=0.5,
-    )
-
-    # Act & Assert: Case 1 (Valid Step)
-    client._validate_numeric_constraints(ctrl, 10.5)  # Should pass
-    client._validate_numeric_constraints(ctrl, 11.0)  # Should pass
-
-    # Act & Assert: Case 2 (Invalid Step)
-    with pytest.raises(ValueError) as exc:
-        client._validate_numeric_constraints(ctrl, 10.7)
-    assert "does not align with step" in str(exc.value)
-
-    # Act & Assert: Case 3 (Floating point precision)
-    ctrl2 = FeatureControl(
-        command_name="set",
-        param_name="p",
-        required_params=[],
-        parent_feature_name="x",
-        uri="x",
-        min=0,
-        max=1,
-        step=0.1,
-    )
-    client._validate_numeric_constraints(ctrl2, 0.3)  # Should pass despite float arith
 
 
 @pytest.mark.asyncio
@@ -963,7 +970,7 @@ async def test_get_devices_with_hydration(load_fixture_json):
 @pytest.mark.asyncio
 async def test_set_feature_with_dependency(load_fixture_json):
     """Test setting a feature that has a sibling dependency (slope needs shift)."""
-    # Arrange
+    # Arrange: Load the curve fixture whose setCurve command requires slope and shift.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
 
     install_id = "123"
@@ -1006,18 +1013,15 @@ async def test_set_feature_with_dependency(load_fixture_json):
             # 3. Find the 'slope' feature
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
-            assert slope_feature is not None
 
-            # Act: Set slope to 1.2 and verify dependency resolution.
-            # The fixture says 'shift' is 4.
-            # Expect payload: { "slope": 1.2, "shift": 4 }
+            # Act: Set slope to 1.2.
             response, _updated_device = await client.set_feature(
                 device, slope_feature, 1.2
             )
-            assert response.success
 
-            # Assert
-            # Find the call with the matching URL
+            # Assert: The command succeeds with the sibling 'shift' resolved from the
+            # fixture (shift is 4), so the payload is {"slope": 1.2, "shift": 4}.
+            assert response.success
             found_call = None
             for (method, url), calls in m.requests.items():
                 if method == "POST" and str(url) == command_url:
@@ -1056,22 +1060,28 @@ async def test_set_feature_validation_limit(load_fixture_json):
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
 
-            # Act & Assert: Max limit violation (Max is 3.5).
+            # Act and assert: Max limit violation (Max is 3.5).
             with pytest.raises(ValueError, match=r"Value 5.0 > max"):
                 await client.set_feature(device, slope_feature, 5.0)
 
 
 @pytest.mark.asyncio
 async def test_set_feature_validation_step(load_fixture_json):
-    """Test client-side validation for stepping."""
+    """Client-side validation accepts aligned steps and rejects misaligned ones."""
+    # Arrange: Load the heating curve fixture (slope step is 0.1) and mock writes.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
     install_id = "123"
     gw_serial = "GW123"
     device_id = "0"
     features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    command_url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        "features/heating.circuits.0.heating.curve/commands/setCurve"
+    )
 
     with aioresponses() as m:
         m.post(features_url, payload={"data": fixtures_data})
+        m.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
             client = ViClient(MockAuth(session))
@@ -1089,7 +1099,15 @@ async def test_set_feature_validation_step(load_fixture_json):
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
 
-            # Act & Assert: Step violation (Step is 0.1, 1.25 is invalid).
+            # Act: Set a step-aligned value whose float remainder is noisy (0.3 / 0.1).
+            response, _updated_device = await client.set_feature(
+                device, slope_feature, 0.3
+            )
+
+            # Assert: The epsilon comparison accepts accumulated float error.
+            assert response.success
+
+            # Act and assert: A misaligned value (step is 0.1, 1.25 is invalid) rejects.
             with pytest.raises(ValueError, match=r"does not align with step"):
                 await client.set_feature(device, slope_feature, 1.25)
 

@@ -38,8 +38,10 @@ python scripts/verify_distributions.py
 
 The quality gate keeps tests and demos in standard type checking while the
 shipped package must pass the strict configuration in
-`pyrightconfig.strict.json`. It also verifies the built wheel and source
-distribution as typed PEP 561 consumer artifacts. `python
+`pyrightconfig.strict.json`. It also enforces at least 95% line and branch
+coverage over `src/vi_api_client` through `scripts/check_coverage.py` and
+verifies the built wheel and source distribution as typed PEP 561 consumer
+artifacts. `python
 scripts/quality_check.py` runs the complete gate and CI runs the same script.
 `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
 

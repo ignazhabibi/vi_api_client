@@ -91,6 +91,7 @@ ruff format --check .
 pyright --pythonpath python
 pyright --project pyrightconfig.strict.json
 python -m pytest -q
+python scripts/check_coverage.py
 python -m build
 python scripts/verify_distributions.py
 ```
@@ -99,7 +100,9 @@ The shipped package is strictly typed and PEP 561 complete: the strict
 Pyright pass covers `src/vi_api_client`, the built wheel and source
 distribution ship `py.typed`, and the installed wheel passes
 `pyright --verifytypes vi_api_client --ignoreexternal`. Tests and demos
-remain under standard type checking.
+remain under standard type checking. The suite must keep at least 95% line
+and branch coverage over `src/vi_api_client`; `scripts/check_coverage.py`
+enforces both thresholds in the quality gate.
 
 ## Quick Start
 

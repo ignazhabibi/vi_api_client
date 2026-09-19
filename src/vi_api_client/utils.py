@@ -42,7 +42,8 @@ def parse_cli_params(params_list: list[str]) -> dict[str, JsonValue]:
             raise ValueError(
                 "Example appears to be JSON but could not be parsed."
             ) from None
-        if not isinstance(parsed, dict):
+        # Defensive: JSON starting with "{" parses to an object or fails.
+        if not isinstance(parsed, dict):  # pragma: no cover
             raise ValueError("JSON parameters must form a string-keyed object.")
         return parsed
 

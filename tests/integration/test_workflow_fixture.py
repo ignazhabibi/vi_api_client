@@ -1,4 +1,4 @@
-"""Integration tests for the full workflow using Mock Client."""
+"""Integration tests for realistic offline workflows using FixtureViClient."""
 
 import pytest
 

@@ -14,6 +14,7 @@ COMMANDS = (
     (sys.executable, "-m", "pyright", "--pythonpath", sys.executable),
     (sys.executable, "-m", "pyright", "--project", "pyrightconfig.strict.json"),
     (sys.executable, "-m", "pytest", "-q"),
+    (sys.executable, str(PROJECT_ROOT / "scripts" / "check_coverage.py")),
     (sys.executable, "-m", "build"),
     (
         sys.executable,

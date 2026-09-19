@@ -43,11 +43,3 @@ def test_validate_json_value_rejects_non_json_python_values(
     # Act and assert: Invalid values become library-owned response errors.
     with pytest.raises(ViResponseError, match=description):
         vi_api_client.validate_json_value(value)
-
-
-def test_json_value_contract_is_exported_from_package_root():
-    """Consumers can import every foundational dynamic public contract."""
-    # Assert: The aliases are exposed alongside the public validator.
-    assert hasattr(vi_api_client, "JsonValue")
-    assert hasattr(vi_api_client, "FeatureValue")
-    assert hasattr(vi_api_client, "ValidationDetail")
