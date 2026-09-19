@@ -29,18 +29,17 @@ async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
 @pytest.mark.asyncio
 async def test_fixture_workflow_vitodens():
     """Verify Vitodens (gas boiler) workflow with fixture data."""
-    # Arrange: Prepare the fixture client and device.
+    # Arrange: Discover the Vitodens device through the fixture chain.
     client = FixtureViClient("Vitodens200W")
-    device = Device(
-        id="0",
-        gateway_serial="MOCK_GW",
-        installation_id="123",
-        model_id="Vitodens200W",
-        device_type="heating",
-        status="Online",
-    )
+    installation = (await client.get_installations())[0]
+    gateway = (await client.get_gateways())[0]
+    device = (
+        await client.get_devices(
+            installation_id=installation.id, gateway_serial=gateway.serial
+        )
+    )[0]
 
-    # Act: Fetch all enabled features from the fixture-backed API.
+    # Act: Fetch all enabled features for the discovered device.
     features = await client.get_features(device, only_enabled=True)
 
     # Assert: Verify feature count and critical heating curve properties.
@@ -83,18 +82,17 @@ async def test_fixture_workflow_vitodens():
 @pytest.mark.asyncio
 async def test_fixture_workflow_vitocal():
     """Verify heat pump specific features (compressor) with fixture data."""
-    # Arrange: Prepare the fixture client for a heat pump device.
+    # Arrange: Discover the heat pump device through the fixture chain.
     client = FixtureViClient("Vitocal250A")
-    device = Device(
-        id="0",
-        gateway_serial="MOCK_GW_HP",
-        installation_id="123",
-        model_id="Vitocal250A",
-        device_type="heatpump",
-        status="Online",
-    )
+    installation = (await client.get_installations())[0]
+    gateway = (await client.get_gateways())[0]
+    device = (
+        await client.get_devices(
+            installation_id=installation.id, gateway_serial=gateway.serial
+        )
+    )[0]
 
-    # Act: Fetch all enabled features from the fixture-backed API.
+    # Act: Fetch all enabled features for the discovered device.
     features = await client.get_features(device, only_enabled=True)
 
     # Assert: Verify basic feature count.
@@ -208,3 +206,58 @@ async def test_fixture_gateway_device_refresh_stays_offline():
         "model-0",
     ]
     assert all(device.features for device in result.updated_devices)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_every_catalog_device_supports_the_standard_workflow(
+    available_fixture_devices,
+):
+    """Each bundled catalog device runs the full offline workflow chain."""
+    for device_name in available_fixture_devices:
+        # Arrange: Create a fixture client for one bundled catalog device.
+        client = FixtureViClient(device_name)
+
+        # Act: Discover the installation, gateway, and hydrated device.
+        installation = (await client.get_installations())[0]
+        gateway = (await client.get_gateways())[0]
+        devices = await client.get_devices(
+            installation_id=installation.id,
+            gateway_serial=gateway.serial,
+            include_features=True,
+        )
+
+        # Assert: The chain yields one hydrated device with features.
+        assert devices, f"{device_name}: discovery yielded no device"
+        device = devices[0]
+        assert device.features, f"{device_name}: hydration yielded no features"
+
+        # Act: Read one feature back through the name-filtered public read.
+        probe = device.features[0]
+        filtered = await client.get_features(device, feature_names=[probe.name])
+
+        # Assert: The filtered read returns exactly the requested feature.
+        assert [feature.name for feature in filtered] == [probe.name], (
+            f"{device_name}: name-filtered read lost {probe.name}"
+        )
+
+        # Act: Write the current value of the first writable feature, if any.
+        writable = next(
+            (
+                feature
+                for feature in device.features
+                if feature.is_writable and feature.value is not None
+            ),
+            None,
+        )
+        if writable is None:
+            continue
+        response, updated_device = await client.set_feature(
+            device, writable, writable.value
+        )
+
+        # Assert: The write succeeds and the returned snapshot carries the value.
+        assert response.success, f"{device_name}: write to {writable.name} failed"
+        updated = updated_device.get_feature(writable.name)
+        assert updated is not None
+        assert updated.value == writable.value, device_name

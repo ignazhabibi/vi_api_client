@@ -34,7 +34,12 @@ def device_responses_dir() -> Path:
 @pytest.fixture
 def available_fixture_devices(device_responses_dir: Path) -> list[str]:
     """Return the sorted names of the bundled fixture devices."""
-    return sorted(path.stem for path in device_responses_dir.glob("*.json"))
+    # The discovery catalog shares the directory but is not a device fixture.
+    return sorted(
+        path.stem
+        for path in device_responses_dir.glob("*.json")
+        if path.stem != "discovery"
+    )
 
 
 @pytest.fixture

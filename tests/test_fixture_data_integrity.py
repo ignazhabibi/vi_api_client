@@ -15,11 +15,6 @@ from vi_api_client.parsing import parse_feature_flat
 CATALOG_FILE_NAME = "discovery.json"
 
 
-def _bundled_device_fixtures(available_fixture_devices: list[str]) -> set[str]:
-    """Return the bundled fixture devices without the discovery catalog."""
-    return {name for name in available_fixture_devices if name != "discovery"}
-
-
 def test_fixture_discovery_metadata_matches_bundled_device_fixtures(
     device_responses_dir, available_fixture_devices
 ):
@@ -32,7 +27,7 @@ def test_fixture_discovery_metadata_matches_bundled_device_fixtures(
 
     # Act: Compare catalog fixture names with bundled feature-response filenames.
     catalogued_fixture_names = {device["fixtureName"] for device in device_metadata}
-    bundled_fixture_names = _bundled_device_fixtures(available_fixture_devices)
+    bundled_fixture_names = set(available_fixture_devices)
 
     # Assert: Metadata is complete, unique, and has the discovery identity fields.
     assert catalogued_fixture_names == bundled_fixture_names
@@ -48,7 +43,7 @@ def test_fixture_data_parses_and_keeps_constraint_quality(
 ):
     """Verify that each fixture device file parses with sane write constraints."""
     # Arrange: Enumerate the shipped device fixtures through the shared helper.
-    device_fixture_names = sorted(_bundled_device_fixtures(available_fixture_devices))
+    device_fixture_names = sorted(available_fixture_devices)
 
     for device_name in device_fixture_names:
         data = load_fixture_device(device_name)
