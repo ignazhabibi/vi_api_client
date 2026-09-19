@@ -67,10 +67,15 @@ A `Feature` object in this library represents a single property.
 | Attribute | Description |
 | :--- | :--- |
 | `name` | Unique identifier (e.g., `heating.sensors.temperature.outside`) |
-| `value` | The current value (e.g., `12.5` or `"on"`) |
+| `value` | The current value as a `FeatureValue` (e.g., `12.5` or `"on"`), following the recursive `JsonValue` contract |
 | `unit` | Unit of measurement, if any (`celsius`, `bar`, `percent`) |
 | `is_writable` | `True` if this value can be changed |
 | `control` | (Optional) Contains details on how to write to this feature |
+
+Responses are validated at the client's trust boundary: known malformed
+fields raise `ViResponseError`, while unknown additional fields from newer API
+versions remain allowed. See the [Models Reference](04_models_reference.md)
+for the full value contract.
 
 ### The `control` Object
 

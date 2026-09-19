@@ -231,6 +231,8 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | `fixture_client.py` | Fixture adapters and `FixtureViClient` | Alternative domain logic |
 | `parsing.py` | Convert nested API features into flat features | Network and consumer state |
 | `models.py` | Immutable snapshots and command metadata | Polling and persistence |
+| `_types.py` | Public dynamic value contracts (`JsonValue`, `FeatureValue`, `ValidationDetail`) | Runtime validation |
+| `validation.py` | Trust-boundary validation of JSON values and response fields | Building domain models |
 | `auth.py` | Authenticated requests, OAuth, session lifecycle | General retries |
 | `credentials.py` | Read, merge, safely replace credentials | OAuth decisions |
 | `exceptions.py` | Public exceptions | UI error presentation |
@@ -603,7 +605,9 @@ from vi_api_client import Device, Feature, FixtureViClient, OAuth, ViClient
 
 The package root is `vi_api_client/__init__.py`. It is the curated public
 surface and includes clients, auth types, models, results, the exception
-hierarchy, external OAuth constants, and `format_feature`.
+hierarchy, external OAuth constants, the dynamic value-contract types
+(`JsonValue`, `FeatureValue`, `ValidationDetail`), `validate_json_value`, and
+`format_feature`.
 
 Private adapters, parsers, credential persistence, endpoints, and CLI helpers
 are not consumer contracts. The curated package root and the private module
@@ -761,4 +765,5 @@ Models represent immutable state.
 - [Exceptions Reference](07_exceptions_reference.md)
 - [ADR 0001: Gateway-scoped device refresh](adr/0001-use-gateway-scoped-device-refresh.md)
 - [ADR 0002: Request policy belongs to consumers](adr/0002-keep-request-policy-with-consumers.md)
+- [ADR 0003: Recursive JSON value contract](adr/0003-use-a-recursive-json-value-contract.md)
 - [Canonical domain language](../CONTEXT.md)

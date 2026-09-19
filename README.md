@@ -14,6 +14,9 @@ Designed for integration with Home Assistant and other async Python applications
   parameter resolution and explicit multi-parameter commands.
 - **Fixture-backed Client**: Runs the same client workflows against bundled real-device
   responses without authentication, sessions, or network requests.
+- **Strictly Typed**: Ships as a PEP 561 complete package with `py.typed`; the
+  shipped code passes strict Pyright and dynamic values follow a typed JSON
+  value contract.
 
 ## Public API
 
@@ -29,11 +32,14 @@ from vi_api_client import (
     ENDPOINT_TOKEN,
     Feature,
     FeatureControl,
+    FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    JsonValue,
     FixtureViClient,
     OAuth,
+    ValidationDetail,
     ViAuthError,
     ViClient,
     ViConnectionError,
@@ -44,12 +50,16 @@ from vi_api_client import (
     ViServerInternalError,
     ViValidationError,
     format_feature,
+    validate_json_value,
 )
 ```
 
 `DEFAULT_SCOPES`, `ENDPOINT_AUTHORIZE`, and `ENDPOINT_TOKEN` support external
-OAuth integrations. CLI helpers, transport details, persistence, parsing, and
-utilities such as `mask_pii` remain available from their dedicated modules.
+OAuth integrations. `JsonValue`, `FeatureValue`, `ValidationDetail`, and
+`validate_json_value` form the public recursive JSON value contract that
+dynamic feature values and API validation details follow. CLI helpers,
+transport details, persistence, parsing, and utilities such as `mask_pii`
+remain available from their dedicated modules.
 
 ## Installation
 

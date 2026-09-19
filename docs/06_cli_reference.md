@@ -5,7 +5,7 @@ The package includes a command-line interface `vi-client` for testing authentica
 Commands return exit status `0` on success and a non-zero status when the
 requested operation fails. This makes the CLI safe to use in shell scripts.
 
-> **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file!
+> **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file! Every command accepts `--token-file` to read and write tokens from a different path instead.
 
 ## 1. Login
 Initiate the OAuth2 flow. You need your Client ID from the Viessmann Developer Portal.
@@ -61,6 +61,9 @@ Get the current value of a specific feature.
 
 ```bash
 vi-client get-feature "heating.sensors.temperature.outside"
+
+# Show the raw JSON response instead of the parsed feature
+vi-client get-feature "heating.sensors.temperature.outside" --raw
 ```
 
 ## 5. Discover Writable Features (Control)
