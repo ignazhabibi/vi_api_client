@@ -4,7 +4,11 @@ This guide covers the first steps to get up and running with the `vi_api_client`
 
 ## Installation
 
-This is currently a local development package.
+This is currently a local development package. **Requires Python 3.14+**.
+
+The package is strictly typed and PEP 561 complete: it ships a `py.typed`
+marker, so type checkers such as Pyright verify your usage of the client API
+automatically, including the dynamic JSON value contract behind feature values.
 
 ```bash
 # Clone the repository

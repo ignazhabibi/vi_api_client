@@ -53,6 +53,23 @@ The `FeatureValue` data reported for a feature. Its concrete shape follows the
 recursive `JsonValue` contract: scalar, no value, list, or string-keyed object.
 _Avoid_: Raw value, arbitrary value
 
+**JSON value contract**:
+The public recursive `JsonValue` type describing every dynamically shaped value
+the library accepts or exposes: null, booleans, finite numbers, strings, lists,
+and string-keyed objects. See ADR 0003.
+_Avoid_: Arbitrary JSON, untyped payload
+
+**Validation boundary**:
+The explicit trust boundary where live responses, OAuth responses, credential
+documents, and bundled fixture data are validated field by field before use.
+Known malformed fields fail loudly; unknown additional fields stay allowed.
+_Avoid_: Schema enforcement, payload parsing
+
+**Validation detail**:
+A `ValidationDetail` entry describing one field-level API validation problem as
+string-keyed JSON data, carried by `ViValidationError` as `validation_errors`.
+_Avoid_: Validation error payload
+
 **Writable feature**:
 A feature that reports `is_writable=True` and has `FeatureControl` metadata
 describing how a feature command can target it.
