@@ -10,7 +10,6 @@ recursive-include src/vi_api_client/fixtures *.json
 # Exclude documentation and local config
 exclude tokens.json
 exclude HA_INTEGRATION_HANDOVER.md
-exclude demo_*.py
 prune tests
 prune docs
 global-exclude .DS_Store
