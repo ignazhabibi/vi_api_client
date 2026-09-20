@@ -76,7 +76,7 @@ convention = "google"
 combine-as-imports = true
 
 [tool.pyright]
-include = ["src", "tests", "demo_simple.py", "demo_live.py"]
+include = ["src", "tests"]
 exclude = [".venv", "build", "dist"]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"

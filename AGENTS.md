@@ -36,7 +36,7 @@ python -m build
 python scripts/verify_distributions.py
 ```
 
-The quality gate keeps tests and demos in standard type checking while the
+The quality gate keeps tests in standard type checking while the
 shipped package must pass the strict configuration in
 `pyrightconfig.strict.json`. It also enforces at least 95% line and branch
 coverage over `src/vi_api_client` through `scripts/check_coverage.py` and

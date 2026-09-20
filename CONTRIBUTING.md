@@ -31,7 +31,7 @@ CI runs `python scripts/quality_check.py`; run the same script locally before
 proposing a commit or push. The gate covers, in order:
 
 - `ruff check .` and `ruff format --check .`
-- `pyright --pythonpath python` for tests and demos (standard mode)
+- `pyright --pythonpath python` for tests (standard mode)
 - `pyright --project pyrightconfig.strict.json` for the complete shipped
   package (strict mode, zero errors)
 - `python -m pytest -q`

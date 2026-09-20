@@ -622,7 +622,7 @@ compatibility promise.
 The package ships as a strictly typed PEP 561 package:
 
 - Strict Pyright mode covers all of `src/vi_api_client` and reports zero
-  diagnostics (`pyrightconfig.strict.json`); tests and demos stay in standard
+  diagnostics (`pyrightconfig.strict.json`); tests stay in standard
   mode.
 - The wheel and source distribution contain `py.typed` and the bundled device
   fixtures. The quality gate installs each built artifact in its own isolated
