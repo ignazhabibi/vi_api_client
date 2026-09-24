@@ -156,9 +156,10 @@ Command responses validate their known fields: `success` accepts the
 documented boolean representations — a JSON boolean or a case-insensitive
 `"true"`/`"false"` string — and normalizes them to a boolean. A missing or
 otherwise malformed `success`, or a supplied `message` or `reason` that is
-not a string, raises `ViResponseError`; absent optional text fields stay
-`None`. Unknown additional fields remain allowed. Responses may
-arrive as the root object or wrapped in a `data` envelope.
+neither a string nor JSON `null`, raises `ViResponseError`; absent and
+explicitly null optional text fields become `None`. Unknown additional fields
+remain allowed. Responses may arrive as the root object or wrapped in a `data`
+envelope.
 
 **Usage**:
 ```python
