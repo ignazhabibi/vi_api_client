@@ -318,6 +318,33 @@ def test_command_response_validates_optional_text_fields():
     assert response.reason == "queued"
 
 
+@pytest.mark.parametrize(
+    ("field_name", "expected_message", "expected_reason"),
+    [
+        ("message", None, "queued"),
+        ("reason", "Command accepted", None),
+    ],
+)
+def test_command_response_allows_null_optional_text_fields(
+    field_name: str, expected_message: str | None, expected_reason: str | None
+):
+    """Explicitly null message and reason fields are exposed as None."""
+    # Arrange: One optional text field is null while the other remains valid.
+    command_data: dict[str, JsonValue] = {
+        "success": True,
+        "message": "Command accepted",
+        "reason": "queued",
+    }
+    command_data[field_name] = None
+
+    # Act: Parse the command response.
+    response = CommandResponse.from_api({"data": command_data})
+
+    # Assert: Only the explicitly null field is exposed as None.
+    assert response.message == expected_message
+    assert response.reason == expected_reason
+
+
 def test_command_response_allows_absent_optional_text_fields():
     """Absent message and reason fields default to None."""
     # Arrange: A successful response carries only the success flag.
@@ -335,18 +362,22 @@ def test_command_response_allows_absent_optional_text_fields():
 @pytest.mark.parametrize(
     ("field_name", "value"),
     [
+        ("message", True),
         ("message", 42),
-        ("message", None),
+        ("message", []),
+        ("message", {}),
+        ("reason", False),
         ("reason", 42),
-        ("reason", None),
+        ("reason", []),
+        ("reason", {}),
     ],
 )
 def test_command_response_rejects_malformed_optional_text_fields(
     field_name: str, value: JsonValue
 ):
     """Supplied non-string message and reason fields fail the response contract."""
-    # Arrange: The response supplies a known text field with a non-string
-    # value, including an explicitly supplied JSON null.
+    # Arrange: The response supplies a known text field with a malformed
+    # non-null JSON value.
     data: dict[str, JsonValue] = {"data": {"success": True, field_name: value}}
 
     # Act and assert: The malformed known field raises a response error.
