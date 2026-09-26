@@ -12,14 +12,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from vi_api_client import FeatureValue, FixtureViClient
+from vi_api_client import (
+    EventHistoryPage,
+    FeatureValue,
+    FixtureViClient,
+    InstallationEvent,
+)
 from vi_api_client.cli import (
     _dispatch_command,
+    _format_event_details,
     _infer_feature_value_type,
     async_main,
     cmd_exec,
     cmd_get_feature,
     cmd_list_devices,
+    cmd_list_events,
     cmd_list_features,
     cmd_list_fixture_devices,
     cmd_list_writable,
@@ -28,7 +35,11 @@ from vi_api_client.cli import (
     get_client_config,
     main,
 )
-from vi_api_client.exceptions import ViNotFoundError, ViValidationError
+from vi_api_client.exceptions import (
+    ViNotFoundError,
+    ViResponseError,
+    ViValidationError,
+)
 from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
 
 
@@ -1489,3 +1500,307 @@ def test_importing_cli_leaves_root_logging_unconfigured():
 
     # Assert: No handler is installed on the root logger at import time.
     assert result.stdout.strip() == "0"
+
+
+def _event_page() -> EventHistoryPage:
+    """Build one event history page with complete provider details."""
+    feature_changed = InstallationEvent(
+        event_type="feature-changed",
+        created_at="2026-09-20T10:15:30.000Z",
+        event_timestamp="2026-09-20T10:15:30.000Z",
+        gateway_serial="7630175843100101",
+        body={
+            "featureName": "heating.dhw.temperature.main",
+            "commandName": "setTargetTemperature",
+            "commandBody": {"temperature": 55},
+        },
+        fields={
+            "eventType": "feature-changed",
+            "createdAt": "2026-09-20T10:15:30.000Z",
+            "eventTimestamp": "2026-09-20T10:15:30.000Z",
+            "gatewaySerial": "7630175843100101",
+            "body": {
+                "featureName": "heating.dhw.temperature.main",
+                "commandName": "setTargetTemperature",
+                "commandBody": {"temperature": 55},
+            },
+        },
+    )
+    gateway_online = InstallationEvent(
+        event_type="gateway-online",
+        created_at="2026-09-19T22:41:05.123Z",
+        event_timestamp="2026-09-19T22:41:03.000Z",
+        gateway_serial="7630175843100101",
+        body={"online": True},
+        fields={
+            "eventType": "gateway-online",
+            "createdAt": "2026-09-19T22:41:05.123Z",
+            "eventTimestamp": "2026-09-19T22:41:03.000Z",
+            "gatewaySerial": "7630175843100101",
+            "body": {"online": True},
+        },
+    )
+    return EventHistoryPage(
+        events=[feature_changed, gateway_online], next_cursor="cursor-token"
+    )
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys):
+    """The event summary should report the window, events, and cursor."""
+    # Arrange: Provide one fixture event page for a seven day window.
+    args = _cli_args(days=7)
+    mock_cli_context.client.get_event_history.return_value = _event_page()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List the first page through the CLI.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The readable summary covers every event and the next cursor.
+    captured = capsys.readouterr()
+    assert "Found 2 event(s) for installation 99 (last 7 days):" in captured.out
+    assert (
+        "- 2026-09-20T10:15:30.000Z feature-changed"
+        ", gateway 7630175843100101" in captured.out
+    )
+    assert (
+        "    feature: heating.dhw.temperature.main"
+        ', command: setTargetTemperature, params: {"temperature": 55}' in captured.out
+    )
+    assert "- 2026-09-19T22:41:03.000Z gateway-online" in captured.out
+    assert '    {"online": true}' in captured.out
+    assert "next cursor: cursor-token" in captured.out
+    mock_cli_context.client.get_event_history.assert_awaited_once_with(
+        "99", days=7, limit=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys):
+    """JSON output should keep complete events and pagination metadata."""
+    # Arrange: Request the machine-readable form with a page limit.
+    args = _cli_args(days=7, limit=10, json=True)
+    mock_cli_context.client.get_event_history.return_value = _event_page()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List the first page as JSON.
+        assert await cmd_list_events(args) is True
+
+    # Assert: One JSON document carries full events and the cursor.
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert document == {
+        "installationId": "99",
+        "events": [
+            {
+                "eventType": "feature-changed",
+                "createdAt": "2026-09-20T10:15:30.000Z",
+                "eventTimestamp": "2026-09-20T10:15:30.000Z",
+                "gatewaySerial": "7630175843100101",
+                "body": {
+                    "featureName": "heating.dhw.temperature.main",
+                    "commandName": "setTargetTemperature",
+                    "commandBody": {"temperature": 55},
+                },
+            },
+            {
+                "eventType": "gateway-online",
+                "createdAt": "2026-09-19T22:41:05.123Z",
+                "eventTimestamp": "2026-09-19T22:41:03.000Z",
+                "gatewaySerial": "7630175843100101",
+                "body": {"online": True},
+            },
+        ],
+        "nextCursor": "cursor-token",
+    }
+    mock_cli_context.client.get_event_history.assert_awaited_once_with(
+        "99", days=7, limit=10
+    )
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_auto_selects_first_installation(
+    mock_cli_context, capsys
+):
+    """Without an installation ID the first account installation is used."""
+    # Arrange: Leave the installation scope unresolved in the context.
+    args = _cli_args(days=7)
+    mock_cli_context.inst_id = None
+    installation = Installation(
+        id="12345", description="Home", alias="home", address={}
+    )
+    mock_cli_context.client.get_installations.return_value = [installation]
+    mock_cli_context.client.get_event_history.return_value = _event_page()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List events without an explicit installation ID.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The first installation scopes the event history request.
+    mock_cli_context.client.get_event_history.assert_awaited_once_with(
+        "12345", days=7, limit=None
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "argument_name"),
+    [
+        ({"days": 0}, "days"),
+        ({"days": -2}, "days"),
+        ({"days": 7, "limit": 0}, "limit"),
+        ({"days": 7, "limit": -5}, "limit"),
+    ],
+)
+async def test_cmd_list_events_rejects_non_positive_windows(
+    arguments: dict, argument_name: str, capsys
+):
+    """Non-positive windows and limits should fail without a request."""
+    # Arrange: Request an invalid rolling window or page limit.
+    args = _cli_args(**arguments)
+
+    # Act: The CLI rejects the argument before any client interaction.
+    assert await cmd_list_events(args) is False
+
+    # Assert: The error names the offending argument.
+    captured = capsys.readouterr()
+    assert f"'{argument_name}' must be a positive integer" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_reports_unexpected_errors(mock_cli_context):
+    """Event history failures should surface as a failed command."""
+    # Arrange: Let the client boundary raise an unexpected error.
+    args = _cli_args(days=7)
+    mock_cli_context.client.get_event_history.side_effect = RuntimeError("boom")
+
+    with _patched_cli_context(mock_cli_context):
+        # Act and assert: The command reports failure instead of raising.
+        assert await cmd_list_events(args) is False
+
+
+@pytest.mark.asyncio
+async def test_async_main_list_events_fixture_json_is_machine_readable(
+    monkeypatch, capsys
+):
+    """The real CLI path must emit one JSON document for fixture events."""
+    # Arrange: Use the bundled fixture through the real parser and dispatch.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-events",
+            "--fixture-device",
+            "Vitodens200W",
+            "--days",
+            "7",
+            "--json",
+        ],
+    )
+
+    # Act: Invoke the parser, dispatcher, and fixture context setup.
+    exit_status = await async_main()
+
+    # Assert: The document preserves full events and pagination metadata.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    document = json.loads(captured.out)
+    assert document["installationId"] == "99999"
+    assert len(document["events"]) == 3
+    first_event = document["events"][0]
+    assert first_event["eventType"] == "heating.circuits.0.heating.curve.changed"
+    assert first_event["body"] == {"slope": 1.2, "shift": 4}
+    assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
+    assert "Using Fixture Device: Vitodens200W" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_keeps_json_stdout_clean_on_rejected_days(capsys):
+    """JSON mode should report rejected windows on stderr only."""
+    # Arrange: Request an invalid window in machine-readable mode.
+    args = _cli_args(days=0, json=True)
+
+    # Act: The CLI rejects the argument before any client interaction.
+    assert await cmd_list_events(args) is False
+
+    # Assert: Standard output stays empty for machine consumers.
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "'days' must be a positive integer" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_reports_malformed_pages(mock_cli_context):
+    """Malformed event history pages should surface as a failed command."""
+    # Arrange: Let the client boundary raise the response contract error.
+    args = _cli_args(days=7)
+    mock_cli_context.client.get_event_history.side_effect = ViResponseError(
+        "Event history response data must be a list"
+    )
+
+    with _patched_cli_context(mock_cli_context):
+        # Act and assert: The command reports failure instead of raising.
+        assert await cmd_list_events(args) is False
+
+
+def _detail_event(body: FeatureValue) -> InstallationEvent:
+    """Build one event carrying only the body under test."""
+    return InstallationEvent(
+        event_type="detail",
+        created_at="2026-09-20T10:15:30.000Z",
+        event_timestamp="2026-09-20T10:15:30.000Z",
+        gateway_serial=None,
+        body=body,
+        fields={},
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (None, None),
+        (["a", "b"], '["a", "b"]'),
+        ({"online": True}, '{"online": true}'),
+        (
+            {"featureName": "heating.dhw.temperature.main"},
+            "feature: heating.dhw.temperature.main",
+        ),
+        (
+            {
+                "featureName": "heating.dhw.temperature.main",
+                "commandName": "setTargetTemperature",
+            },
+            "feature: heating.dhw.temperature.main, command: setTargetTemperature",
+        ),
+        (
+            {
+                "featureName": "heating.dhw.temperature.main",
+                "commandName": "setTargetTemperature",
+                "commandBody": {"temperature": 55},
+            },
+            "feature: heating.dhw.temperature.main, "
+            'command: setTargetTemperature, params: {"temperature": 55}',
+        ),
+    ],
+)
+def test_format_event_details_summarizes_known_shapes(body: FeatureValue, expected):
+    """Event body details should prefer known fields and fall back to JSON."""
+    # Act: Format one event body for the readable summary.
+    details = _format_event_details(_detail_event(body))
+
+    # Assert: Known shapes are summarized and unknown bodies stay compact JSON.
+    assert details == expected
+
+
+def test_format_event_details_truncates_long_bodies():
+    """Very long event details should stay within one summary line."""
+    # Arrange: Provide a feature name far beyond the summary line width.
+    event = _detail_event({"featureName": "x" * 200})
+
+    # Act: Format the event body.
+    details = _format_event_details(event)
+    assert details is not None
+
+    # Assert: The detail line is truncated with an ellipsis marker.
+    assert len(details) == 120
+    assert details.endswith("...")

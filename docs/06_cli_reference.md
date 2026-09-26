@@ -66,7 +66,45 @@ vi-client get-feature "heating.sensors.temperature.outside"
 vi-client get-feature "heating.sensors.temperature.outside" --raw
 ```
 
-## 5. Discover Writable Features (Control)
+## 5. List Installation Events
+Read one page of an installation's event history for a rolling window. No
+gateway or device selection is required.
+
+```bash
+# Readable first-page summary for the last 7 days
+vi-client list-events --days 7
+
+# Explicit installation and page size
+vi-client list-events --installation-id 123456 --days 30 --limit 100
+
+# One JSON document with full events and pagination metadata
+vi-client list-events --days 7 --json
+```
+
+The readable summary prints one line per event (`eventTimestamp`,
+`eventType`, and the reporting gateway) plus an indented detail line
+summarizing the event body when one is present: feature changes report the
+`feature`, `command`, and `params`, and any other body shape falls back to
+compact JSON (truncated to one line). The continuation cursor is printed when
+the provider reported one. `--json` writes exactly one document to standard
+output with the shape
+`{"installationId": ..., "events": [...], "nextCursor": ...}`; every event
+object preserves all provider fields, including the complete `body` and
+unknown future fields. Setup diagnostics stay on standard error. Without
+`--installation-id` the first installation of the account is used.
+
+*Note: `--days` is required and must be positive. `--limit` accepts 1 to 1000;
+without it the provider default applies. Traversing further pages with the
+reported cursor is a client-API operation; the CLI intentionally reads only
+the first page.*
+
+The command works offline with a bundled fixture:
+
+```bash
+vi-client list-events --fixture-device Vitodens200W --days 7 --json
+```
+
+## 6. Discover Writable Features (Control)
 List all features that can be changed, including their parameters and constraints.
 
 ```bash
@@ -77,7 +115,7 @@ vi-client list-writable
 #   Constraints: min=0.2, max=3.5, step=0.1
 ```
 
-## 6. Set Feature Value (Write)
+## 7. Set Feature Value (Write)
 Set a new value for a specific feature.
 
 ```bash
@@ -91,7 +129,7 @@ The CLI converts values according to the feature's command type: numeric values
 become numbers, `true`/`false` become booleans, and text values such as `auto`
 or `01` remain strings. It then validates the value against the feature constraints.
 
-## 7. Advanced: Execute an Explicit Command
+## 8. Advanced: Execute an Explicit Command
 If you need to execute a command with multiple parameters at once (rare), you can use `exec`.
 
 ```bash
@@ -102,7 +140,7 @@ vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 dependent values or create a command-updated device snapshot; use `set` for the normal
 single-feature workflow.
 
-## 8. Fixture Devices (Offline Mode)
+## 9. Fixture Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
 Fixture mode does not read OAuth credentials or `tokens.json` and never makes network
 requests.

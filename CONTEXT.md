@@ -90,3 +90,14 @@ responses without authentication or network requests.
 The JSON file shared by OAuth token persistence and CLI authentication
 configuration. A missing document is empty; a corrupted document raises an
 error and is neither treated as empty nor silently overwritten.
+
+**Installation event**:
+One entry of an installation's event history. Known fields are validated at
+the trust boundary while the complete event mapping, including unknown fields
+and the event body, stays available to callers.
+_Avoid_: History record, log entry
+
+**Event history page**:
+One page of an installation's event history: the reported events and the
+opaque continuation cursor for the next page, when the provider reported one.
+_Avoid_: Event list snapshot

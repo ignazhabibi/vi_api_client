@@ -180,6 +180,47 @@ attributes are immutable snapshots.
 | `errors_by_device_id` | `Mapping[str, ViError]` | Read-only recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
 | `is_complete` | `bool` | `True` when no device-specific failures occurred. |
 
+## InstallationEvent
+
+Frozen dataclass for one installation event from the event history, as
+returned by `EventHistoryPage.events`.
+
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `event_type` | `str` | Provider event type. | `'heating.circuits.0.heating.curve.changed'` |
+| `created_at` | `str` | When the provider recorded the event. | `'2026-09-20T10:15:30.000Z'` |
+| `event_timestamp` | `str` | When the event occurred. | `'2026-09-20T10:15:30.000Z'` |
+| `gateway_serial` | `str \| None` | Serial of the reporting gateway, when known. | `'7630175843100101'` |
+| `body` | `JsonValue` | The complete event body, exactly as reported. | `{'slope': 1.2, 'shift': 4}` |
+| `fields` | `Mapping[str, JsonValue]` | Read-only complete event mapping, including unknown fields. | |
+
+Known fields are validated at the API trust boundary: `eventType`,
+`createdAt`, and `eventTimestamp` must be non-empty strings, and a supplied
+`gatewaySerial`, `editedBy`, or `origin` must be a string while `audiences`
+must be a list of strings. Malformed known fields raise `ViResponseError`. The `body` is
+kept exactly as reported because its structure depends on the event type, and
+unknown fields remain available through `fields`. The complete event is
+validated against the recursive JSON value contract, so non-JSON nested values
+reject as `ViResponseError`.
+
+## EventHistoryPage
+
+Frozen dataclass for one page of an installation's event history, as
+returned by `ViClient.get_event_history`.
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `events` | `Sequence[InstallationEvent]` | Read-only events of the requested page, in provider order. |
+| `next_cursor` | `str \| None` | Opaque continuation cursor for the next page, when the provider reported one. |
+
+A successful response must carry a `data` list of event objects; an optional
+`cursor` object may carry a `next` string. The provider reports the final
+page with an empty `next` string, which this library exposes as a `None`
+`next_cursor`; a non-string `next` raises `ViResponseError`, as does any
+other malformed envelope, event, or cursor. How far back the provider retains
+events is not verified by this library; callers should treat an exhausted or
+empty page as the end of the available window.
+
 ## Next Steps
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.

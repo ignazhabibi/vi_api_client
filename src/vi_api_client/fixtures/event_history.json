@@ -1,0 +1,41 @@
+{
+  "data": [
+    {
+      "eventType": "heating.circuits.0.heating.curve.changed",
+      "createdAt": "2026-09-20T10:15:30.000Z",
+      "eventTimestamp": "2026-09-20T10:15:30.000Z",
+      "gatewaySerial": "7630175843100101",
+      "body": {
+        "slope": 1.2,
+        "shift": 4
+      },
+      "editedBy": "owner@example.com",
+      "origin": "Mobile App",
+      "audiences": ["OWNER"]
+    },
+    {
+      "eventType": "gateway.disconnected",
+      "createdAt": "2026-09-19T22:41:05.123Z",
+      "eventTimestamp": "2026-09-19T22:41:03.000Z",
+      "gatewaySerial": "7630175843100101",
+      "body": null
+    },
+    {
+      "eventType": "device.error.raised",
+      "createdAt": "2026-09-18T08:02:11.000Z",
+      "eventTimestamp": "2026-09-18T08:02:10.500Z",
+      "gatewaySerial": "7630175843100101",
+      "body": {
+        "errorCode": "F.9000",
+        "status": "active"
+      },
+      "origin": "System",
+      "unknownFutureField": {
+        "nested": ["kept", "as-is"]
+      }
+    }
+  ],
+  "cursor": {
+    "next": "b3BhcXVlLWN1cnNvci10b2tlbg=="
+  }
+}

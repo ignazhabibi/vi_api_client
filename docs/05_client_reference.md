@@ -72,6 +72,58 @@ Fetches the complete status of an installation as refreshed device snapshots.
     read responses.
 *   **Use Case**: Initial startup (e.g., Home Assistant integration load) to populate the entire entity registry at once.
 
+## Event History Methods
+
+Methods to read installation-scoped history data.
+
+### `get_event_history(installation_id: str, *, days: int | None = None, cursor: str | None = None, limit: int | None = None) -> EventHistoryPage`
+
+Fetches one page of an installation's event history.
+
+*   **Parameters**:
+    *   `installation_id`: Installation ID (string).
+    *   `days`: Rolling lookback window in days, sent as the provider's
+        `lastNDays` filter. Required unless `cursor` is supplied; mutually
+        exclusive with `cursor`.
+    *   `cursor`: Opaque continuation cursor reported by a previous page.
+    *   `limit`: Optional page size between 1 and the documented maximum of
+        1000. When omitted, the provider default applies.
+*   **Returns**: An `EventHistoryPage` with its `events` and the `next_cursor`
+    when the provider reported one.
+*   **Raises**:
+    *   `ValueError` when both or neither of `days` and `cursor` are supplied,
+        the lookback is not positive, or the limit is out of range.
+    *   `ViResponseError` for malformed successful responses.
+    *   The applicable `ViError` subclass for authentication, rate-limit,
+        connection, server, or unknown API failures.
+
+This is a one-page read. Traversing a full window with the returned cursor is
+deliberately out of scope here; callers request further pages by passing
+`next_cursor` as `cursor`.
+
+**Example**:
+```python
+page = await client.get_event_history(installation_id, days=7, limit=50)
+for event in page.events:
+    use_event(event.event_type, event.body)
+if page.next_cursor:
+    next_page = await client.get_event_history(
+        installation_id, cursor=page.next_cursor, limit=50
+    )
+```
+
+**Endpoint note**: the request targets
+`GET /iot/v2/events-history/installations/{installationId}/events`, the
+spelling from Viessmann's 2023 endpoint announcement. The current
+developer-portal OpenAPI export spells the route `eventhistory`, but the
+read-only probe `scripts/probe_event_history.py` verified the live API on a
+real installation: the announcement route returned HTTP 200 with the expected
+`data` list, a `cursor.next`, and the documented event fields, while the
+portal-export spelling returned HTTP 404 `ENDPOINT_NOT_FOUND`. The sanitized
+probe output is documented with the implementing pull request. How far back
+the provider retains events is not verified; treat an empty or cursor-less
+page as the end of the available window.
+
 ## Feature Methods
 
 Methods to read data and control the device.

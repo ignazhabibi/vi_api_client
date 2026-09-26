@@ -261,3 +261,26 @@ async def test_every_catalog_device_supports_the_standard_workflow(
         updated = updated_device.get_feature(writable.name)
         assert updated is not None
         assert updated.value == writable.value, device_name
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_fixture_event_history_returns_one_page_with_cursor():
+    """Fixture clients should serve the event history page without network."""
+    # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
+    client = FixtureViClient("Vitodens200W")
+
+    # Act: Fetch the first page of a rolling week.
+    page = await client.get_event_history("99999", days=7, limit=50)
+
+    # Assert: The bundled page keeps events, bodies, and pagination.
+    assert len(page.events) == 3
+    first = page.events[0]
+    assert first.event_type == "heating.circuits.0.heating.curve.changed"
+    assert first.created_at == "2026-09-20T10:15:30.000Z"
+    assert first.event_timestamp == "2026-09-20T10:15:30.000Z"
+    assert first.gateway_serial == "7630175843100101"
+    assert first.body == {"slope": 1.2, "shift": 4}
+    assert first.fields["origin"] == "Mobile App"
+    assert page.events[1].body is None
+    assert page.next_cursor == "b3BhcXVlLWN1cnNvci10b2tlbg=="

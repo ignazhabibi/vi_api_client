@@ -24,7 +24,14 @@ from vi_api_client import (
 )
 
 from .credentials import CredentialDocument
-from .models import CommandResponse, Device, Feature, FeatureControl
+from .models import (
+    CommandResponse,
+    Device,
+    EventHistoryPage,
+    Feature,
+    FeatureControl,
+    InstallationEvent,
+)
 from .utils import format_feature, parse_cli_params
 from .validation import validate_json_value
 
@@ -120,6 +127,20 @@ def _installation_id_argument(args: argparse.Namespace) -> str | None:
     if isinstance(value, int) and not isinstance(value, bool) and value:
         return str(value)
     return None
+
+
+def _positive_int_argument(args: argparse.Namespace, name: str) -> int | None:
+    """Return an optional positive integer command line argument.
+
+    Raises:
+        ValueError: If the argument is present but not a positive integer.
+    """
+    value = _argument_value(args, name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"Command line argument '{name}' must be a positive integer")
+    return value
 
 
 def _print_diagnostic(args: argparse.Namespace, message: str) -> None:
@@ -768,6 +789,120 @@ def _print_feature_constraints(ctrl: FeatureControl) -> None:
         print(f"    Constraints: {', '.join(constraints)}")
 
 
+async def cmd_list_events(args: argparse.Namespace) -> bool:
+    """List one page of an installation's event history.
+
+    Prints a readable first-page summary for the requested rolling ``--days``
+    window, or one JSON document with the complete events and pagination
+    metadata with ``--json``.
+
+    Args:
+        args: Parsed command line arguments including days and json flag.
+    """
+    try:
+        days = _positive_int_argument(args, "days")
+        limit = _positive_int_argument(args, "limit")
+    except ValueError as error:
+        _print_diagnostic(args, f"Error: {error}")
+        return False
+    if days is None:
+        _print_diagnostic(args, "Error: Command line argument 'days' is required")
+        return False
+
+    try:
+        async with setup_client_context(args, discover=False) as ctx:
+            installation_id = ctx.inst_id
+            if installation_id is None:
+                installations = await ctx.client.get_installations()
+                if not installations:
+                    raise ValueError("No installations found.")
+                installation_id = installations[0].id
+                _print_diagnostic(
+                    args, f"Auto-selected installation: {installation_id}"
+                )
+
+            page = await ctx.client.get_event_history(
+                installation_id, days=days, limit=limit
+            )
+
+            if _flag_argument(args, "json"):
+                print(
+                    json.dumps(
+                        {
+                            "installationId": installation_id,
+                            "events": [dict(event.fields) for event in page.events],
+                            "nextCursor": page.next_cursor,
+                        }
+                    )
+                )
+            else:
+                _print_event_summary(page, installation_id, days)
+
+    except Exception as e:
+        _LOGGER.error("Error listing events: %s", e)
+        return False
+
+    return True
+
+
+def _print_event_summary(
+    page: EventHistoryPage, installation_id: str, days: int
+) -> None:
+    """Print a readable summary of one event history page."""
+    print(
+        f"Found {len(page.events)} event(s) for installation "
+        f"{installation_id} (last {days} days):"
+    )
+    for event in page.events:
+        gateway = f", gateway {event.gateway_serial}" if event.gateway_serial else ""
+        print(f"- {event.event_timestamp} {event.event_type}{gateway}")
+        details = _format_event_details(event)
+        if details:
+            print(f"    {details}")
+    if page.next_cursor:
+        print(
+            "More events may be available "
+            f"(next cursor: {page.next_cursor}); run with --json to copy it"
+        )
+
+
+def _format_event_details(event: InstallationEvent) -> str | None:
+    """Return a readable summary of one event body, or None when empty.
+
+    Event bodies depend on the event type; the known feature-change shape is
+    summarized field by field and any other body falls back to compact JSON.
+
+    Args:
+        event: The event whose body is summarized.
+
+    Returns:
+        A one-line detail text, or None when the event has no body.
+    """
+    body = event.body
+    if body is None:
+        return None
+    if not isinstance(body, dict):
+        return _truncate_event_details(json.dumps(body))
+    feature_name = body.get("featureName")
+    if not isinstance(feature_name, str) or not feature_name:
+        return _truncate_event_details(json.dumps(body))
+    details = f"feature: {feature_name}"
+    command_name = body.get("commandName")
+    if isinstance(command_name, str) and command_name:
+        details += f", command: {command_name}"
+    command_body = body.get("commandBody")
+    if command_body is not None:
+        details += f", params: {json.dumps(command_body)}"
+    return _truncate_event_details(details)
+
+
+def _truncate_event_details(details: str) -> str:
+    """Keep one event detail line within the readable summary width."""
+    if len(details) > 120:
+        return details[:117] + "..."
+    return details
+
+
 async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     """List available fixture devices.
 
@@ -852,6 +987,32 @@ async def async_main() -> int:  # noqa: PLR0915
     parser_feature.add_argument("--device-id", help="Device ID (optional)")
     parser_feature.add_argument(
         "--raw", action="store_true", help="Show raw JSON response"
+    )
+
+    # List Installation Events
+    parser_events = subparsers.add_parser(
+        "list-events",
+        help="List one page of the installation event history",
+        parents=[common_parser],
+    )
+    parser_events.add_argument(
+        "--installation-id", type=int, help="Installation ID (optional)"
+    )
+    parser_events.add_argument(
+        "--days",
+        type=int,
+        required=True,
+        help="Rolling lookback window in days",
+    )
+    parser_events.add_argument(
+        "--limit",
+        type=int,
+        help="Page limit (1-1000; provider default when omitted)",
+    )
+    parser_events.add_argument(
+        "--json",
+        action="store_true",
+        help="Output one JSON document with full events and pagination metadata",
     )
 
     # List available fixture devices
@@ -948,6 +1109,7 @@ async def _dispatch_command(args: argparse.Namespace) -> int:
         "list-devices": cmd_list_devices,
         "list-features": cmd_list_features,
         "get-feature": cmd_get_feature,
+        "list-events": cmd_list_events,
         "list-fixture-devices": cmd_list_fixture_devices,
         "list-writable": cmd_list_writable,
         "set": cmd_set,

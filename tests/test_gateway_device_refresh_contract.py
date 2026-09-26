@@ -64,6 +64,12 @@ class _ScriptedGatewayDiscoveryAdapter:
             raise self.device_errors[device.id]
         return self.device_responses.get(device.id, self.feature_response)
 
+    async def get_event_history(
+        self, installation_id: str, params: dict[str, int | str]
+    ) -> dict[str, Any]:
+        """Return an unused empty event history envelope."""
+        return {"data": []}
+
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, Any]
     ) -> dict[str, Any]:

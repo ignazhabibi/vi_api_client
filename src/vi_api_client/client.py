@@ -9,10 +9,12 @@ from urllib.parse import unquote, urlsplit
 from ._adapter import CommandAdapter, DiscoveryAdapter, LiveAdapter
 from ._types import FeatureValue, JsonValue
 from .auth import AbstractAuth
+from .const import EVENT_HISTORY_MAX_LIMIT
 from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
     Device,
+    EventHistoryPage,
     Feature,
     FeatureControl,
     Gateway,
@@ -216,6 +218,67 @@ class ViClient:
             all_devices.extend(devices)
 
         return all_devices
+
+    async def get_event_history(
+        self,
+        installation_id: str,
+        *,
+        days: int | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> EventHistoryPage:
+        """Fetch one page of an installation's event history.
+
+        Args:
+            installation_id: ID of the installation.
+            days: Rolling lookback window in days. Required unless ``cursor``
+                is supplied; mutually exclusive with ``cursor``.
+            cursor: Opaque continuation cursor reported by a previous page.
+            limit: Optional page size between 1 and the documented maximum.
+                When omitted, the provider default applies.
+
+        Returns:
+            One event history page with its events and the next cursor when
+            the provider reported one.
+
+        Raises:
+            ValueError: If both or neither of ``days`` and ``cursor`` are
+                supplied, the lookback is not positive, or the limit is
+                outside the documented range.
+            ViResponseError: If the successful response violates the API
+                contract.
+        """
+        if not installation_id:
+            raise ValueError("Installation ID must be a non-empty string")
+        if (days is None) == (cursor is None):
+            raise ValueError("Provide exactly one of 'days' or 'cursor'")
+        if days is not None and days <= 0:
+            raise ValueError("'days' must be a positive lookback window")
+        if cursor is not None and not cursor:
+            raise ValueError("'cursor' must be a non-empty string")
+        if limit is not None and not 1 <= limit <= EVENT_HISTORY_MAX_LIMIT:
+            raise ValueError(f"'limit' must be between 1 and {EVENT_HISTORY_MAX_LIMIT}")
+
+        params: dict[str, int | str] = {}
+        # Exactly one of the two window arguments is set at this point.
+        if cursor is not None:
+            params["cursor"] = cursor
+        if days is not None:
+            params["lastNDays"] = days
+        if limit is not None:
+            params["limit"] = limit
+
+        _LOGGER.debug(
+            "Fetching event history page for installation %s", installation_id
+        )
+        response = await self._discovery_adapter.get_event_history(
+            installation_id, params
+        )
+        if not isinstance(response, dict):
+            raise ViResponseError("Event history response must be an object")
+        # The container shape was runtime-checked; known fields are validated
+        # by the page parser.
+        return EventHistoryPage.from_api(cast("dict[str, Any]", response))
 
     async def update_device(self, device: Device, only_enabled: bool = True) -> Device:
         """Return a refreshed device snapshot from an API feature read.

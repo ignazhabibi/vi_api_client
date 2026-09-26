@@ -9,6 +9,10 @@ from vi_api_client.auth import AbstractAuth
 
 TESTS_DIR = Path(__file__).resolve().parent
 
+# The catalog and the event history envelope share the fixture directory but
+# are not device fixtures.
+NON_DEVICE_FIXTURE_NAMES = {"discovery", "event_history"}
+
 
 class StaticTokenAuth(AbstractAuth):
     """Provide a static token for live client request-flow tests."""
@@ -38,7 +42,7 @@ def available_fixture_devices(device_responses_dir: Path) -> list[str]:
     return sorted(
         path.stem
         for path in device_responses_dir.glob("*.json")
-        if path.stem != "discovery"
+        if path.stem not in NON_DEVICE_FIXTURE_NAMES
     )
 
 

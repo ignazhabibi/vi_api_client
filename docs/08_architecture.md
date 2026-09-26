@@ -344,6 +344,13 @@ compatibility contract.
 missing or non-list `data`, or non-object entries raise `ViResponseError`.
 This prevents a provider contract failure from appearing as an empty account.
 
+The installation event history is a separate installation-scoped read with
+the same seam: `get_event_history()` requests one page through the discovery
+adapter, and `EventHistoryPage.from_api()` validates the envelope and its
+events at the model boundary. The provider reports the final page with an
+empty `cursor.next` string, which the page model exposes as no continuation
+cursor. Traversing further pages with the cursor stays with consumers.
+
 ## 9. Device refresh
 
 `update_device(device)` reads one device's features and returns a new refreshed
@@ -662,7 +669,10 @@ behavior.
 
 `src/vi_api_client/fixtures/` contains complete device responses for the
 public `FixtureViClient`. They are bundled product assets and represent real or
-realistic anonymized devices.
+realistic anonymized devices. The directory also carries non-device envelopes
+the fixture client serves for other reads, such as `event_history.json` for
+the installation event history page; the device catalog in `discovery.json`
+enumerates only the selectable device fixtures.
 
 `tests/fixtures/` contains smaller scenario-specific inputs. They should derive
 from realistic responses when possible, but may model errors and edge cases
