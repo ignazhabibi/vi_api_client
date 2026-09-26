@@ -276,11 +276,32 @@ async def test_fixture_event_history_returns_one_page_with_cursor():
     # Assert: The bundled page keeps events, bodies, and pagination.
     assert len(page.events) == 3
     first = page.events[0]
-    assert first.event_type == "heating.circuits.0.heating.curve.changed"
-    assert first.created_at == "2026-09-20T10:15:30.000Z"
+    assert first.event_type == "feature-changed"
+    assert first.created_at == "2026-09-20T10:15:30.878Z"
     assert first.event_timestamp == "2026-09-20T10:15:30.000Z"
     assert first.gateway_serial == "7630175843100101"
-    assert first.body == {"slope": 1.2, "shift": 4}
-    assert first.fields["origin"] == "Mobile App"
+    assert first.body == {
+        "featureName": "heating.dhw.temperature.main",
+        "commandName": "setTargetTemperature",
+        "commandBody": {"temperature": 55},
+    }
+    assert first.fields["origin"] == "API"
     assert page.events[1].body is None
     assert page.next_cursor == "b3BhcXVlLWN1cnNvci10b2tlbg=="
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_fixture_event_history_serves_final_page_for_cursor_requests():
+    """Fixture cursor requests should serve the observed final page shape."""
+    # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
+    client = FixtureViClient("Vitodens200W")
+
+    # Act: Request the continuation page of the bundled window.
+    final_page = await client.get_event_history(
+        "99999", cursor="b3BhcXVlLWN1cnNvci10b2tlbg=="
+    )
+
+    # Assert: The cursor page is the empty final page without a next cursor.
+    assert final_page.events == ()
+    assert final_page.next_cursor is None

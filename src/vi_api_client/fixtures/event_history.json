@@ -1,17 +1,20 @@
 {
   "data": [
     {
-      "eventType": "heating.circuits.0.heating.curve.changed",
-      "createdAt": "2026-09-20T10:15:30.000Z",
+      "eventType": "feature-changed",
+      "createdAt": "2026-09-20T10:15:30.878Z",
       "eventTimestamp": "2026-09-20T10:15:30.000Z",
       "gatewaySerial": "7630175843100101",
       "body": {
-        "slope": 1.2,
-        "shift": 4
+        "featureName": "heating.dhw.temperature.main",
+        "commandName": "setTargetTemperature",
+        "commandBody": {
+          "temperature": 55
+        }
       },
-      "editedBy": "owner@example.com",
-      "origin": "Mobile App",
-      "audiences": ["OWNER"]
+      "editedBy": "3f2b1c0d-1111-4a5b-8c9d-0e1f2a3b4c5d",
+      "origin": "API",
+      "audiences": null
     },
     {
       "eventType": "gateway.disconnected",

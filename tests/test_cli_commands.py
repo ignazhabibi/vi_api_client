@@ -7,6 +7,7 @@ import sys
 from argparse import Namespace
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,9 +20,11 @@ from vi_api_client import (
     InstallationEvent,
 )
 from vi_api_client.cli import (
+    EventHistoryWindow,
     _dispatch_command,
     _format_event_details,
     _infer_feature_value_type,
+    _print_event_summary,
     async_main,
     cmd_exec,
     cmd_get_feature,
@@ -1503,7 +1506,7 @@ def test_importing_cli_leaves_root_logging_unconfigured():
 
 
 def _event_page() -> EventHistoryPage:
-    """Build one event history page with complete provider details."""
+    """Build one complete final event history page with provider details."""
     feature_changed = InstallationEvent(
         event_type="feature-changed",
         created_at="2026-09-20T10:15:30.000Z",
@@ -1540,9 +1543,7 @@ def _event_page() -> EventHistoryPage:
             "body": {"online": True},
         },
     )
-    return EventHistoryPage(
-        events=[feature_changed, gateway_online], next_cursor="cursor-token"
-    )
+    return EventHistoryPage(events=[feature_changed, gateway_online], next_cursor=None)
 
 
 @pytest.mark.asyncio
@@ -1556,20 +1557,32 @@ async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys)
         # Act: List the first page through the CLI.
         assert await cmd_list_events(args) is True
 
-    # Assert: The readable summary covers every event and the next cursor.
+    # Assert: One aligned line per event; a single gateway adds no column.
     captured = capsys.readouterr()
     assert "Found 2 event(s) for installation 99 (last 7 days):" in captured.out
-    assert (
-        "- 2026-09-20T10:15:30.000Z feature-changed"
-        ", gateway 7630175843100101" in captured.out
+    event_lines = [
+        line
+        for line in captured.out.splitlines()
+        if line.startswith("- 2026-09-20T10:15:30.000Z")
+    ]
+    assert len(event_lines) == 1
+    assert event_lines[0].startswith(
+        "- 2026-09-20T10:15:30.000Z feature-changed        "
+        "heating.dhw.temperature.main (setTargetTemperature"
     )
-    assert (
-        "    feature: heating.dhw.temperature.main"
-        ', command: setTargetTemperature, params: {"temperature": 55}' in captured.out
+    # The full command payload exceeds the line width and is truncated.
+    assert len(event_lines[0]) == 120
+    assert event_lines[0].endswith("...")
+    assert '- 2026-09-19T22:41:03.000Z gateway-online         {"online": true}' in (
+        captured.out
     )
-    assert "- 2026-09-19T22:41:03.000Z gateway-online" in captured.out
-    assert '    {"online": true}' in captured.out
-    assert "next cursor: cursor-token" in captured.out
+    assert "7630175843100101" not in captured.out
+    assert (
+        "Earliest event: 2026-09-19T22:41:03.000Z; "
+        "latest event: 2026-09-20T10:15:30.000Z" in captured.out
+    )
+    assert "Pagination completed after 1 page(s)" in captured.out
+    assert "safety limit" not in captured.out
     mock_cli_context.client.get_event_history.assert_awaited_once_with(
         "99", days=7, limit=None
     )
@@ -1611,7 +1624,12 @@ async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys)
                 "body": {"online": True},
             },
         ],
-        "nextCursor": "cursor-token",
+        "eventCount": 2,
+        "earliestEventTimestamp": "2026-09-19T22:41:03.000Z",
+        "latestEventTimestamp": "2026-09-20T10:15:30.000Z",
+        "pagesFetched": 1,
+        "paginationComplete": True,
+        "nextCursor": None,
     }
     mock_cli_context.client.get_event_history.assert_awaited_once_with(
         "99", days=7, limit=10
@@ -1650,6 +1668,8 @@ async def test_cmd_list_events_auto_selects_first_installation(
         ({"days": -2}, "days"),
         ({"days": 7, "limit": 0}, "limit"),
         ({"days": 7, "limit": -5}, "limit"),
+        ({"days": 7, "max_pages": 0}, "max_pages"),
+        ({"days": 7, "max_pages": -1}, "max_pages"),
     ],
 )
 async def test_cmd_list_events_rejects_non_positive_windows(
@@ -1708,9 +1728,18 @@ async def test_async_main_list_events_fixture_json_is_machine_readable(
     assert document["installationId"] == "99999"
     assert len(document["events"]) == 3
     first_event = document["events"][0]
-    assert first_event["eventType"] == "heating.circuits.0.heating.curve.changed"
-    assert first_event["body"] == {"slope": 1.2, "shift": 4}
-    assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
+    assert first_event["eventType"] == "feature-changed"
+    assert first_event["body"] == {
+        "featureName": "heating.dhw.temperature.main",
+        "commandName": "setTargetTemperature",
+        "commandBody": {"temperature": 55},
+    }
+    assert document["eventCount"] == 3
+    assert document["pagesFetched"] == 2
+    assert document["paginationComplete"] is True
+    assert document["nextCursor"] is None
+    assert document["earliestEventTimestamp"] == "2026-09-18T08:02:10.500Z"
+    assert document["latestEventTimestamp"] == "2026-09-20T10:15:30.000Z"
     assert "Using Fixture Device: Vitodens200W" in captured.err
 
 
@@ -1743,6 +1772,148 @@ async def test_cmd_list_events_reports_malformed_pages(mock_cli_context):
         assert await cmd_list_events(args) is False
 
 
+@pytest.mark.asyncio
+async def test_cmd_list_events_follows_cursors_across_pages(mock_cli_context, capsys):
+    """The traversal should continue with the cursor, not the window."""
+    # Arrange: Serve one continuation page followed by a final page.
+    first_page = replace(_event_page(), next_cursor="cursor-token")
+    args = _cli_args(days=7)
+    mock_cli_context.client.get_event_history.side_effect = [
+        first_page,
+        EventHistoryPage(events=[], next_cursor=None),
+    ]
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List the complete window through the CLI.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The second request carries only the continuation cursor.
+    captured = capsys.readouterr()
+    assert "Found 2 event(s) for installation 99 (last 7 days):" in captured.out
+    assert "Pagination completed after 2 page(s)" in captured.out
+    awaited_calls = mock_cli_context.client.get_event_history.await_args_list
+    assert len(awaited_calls) == 2
+    assert awaited_calls[0].args == ("99",)
+    assert awaited_calls[0].kwargs == {"days": 7, "limit": None}
+    assert awaited_calls[1].args == ("99",)
+    assert awaited_calls[1].kwargs == {"cursor": "cursor-token", "limit": None}
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_stops_at_the_safety_limit(mock_cli_context, capsys):
+    """A remaining cursor at the safety limit should mark the result incomplete."""
+    # Arrange: Every served page reports a further cursor.
+    continuing_page = replace(_event_page(), next_cursor="cursor-token")
+    args = _cli_args(days=7, max_pages=2)
+    mock_cli_context.client.get_event_history.side_effect = [
+        continuing_page,
+        continuing_page,
+        continuing_page,
+    ]
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Traverse with a two page safety limit.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The summary reports the incomplete traversal explicitly.
+    captured = capsys.readouterr()
+    assert "Found 4 event(s) for installation 99 (last 7 days):" in captured.out
+    assert "Stopped at the safety limit of 2 page(s)" in captured.out
+    assert "next cursor: cursor-token" in captured.out
+    assert "Pagination completed" not in captured.out
+    assert mock_cli_context.client.get_event_history.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_json_marks_incomplete_traversals(
+    mock_cli_context, capsys
+):
+    """JSON output should expose the remaining cursor of a limited traversal."""
+    # Arrange: The single served page keeps reporting a further cursor.
+    continuing_page = replace(_event_page(), next_cursor="cursor-token")
+    args = _cli_args(days=7, max_pages=1, json=True)
+    mock_cli_context.client.get_event_history.return_value = continuing_page
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Traverse one page in machine-readable mode.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The document marks the result incomplete with its cursor.
+    document = json.loads(capsys.readouterr().out)
+    assert document["eventCount"] == 2
+    assert document["pagesFetched"] == 1
+    assert document["paginationComplete"] is False
+    assert document["nextCursor"] == "cursor-token"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("json_output", [False, True], ids=["readable", "json"])
+async def test_cmd_list_events_reports_empty_windows(
+    mock_cli_context, capsys, json_output
+):
+    """An empty returned window should complete without event timestamps."""
+    # Arrange: The provider returns no events for the requested window.
+    args = _cli_args(days=365, json=json_output)
+    mock_cli_context.client.get_event_history.return_value = EventHistoryPage(
+        events=[], next_cursor=None
+    )
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List a winter-length window without events.
+        assert await cmd_list_events(args) is True
+
+    # Assert: Both outputs complete without timestamps.
+    captured = capsys.readouterr()
+    if json_output:
+        document = json.loads(captured.out)
+        assert document == {
+            "installationId": "99",
+            "events": [],
+            "eventCount": 0,
+            "earliestEventTimestamp": None,
+            "latestEventTimestamp": None,
+            "pagesFetched": 1,
+            "paginationComplete": True,
+            "nextCursor": None,
+        }
+    else:
+        assert "Found 0 event(s) for installation 99 (last 365 days):" in captured.out
+        assert "Earliest event:" not in captured.out
+        assert "Pagination completed after 1 page(s)" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_async_main_list_events_fixture_stops_at_one_page(monkeypatch, capsys):
+    """The offline fixture traversal should honor the page safety limit."""
+    # Arrange: Use the bundled fixture with a one page safety limit.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-events",
+            "--fixture-device",
+            "Vitodens200W",
+            "--days",
+            "7",
+            "--max-pages",
+            "1",
+            "--json",
+        ],
+    )
+
+    # Act: Invoke the parser, dispatcher, and fixture context setup.
+    exit_status = await async_main()
+
+    # Assert: The document marks the limited traversal incomplete.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    document = json.loads(captured.out)
+    assert document["eventCount"] == 3
+    assert document["pagesFetched"] == 1
+    assert document["paginationComplete"] is False
+    assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
+
+
 def _detail_event(body: FeatureValue) -> InstallationEvent:
     """Build one event carrying only the body under test."""
     return InstallationEvent(
@@ -1763,14 +1934,14 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
         ({"online": True}, '{"online": true}'),
         (
             {"featureName": "heating.dhw.temperature.main"},
-            "feature: heating.dhw.temperature.main",
+            "heating.dhw.temperature.main",
         ),
         (
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandName": "setTargetTemperature",
             },
-            "feature: heating.dhw.temperature.main, command: setTargetTemperature",
+            "heating.dhw.temperature.main (setTargetTemperature)",
         ),
         (
             {
@@ -1778,8 +1949,7 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
                 "commandName": "setTargetTemperature",
                 "commandBody": {"temperature": 55},
             },
-            "feature: heating.dhw.temperature.main, "
-            'command: setTargetTemperature, params: {"temperature": 55}',
+            'heating.dhw.temperature.main (setTargetTemperature {"temperature": 55})',
         ),
     ],
 )
@@ -1792,15 +1962,82 @@ def test_format_event_details_summarizes_known_shapes(body: FeatureValue, expect
     assert details == expected
 
 
-def test_format_event_details_truncates_long_bodies():
-    """Very long event details should stay within one summary line."""
-    # Arrange: Provide a feature name far beyond the summary line width.
+def test_print_event_summary_truncates_long_lines(capsys):
+    """Very long aligned event lines should stay within the summary width."""
+    # Arrange: Provide one event with a feature name beyond the line width.
     event = _detail_event({"featureName": "x" * 200})
+    window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
 
-    # Act: Format the event body.
-    details = _format_event_details(event)
-    assert details is not None
+    # Act: Print the readable summary of the single event.
+    _print_event_summary(window, "99", 7, 50)
 
-    # Assert: The detail line is truncated with an ellipsis marker.
-    assert len(details) == 120
-    assert details.endswith("...")
+    # Assert: The event line is truncated with an ellipsis marker.
+    event_lines = [
+        line for line in capsys.readouterr().out.splitlines() if line.startswith("- ")
+    ]
+    assert len(event_lines) == 1
+    assert len(event_lines[0]) == 120
+    assert event_lines[0].endswith("...")
+
+
+def test_event_history_window_compares_timestamps_as_points_in_time():
+    """Earliest and latest should order by instant, not lexically."""
+    # Arrange: The offset timestamp is lexically later but temporally earlier
+    # than the UTC timestamp (09:15:30+02:00 is 07:15:30Z; 08:15:30Z follows).
+    temporally_early = replace(
+        _detail_event(None), event_timestamp="2026-09-20T09:15:30.000+02:00"
+    )
+    temporally_late = replace(
+        _detail_event(None), event_timestamp="2026-09-20T08:15:30.000Z"
+    )
+    window = EventHistoryWindow(
+        events=[temporally_late, temporally_early], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Read the window's temporal extremes.
+
+    # Assert: The offset timestamp is earliest despite sorting later as text.
+    assert window.earliest_timestamp == "2026-09-20T09:15:30.000+02:00"
+    assert window.latest_timestamp == "2026-09-20T08:15:30.000Z"
+
+
+def test_event_history_window_falls_back_to_lexical_for_unparsable_timestamps():
+    """Unparsable timestamps should fall back to a lexical comparison."""
+    # Arrange: One provider timestamp is not parsable ISO-8601.
+    parsable = replace(_detail_event(None), event_timestamp="2026-09-20T10:15:30.000Z")
+    unparsable = replace(_detail_event(None), event_timestamp="not-a-timestamp")
+    window = EventHistoryWindow(
+        events=[parsable, unparsable], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Read the window's extremes.
+
+    # Assert: The whole window uses the lexical fallback ordering.
+    assert window.earliest_timestamp == "2026-09-20T10:15:30.000Z"
+    assert window.latest_timestamp == "not-a-timestamp"
+
+
+def test_print_event_summary_adds_gateway_column_for_multiple_gateways(capsys):
+    """Events from several gateways should be disambiguated by a column."""
+    # Arrange: Build one window with events from two different gateways.
+    first = replace(
+        _detail_event({"featureName": "heating.dhw.temperature.main"}),
+        gateway_serial="7630175843100101",
+    )
+    second = replace(
+        _detail_event({"featureName": "heating.dhw.oneTimeCharge"}),
+        gateway_serial="8112200229931101",
+    )
+    window = EventHistoryWindow(
+        events=[first, second], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Print the readable summary of the mixed-gateway window.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: Both serials appear in an aligned gateway column.
+    output = capsys.readouterr().out
+    assert "- 2026-09-20T10:15:30.000Z detail                 7630175843100101" in (
+        output
+    )
+    assert "8112200229931101" in output

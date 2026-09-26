@@ -67,41 +67,72 @@ vi-client get-feature "heating.sensors.temperature.outside" --raw
 ```
 
 ## 5. List Installation Events
-Read one page of an installation's event history for a rolling window. No
-gateway or device selection is required.
+Read the complete event history an installation returns for a rolling window
+with one invocation. The command follows the continuation cursor across
+pages; no gateway or device selection is required.
 
 ```bash
-# Readable first-page summary for the last 7 days
+# Readable summary of the complete window for the last 7 days
 vi-client list-events --days 7
 
-# Explicit installation and page size
-vi-client list-events --installation-id 123456 --days 30 --limit 100
+# Winter-length investigation over a full year, with a larger page size
+vi-client list-events --installation-id 123456 --days 365 --limit 100
 
 # One JSON document with full events and pagination metadata
-vi-client list-events --days 7 --json
+vi-client list-events --days 365 --json
 ```
 
-The readable summary prints one line per event (`eventTimestamp`,
-`eventType`, and the reporting gateway) plus an indented detail line
-summarizing the event body when one is present: feature changes report the
-`feature`, `command`, and `params`, and any other body shape falls back to
-compact JSON (truncated to one line). The continuation cursor is printed when
-the provider reported one. `--json` writes exactly one document to standard
-output with the shape
-`{"installationId": ..., "events": [...], "nextCursor": ...}`; every event
-object preserves all provider fields, including the complete `body` and
-unknown future fields. Setup diagnostics stay on standard error. Without
-`--installation-id` the first installation of the account is used.
+The readable summary prints one aligned line per event, in the style of
+`list-features --values`: `eventTimestamp`, a fixed-width `eventType` column,
+and a compact body summary — feature changes read as
+`heating.dhw.temperature.main (setTargetTemperature {"temperature": 55})`,
+and any other body shape falls back to compact JSON. Lines are truncated at
+120 characters. When events come from more than one gateway, a serial column
+disambiguates them; with a single gateway the column is omitted. After the
+events it reports the earliest and latest event timestamps when events were
+returned, and the pagination outcome: either
+`Pagination completed after N page(s)` or
+`Stopped at the safety limit of N page(s)` with the cursor that would
+continue the traversal. A completed traversal reports that the provider
+returned no further page; it does not confirm how far back the provider
+retained events. `--json` writes exactly one document to standard output:
 
-*Note: `--days` is required and must be positive. `--limit` accepts 1 to 1000;
-without it the provider default applies. Traversing further pages with the
-reported cursor is a client-API operation; the CLI intentionally reads only
-the first page.*
+```json
+{
+  "installationId": "...",
+  "events": ["... full provider fields, including body ..."],
+  "eventCount": 123,
+  "earliestEventTimestamp": "2025-10-14T09:00:00.000Z",
+  "latestEventTimestamp": "2026-09-26T08:14:02.000Z",
+  "pagesFetched": 3,
+  "paginationComplete": true,
+  "nextCursor": null
+}
+```
 
-The command works offline with a bundled fixture:
+`paginationComplete` is `false` and `nextCursor` carries the remaining cursor
+when the safety limit stopped the traversal. Interpret
+`earliestEventTimestamp` as the oldest event the provider returned for this
+request, not as proof that the entire requested window was retained: the
+provider's retention period is not publicly confirmed, and exhausting the
+cursor only proves that all pages returned for this request were read.
+Setup diagnostics stay on standard error. Without `--installation-id` the
+first installation of the account is used.
+
+*Note: `--days` is required and must be positive; it is never hardcoded, so
+`--days 365` requests a rolling year. `--limit` accepts 1 to 1000 and applies
+to every page. `--max-pages` bounds how many pages the traversal fetches
+(default 50); when the limit is reached with a cursor remaining, the output
+marks the result incomplete.*
+
+The command works offline with a bundled fixture that models a two-page
+window (a full first page with a cursor and an empty final page):
 
 ```bash
 vi-client list-events --fixture-device Vitodens200W --days 7 --json
+
+# Limit-hit path offline: stop after the first fixture page
+vi-client list-events --fixture-device Vitodens200W --days 7 --max-pages 1 --json
 ```
 
 ## 6. Discover Writable Features (Control)

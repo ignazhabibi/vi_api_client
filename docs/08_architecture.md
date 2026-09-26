@@ -349,7 +349,9 @@ the same seam: `get_event_history()` requests one page through the discovery
 adapter, and `EventHistoryPage.from_api()` validates the envelope and its
 events at the model boundary. The provider reports the final page with an
 empty `cursor.next` string, which the page model exposes as no continuation
-cursor. Traversing further pages with the cursor stays with consumers.
+cursor. Traversing further pages with the cursor stays with consumers; the
+`list-events` CLI command is one such consumer and follows cursors up to a
+configurable page safety limit that marks truncated results incomplete.
 
 ## 9. Device refresh
 

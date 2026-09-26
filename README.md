@@ -123,7 +123,7 @@ vi-client list-features --enabled --values
 # 4. List Writable Features (Settings)
 vi-client list-writable
 
-# 5. List one page of the installation event history (last 7 days)
+# 5. List the complete installation event history (last 7 days)
 vi-client list-events --days 7
 ```
 

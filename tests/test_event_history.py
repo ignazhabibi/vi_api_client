@@ -38,13 +38,17 @@ async def test_get_event_history_returns_first_page_by_days(
     # Assert: Known fields are typed, unknown fields and bodies survive.
     assert len(page.events) == 3
     first = page.events[0]
-    assert first.event_type == "heating.circuits.0.heating.curve.changed"
-    assert first.created_at == "2026-09-20T10:15:30.000Z"
+    assert first.event_type == "feature-changed"
+    assert first.created_at == "2026-09-20T10:15:30.878Z"
     assert first.event_timestamp == "2026-09-20T10:15:30.000Z"
     assert first.gateway_serial == "7630175843100101"
-    assert first.body == {"slope": 1.2, "shift": 4}
-    assert first.fields["editedBy"] == "owner@example.com"
-    assert first.fields["audiences"] == ["OWNER"]
+    assert first.body == {
+        "featureName": "heating.dhw.temperature.main",
+        "commandName": "setTargetTemperature",
+        "commandBody": {"temperature": 55},
+    }
+    assert first.fields["editedBy"] == "3f2b1c0d-1111-4a5b-8c9d-0e1f2a3b4c5d"
+    assert first.fields["audiences"] is None
     third = page.events[2]
     assert third.fields["unknownFutureField"] == {"nested": ["kept", "as-is"]}
     assert page.next_cursor == "b3BhcXVlLWN1cnNvci10b2tlbg=="

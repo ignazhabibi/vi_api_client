@@ -97,9 +97,10 @@ Fetches one page of an installation's event history.
     *   The applicable `ViError` subclass for authentication, rate-limit,
         connection, server, or unknown API failures.
 
-This is a one-page read. Traversing a full window with the returned cursor is
-deliberately out of scope here; callers request further pages by passing
-`next_cursor` as `cursor`.
+This is a one-page read. Traversing a full window is deliberately out of
+scope here; callers request further pages by passing `next_cursor` as
+`cursor`. The `list-events` CLI command is one such consumer and follows
+cursors up to a configurable page safety limit.
 
 **Example**:
 ```python
