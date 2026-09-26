@@ -101,3 +101,11 @@ _Avoid_: History record, log entry
 One page of an installation's event history: the reported events and the
 opaque continuation cursor for the next page, when the provider reported one.
 _Avoid_: Event list snapshot
+
+**Event history window**:
+The complete traversal result for one bounded lookback request: every event
+collected while following the continuation cursor up to the page safety
+limit, plus the remaining cursor when the traversal stopped there. A completed
+window traversal reports exhausted pagination, not proven provider retention
+of the requested lookback.
+_Avoid_: Full history, complete archive

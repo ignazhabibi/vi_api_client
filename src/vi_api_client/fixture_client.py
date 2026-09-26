@@ -101,7 +101,15 @@ class _FixtureDiscoveryAdapter:
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
     ) -> dict[str, Any]:
-        """Return the bundled event history envelope for one page."""
+        """Return the bundled first page or the observed empty final page.
+
+        The bundled fixtures model a two-page window: a request without a
+        cursor serves the bundled first page with its continuation cursor,
+        and any cursor request serves the final empty page observed from the
+        live API.
+        """
+        if "cursor" in params:
+            return self._read_fixture_file("event_history_final_page.json")
         return self._load_event_history_data()
 
     def _load_feature_data(self) -> dict[str, Any]:

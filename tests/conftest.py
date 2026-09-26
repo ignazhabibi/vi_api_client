@@ -11,7 +11,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 
 # The catalog and the event history envelope share the fixture directory but
 # are not device fixtures.
-NON_DEVICE_FIXTURE_NAMES = {"discovery", "event_history"}
+NON_DEVICE_FIXTURE_NAMES = {"discovery", "event_history", "event_history_final_page"}
 
 
 class StaticTokenAuth(AbstractAuth):

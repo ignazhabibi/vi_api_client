@@ -10,7 +10,9 @@ import sys
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple, cast
 
 import aiohttp
 
@@ -27,7 +29,6 @@ from .credentials import CredentialDocument
 from .models import (
     CommandResponse,
     Device,
-    EventHistoryPage,
     Feature,
     FeatureControl,
     InstallationEvent,
@@ -38,6 +39,8 @@ from .validation import validate_json_value
 # Default file to store tokens and config
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 TOKEN_FILE = "tokens.json"
+# Default safety limit on pages fetched for one event history window.
+DEFAULT_EVENT_HISTORY_MAX_PAGES = 50
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -790,24 +793,30 @@ def _print_feature_constraints(ctrl: FeatureControl) -> None:
 
 
 async def cmd_list_events(args: argparse.Namespace) -> bool:
-    """List one page of an installation's event history.
+    """List the complete event history returned for a lookback window.
 
-    Prints a readable first-page summary for the requested rolling ``--days``
-    window, or one JSON document with the complete events and pagination
-    metadata with ``--json``.
+    Follows the continuation cursor across pages up to the configured page
+    safety limit. Prints a readable summary for the requested rolling
+    ``--days`` window, or one JSON document with the complete events and
+    pagination metadata with ``--json``. A cursor remaining at the safety
+    limit marks the result incomplete.
 
     Args:
-        args: Parsed command line arguments including days and json flag.
+        args: Parsed command line arguments including days, limit, max_pages,
+            and the json flag.
     """
     try:
         days = _positive_int_argument(args, "days")
         limit = _positive_int_argument(args, "limit")
+        max_pages = _positive_int_argument(args, "max_pages")
     except ValueError as error:
         _print_diagnostic(args, f"Error: {error}")
         return False
     if days is None:
         _print_diagnostic(args, "Error: Command line argument 'days' is required")
         return False
+    if max_pages is None:
+        max_pages = DEFAULT_EVENT_HISTORY_MAX_PAGES
 
     try:
         async with setup_client_context(args, discover=False) as ctx:
@@ -821,8 +830,8 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
                     args, f"Auto-selected installation: {installation_id}"
                 )
 
-            page = await ctx.client.get_event_history(
-                installation_id, days=days, limit=limit
+            window = await _collect_event_history(
+                ctx.client, installation_id, days, limit, max_pages
             )
 
             if _flag_argument(args, "json"):
@@ -830,13 +839,18 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
                     json.dumps(
                         {
                             "installationId": installation_id,
-                            "events": [dict(event.fields) for event in page.events],
-                            "nextCursor": page.next_cursor,
+                            "events": [dict(event.fields) for event in window.events],
+                            "eventCount": len(window.events),
+                            "earliestEventTimestamp": window.earliest_timestamp,
+                            "latestEventTimestamp": window.latest_timestamp,
+                            "pagesFetched": window.pages_fetched,
+                            "paginationComplete": window.next_cursor is None,
+                            "nextCursor": window.next_cursor,
                         }
                     )
                 )
             else:
-                _print_event_summary(page, installation_id, days)
+                _print_event_summary(window, installation_id, days, max_pages)
 
     except Exception as e:
         _LOGGER.error("Error listing events: %s", e)
@@ -845,32 +859,153 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
     return True
 
 
+class EventHistoryWindow(NamedTuple):
+    """The events and pagination state of one bounded traversal."""
+
+    events: list[InstallationEvent]
+    next_cursor: str | None
+    pages_fetched: int
+
+    @property
+    def earliest_timestamp(self) -> str | None:
+        """Return the earliest event timestamp, or None without events.
+
+        Timestamps are compared as points in time, so differing ISO-8601
+        offsets or precision still order correctly.
+        """
+        return self._extreme_timestamps()[0]
+
+    @property
+    def latest_timestamp(self) -> str | None:
+        """Return the latest event timestamp, or None without events.
+
+        Timestamps are compared as points in time, so differing ISO-8601
+        offsets or precision still order correctly.
+        """
+        return self._extreme_timestamps()[1]
+
+    def _extreme_timestamps(self) -> tuple[str | None, str | None]:
+        """Return the earliest and latest event timestamps as time points.
+
+        An unparsable provider timestamp falls back to a lexical comparison
+        for the whole window rather than mixing the two orderings.
+        """
+        timestamps = [event.event_timestamp for event in self.events]
+        if not timestamps:
+            return None, None
+        parsed = [_parse_instant(timestamp) for timestamp in timestamps]
+        if all(instant is not None for instant in parsed):
+            instants = cast("list[datetime]", parsed)
+            earliest = min(zip(instants, timestamps, strict=True))[1]
+            latest = max(zip(instants, timestamps, strict=True))[1]
+            return earliest, latest
+        return min(timestamps), max(timestamps)
+
+
+def _parse_instant(timestamp: str) -> datetime | None:
+    """Return one event timestamp as a point in time, or None when unparsable.
+
+    Naive timestamps are read as UTC so they compare with aware ones.
+    """
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+async def _collect_event_history(
+    client: ViClient | FixtureViClient,
+    installation_id: str,
+    days: int,
+    limit: int | None,
+    max_pages: int,
+) -> EventHistoryWindow:
+    """Follow the continuation cursor across event history pages.
+
+    The first request uses the rolling lookback window; every subsequent
+    request passes only the opaque continuation cursor so the lookback is
+    never restarted.
+
+    Args:
+        client: The client serving the event history reads.
+        installation_id: ID of the installation to read.
+        days: Rolling lookback window in days for the first request.
+        limit: Optional per-page size applied to every request.
+        max_pages: Safety limit on the number of pages fetched.
+
+    Returns:
+        The traversal result. A remaining cursor of None means the provider
+        reported no further page; otherwise the safety limit stopped the
+        traversal and the result is incomplete.
+    """
+    events: list[InstallationEvent] = []
+    next_cursor: str | None = None
+    pages_fetched = 0
+    while pages_fetched < max_pages:
+        if next_cursor is None:
+            page = await client.get_event_history(
+                installation_id, days=days, limit=limit
+            )
+        else:
+            page = await client.get_event_history(
+                installation_id, cursor=next_cursor, limit=limit
+            )
+        pages_fetched += 1
+        events.extend(page.events)
+        next_cursor = page.next_cursor
+        if next_cursor is None:
+            return EventHistoryWindow(events, None, pages_fetched)
+    return EventHistoryWindow(events, next_cursor, pages_fetched)
+
+
 def _print_event_summary(
-    page: EventHistoryPage, installation_id: str, days: int
+    window: EventHistoryWindow, installation_id: str, days: int, max_pages: int
 ) -> None:
-    """Print a readable summary of one event history page."""
+    """Print a readable summary of a traversed event history window."""
     print(
-        f"Found {len(page.events)} event(s) for installation "
+        f"Found {len(window.events)} event(s) for installation "
         f"{installation_id} (last {days} days):"
     )
-    for event in page.events:
-        gateway = f", gateway {event.gateway_serial}" if event.gateway_serial else ""
-        print(f"- {event.event_timestamp} {event.event_type}{gateway}")
+    # A gateway column only disambiguates when events come from more than
+    # one gateway; a single gateway would repeat itself on every line.
+    gateway_serials = {
+        event.gateway_serial for event in window.events if event.gateway_serial
+    }
+    show_gateway_column = len(gateway_serials) > 1
+    for event in window.events:
+        line = f"- {event.event_timestamp} {event.event_type:<22}"
+        if show_gateway_column:
+            serial = event.gateway_serial if event.gateway_serial else ""
+            line += f" {serial:<17}"
         details = _format_event_details(event)
         if details:
-            print(f"    {details}")
-    if page.next_cursor:
+            line += f" {details}"
+        print(_truncate_event_line(line).rstrip())
+    earliest_timestamp = window.earliest_timestamp
+    latest_timestamp = window.latest_timestamp
+    if earliest_timestamp is not None and latest_timestamp is not None:
+        print(f"Earliest event: {earliest_timestamp}; latest event: {latest_timestamp}")
+    if window.next_cursor is not None:
         print(
-            "More events may be available "
-            f"(next cursor: {page.next_cursor}); run with --json to copy it"
+            f"Stopped at the safety limit of {max_pages} page(s); more events "
+            f"may be available (next cursor: {window.next_cursor})"
+        )
+    else:
+        print(
+            f"Pagination completed after {window.pages_fetched} page(s); this "
+            "does not confirm how far back the provider retained events"
         )
 
 
 def _format_event_details(event: InstallationEvent) -> str | None:
-    """Return a readable summary of one event body, or None when empty.
+    """Return a compact summary of one event body, or None when empty.
 
     Event bodies depend on the event type; the known feature-change shape is
-    summarized field by field and any other body falls back to compact JSON.
+    summarized as ``feature (command params)`` and any other body falls back
+    to compact JSON.
 
     Args:
         event: The event whose body is summarized.
@@ -882,25 +1017,26 @@ def _format_event_details(event: InstallationEvent) -> str | None:
     if body is None:
         return None
     if not isinstance(body, dict):
-        return _truncate_event_details(json.dumps(body))
+        return json.dumps(body)
     feature_name = body.get("featureName")
     if not isinstance(feature_name, str) or not feature_name:
-        return _truncate_event_details(json.dumps(body))
-    details = f"feature: {feature_name}"
+        return json.dumps(body)
+    details = feature_name
     command_name = body.get("commandName")
     if isinstance(command_name, str) and command_name:
-        details += f", command: {command_name}"
-    command_body = body.get("commandBody")
-    if command_body is not None:
-        details += f", params: {json.dumps(command_body)}"
-    return _truncate_event_details(details)
-
-
-def _truncate_event_details(details: str) -> str:
-    """Keep one event detail line within the readable summary width."""
-    if len(details) > 120:
-        return details[:117] + "..."
+        details += f" ({command_name}"
+        command_body = body.get("commandBody")
+        if command_body is not None:
+            details += f" {json.dumps(command_body)}"
+        details += ")"
     return details
+
+
+def _truncate_event_line(line: str) -> str:
+    """Keep one aligned event line within the readable summary width."""
+    if len(line) > 120:
+        return line[:117] + "..."
+    return line
 
 
 async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
@@ -1008,6 +1144,14 @@ async def async_main() -> int:  # noqa: PLR0915
         "--limit",
         type=int,
         help="Page limit (1-1000; provider default when omitted)",
+    )
+    parser_events.add_argument(
+        "--max-pages",
+        type=int,
+        help=(
+            "Safety limit on pages fetched while following the cursor "
+            f"(default: {DEFAULT_EVENT_HISTORY_MAX_PAGES})"
+        ),
     )
     parser_events.add_argument(
         "--json",
