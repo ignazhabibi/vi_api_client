@@ -366,6 +366,147 @@ class Gateway:
         )
 
 
+def _optional_event_text(data: dict[str, JsonValue], field_name: str) -> str | None:
+    """Return an optional event text field.
+
+    An absent or null field is `None`; any other supplied value must be a
+    string.
+
+    Raises:
+        ViResponseError: If the supplied value is not a string.
+    """
+    value = data.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ViResponseError(f"Event {field_name} must be a string")
+    return value
+
+
+@dataclass(frozen=True)
+class InstallationEvent:
+    """One installation event from the event history.
+
+    Attributes:
+        event_type: The provider event type (e.g. 'heating.curve.changed').
+        created_at: When the provider recorded the event.
+        event_timestamp: When the event occurred.
+        gateway_serial: Serial of the gateway that reported the event, if known.
+        body: The complete event body with its provider-specific structure.
+        fields: Read-only complete event mapping, including unknown fields.
+    """
+
+    event_type: str
+    created_at: str
+    event_timestamp: str
+    gateway_serial: str | None
+    body: JsonValue
+    fields: Mapping[str, JsonValue] = field(default_factory=dict[str, JsonValue])
+
+    def __post_init__(self) -> None:
+        """Store the complete event mapping as an immutable snapshot."""
+        object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> InstallationEvent:
+        """Create InstallationEvent from API data.
+
+        The complete event is validated against the JSON value contract and
+        unknown fields remain available through ``fields``. The ``body`` is
+        kept exactly as reported because its structure depends on the event
+        type; the provider's narrow schema examples must not reject valid
+        event data.
+
+        Args:
+            data: The JSON dictionary representing one event.
+
+        Returns:
+            A new InstallationEvent instance.
+
+        Raises:
+            ViResponseError: If the event contains non-JSON data or a known
+                event field is malformed.
+        """
+        fields = validate_json_value(data, path="Event")
+        if not isinstance(fields, dict):
+            raise ViResponseError("Event must be an object")
+        # Optional known text fields are validated while unknown fields stay
+        # available through the complete mapping.
+        for field_name in ("editedBy", "origin"):
+            _optional_event_text(fields, field_name)
+        audiences = fields.get("audiences")
+        if audiences is not None and (
+            not isinstance(audiences, list)
+            or not all(isinstance(audience, str) for audience in audiences)
+        ):
+            raise ViResponseError("Event audiences must be a list of strings")
+        return cls(
+            event_type=_required_string(fields, "eventType", "Event"),
+            created_at=_required_string(fields, "createdAt", "Event"),
+            event_timestamp=_required_string(fields, "eventTimestamp", "Event"),
+            gateway_serial=_optional_event_text(fields, "gatewaySerial"),
+            body=fields.get("body"),
+            fields=fields,
+        )
+
+
+@dataclass(frozen=True)
+class EventHistoryPage:
+    """One page of an installation's event history.
+
+    Attributes:
+        events: The events returned for the requested page.
+        next_cursor: The opaque continuation cursor for the next page, when
+            the provider reported one.
+    """
+
+    events: Sequence[InstallationEvent]
+    next_cursor: str | None = None
+
+    def __post_init__(self) -> None:
+        """Store caller-owned event collections as immutable snapshots."""
+        object.__setattr__(self, "events", tuple(self.events))
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> EventHistoryPage:
+        """Create EventHistoryPage from the event history API envelope.
+
+        Args:
+            data: The JSON dictionary returned by the event history endpoint,
+                with a ``data`` list and an optional ``cursor`` object.
+
+        Returns:
+            A new EventHistoryPage instance.
+
+        Raises:
+            ViResponseError: If the envelope, an event, or the cursor violates
+                the API contract.
+        """
+        events_data = data.get("data")
+        if not isinstance(events_data, list):
+            raise ViResponseError("Event history response data must be a list")
+        # Runtime-checked containers from the transport boundary; every entry
+        # is re-validated field by field by the event parser.
+        events: list[InstallationEvent] = []
+        for entry in cast("list[object]", events_data):
+            if not isinstance(entry, dict):
+                raise ViResponseError("Event history data entries must be objects")
+            events.append(InstallationEvent.from_api(cast("dict[str, Any]", entry)))
+
+        next_cursor: str | None = None
+        cursor = data.get("cursor")
+        if cursor is not None:
+            if not isinstance(cursor, dict):
+                raise ViResponseError("Event history cursor must be an object")
+            cursor_next = cast("dict[str, Any]", cursor).get("next")
+            if cursor_next is not None:
+                if not isinstance(cursor_next, str):
+                    raise ViResponseError("Event history cursor next must be a string")
+                # The provider reports the final page with an empty string.
+                next_cursor = cursor_next or None
+        return cls(events=events, next_cursor=next_cursor)
+
+
 def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
     """Return an optional installation address as a validated JSON object."""
     address = validate_json_value(data.get("address", {}), path="Installation address")

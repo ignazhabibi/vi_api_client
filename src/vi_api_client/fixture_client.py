@@ -52,6 +52,7 @@ class _FixtureDiscoveryAdapter:
             if metadata["fixtureName"] == device_name
         )
         self._feature_data: dict[str, Any] | None = None
+        self._event_history_data: dict[str, Any] | None = None
 
     async def get_installations(self) -> dict[str, Any]:
         """Return the fixture installation envelope."""
@@ -97,15 +98,30 @@ class _FixtureDiscoveryAdapter:
         """Return the selected fixture's raw gateway-scoped feature envelope."""
         return self._load_feature_data()
 
+    async def get_event_history(
+        self, installation_id: str, params: dict[str, int | str]
+    ) -> dict[str, Any]:
+        """Return the bundled event history envelope for one page."""
+        return self._load_event_history_data()
+
     def _load_feature_data(self) -> dict[str, Any]:
         """Load the selected fixture feature envelope once."""
         if self._feature_data is None:
-            fixture_path = (
-                Path(__file__).parent / "fixtures" / f"{self._device_name}.json"
-            )
-            with fixture_path.open(encoding="utf-8") as file:
-                self._feature_data = cast(dict[str, Any], json.load(file))
+            self._feature_data = self._read_fixture_file(f"{self._device_name}.json")
         return self._feature_data
+
+    def _load_event_history_data(self) -> dict[str, Any]:
+        """Load the bundled event history envelope once."""
+        if self._event_history_data is None:
+            self._event_history_data = self._read_fixture_file("event_history.json")
+        return self._event_history_data
+
+    @staticmethod
+    def _read_fixture_file(file_name: str) -> dict[str, Any]:
+        """Read one bundled JSON fixture file."""
+        fixture_path = Path(__file__).parent / "fixtures" / file_name
+        with fixture_path.open(encoding="utf-8") as file:
+            return cast(dict[str, Any], json.load(file))
 
 
 class _FixtureCommandAdapter:

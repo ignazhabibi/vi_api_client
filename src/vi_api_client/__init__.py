@@ -20,11 +20,13 @@ from .fixture_client import FixtureViClient
 from .models import (
     CommandResponse,
     Device,
+    EventHistoryPage,
     Feature,
     FeatureControl,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    InstallationEvent,
 )
 from .utils import format_feature
 from .validation import validate_json_value
@@ -40,6 +42,7 @@ __all__ = [
     "AbstractAuth",
     "CommandResponse",
     "Device",
+    "EventHistoryPage",
     "Feature",
     "FeatureControl",
     "FeatureValue",
@@ -47,6 +50,7 @@ __all__ = [
     "Gateway",
     "GatewayDeviceRefreshResult",
     "Installation",
+    "InstallationEvent",
     "JsonValue",
     "OAuth",
     "ValidationDetail",

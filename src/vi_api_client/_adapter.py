@@ -13,6 +13,7 @@ from ._types import JsonValue, ValidationDetail
 from .auth import AbstractAuth
 from .const import (
     API_BASE_URL,
+    ENDPOINT_EVENT_HISTORY,
     ENDPOINT_FEATURES,
     ENDPOINT_GATEWAYS,
     ENDPOINT_INSTALLATIONS,
@@ -51,6 +52,10 @@ class DiscoveryAdapter(Protocol):
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
     ) -> dict[str, Any]: ...
+
+    async def get_event_history(
+        self, installation_id: str, params: dict[str, int | str]
+    ) -> object: ...
 
 
 class CommandAdapter(Protocol):
@@ -104,6 +109,16 @@ class LiveAdapter:
             f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
             f"{first_device.gateway_serial}/features/filter",
             payload,
+        )
+
+    async def get_event_history(
+        self, installation_id: str, params: dict[str, int | str]
+    ) -> dict[str, Any]:
+        """Return one event history API envelope."""
+        return await self._request(
+            "GET",
+            f"{ENDPOINT_EVENT_HISTORY}/{installation_id}/events",
+            params=params,
         )
 
     async def execute_command(
