@@ -82,20 +82,70 @@ vi-client list-events --installation-id 123456 --days 365 --limit 100
 vi-client list-events --days 365 --json
 ```
 
-The readable summary prints one aligned line per event, in the style of
-`list-features --values`: `eventTimestamp`, a fixed-width `eventType` column,
-and a compact body summary — feature changes read as
-`heating.dhw.temperature.main (setTargetTemperature {"temperature": 55})`,
-and any other body shape falls back to compact JSON. Lines are truncated at
-120 characters. When events come from more than one gateway, a serial column
-disambiguates them; with a single gateway the column is omitted. After the
-events it reports the earliest and latest event timestamps when events were
-returned, and the pagination outcome: either
-`Pagination completed after N page(s)` or
+The readable summary keeps the order the provider returned the events in and
+prints a UTC date heading whenever the date changes, so dates can repeat when
+the history interleaves them. Every event line states the UTC time of the
+event explicitly. Timestamps with a non-UTC offset are converted to UTC before
+the heading and time are derived; a missing or unparsable timestamp is
+reported as `Unknown date` / `time unknown` without an invented value. Long
+content wraps onto indented continuation lines instead of truncating —
+wrapping preserves every character, including spaces inside parameter values —
+so complete command parameters and body values stay visible:
+
+```text
+Found 3 event(s) for installation 1234567 (last 7 days):
+
+2026-09-20 (UTC)
+- 10:15:30 UTC feature-changed
+    heating.dhw.temperature.main
+    command: setTargetTemperature
+    parameters: {"temperature": 55}
+
+2026-09-19 (UTC)
+- 22:41:03 UTC gateway-online
+    ONLINE
+
+2026-09-18 (UTC)
+- 08:02:10 UTC device-message-status
+    code: S.134
+    ACTIVE
+    device: 17, model: 67
+    description: Burner fault
+
+Earliest event: 2026-09-18T08:02:10.500Z; latest event: 2026-09-20T10:15:30.000Z
+Pagination completed after 2 page(s); this does not confirm how far back the provider retained events
+```
+
+Event bodies use the descriptions the API already supplies; no code-description
+catalog is consulted and no operating-state timeline is derived:
+
+- `feature-changed` events print the complete feature name, `command: <name>`
+  when the command is known, and `parameters: <json>` with all supplied command
+  parameters. Parameters stay visible even when the command name is absent.
+- `gateway-online` events print `ONLINE` or `OFFLINE` according to the boolean
+  `online` value in the body; the provider event type can still be
+  `gateway-online` when `online` is `false`. A missing or non-boolean value is
+  never mapped to a state.
+- `device-message-status` events print the original code, `ACTIVE` for a boolean
+  `active=true` or `ENDED` for a boolean `active=false`, and the available
+  device and model identifiers and equipment type. These labels describe the
+  transition reported at the event timestamp, not the device's current state.
+  An `errorDescription` is printed only when it adds information beyond the
+  code; a description that merely repeats the code is omitted.
+- Any other event body — including `null`, scalars, lists, unknown objects,
+  and bodies of unknown event types that happen to contain feature-shaped
+  fields — is printed as its complete JSON representation.
+
+When events come from more than one gateway, each event line carries a
+`gateway <serial>` label, or `gateway unknown` when the provider did not report
+one; with a single gateway the label is omitted. After the events it reports
+the earliest and latest event timestamps when events were returned, and the
+pagination outcome: either `Pagination completed after N page(s)` or
 `Stopped at the safety limit of N page(s)` with the cursor that would
 continue the traversal. A completed traversal reports that the provider
 returned no further page; it does not confirm how far back the provider
-retained events. `--json` writes exactly one document to standard output:
+retained events. `--json` writes exactly one document to standard output and
+remains the way to inspect all original event fields and technical metadata:
 
 ```json
 {
