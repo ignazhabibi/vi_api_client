@@ -974,10 +974,11 @@ def _print_event_summary(
 ) -> None:
     """Print a readable summary of a traversed event history window.
 
-    Events are grouped under their UTC date and keep their returned order;
-    every event line states its UTC time. Long details wrap onto indented
-    continuation lines instead of being truncated, so complete command
-    parameters and body values stay visible.
+    A UTC date heading is printed whenever the date changes, so the
+    returned event order is preserved exactly; every event line states
+    its UTC time. Long details wrap onto indented continuation lines
+    instead of being truncated, so complete command parameters and body
+    values stay visible.
     """
     print(
         f"Found {len(window.events)} event(s) for installation "
@@ -987,14 +988,14 @@ def _print_event_summary(
         event.gateway_serial for event in window.events if event.gateway_serial
     }
     show_gateway_label = len(gateway_serials) > 1
-    groups: dict[str, list[InstallationEvent]] = {}
+    previous_date_label: str | None = None
     for event in window.events:
-        groups.setdefault(_event_date_label(event.event_timestamp), []).append(event)
-    for date_label, events in groups.items():
-        print()
-        print(date_label)
-        for event in events:
-            _print_event_lines(event, show_gateway_label)
+        date_label = _event_date_label(event.event_timestamp)
+        if date_label != previous_date_label:
+            print()
+            print(date_label)
+            previous_date_label = date_label
+        _print_event_lines(event, show_gateway_label)
     print()
     earliest_timestamp = window.earliest_timestamp
     latest_timestamp = window.latest_timestamp
@@ -1051,6 +1052,9 @@ def _print_event_lines(event: InstallationEvent, show_gateway_label: bool) -> No
         subsequent_indent=_EVENT_CONTINUATION_INDENT,
         break_long_words=True,
         break_on_hyphens=False,
+        # Wrapping must not drop whitespace inside values such as JSON
+        # strings; spaces at wrap boundaries are part of the content.
+        drop_whitespace=False,
     )
     for detail in _event_detail_lines(event):
         print("\n".join(wrapper.wrap(detail)))
@@ -1059,10 +1063,10 @@ def _print_event_lines(event: InstallationEvent, show_gateway_label: bool) -> No
 def _event_detail_lines(event: InstallationEvent) -> list[str]:
     """Return the readable detail lines for one event body.
 
-    Known body shapes are rendered with the meaning the API already
-    supplies; every other body, including None, scalars, lists, and
-    unknown objects, uses the complete JSON representation so no value
-    is lost.
+    Bodies of the known event types are rendered with the meaning the API
+    already supplies; every other body, including unknown event types with
+    feature-shaped fields, uses the complete JSON representation so no
+    value is lost.
 
     Args:
         event: The event whose body is rendered.
@@ -1079,7 +1083,7 @@ def _event_detail_lines(event: InstallationEvent) -> list[str]:
         status_lines = _device_message_status_lines(body)
         if status_lines is not None:
             return status_lines
-    if isinstance(body, dict):
+    if event.event_type == "feature-changed" and isinstance(body, dict):
         feature_lines = _feature_change_lines(body)
         if feature_lines is not None:
             return feature_lines
@@ -1141,7 +1145,7 @@ def _text_field(body: dict[str, JsonValue], field_name: str) -> str | None:
 
 
 def _feature_change_lines(body: dict[str, JsonValue]) -> list[str] | None:
-    """Return detail lines for one feature-change body.
+    """Return detail lines for one ``feature-changed`` event body.
 
     Command parameters stay visible even when the command name is absent.
 

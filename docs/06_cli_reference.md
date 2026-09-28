@@ -82,13 +82,15 @@ vi-client list-events --installation-id 123456 --days 365 --limit 100
 vi-client list-events --days 365 --json
 ```
 
-The readable summary groups events under their UTC date, keeps the order the
-provider returned them in, and states the UTC time of every event explicitly.
-Timestamps with a non-UTC offset are converted to UTC before grouping; a
-missing or unparsable timestamp is reported as `Unknown date` / `time unknown`
-without an invented value. Long content wraps onto indented continuation
-lines instead of truncating, so complete command parameters and body values
-stay visible:
+The readable summary keeps the order the provider returned the events in and
+prints a UTC date heading whenever the date changes, so dates can repeat when
+the history interleaves them. Every event line states the UTC time of the
+event explicitly. Timestamps with a non-UTC offset are converted to UTC before
+the heading and time are derived; a missing or unparsable timestamp is
+reported as `Unknown date` / `time unknown` without an invented value. Long
+content wraps onto indented continuation lines instead of truncating —
+wrapping preserves every character, including spaces inside parameter values —
+so complete command parameters and body values stay visible:
 
 ```text
 Found 3 event(s) for installation 1234567 (last 7 days):
@@ -117,8 +119,8 @@ Pagination completed after 2 page(s); this does not confirm how far back the pro
 Event bodies use the descriptions the API already supplies; no code-description
 catalog is consulted and no operating-state timeline is derived:
 
-- Feature changes print the complete feature name, `command: <name>` when the
-  command is known, and `parameters: <json>` with all supplied command
+- `feature-changed` events print the complete feature name, `command: <name>`
+  when the command is known, and `parameters: <json>` with all supplied command
   parameters. Parameters stay visible even when the command name is absent.
 - `gateway-online` events print `ONLINE` or `OFFLINE` according to the boolean
   `online` value in the body; the provider event type can still be
@@ -130,8 +132,9 @@ catalog is consulted and no operating-state timeline is derived:
   transition reported at the event timestamp, not the device's current state.
   An `errorDescription` is printed only when it adds information beyond the
   code; a description that merely repeats the code is omitted.
-- Any other event body — including `null`, scalars, lists, and unknown
-  objects — is printed as its complete JSON representation.
+- Any other event body — including `null`, scalars, lists, unknown objects,
+  and bodies of unknown event types that happen to contain feature-shaped
+  fields — is printed as its complete JSON representation.
 
 When events come from more than one gateway, each event line carries a
 `gateway <serial>` label, or `gateway unknown` when the provider did not report

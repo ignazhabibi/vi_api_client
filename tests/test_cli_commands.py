@@ -20,6 +20,7 @@ from vi_api_client import (
     InstallationEvent,
 )
 from vi_api_client.cli import (
+    _EVENT_LINE_WIDTH,
     EventHistoryWindow,
     _dispatch_command,
     _event_detail_lines,
@@ -1988,10 +1989,10 @@ async def test_async_main_list_events_fixture_readable_marks_safety_limit(
     ) in captured.out
 
 
-def _detail_event(body: FeatureValue) -> InstallationEvent:
+def _detail_event(body: FeatureValue, event_type: str = "detail") -> InstallationEvent:
     """Build one event carrying only the body under test."""
     return InstallationEvent(
-        event_type="detail",
+        event_type=event_type,
         created_at="2026-09-20T10:15:30.000Z",
         event_timestamp="2026-09-20T10:15:30.000Z",
         gateway_serial=None,
@@ -2001,18 +2002,25 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
 
 
 @pytest.mark.parametrize(
-    ("body", "expected"),
+    ("event_type", "body", "expected"),
     [
-        (None, ["body: null"]),
-        ("plain text", ['body: "plain text"']),
-        (42, ["body: 42"]),
-        (["a", "b"], ['body: ["a", "b"]']),
-        ({"online": True}, ['body: {"online": true}']),
+        ("detail", None, ["body: null"]),
+        ("detail", "plain text", ['body: "plain text"']),
+        ("detail", 42, ["body: 42"]),
+        ("detail", ["a", "b"], ['body: ["a", "b"]']),
+        ("detail", {"online": True}, ['body: {"online": true}']),
         (
+            "detail",
+            {"featureName": "heating.dhw.temperature.main", "reason": "user"},
+            ['body: {"featureName": "heating.dhw.temperature.main", "reason": "user"}'],
+        ),
+        (
+            "feature-changed",
             {"featureName": "heating.dhw.temperature.main"},
             ["heating.dhw.temperature.main"],
         ),
         (
+            "feature-changed",
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandName": "setTargetTemperature",
@@ -2020,6 +2028,7 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
             ["heating.dhw.temperature.main", "command: setTargetTemperature"],
         ),
         (
+            "feature-changed",
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandBody": {"temperature": 55},
@@ -2029,13 +2038,13 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
     ],
 )
 def test_event_detail_lines_render_known_and_unknown_bodies(
-    body: FeatureValue, expected: list[str]
+    event_type: str, body: FeatureValue, expected: list[str]
 ):
-    """Detail lines should use known shapes and complete JSON otherwise."""
-    # Act: Render the event body of one generic event.
-    details = _event_detail_lines(_detail_event(body))
+    """Detail lines should use known event types and complete JSON otherwise."""
+    # Act: Render the event body of one event with the given provider type.
+    details = _event_detail_lines(_detail_event(body, event_type))
 
-    # Assert: Known shapes are structured and unknown bodies stay complete.
+    # Assert: Known types are structured and unknown bodies stay complete.
     assert details == expected
 
 
@@ -2176,7 +2185,7 @@ def test_print_event_summary_wraps_long_details_without_truncation(capsys):
     """Long details should wrap onto indented continuation lines."""
     # Arrange: Provide one event with a feature name beyond the line width.
     feature_name = "x" * 200
-    event = _detail_event({"featureName": feature_name})
+    event = _detail_event({"featureName": feature_name}, "feature-changed")
     window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
 
     # Act: Print the readable summary of the single event.
@@ -2206,7 +2215,8 @@ def test_print_event_summary_keeps_long_nested_parameters_visible(capsys):
             "featureName": "heating.dhw.schedule",
             "commandName": "setSchedule",
             "commandBody": command_body,
-        }
+        },
+        "feature-changed",
     )
     window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
 
@@ -2214,24 +2224,53 @@ def test_print_event_summary_keeps_long_nested_parameters_visible(capsys):
     _print_event_summary(window, "99", 7, 50)
 
     # Assert: The wrapped parameters reconstruct the exact command body.
-    output_lines = capsys.readouterr().out.splitlines()
+    rendered = _rendered_detail(capsys.readouterr().out, "    parameters: ")
+    assert json.loads(rendered) == command_body
+    assert len(rendered) + len("    parameters: ") > _EVENT_LINE_WIDTH
+
+
+def test_print_event_summary_preserves_spaces_in_wrapped_parameters(capsys):
+    """Wrapping must not drop spaces inside parameter values."""
+    # Arrange: One feature change whose parameter value contains repeated
+    # double spaces that span the wrap boundaries.
+    command_body: FeatureValue = {"note": "word  " * 20}
+    event = _detail_event(
+        {"featureName": "heating.dhw.notes", "commandBody": command_body},
+        "feature-changed",
+    )
+    window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
+
+    # Act: Print the readable summary of the single event.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: The wrapped parameters reconstruct the exact value with every
+    # interior space preserved.
+    rendered = _rendered_detail(capsys.readouterr().out, "    parameters: ")
+    assert json.loads(rendered) == command_body
+
+
+def _rendered_detail(output: str, detail_prefix: str) -> str:
+    """Return one wrapped detail's content with indents removed exactly.
+
+    Continuation lines lose exactly the six space indent, so whitespace
+    inside the wrapped content survives the reconstruction.
+    """
+    lines = output.splitlines()
     start = next(
-        index
-        for index, line in enumerate(output_lines)
-        if line.startswith("    parameters: ")
+        index for index, line in enumerate(lines) if line.startswith(detail_prefix)
     )
     end = start + 1
-    while end < len(output_lines) and output_lines[end].startswith("      "):
+    while end < len(lines) and lines[end].startswith("      "):
         end += 1
-    rendered = "".join(line.strip() for line in output_lines[start:end])
-    assert json.loads(rendered[len("parameters: ") :]) == command_body
-    assert all(len(line) <= 120 for line in output_lines[start:end])
+    assert all(len(line) <= _EVENT_LINE_WIDTH for line in lines[start:end])
+    rendered = lines[start][len(detail_prefix) :]
+    return rendered + "".join(line[len("      ") :] for line in lines[start + 1 : end])
 
 
-def test_print_event_summary_groups_events_under_utc_dates(capsys):
-    """Dates should group in UTC while the returned order is preserved."""
+def test_print_event_summary_prints_utc_date_headings(capsys):
+    """Date headings should follow UTC while the returned order is kept."""
     # Arrange: The +02:00 timestamp is 2026-09-19 22:30:00 UTC, so its raw
-    # date and its UTC group differ.
+    # date and its UTC heading differ.
     offset_event = replace(
         _detail_event(None), event_timestamp="2026-09-20T00:30:00.000+02:00"
     )
@@ -2244,14 +2283,47 @@ def test_print_event_summary_groups_events_under_utc_dates(capsys):
     # Act: Print the readable summary of the mixed-offset window.
     _print_event_summary(window, "99", 7, 50)
 
-    # Assert: Groups appear in first-seen order with UTC-converted times.
+    # Assert: Headings appear in first-seen order with UTC-converted times.
     lines = capsys.readouterr().out.splitlines()
-    first_group = lines.index("2026-09-19 (UTC)")
-    second_group = lines.index("2026-09-18 (UTC)")
+    first_heading = lines.index("2026-09-19 (UTC)")
+    second_heading = lines.index("2026-09-18 (UTC)")
     first_event = lines.index("- 12:00:00 UTC detail")
-    offset_event = lines.index("- 22:30:00 UTC detail")
+    offset_time_event = lines.index("- 22:30:00 UTC detail")
     second_event = lines.index("- 09:00:00 UTC detail")
-    assert first_group < first_event < offset_event < second_group < second_event
+    assert (
+        first_heading < first_event < offset_time_event < second_heading < second_event
+    )
+
+
+def test_print_event_summary_preserves_event_order_across_date_changes(capsys):
+    """Date headings must not reorder interleaved events."""
+    # Arrange: The provider returns one 27th event, one 26th event, and
+    # another 27th event.
+    first = replace(_detail_event(None), event_timestamp="2026-09-27T10:00:00.000Z")
+    second = replace(_detail_event(None), event_timestamp="2026-09-26T10:00:00.000Z")
+    third = replace(_detail_event(None), event_timestamp="2026-09-27T11:00:00.000Z")
+    window = EventHistoryWindow(
+        events=[first, second, third], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Print the readable summary of the interleaved window.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: A heading is printed at each date change and events keep
+    # their returned order.
+    relevant = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.endswith("(UTC)") or line.startswith("- ")
+    ]
+    assert relevant == [
+        "2026-09-27 (UTC)",
+        "- 10:00:00 UTC detail",
+        "2026-09-26 (UTC)",
+        "- 10:00:00 UTC detail",
+        "2026-09-27 (UTC)",
+        "- 11:00:00 UTC detail",
+    ]
 
 
 def test_print_event_summary_represents_missing_timestamps_without_invention(capsys):
@@ -2277,7 +2349,9 @@ def test_print_event_summary_represents_missing_timestamps_without_invention(cap
 def test_print_event_summary_marks_safety_limit_results(capsys):
     """A remaining cursor should mark the readable result incomplete."""
     # Arrange: One event window that stopped at the page safety limit.
-    event = _detail_event({"featureName": "heating.dhw.temperature.main"})
+    event = _detail_event(
+        {"featureName": "heating.dhw.temperature.main"}, "feature-changed"
+    )
     window = EventHistoryWindow(
         events=[event], next_cursor="cursor-token", pages_fetched=50
     )
@@ -2337,15 +2411,17 @@ def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
     # Arrange: Build one window with events from two gateways and one event
     # without a reported gateway.
     first = replace(
-        _detail_event({"featureName": "heating.dhw.temperature.main"}),
+        _detail_event(
+            {"featureName": "heating.dhw.temperature.main"}, "feature-changed"
+        ),
         gateway_serial="7630175843100101",
     )
     second = replace(
-        _detail_event({"featureName": "heating.dhw.oneTimeCharge"}),
+        _detail_event({"featureName": "heating.dhw.oneTimeCharge"}, "feature-changed"),
         gateway_serial="8112200229931101",
     )
     third = replace(
-        _detail_event({"featureName": "heating.dhw.schedule"}),
+        _detail_event({"featureName": "heating.dhw.schedule"}, "feature-changed"),
         gateway_serial=None,
     )
     window = EventHistoryWindow(
@@ -2357,6 +2433,6 @@ def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
 
     # Assert: Every event names its gateway, or explicitly none.
     output = capsys.readouterr().out
-    assert "- 10:15:30 UTC detail gateway 7630175843100101" in output
-    assert "- 10:15:30 UTC detail gateway 8112200229931101" in output
-    assert "- 10:15:30 UTC detail gateway unknown" in output
+    assert "- 10:15:30 UTC feature-changed gateway 7630175843100101" in output
+    assert "- 10:15:30 UTC feature-changed gateway 8112200229931101" in output
+    assert "- 10:15:30 UTC feature-changed gateway unknown" in output
