@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import sys
+import textwrap
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -25,6 +26,7 @@ from vi_api_client import (
     ViValidationError,
 )
 
+from ._types import JsonValue
 from .credentials import CredentialDocument
 from .models import (
     CommandResponse,
@@ -961,29 +963,39 @@ async def _collect_event_history(
     return EventHistoryWindow(events, next_cursor, pages_fetched)
 
 
+# Readable event lines wrap long details instead of truncating them.
+_EVENT_LINE_WIDTH = 120
+_EVENT_DETAIL_INDENT = "    "
+_EVENT_CONTINUATION_INDENT = "      "
+
+
 def _print_event_summary(
     window: EventHistoryWindow, installation_id: str, days: int, max_pages: int
 ) -> None:
-    """Print a readable summary of a traversed event history window."""
+    """Print a readable summary of a traversed event history window.
+
+    Events are grouped under their UTC date and keep their returned order;
+    every event line states its UTC time. Long details wrap onto indented
+    continuation lines instead of being truncated, so complete command
+    parameters and body values stay visible.
+    """
     print(
         f"Found {len(window.events)} event(s) for installation "
         f"{installation_id} (last {days} days):"
     )
-    # A gateway column only disambiguates when events come from more than
-    # one gateway; a single gateway would repeat itself on every line.
     gateway_serials = {
         event.gateway_serial for event in window.events if event.gateway_serial
     }
-    show_gateway_column = len(gateway_serials) > 1
+    show_gateway_label = len(gateway_serials) > 1
+    groups: dict[str, list[InstallationEvent]] = {}
     for event in window.events:
-        line = f"- {event.event_timestamp} {event.event_type:<22}"
-        if show_gateway_column:
-            serial = event.gateway_serial if event.gateway_serial else ""
-            line += f" {serial:<17}"
-        details = _format_event_details(event)
-        if details:
-            line += f" {details}"
-        print(_truncate_event_line(line).rstrip())
+        groups.setdefault(_event_date_label(event.event_timestamp), []).append(event)
+    for date_label, events in groups.items():
+        print()
+        print(date_label)
+        for event in events:
+            _print_event_lines(event, show_gateway_label)
+    print()
     earliest_timestamp = window.earliest_timestamp
     latest_timestamp = window.latest_timestamp
     if earliest_timestamp is not None and latest_timestamp is not None:
@@ -1000,43 +1012,156 @@ def _print_event_summary(
         )
 
 
-def _format_event_details(event: InstallationEvent) -> str | None:
-    """Return a compact summary of one event body, or None when empty.
+def _event_date_label(timestamp: str) -> str:
+    """Return the UTC date group label for one event timestamp.
 
-    Event bodies depend on the event type; the known feature-change shape is
-    summarized as ``feature (command params)`` and any other body falls back
-    to compact JSON.
+    A missing or unparsable timestamp groups under an explicit unknown
+    label instead of an invented date.
+    """
+    instant = _parse_instant(timestamp)
+    if instant is None:
+        return "Unknown date"
+    return f"{instant.astimezone(UTC):%Y-%m-%d} (UTC)"
+
+
+def _event_time_label(timestamp: str) -> str:
+    """Return the explicit UTC time label for one event timestamp.
+
+    A missing timestamp stays unknown and an unparsable one is shown as
+    reported instead of an invented time.
+    """
+    if not timestamp:
+        return "time unknown"
+    instant = _parse_instant(timestamp)
+    if instant is None:
+        return timestamp
+    return f"{instant.astimezone(UTC):%H:%M:%S} UTC"
+
+
+def _print_event_lines(event: InstallationEvent, show_gateway_label: bool) -> None:
+    """Print one event header line and its wrapped detail lines."""
+    header = f"- {_event_time_label(event.event_timestamp)} {event.event_type}"
+    if show_gateway_label:
+        serial = event.gateway_serial if event.gateway_serial else "unknown"
+        header += f" gateway {serial}"
+    print(header)
+    wrapper = textwrap.TextWrapper(
+        width=_EVENT_LINE_WIDTH,
+        initial_indent=_EVENT_DETAIL_INDENT,
+        subsequent_indent=_EVENT_CONTINUATION_INDENT,
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
+    for detail in _event_detail_lines(event):
+        print("\n".join(wrapper.wrap(detail)))
+
+
+def _event_detail_lines(event: InstallationEvent) -> list[str]:
+    """Return the readable detail lines for one event body.
+
+    Known body shapes are rendered with the meaning the API already
+    supplies; every other body, including None, scalars, lists, and
+    unknown objects, uses the complete JSON representation so no value
+    is lost.
 
     Args:
-        event: The event whose body is summarized.
+        event: The event whose body is rendered.
 
     Returns:
-        A one-line detail text, or None when the event has no body.
+        The detail lines describing the complete event body.
     """
     body = event.body
-    if body is None:
+    if event.event_type == "gateway-online" and isinstance(body, dict):
+        online = body.get("online")
+        if isinstance(online, bool):
+            return ["ONLINE" if online else "OFFLINE"]
+    if event.event_type == "device-message-status" and isinstance(body, dict):
+        status_lines = _device_message_status_lines(body)
+        if status_lines is not None:
+            return status_lines
+    if isinstance(body, dict):
+        feature_lines = _feature_change_lines(body)
+        if feature_lines is not None:
+            return feature_lines
+    return [f"body: {json.dumps(body)}"]
+
+
+def _device_message_status_lines(body: dict[str, JsonValue]) -> list[str] | None:
+    """Return detail lines for one device-message-status body.
+
+    The ACTIVE and ENDED labels describe the transition reported at the
+    event timestamp, not the device's current state. An error description
+    that merely repeats the code is omitted because it adds no
+    information; the original API field stays available through the JSON
+    output.
+
+    Args:
+        body: The event body with the provider's status fields.
+
+    Returns:
+        The detail lines, or None when the body carries no status data.
+    """
+    lines: list[str] = []
+    code_text = _text_field(body, "errorCode")
+    if code_text is not None:
+        lines.append(f"code: {code_text}")
+    active = body.get("active")
+    if isinstance(active, bool):
+        lines.append("ACTIVE" if active else "ENDED")
+    identifiers: list[str] = []
+    device_id = _text_field(body, "deviceId")
+    if device_id is not None:
+        identifiers.append(f"device: {device_id}")
+    model_id = _text_field(body, "modelId")
+    if model_id is not None:
+        identifiers.append(f"model: {model_id}")
+    if identifiers:
+        lines.append(", ".join(identifiers))
+    equipment_type = _text_field(body, "equipmentType")
+    if equipment_type is not None:
+        lines.append(f"equipment type: {equipment_type}")
+    description = _text_field(body, "errorDescription")
+    description_text = description.strip() if description is not None else ""
+    code_comparison = code_text.casefold() if code_text is not None else None
+    if description_text and description_text.casefold() != code_comparison:
+        lines.append(f"description: {description_text}")
+    return lines or None
+
+
+def _text_field(body: dict[str, JsonValue], field_name: str) -> str | None:
+    """Return a non-empty text event body field, or None otherwise.
+
+    A missing, null, empty, or non-string field renders nothing rather
+    than a fabricated or stringified value.
+    """
+    value = body.get(field_name)
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _feature_change_lines(body: dict[str, JsonValue]) -> list[str] | None:
+    """Return detail lines for one feature-change body.
+
+    Command parameters stay visible even when the command name is absent.
+
+    Args:
+        body: The event body with the provider's feature-change fields.
+
+    Returns:
+        The detail lines, or None when the body is not a feature change.
+    """
+    feature_name = _text_field(body, "featureName")
+    if feature_name is None:
         return None
-    if not isinstance(body, dict):
-        return json.dumps(body)
-    feature_name = body.get("featureName")
-    if not isinstance(feature_name, str) or not feature_name:
-        return json.dumps(body)
-    details = feature_name
-    command_name = body.get("commandName")
-    if isinstance(command_name, str) and command_name:
-        details += f" ({command_name}"
-        command_body = body.get("commandBody")
-        if command_body is not None:
-            details += f" {json.dumps(command_body)}"
-        details += ")"
-    return details
-
-
-def _truncate_event_line(line: str) -> str:
-    """Keep one aligned event line within the readable summary width."""
-    if len(line) > 120:
-        return line[:117] + "..."
-    return line
+    lines = [feature_name]
+    command_name = _text_field(body, "commandName")
+    if command_name is not None:
+        lines.append(f"command: {command_name}")
+    command_body = body.get("commandBody")
+    if command_body is not None:
+        lines.append(f"parameters: {json.dumps(command_body)}")
+    return lines
 
 
 async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:

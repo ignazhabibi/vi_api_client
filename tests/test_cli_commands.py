@@ -22,7 +22,7 @@ from vi_api_client import (
 from vi_api_client.cli import (
     EventHistoryWindow,
     _dispatch_command,
-    _format_event_details,
+    _event_detail_lines,
     _infer_feature_value_type,
     _print_event_summary,
     async_main,
@@ -1548,38 +1548,36 @@ def _event_page() -> EventHistoryPage:
 
 @pytest.mark.asyncio
 async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys):
-    """The event summary should report the window, events, and cursor."""
+    """The readable summary should group events by UTC date without loss."""
     # Arrange: Provide one fixture event page for a seven day window.
     args = _cli_args(days=7)
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
     with _patched_cli_context(mock_cli_context):
-        # Act: List the first page through the CLI.
+        # Act: List the complete window through the CLI.
         assert await cmd_list_events(args) is True
 
-    # Assert: One aligned line per event; a single gateway adds no column.
+    # Assert: Events are grouped by UTC date with an explicit time, and a
+    # single gateway adds no label.
     captured = capsys.readouterr()
-    assert "Found 2 event(s) for installation 99 (last 7 days):" in captured.out
-    event_lines = [
-        line
-        for line in captured.out.splitlines()
-        if line.startswith("- 2026-09-20T10:15:30.000Z")
-    ]
-    assert len(event_lines) == 1
-    assert event_lines[0].startswith(
-        "- 2026-09-20T10:15:30.000Z feature-changed        "
-        "heating.dhw.temperature.main (setTargetTemperature"
+    lines = captured.out.splitlines()
+    assert "Found 2 event(s) for installation 99 (last 7 days):" in lines
+    assert lines[lines.index("2026-09-20 (UTC)") + 1] == (
+        "- 10:15:30 UTC feature-changed"
     )
-    # The full command payload exceeds the line width and is truncated.
-    assert len(event_lines[0]) == 120
-    assert event_lines[0].endswith("...")
-    assert '- 2026-09-19T22:41:03.000Z gateway-online         {"online": true}' in (
-        captured.out
+    assert lines[lines.index("2026-09-19 (UTC)") + 1] == (
+        "- 22:41:03 UTC gateway-online"
     )
+    assert "    heating.dhw.temperature.main" in lines
+    assert "    command: setTargetTemperature" in lines
+    assert '    parameters: {"temperature": 55}' in lines
+    assert "    ONLINE" in lines
+    assert all(len(line) <= 120 for line in lines)
+    assert "..." not in captured.out
     assert "7630175843100101" not in captured.out
     assert (
         "Earliest event: 2026-09-19T22:41:03.000Z; "
-        "latest event: 2026-09-20T10:15:30.000Z" in captured.out
+        "latest event: 2026-09-20T10:15:30.000Z" in lines
     )
     assert "Pagination completed after 1 page(s)" in captured.out
     assert "safety limit" not in captured.out
@@ -1914,6 +1912,82 @@ async def test_async_main_list_events_fixture_stops_at_one_page(monkeypatch, cap
     assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
 
 
+@pytest.mark.asyncio
+async def test_async_main_list_events_fixture_prints_readable_summary(
+    monkeypatch, capsys
+):
+    """The real CLI path should print the grouped readable event list."""
+    # Arrange: Use the bundled fixture through the real parser and dispatch.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-events",
+            "--fixture-device",
+            "Vitodens200W",
+            "--days",
+            "7",
+        ],
+    )
+
+    # Act: Invoke the parser, dispatcher, and fixture context setup.
+    exit_status = await async_main()
+
+    # Assert: Events group by UTC date with wrapped, complete details.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    lines = captured.out.splitlines()
+    assert "Found 3 event(s) for installation 99999 (last 7 days):" in lines
+    assert lines[lines.index("2026-09-20 (UTC)") + 1] == (
+        "- 10:15:30 UTC feature-changed"
+    )
+    assert "    heating.dhw.temperature.main" in lines
+    assert "    command: setTargetTemperature" in lines
+    assert '    parameters: {"temperature": 55}' in lines
+    assert "- 22:41:03 UTC gateway.disconnected" in lines
+    assert "    body: null" in lines
+    assert "- 08:02:10 UTC device.error.raised" in lines
+    assert (
+        "Earliest event: 2026-09-18T08:02:10.500Z; "
+        "latest event: 2026-09-20T10:15:30.000Z" in lines
+    )
+    assert "Pagination completed after 2 page(s)" in captured.out
+    assert "Using Fixture Device: Vitodens200W" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_async_main_list_events_fixture_readable_marks_safety_limit(
+    monkeypatch, capsys
+):
+    """The readable fixture output should mark the limited traversal."""
+    # Arrange: Use the bundled fixture with a one page safety limit.
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "vi-client",
+            "list-events",
+            "--fixture-device",
+            "Vitodens200W",
+            "--days",
+            "7",
+            "--max-pages",
+            "1",
+        ],
+    )
+
+    # Act: Invoke the parser, dispatcher, and fixture context setup.
+    exit_status = await async_main()
+
+    # Assert: The readable output marks the limited traversal incomplete.
+    captured = capsys.readouterr()
+    assert exit_status == 0
+    assert "Found 3 event(s) for installation 99999 (last 7 days):" in captured.out
+    assert (
+        "Stopped at the safety limit of 1 page(s); more events may be "
+        "available (next cursor: b3BhcXVlLWN1cnNvci10b2tlbg==)"
+    ) in captured.out
+
+
 def _detail_event(body: FeatureValue) -> InstallationEvent:
     """Build one event carrying only the body under test."""
     return InstallationEvent(
@@ -1929,55 +2003,296 @@ def _detail_event(body: FeatureValue) -> InstallationEvent:
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
-        (None, None),
-        (["a", "b"], '["a", "b"]'),
-        ({"online": True}, '{"online": true}'),
+        (None, ["body: null"]),
+        ("plain text", ['body: "plain text"']),
+        (42, ["body: 42"]),
+        (["a", "b"], ['body: ["a", "b"]']),
+        ({"online": True}, ['body: {"online": true}']),
         (
             {"featureName": "heating.dhw.temperature.main"},
-            "heating.dhw.temperature.main",
+            ["heating.dhw.temperature.main"],
         ),
         (
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandName": "setTargetTemperature",
             },
-            "heating.dhw.temperature.main (setTargetTemperature)",
+            ["heating.dhw.temperature.main", "command: setTargetTemperature"],
         ),
         (
             {
                 "featureName": "heating.dhw.temperature.main",
-                "commandName": "setTargetTemperature",
                 "commandBody": {"temperature": 55},
             },
-            'heating.dhw.temperature.main (setTargetTemperature {"temperature": 55})',
+            ["heating.dhw.temperature.main", 'parameters: {"temperature": 55}'],
         ),
     ],
 )
-def test_format_event_details_summarizes_known_shapes(body: FeatureValue, expected):
-    """Event body details should prefer known fields and fall back to JSON."""
-    # Act: Format one event body for the readable summary.
-    details = _format_event_details(_detail_event(body))
+def test_event_detail_lines_render_known_and_unknown_bodies(
+    body: FeatureValue, expected: list[str]
+):
+    """Detail lines should use known shapes and complete JSON otherwise."""
+    # Act: Render the event body of one generic event.
+    details = _event_detail_lines(_detail_event(body))
 
-    # Assert: Known shapes are summarized and unknown bodies stay compact JSON.
+    # Assert: Known shapes are structured and unknown bodies stay complete.
     assert details == expected
 
 
-def test_print_event_summary_truncates_long_lines(capsys):
-    """Very long aligned event lines should stay within the summary width."""
+@pytest.mark.parametrize(
+    ("online", "label"),
+    [(True, "ONLINE"), (False, "OFFLINE")],
+)
+def test_event_detail_lines_labels_gateway_online_events(online: bool, label: str):
+    """Gateway-online events should render the reported online transition."""
+    # Arrange: One gateway-online event whose provider type stays unchanged
+    # even when the gateway went offline.
+    event = replace(
+        _detail_event(None), event_type="gateway-online", body={"online": online}
+    )
+
+    # Act and assert: The boolean body value decides the label.
+    assert _event_detail_lines(event) == [label]
+
+
+def test_event_detail_lines_does_not_infer_gateway_state():
+    """A non-boolean online flag must not imply an online or offline state."""
+    # Arrange: One gateway-online event without a boolean online value.
+    event = replace(_detail_event({"online": "yes"}), event_type="gateway-online")
+
+    # Act and assert: The complete body stays visible instead of a label.
+    assert _event_detail_lines(event) == ['body: {"online": "yes"}']
+
+
+def _status_event(body: FeatureValue) -> InstallationEvent:
+    """Build one device-message-status event carrying the body under test."""
+    return replace(_detail_event(body), event_type="device-message-status")
+
+
+def test_event_detail_lines_renders_active_status_transition():
+    """An active status event should show code, transition, and identifiers."""
+    # Arrange: One anonymized activation event with a meaningful description.
+    body: FeatureValue = {
+        "errorCode": "S.134",
+        "active": True,
+        "deviceId": "17",
+        "modelId": "67",
+        "equipmentType": "Vitodens 200-W",
+        "errorDescription": "Burner fault",
+    }
+
+    # Act and assert: Every supplied field is rendered without loss.
+    assert _event_detail_lines(_status_event(body)) == [
+        "code: S.134",
+        "ACTIVE",
+        "device: 17, model: 67",
+        "equipment type: Vitodens 200-W",
+        "description: Burner fault",
+    ]
+
+
+def test_event_detail_lines_renders_ended_status_transition():
+    """An ended status event should report the ENDED transition."""
+    # Arrange: One anonymized end-of-status event.
+    body: FeatureValue = {
+        "errorCode": "S.134",
+        "active": False,
+        "deviceId": "17",
+        "modelId": "67",
+    }
+
+    # Act and assert: The boolean transition is rendered as ENDED.
+    assert _event_detail_lines(_status_event(body)) == [
+        "code: S.134",
+        "ENDED",
+        "device: 17, model: 67",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error_description", "expected"),
+    [
+        ("S.134", None),
+        ("s.134", None),
+        ("", None),
+        (None, None),
+        ("S.134 Burner fault", "description: S.134 Burner fault"),
+    ],
+)
+def test_event_detail_lines_shows_descriptions_beyond_the_code(
+    error_description: str | None, expected: str | None
+):
+    """Only descriptions adding information beyond the code should appear."""
+    # Arrange: One status event with the description under test.
+    body: FeatureValue = {
+        "errorCode": "S.134",
+        "active": True,
+        "errorDescription": error_description,
+    }
+
+    # Act: Render the status event body.
+    details = _event_detail_lines(_status_event(body))
+
+    # Assert: Repeated, empty, and missing descriptions are omitted while
+    # informative ones survive.
+    if expected is None:
+        assert not any(detail.startswith("description:") for detail in details)
+    else:
+        assert expected in details
+
+
+def test_event_detail_lines_keeps_description_without_code():
+    """A description without a code is informative on its own."""
+    # Arrange: One status event without an error code.
+    body: FeatureValue = {"errorDescription": "Burner fault"}
+
+    # Act and assert: The description renders without a code line.
+    assert _event_detail_lines(_status_event(body)) == ["description: Burner fault"]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"active": True}, ["ACTIVE"]),
+        ({"errorCode": "S.134"}, ["code: S.134"]),
+        ({"deviceId": "17", "modelId": "67"}, ["device: 17, model: 67"]),
+        ({"deviceId": "17"}, ["device: 17"]),
+        ({}, ["body: {}"]),
+        ("scalar", ['body: "scalar"']),
+    ],
+)
+def test_event_detail_lines_handles_missing_status_fields_without_fabrication(
+    body: FeatureValue, expected: list[str]
+):
+    """Missing status fields should be omitted, never invented."""
+    # Act: Render one status event body with sparse or unexpected data.
+    details = _event_detail_lines(_status_event(body))
+
+    # Assert: Only supplied fields appear; other bodies stay complete JSON.
+    assert details == expected
+
+
+def test_print_event_summary_wraps_long_details_without_truncation(capsys):
+    """Long details should wrap onto indented continuation lines."""
     # Arrange: Provide one event with a feature name beyond the line width.
-    event = _detail_event({"featureName": "x" * 200})
+    feature_name = "x" * 200
+    event = _detail_event({"featureName": feature_name})
     window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
 
     # Act: Print the readable summary of the single event.
     _print_event_summary(window, "99", 7, 50)
 
-    # Assert: The event line is truncated with an ellipsis marker.
-    event_lines = [
-        line for line in capsys.readouterr().out.splitlines() if line.startswith("- ")
-    ]
-    assert len(event_lines) == 1
-    assert len(event_lines[0]) == 120
-    assert event_lines[0].endswith("...")
+    # Assert: The complete name survives across wrapped lines.
+    output_lines = capsys.readouterr().out.splitlines()
+    detail_lines = [line for line in output_lines if line.startswith("    ")]
+    assert "".join(line.strip() for line in detail_lines) == feature_name
+    assert all(len(line) <= 120 for line in detail_lines)
+    assert detail_lines[0].startswith("    x")
+    assert detail_lines[1].startswith("      x")
+    assert "..." not in "\n".join(output_lines)
+
+
+def test_print_event_summary_keeps_long_nested_parameters_visible(capsys):
+    """Complete nested command parameters should survive wrapping."""
+    # Arrange: One feature change with a long, nested command body.
+    command_body = {
+        "schedule": [
+            {"start": "2026-09-20T05:30:00.000Z", "end": "2026-09-20T22:00:00.000Z"}
+        ],
+        "note": "n" * 60,
+    }
+    event = _detail_event(
+        {
+            "featureName": "heating.dhw.schedule",
+            "commandName": "setSchedule",
+            "commandBody": command_body,
+        }
+    )
+    window = EventHistoryWindow(events=[event], next_cursor=None, pages_fetched=1)
+
+    # Act: Print the readable summary of the single event.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: The wrapped parameters reconstruct the exact command body.
+    output_lines = capsys.readouterr().out.splitlines()
+    start = next(
+        index
+        for index, line in enumerate(output_lines)
+        if line.startswith("    parameters: ")
+    )
+    end = start + 1
+    while end < len(output_lines) and output_lines[end].startswith("      "):
+        end += 1
+    rendered = "".join(line.strip() for line in output_lines[start:end])
+    assert json.loads(rendered[len("parameters: ") :]) == command_body
+    assert all(len(line) <= 120 for line in output_lines[start:end])
+
+
+def test_print_event_summary_groups_events_under_utc_dates(capsys):
+    """Dates should group in UTC while the returned order is preserved."""
+    # Arrange: The +02:00 timestamp is 2026-09-19 22:30:00 UTC, so its raw
+    # date and its UTC group differ.
+    offset_event = replace(
+        _detail_event(None), event_timestamp="2026-09-20T00:30:00.000+02:00"
+    )
+    first = replace(_detail_event(None), event_timestamp="2026-09-19T12:00:00.000Z")
+    second = replace(_detail_event(None), event_timestamp="2026-09-18T09:00:00.000Z")
+    window = EventHistoryWindow(
+        events=[first, offset_event, second], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Print the readable summary of the mixed-offset window.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: Groups appear in first-seen order with UTC-converted times.
+    lines = capsys.readouterr().out.splitlines()
+    first_group = lines.index("2026-09-19 (UTC)")
+    second_group = lines.index("2026-09-18 (UTC)")
+    first_event = lines.index("- 12:00:00 UTC detail")
+    offset_event = lines.index("- 22:30:00 UTC detail")
+    second_event = lines.index("- 09:00:00 UTC detail")
+    assert first_group < first_event < offset_event < second_group < second_event
+
+
+def test_print_event_summary_represents_missing_timestamps_without_invention(capsys):
+    """Missing or unparsable timestamps should stay explicit and raw."""
+    # Arrange: One event carries an unparsable timestamp and one a missing
+    # timestamp, both built directly because the API parser rejects them.
+    unparsable = replace(_detail_event(None), event_timestamp="not-a-timestamp")
+    missing = replace(_detail_event(None), event_timestamp="")
+    window = EventHistoryWindow(
+        events=[unparsable, missing], next_cursor=None, pages_fetched=1
+    )
+
+    # Act: Print the readable summary of the undatable window.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: No date or time is invented for either event.
+    lines = capsys.readouterr().out.splitlines()
+    assert "Unknown date" in lines
+    assert "- not-a-timestamp detail" in lines
+    assert "- time unknown detail" in lines
+
+
+def test_print_event_summary_marks_safety_limit_results(capsys):
+    """A remaining cursor should mark the readable result incomplete."""
+    # Arrange: One event window that stopped at the page safety limit.
+    event = _detail_event({"featureName": "heating.dhw.temperature.main"})
+    window = EventHistoryWindow(
+        events=[event], next_cursor="cursor-token", pages_fetched=50
+    )
+
+    # Act: Print the readable summary of the limited traversal.
+    _print_event_summary(window, "99", 7, 50)
+
+    # Assert: The limit, cursor, and extremes stay visible.
+    output = capsys.readouterr().out
+    assert (
+        "Stopped at the safety limit of 50 page(s); more events may be "
+        "available (next cursor: cursor-token)" in output
+    )
+    assert "Pagination completed" not in output
+    assert "Earliest event:" in output
 
 
 def test_event_history_window_compares_timestamps_as_points_in_time():
@@ -2017,9 +2332,10 @@ def test_event_history_window_falls_back_to_lexical_for_unparsable_timestamps():
     assert window.latest_timestamp == "not-a-timestamp"
 
 
-def test_print_event_summary_adds_gateway_column_for_multiple_gateways(capsys):
-    """Events from several gateways should be disambiguated by a column."""
-    # Arrange: Build one window with events from two different gateways.
+def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
+    """Events from several gateways should stay attributable."""
+    # Arrange: Build one window with events from two gateways and one event
+    # without a reported gateway.
     first = replace(
         _detail_event({"featureName": "heating.dhw.temperature.main"}),
         gateway_serial="7630175843100101",
@@ -2028,16 +2344,19 @@ def test_print_event_summary_adds_gateway_column_for_multiple_gateways(capsys):
         _detail_event({"featureName": "heating.dhw.oneTimeCharge"}),
         gateway_serial="8112200229931101",
     )
+    third = replace(
+        _detail_event({"featureName": "heating.dhw.schedule"}),
+        gateway_serial=None,
+    )
     window = EventHistoryWindow(
-        events=[first, second], next_cursor=None, pages_fetched=1
+        events=[first, second, third], next_cursor=None, pages_fetched=1
     )
 
     # Act: Print the readable summary of the mixed-gateway window.
     _print_event_summary(window, "99", 7, 50)
 
-    # Assert: Both serials appear in an aligned gateway column.
+    # Assert: Every event names its gateway, or explicitly none.
     output = capsys.readouterr().out
-    assert "- 2026-09-20T10:15:30.000Z detail                 7630175843100101" in (
-        output
-    )
-    assert "8112200229931101" in output
+    assert "- 10:15:30 UTC detail gateway 7630175843100101" in output
+    assert "- 10:15:30 UTC detail gateway 8112200229931101" in output
+    assert "- 10:15:30 UTC detail gateway unknown" in output
