@@ -45,6 +45,10 @@ artifacts. `python
 scripts/quality_check.py` runs the complete gate and CI runs the same script.
 `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
 
+In Claude Code cloud sessions, `.claude/hooks/session-start.sh` installs Python
+3.14 with uv, creates `.venv` with the dev dependencies, and activates it, so the
+gate runs without the manual setup above.
+
 ## Git, Pull Requests, and Releases
 
 - `main` is protected. Use short-lived branches and pull requests; never commit or merge directly to `main` without an explicitly confirmed emergency bypass.
