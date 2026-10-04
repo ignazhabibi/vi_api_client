@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Protocol, cast
+from urllib.parse import urljoin
 
 import aiohttp
 
@@ -35,23 +36,27 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DiscoveryAdapter(Protocol):
-    """Retrieve API envelopes without constructing domain objects."""
+    """Retrieve API envelopes without constructing domain objects.
 
-    async def get_installations(self) -> dict[str, Any]: ...
+    Kept separate from `CommandAdapter` so fixture adapters and test doubles
+    implement only the role they exercise; `LiveAdapter` fulfills both.
+    """
 
-    async def get_gateways(self) -> dict[str, Any]: ...
+    async def get_installations(self) -> object: ...
+
+    async def get_gateways(self) -> object: ...
 
     async def get_devices(
         self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_features(
         self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
@@ -59,7 +64,11 @@ class DiscoveryAdapter(Protocol):
 
 
 class CommandAdapter(Protocol):
-    """Execute feature commands without constructing domain objects."""
+    """Execute feature commands without constructing domain objects.
+
+    Kept separate from `DiscoveryAdapter` so command-focused test doubles do
+    not need to stub discovery methods.
+    """
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
@@ -73,47 +82,48 @@ class LiveAdapter:
         """Initialize the adapter with the request provider."""
         self._auth = auth
 
-    async def get_installations(self) -> dict[str, Any]:
+    async def get_installations(self) -> object:
         """Return the installations API envelope."""
-        return await self._get(ENDPOINT_INSTALLATIONS)
+        return await self._request("GET", ENDPOINT_INSTALLATIONS)
 
-    async def get_gateways(self) -> dict[str, Any]:
+    async def get_gateways(self) -> object:
         """Return the gateways API envelope."""
-        return await self._get(ENDPOINT_GATEWAYS)
+        return await self._request("GET", ENDPOINT_GATEWAYS)
 
-    async def get_devices(
-        self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]:
+    async def get_devices(self, installation_id: str, gateway_serial: str) -> object:
         """Return the devices API envelope."""
-        return await self._get(
+        return await self._request(
+            "GET",
             f"{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
-            f"{gateway_serial}/devices"
+            f"{gateway_serial}/devices",
         )
 
     async def get_features(
         self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the feature API envelope for one device."""
-        return await self._post(
+        return await self._request(
+            "POST",
             f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
             f"{device.gateway_serial}/devices/{device.id}/features/filter",
-            payload,
+            json=payload,
         )
 
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the gateway-scoped feature API envelope."""
         first_device = devices[0]
-        return await self._post(
+        return await self._request(
+            "POST",
             f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
             f"{first_device.gateway_serial}/features/filter",
-            payload,
+            json=payload,
         )
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return one event history API envelope."""
         return await self._request(
             "GET",
@@ -123,23 +133,31 @@ class LiveAdapter:
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the command API envelope."""
-        return await self._post(control.uri, parameters)
+        return await self._request("POST", control.uri, json=parameters)
 
-    async def _get(self, url: str) -> dict[str, Any]:
-        """Execute a GET request through authentication."""
-        return await self._request("GET", url)
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Mapping[str, int | str] | None = None,
+        json: Mapping[str, object] | None = None,
+    ) -> object:
+        """Return the decoded JSON body of a successful response.
 
-    async def _post(self, url: str, payload: Mapping[str, object]) -> dict[str, Any]:
-        """Execute a POST request through authentication."""
-        return await self._request("POST", url, json=payload)
+        The body is untrusted JSON of any shape; callers validate it.
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
-        """Return a validated JSON response envelope."""
-        full_url = self._prepare_url(url)
+        Raises:
+            ViResponseError: If the URL is outside the Vi API or a successful
+                response is not valid JSON.
+        """
+        full_url = _api_url(url)
         _LOGGER.debug("Request: %s %s", method, mask_pii(full_url))
-        async with await self._auth.request(method, full_url, **kwargs) as response:
+        async with await self._auth.request(
+            method, full_url, params=params, json=json
+        ) as response:
             await _raise_for_status(response)
             try:
                 return await response.json()
@@ -148,14 +166,22 @@ class LiveAdapter:
                     "Successful API response was not valid JSON"
                 ) from error
 
-    @staticmethod
-    def _prepare_url(url: str) -> str:
-        """Return an absolute Vi API URL."""
-        if url.startswith("http"):
-            return url
-        if not url.startswith("/"):
-            url = f"/{url}"
-        return f"{API_BASE_URL}{url}"
+
+def _api_url(url: str) -> str:
+    """Return the absolute Vi API URL for an endpoint path or command URI.
+
+    Command URIs come from API responses, and every request carries the
+    bearer token, so URLs outside the Vi API are refused rather than sent.
+
+    Raises:
+        ViResponseError: If the URL does not resolve inside the Vi API.
+    """
+    full_url = urljoin(API_BASE_URL, url)
+    if not full_url.startswith(f"{API_BASE_URL}/"):
+        raise ViResponseError(
+            f"Refusing request outside the Vi API: {mask_pii(full_url)}"
+        )
+    return full_url
 
 
 async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
@@ -178,8 +204,8 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         error_body = cast("dict[str, Any]", data)
         vi_error_id = _structured_error_text(error_body.get("viErrorId"))
         error_type = _structured_error_text(error_body.get("errorType"))
-        message = error_body.get("message")
-        if isinstance(message, str):
+        message = _structured_error_text(error_body.get("message"))
+        if message is not None:
             error_message = message
         validation_details = _parse_validation_details(
             error_body.get("validationErrors")
@@ -219,9 +245,7 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
 
 def _structured_error_text(value: object) -> str | None:
     """Return a structured API error text field, or None when unusable."""
-    if isinstance(value, str):
-        return value
-    return None
+    return value if isinstance(value, str) else None
 
 
 def _parse_validation_details(value: object) -> list[ValidationDetail]:
@@ -236,14 +260,12 @@ def _parse_validation_details(value: object) -> list[ValidationDetail]:
         validated = validate_json_value(value, path="API validationErrors")
     except ViResponseError:
         return []
-    if not isinstance(validated, list):
+    if not isinstance(validated, list) or not all(
+        isinstance(entry, dict) for entry in validated
+    ):
         return []
-    details: list[ValidationDetail] = []
-    for entry in validated:
-        if not isinstance(entry, dict):
-            return []
-        details.append(entry)
-    return details
+    # Every entry was runtime-checked as a validated JSON object above.
+    return cast("list[ValidationDetail]", validated)
 
 
 def _parse_retry_after(value: str | None) -> float | None:
@@ -254,11 +276,10 @@ def _parse_retry_after(value: str | None) -> float | None:
     try:
         numeric_delay = float(value)
     except ValueError:
-        numeric_delay = None
-    if numeric_delay is not None:
-        if not math.isfinite(numeric_delay) or numeric_delay < 0:
-            return None
-        return numeric_delay
+        pass
+    else:
+        is_valid_delay = math.isfinite(numeric_delay) and numeric_delay >= 0
+        return numeric_delay if is_valid_delay else None
 
     try:
         retry_at = parsedate_to_datetime(value)
