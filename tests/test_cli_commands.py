@@ -493,6 +493,61 @@ async def test_cmd_get_feature_raw_prints_machine_readable_document(
     assert "setCurve" in document["control"]
 
 
+def _curve_features() -> list[Feature]:
+    """Return the two features parsed from one heating curve API feature."""
+    return [
+        Feature(
+            name=f"heating.curve.{name}",
+            value=value,
+            unit=None,
+            is_enabled=True,
+            is_ready=True,
+            control=None,
+        )
+        for name, value in (("shift", 0), ("slope", 1.4))
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
+    mock_cli_context, capsys
+):
+    """An API feature name should print every feature parsed from it."""
+    # Arrange: Return both features of the requested API feature.
+    args = _cli_args(feature_name="heating.curve", raw=False)
+    mock_cli_context.client.get_features.return_value = _curve_features()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Read the API feature through the CLI.
+        assert await cmd_get_feature(args) is True
+
+    # Assert: Both matching features print.
+    captured = capsys.readouterr()
+    assert "- heating.curve.shift: 0" in captured.out
+    assert "- heating.curve.slope: 1.4" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_cmd_get_feature_raw_prints_one_array_for_several_features(
+    mock_cli_context, capsys
+):
+    """Several raw matches should print one JSON array document."""
+    # Arrange: Return both features of the requested API feature.
+    args = _cli_args(feature_name="heating.curve", raw=True)
+    mock_cli_context.client.get_features.return_value = _curve_features()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Read the API feature in raw mode.
+        assert await cmd_get_feature(args) is True
+
+    # Assert: The output is one JSON array with one document per feature.
+    documents = json.loads(capsys.readouterr().out)
+    assert [document["name"] for document in documents] == [
+        "heating.curve.shift",
+        "heating.curve.slope",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
     """Unknown feature names should print a not-found notice."""

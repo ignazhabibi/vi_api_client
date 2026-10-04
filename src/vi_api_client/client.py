@@ -138,23 +138,29 @@ class ViClient:
     ) -> list[Feature]:
         """Get features for a device as typed objects.
 
+        Names are matched locally after fetching the device's features, so live
+        and fixture-backed clients select the same features. The API's
+        server-side name filter is not used: it selects API features, while
+        callers mostly address the flat features parsed from them.
+
         Args:
             device: The device to fetch features for.
             only_enabled: If True, only return enabled/ready features.
-            feature_names: Optional list of specific feature names to fetch.
+            feature_names: Optional feature names or API feature names to
+                return. An API feature name selects every feature parsed from
+                that API feature. Unknown names select nothing.
 
         Returns:
             List of Feature objects (flattened).
 
         Raises:
-            ViResponseError: If the API response contains duplicate feature names.
+            ViResponseError: If the API response is malformed or contains
+                duplicate feature names.
         """
-        payload: dict[str, bool | list[str]] = {
+        payload = {
             "skipDisabled": only_enabled,
             "skipNotReady": only_enabled,
         }
-        if feature_names:
-            payload["filter"] = feature_names
 
         _LOGGER.debug(
             "Fetching features for device %s (enabled=%s)...",
@@ -164,12 +170,17 @@ class ViClient:
         response = await self._discovery_adapter.get_features(device, payload)
         raw_features = self._get_discovery_data(response, "Feature")
 
-        flat_features: list[Feature] = []
+        flat_features: list[tuple[str, Feature]] = []
         for raw_feature in raw_features:
-            flat_features.extend(parse_feature_flat(raw_feature))
+            parsed_features = parse_feature_flat(raw_feature)
+            # parse_feature_flat validated the entry's API feature name.
+            api_feature_name: str = raw_feature["feature"]
+            flat_features.extend(
+                (api_feature_name, feature) for feature in parsed_features
+            )
 
         feature_names_seen: set[str] = set()
-        for feature in flat_features:
+        for _, feature in flat_features:
             if feature.name in feature_names_seen:
                 raise ViResponseError(
                     f"Duplicate feature name in API response: {feature.name}"
@@ -178,9 +189,13 @@ class ViClient:
 
         filtered_features = [
             feature
-            for feature in flat_features
+            for api_feature_name, feature in flat_features
             if (not only_enabled or (feature.is_enabled and feature.is_ready))
-            and (not feature_names or feature.name in feature_names)
+            and (
+                not feature_names
+                or feature.name in feature_names
+                or api_feature_name in feature_names
+            )
         ]
 
         _LOGGER.debug(

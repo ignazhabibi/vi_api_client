@@ -87,7 +87,7 @@ class _FixtureDiscoveryAdapter:
         }
 
     async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
+        self, device: Device, payload: dict[str, bool]
     ) -> dict[str, Any]:
         """Return the selected fixture's raw feature envelope."""
         return self._load_feature_data()

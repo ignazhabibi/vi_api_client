@@ -342,6 +342,11 @@ Discovery proceeds through installations, gateways, devices, and features.
 currently conservative and sequential, but exact ordering is not a public
 compatibility contract.
 
+`get_features(..., feature_names=...)` matches names in the core after parsing,
+against both feature names and API feature names. The live adapter therefore
+sends no server-side name filter, and the fixture adapter, which returns every
+feature, yields the same selection. See ADR 0004.
+
 `{"data": []}` is a valid empty result. Non-JSON content, a wrong root type,
 missing or non-list `data`, or non-object entries raise `ViResponseError`.
 This prevents a provider contract failure from appearing as an empty account.
@@ -785,4 +790,5 @@ Models represent immutable state.
 - [ADR 0001: Gateway-scoped device refresh](adr/0001-use-gateway-scoped-device-refresh.md)
 - [ADR 0002: Request policy belongs to consumers](adr/0002-keep-request-policy-with-consumers.md)
 - [ADR 0003: Recursive JSON value contract](adr/0003-use-a-recursive-json-value-contract.md)
+- [ADR 0004: Match feature names locally](adr/0004-match-feature-names-locally.md)
 - [Canonical domain language](../CONTEXT.md)

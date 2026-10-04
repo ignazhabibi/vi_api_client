@@ -136,9 +136,9 @@ Fetches features for a specific device. This is the primary method to read data.
 *   **Parameters**:
     *   `device`: A `Device` object.
     *   `only_enabled`: if `True`, only returns features that are enabled and ready.
-    *   `feature_names`: Optional list of feature names to fetch (e.g. `["heating.sensors.temperature.outside"]`). If None, fetches all features.
-*   **Returns**: List of `Feature` objects.
-*   **Performance**: If `feature_names` is provided, the request is optimized to fetch only those specific features.
+    *   `feature_names`: Optional list of feature names or API feature names to return (e.g. `["heating.circuits.0.heating.curve.slope"]` or `["heating.circuits.0.heating.curve"]`). An API feature name selects every feature parsed from it. If None, returns all features.
+*   **Returns**: List of `Feature` objects. Unknown names select nothing; they do not raise.
+*   **Matching**: The client always fetches the device's features and matches names locally after parsing, so live and fixture-backed clients return the same features. A name that is both a feature name and an API feature name, such as `heating.circuits.0.name`, selects both matches. The request therefore carries the whole device feature set even when only a few names are requested; the number of API calls does not change.
 
 ### `update_device(device: Device, only_enabled: bool = True) -> Device`
 Refreshes a specific device by refetching all its features.

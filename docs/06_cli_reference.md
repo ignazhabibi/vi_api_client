@@ -57,12 +57,16 @@ and warnings are written to standard error.
 *Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic `...currentYear` alias per base feature. `currentDay` and `currentMonth` aliases are not generated.*
 
 ## 4. Fetch Feature Details
-Get the current value of a specific feature.
+Get the current value of a specific feature. The name may be a feature name or
+an API feature name; an API feature name prints every feature parsed from it.
 
 ```bash
 vi-client get-feature "heating.sensors.temperature.outside"
 
-# Show the raw JSON response instead of the parsed feature
+# An API feature name prints both heating curve features (shift and slope)
+vi-client get-feature "heating.circuits.0.heating.curve"
+
+# Show the parsed feature as JSON; several matches print one JSON array
 vi-client get-feature "heating.sensors.temperature.outside" --raw
 ```
 

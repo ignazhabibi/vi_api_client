@@ -51,7 +51,7 @@ class DiscoveryAdapter(Protocol):
     ) -> object: ...
 
     async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
+        self, device: Device, payload: dict[str, bool]
     ) -> object: ...
 
     async def get_gateway_features(
@@ -98,9 +98,7 @@ class LiveAdapter:
             f"{gateway_serial}/devices",
         )
 
-    async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> object:
+    async def get_features(self, device: Device, payload: dict[str, bool]) -> object:
         """Return the feature API envelope for one device."""
         return await self._request(
             "POST",

@@ -361,7 +361,8 @@ def _print_simple_feature_list(features: Sequence[Feature], dev_id: str) -> None
 async def cmd_get_feature(args: argparse.Namespace) -> bool:
     """Get a specific feature.
 
-    Fetches and displays details for a single feature by name.
+    Fetches and displays every feature matching a feature name or an API
+    feature name; an API feature name can match several features.
 
     Args:
         args: Parsed command line arguments including feature_name and raw flag.
@@ -373,23 +374,29 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         if not features:
             print(f"Feature '{feature_name}' not found.")
             return False
-        feature = features[0]
 
         if args.raw:
-            # Show internal object structure
+            documents = [
+                {
+                    "name": feature.name,
+                    "value": feature.value,
+                    "unit": feature.unit,
+                    "control": str(feature.control) if feature.control else None,
+                }
+                for feature in features
+            ]
+            # One match keeps the single-object document; several matches
+            # print one JSON array so the output stays one JSON document.
             print(
                 json.dumps(
-                    {
-                        "name": feature.name,
-                        "value": feature.value,
-                        "unit": feature.unit,
-                        "control": str(feature.control) if feature.control else None,
-                    },
+                    documents[0] if len(documents) == 1 else documents,
                     indent=2,
                     default=str,
                 )
             )
-        else:
+            return True
+
+        for feature in features:
             print(f"- {feature.name}: {format_feature(feature)}")
             if feature.control:
                 ctrl = feature.control
