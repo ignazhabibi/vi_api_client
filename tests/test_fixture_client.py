@@ -113,6 +113,43 @@ async def test_fixture_gateway_refresh_uses_the_fixture_adapter_without_authenti
     assert result.updated_devices[0].features
 
 
+@pytest.mark.parametrize(
+    ("requested_name", "expected_names"),
+    [
+        (
+            "heating.circuits.0.heating.curve",
+            [
+                "heating.circuits.0.heating.curve.shift",
+                "heating.circuits.0.heating.curve.slope",
+            ],
+        ),
+        (
+            "heating.circuits.0.heating.curve.slope",
+            ["heating.circuits.0.heating.curve.slope"],
+        ),
+        (
+            "heating.circuits.0.name",
+            ["heating.circuits.0.name", "heating.circuits.0.name.name"],
+        ),
+    ],
+    ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
+)
+@pytest.mark.asyncio
+async def test_fixture_feature_names_match_feature_and_api_feature_names(
+    requested_name, expected_names
+):
+    """Fixture filtering should select the same features as the live client."""
+    # Arrange: Discover a fixture device with multi-property API features.
+    client = FixtureViClient("Vitocal250A")
+    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
+
+    # Act: Request features by one name.
+    features = await client.get_features(device, feature_names=[requested_name])
+
+    # Assert: Feature names and API feature names both select features.
+    assert sorted(feature.name for feature in features) == expected_names
+
+
 @pytest.mark.asyncio
 async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics():
     """Fixture filtering should retain only requested enabled and ready features."""

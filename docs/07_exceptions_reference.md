@@ -69,17 +69,18 @@ and response-contract errors abort the whole refresh.
 ## Handling Specific Cases
 
 ### 404 Not Found
-When requesting a feature that isn't supported by a device, the API returns 404. The client raises `ViNotFoundError`.
+`get_features` matches `feature_names` locally, so a feature the device does
+not report yields an empty list rather than an error. `ViNotFoundError` means
+that the API reported a missing resource, such as an unknown device.
 
 ```python
 try:
-    # Trying to get a specific feature that might not exist
     features = await client.get_features(
         device,
         feature_names=["heating.sensors.volumetricFlow.share"],
     )
     if not features:
-        print("Feature not found (Filtered out or 404).")
+        print("Feature not reported by this device.")
 except ViNotFoundError:
     print("Device or API endpoint not found.")
 ```

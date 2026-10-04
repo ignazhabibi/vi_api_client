@@ -19,7 +19,6 @@ from vi_api_client.const import (
 from vi_api_client.exceptions import (
     ViAuthError,
     ViConnectionError,
-    ViNotFoundError,
     ViRateLimitError,
     ViResponseError,
     ViServerInternalError,
@@ -862,32 +861,77 @@ async def test_get_feature(load_fixture_json, static_token_auth):
             assert feature.value == 5.5
 
 
+@pytest.mark.parametrize(
+    ("requested_name", "expected_names"),
+    [
+        (
+            "heating.circuits.0.heating.curve",
+            [
+                "heating.circuits.0.heating.curve.shift",
+                "heating.circuits.0.heating.curve.slope",
+            ],
+        ),
+        (
+            "heating.circuits.0.heating.curve.slope",
+            ["heating.circuits.0.heating.curve.slope"],
+        ),
+        (
+            "heating.circuits.0.name",
+            ["heating.circuits.0.name", "heating.circuits.0.name.name"],
+        ),
+    ],
+    ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
+)
 @pytest.mark.asyncio
-async def test_get_feature_not_found(load_fixture_json, static_token_auth):
-    """Test fetching a non-existent feature."""
-    # Arrange: Create device and mock features endpoint to return 404 for a non-existent feature.
-    data = load_fixture_json("device_error_404.json")
-    url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
-
-    with aioresponses() as m:
-        m.post(url, status=404, payload=data)
-
+async def test_get_features_matches_feature_and_api_feature_names_locally(
+    requested_name, expected_names, load_fixture_device, static_token_auth
+):
+    """Names select flat features by their own or their API feature's name."""
+    # Arrange: Return a complete device feature response from the live API.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/"
+        "devices/0/features/filter"
+    )
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=load_fixture_device("Vitocal250A"))
         async with aiohttp.ClientSession() as session:
-            auth = static_token_auth(session)
-            client = ViClient(auth)
+            client = ViClient(static_token_auth(session))
 
-            device = Device(
-                id="0",
-                gateway_serial="1234567890",
-                installation_id="123456",
-                model_id="test",
-                device_type="heating",
-                status="ok",
+            # Act: Request features by one name.
+            features = await client.get_features(
+                _build_gateway_device("0"), feature_names=[requested_name]
             )
 
-            # Act and assert: The missing feature surfaces as a not-found error.
-            with pytest.raises(ViNotFoundError):
-                await client.get_features(device, feature_names=["nonexistent.feature"])
+    # Assert: Matching is local, so the request carries no server-side name filter.
+    assert sorted(feature.name for feature in features) == expected_names
+    request = next(iter(mock_responses.requests.values()))[0]
+    assert "filter" not in request.kwargs["json"]
+
+
+@pytest.mark.asyncio
+async def test_get_features_returns_nothing_for_unknown_names(
+    load_fixture_json, static_token_auth
+):
+    """Unknown names select no features instead of failing the request."""
+    # Arrange: Return a successful device feature response.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/"
+        "devices/0/features/filter"
+    )
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            url, payload=load_fixture_json("features_heating_sensors.json")
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act: Request a feature the device does not report.
+            features = await client.get_features(
+                _build_gateway_device("0"), feature_names=["nonexistent.feature"]
+            )
+
+    # Assert: The unknown name selects nothing.
+    assert features == []
 
 
 @pytest.mark.asyncio

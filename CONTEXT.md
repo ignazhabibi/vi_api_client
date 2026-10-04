@@ -48,6 +48,13 @@ _Avoid_: Optimistic update
 **Feature**:
 One flat, addressable device property with its reported value and capabilities.
 
+**API feature**:
+One named feature object in a Viessmann API response, such as
+`heating.circuits.0.heating.curve`. Parsing turns it into one or more features,
+such as `heating.circuits.0.heating.curve.slope` and `...shift`; when it only
+reports a `value`, its single feature keeps the API feature name.
+_Avoid_: Raw feature name, base name
+
 **Feature value**:
 The `FeatureValue` data reported for a feature. Its concrete shape follows the
 recursive `JsonValue` contract: scalar, no value, list, or string-keyed object.

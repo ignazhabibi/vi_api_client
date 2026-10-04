@@ -56,7 +56,7 @@ class _ScriptedGatewayDiscoveryAdapter:
         return self.gateway_response
 
     async def get_features(
-        self, device: Device, payload: dict[str, bool | list[str]]
+        self, device: Device, payload: dict[str, bool]
     ) -> dict[str, Any]:
         """Return the scripted individual device response."""
         self.calls.append(f"device:{device.id}")
