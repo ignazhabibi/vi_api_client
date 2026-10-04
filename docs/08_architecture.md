@@ -643,8 +643,10 @@ The package ships as a strictly typed PEP 561 package:
   validated field by field per ADR 0003; casts re-narrow containers that a
   runtime shape check has already validated at the transport boundary;
   aiohttp request keyword arguments stay `Any`; and bundled fixture files
-  are trusted package data. The CLI narrows dynamic argparse values through
-  runtime-checked accessors instead of casts.
+  are trusted package data. The CLI reads argparse values directly: the
+  parser defines every attribute's type and default, including shared
+  defaults for commands without target or JSON options, and validates
+  positive integers when parsing.
 
 ## 18. CLI architecture
 

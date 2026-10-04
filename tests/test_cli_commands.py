@@ -21,12 +21,14 @@ from vi_api_client import (
 )
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
+    DEFAULT_EVENT_HISTORY_MAX_PAGES,
     EventHistoryWindow,
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
     _print_event_summary,
     async_main,
+    build_parser,
     cmd_exec,
     cmd_get_feature,
     cmd_list_devices,
@@ -58,6 +60,10 @@ def _cli_args(**overrides: Any) -> Namespace:
         "installation_id": None,
         "gateway_serial": None,
         "device_id": None,
+        "json": False,
+        "params": [],
+        "limit": None,
+        "max_pages": DEFAULT_EVENT_HISTORY_MAX_PAGES,
     }
     arguments.update(overrides)
     return Namespace(**arguments)
@@ -634,50 +640,6 @@ def test_get_client_config_uses_saved_redirect_uri(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_cmd_get_feature_rejects_non_string_feature_names():
-    """Non-string feature names should reject with a local contract error."""
-    # Arrange: Supply a non-string feature name outside the argparse boundary.
-    args = _cli_args(feature_name=123, raw=False)
-
-    # Act and assert: The malformed argument raises with its name.
-    with pytest.raises(ValueError, match="feature_name' must be a string"):
-        await cmd_get_feature(args)
-
-
-@pytest.mark.asyncio
-async def test_cmd_login_rejects_non_path_token_files(monkeypatch, tmp_path):
-    """Non-path token file arguments should reject with a local contract error."""
-    # Arrange: Supply a non-path token file outside the argparse boundary.
-    monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
-    args = _cli_args(token_file=5, client_id="configured-client")
-
-    # Act and assert: The malformed argument raises with its name.
-    with pytest.raises(ValueError, match="token_file' must be a path"):
-        await cmd_login(args)
-
-
-@pytest.mark.parametrize(
-    ("params", "message"),
-    [
-        (5, "params' must be a list"),
-        (["ok", 5], "must be a list of strings"),
-    ],
-    ids=["non-list-params", "non-string-param"],
-)
-@pytest.mark.asyncio
-async def test_cmd_exec_rejects_malformed_params_arguments(params, message):
-    """Malformed params arguments should reject with a local contract error."""
-    # Arrange: Supply malformed params outside the argparse boundary.
-    args = _cli_args(
-        feature_name="heating.curve.slope", command_name="setCurve", params=params
-    )
-
-    # Act and assert: The malformed argument raises with its reason.
-    with pytest.raises(ValueError, match=message):
-        await cmd_exec(args)
-
-
-@pytest.mark.asyncio
 async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp_path):
     """Malformed credentials should produce a failing CLI status without rewrites."""
     # Arrange: Point an initial login command at malformed credential data.
@@ -878,21 +840,6 @@ async def test_cmd_exec_reports_unexpected_errors(mock_cli_context):
     with _patched_cli_context(mock_cli_context):
         # Act: Execute the explicit command.
         assert await cmd_exec(args) is False
-
-
-@pytest.mark.asyncio
-async def test_cmd_exec_rejects_non_json_parameter_arguments():
-    """Artificial namespaces with non-JSON params reject as local errors."""
-    # Arrange: Supply a params argument JSON cannot represent.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=object(),
-    )
-
-    # Act and assert: The local contract violation surfaces as a ValueError.
-    with pytest.raises(ValueError, match="Command parameters"):
-        await cmd_exec(args)
 
 
 @pytest.mark.asyncio
@@ -1311,87 +1258,12 @@ async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
 async def test_dispatch_returns_nonzero_for_failed_command():
     """The command dispatcher should map handler failures to exit status 1."""
     # Arrange: Dispatch a command whose handler reports failure.
-    args = Namespace(command="set")
+    handler = AsyncMock(return_value=False)
+    args = Namespace(command="set", handler=handler)
 
-    with patch("vi_api_client.cli.cmd_set", new_callable=AsyncMock) as mock_cmd_set:
-        mock_cmd_set.return_value = False
-
-        # Act and assert: The dispatcher maps the failure to status one.
-        assert await _dispatch_command(args) == 1
-
-
-@pytest.mark.asyncio
-async def test_dispatch_returns_two_for_unknown_command():
-    """The command dispatcher should reject unknown commands with status 2."""
-    # Arrange: Dispatch a command name that has no handler.
-    args = Namespace(command="not-a-command")
-
-    # Act and assert: The dispatcher refuses the unknown command.
-    assert await _dispatch_command(args) == 2
-
-
-@pytest.mark.asyncio
-async def test_dispatch_login_requires_a_configured_client_id(
-    monkeypatch, tmp_path, capsys
-):
-    """Dispatching login without any client ID should fail with guidance."""
-    # Arrange: Provide neither an argument, environment, nor stored client ID.
-    token_file = tmp_path / "tokens.json"
-    args = Namespace(
-        command="login",
-        client_id=None,
-        token_file=str(token_file),
-    )
-    monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
-
-    # Act: Dispatch the login command.
-    exit_status = await _dispatch_command(args)
-
-    # Assert: The pre-check fails with status one and an actionable hint.
-    assert exit_status == 1
-    assert "--client-id is required" in capsys.readouterr().out
-
-
-@pytest.mark.asyncio
-async def test_dispatch_login_proceeds_with_a_client_id(monkeypatch, tmp_path):
-    """Dispatching login with a client ID should reach the login handler."""
-    # Arrange: Provide a client ID and replace the login handler.
-    token_file = tmp_path / "tokens.json"
-    args = Namespace(
-        command="login",
-        client_id="configured-client",
-        token_file=str(token_file),
-    )
-
-    with patch("vi_api_client.cli.cmd_login", new_callable=AsyncMock) as mock_cmd_login:
-        mock_cmd_login.return_value = True
-
-        # Act: Dispatch the login command.
-        exit_status = await _dispatch_command(args)
-
-    # Assert: The pre-check passes and the handler result maps to status zero.
-    mock_cmd_login.assert_awaited_once_with(args)
-    assert exit_status == 0
-
-
-@pytest.mark.asyncio
-async def test_dispatch_login_accepts_a_saved_client_id(monkeypatch, tmp_path):
-    """Dispatching login should accept a client ID saved in the document."""
-    # Arrange: Store a client ID without an argument or environment value.
-    token_file = tmp_path / "tokens.json"
-    token_file.write_text('{"client_id": "saved-client"}', encoding="utf-8")
-    args = Namespace(command="login", client_id=None, token_file=str(token_file))
-    monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
-
-    with patch("vi_api_client.cli.cmd_login", new_callable=AsyncMock) as mock_cmd_login:
-        mock_cmd_login.return_value = True
-
-        # Act: Dispatch the login command.
-        exit_status = await _dispatch_command(args)
-
-    # Assert: The saved client ID satisfies the pre-check.
-    mock_cmd_login.assert_awaited_once_with(args)
-    assert exit_status == 0
+    # Act and assert: The dispatcher maps the failure to status one.
+    assert await _dispatch_command(args) == 1
+    handler.assert_awaited_once_with(args)
 
 
 def test_main_exits_with_async_command_status():
@@ -1659,31 +1531,57 @@ async def test_cmd_list_events_auto_selects_first_installation(
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("arguments", "argument_name"),
+    "arguments",
     [
-        ({"days": 0}, "days"),
-        ({"days": -2}, "days"),
-        ({"days": 7, "limit": 0}, "limit"),
-        ({"days": 7, "limit": -5}, "limit"),
-        ({"days": 7, "max_pages": 0}, "max_pages"),
-        ({"days": 7, "max_pages": -1}, "max_pages"),
+        ["--days", "0"],
+        ["--days", "-2"],
+        ["--days", "seven"],
+        ["--days", "7", "--limit", "0"],
+        ["--days", "7", "--max-pages", "-1"],
     ],
+    ids=["zero-days", "negative-days", "text-days", "zero-limit", "negative-pages"],
 )
-async def test_cmd_list_events_rejects_non_positive_windows(
-    arguments: dict, argument_name: str, capsys
-):
-    """Non-positive windows and limits should fail without a request."""
-    # Arrange: Request an invalid rolling window or page limit.
-    args = _cli_args(**arguments)
+def test_list_events_parser_rejects_non_positive_windows(arguments, capsys):
+    """Non-positive windows and limits should fail before any command runs."""
+    # Act: Parse an invalid rolling window or page limit.
+    with pytest.raises(SystemExit) as error:
+        build_parser().parse_args(["list-events", *arguments])
 
-    # Act: The CLI rejects the argument before any client interaction.
-    assert await cmd_list_events(args) is False
-
-    # Assert: The error names the offending argument.
+    # Assert: argparse reports a usage error on stderr only.
     captured = capsys.readouterr()
-    assert f"'{argument_name}' must be a positive integer" in captured.out
+    assert error.value.code == 2
+    assert captured.out == ""
+    assert "is not a positive integer" in captured.err
+
+
+def test_list_events_parser_requires_days(capsys):
+    """The rolling lookback window should be a required argument."""
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["list-events"])
+
+    assert "--days" in capsys.readouterr().err
+
+
+def test_parser_provides_shared_defaults_for_every_command():
+    """Commands without target or JSON options still expose their defaults."""
+    # Act: Parse a command that defines neither option.
+    args = build_parser().parse_args(["list-devices"])
+
+    # Assert: Shared readers see absent values instead of missing attributes.
+    assert (args.installation_id, args.gateway_serial, args.device_id) == (
+        None,
+        None,
+        None,
+    )
+    assert args.json is False
+
+
+def test_parser_keeps_installation_ids_as_text():
+    """Installation IDs should keep the API's string form."""
+    args = build_parser().parse_args(["list-features", "--installation-id", "123"])
+
+    assert args.installation_id == "123"
 
 
 @pytest.mark.asyncio
@@ -1740,21 +1638,6 @@ async def test_async_main_list_events_fixture_json_is_machine_readable(
     assert document["earliestEventTimestamp"] == "2026-09-18T08:02:10.500Z"
     assert document["latestEventTimestamp"] == "2026-09-20T10:15:30.000Z"
     assert "Using Fixture Device: Vitodens200W" in captured.err
-
-
-@pytest.mark.asyncio
-async def test_cmd_list_events_keeps_json_stdout_clean_on_rejected_days(capsys):
-    """JSON mode should report rejected windows on stderr only."""
-    # Arrange: Request an invalid window in machine-readable mode.
-    args = _cli_args(days=0, json=True)
-
-    # Act: The CLI rejects the argument before any client interaction.
-    assert await cmd_list_events(args) is False
-
-    # Assert: Standard output stays empty for machine consumers.
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "'days' must be a positive integer" in captured.err
 
 
 @pytest.mark.asyncio
