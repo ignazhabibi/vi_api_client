@@ -116,12 +116,13 @@ if page.next_cursor:
 **Endpoint note**: the request targets
 `GET /iot/v2/events-history/installations/{installationId}/events`, the
 spelling from Viessmann's 2023 endpoint announcement. The current
-developer-portal OpenAPI export spells the route `eventhistory`, but the
-read-only probe `scripts/probe_event_history.py` verified the live API on a
-real installation: the announcement route returned HTTP 200 with the expected
-`data` list, a `cursor.next`, and the documented event fields, while the
-portal-export spelling returned HTTP 404 `ENDPOINT_NOT_FOUND`. The sanitized
-probe output is documented with the implementing pull request. How far back
+developer-portal OpenAPI export spells the route `eventhistory`, but a
+read-only probe against a real installation verified the live API: the
+announcement route returned HTTP 200 with the expected `data` list, a
+`cursor.next`, and the documented event fields, while the portal-export
+spelling returned HTTP 404 `ENDPOINT_NOT_FOUND`. The probe script and its
+sanitized output are documented in the implementing pull request
+([#120](https://github.com/ignazhabibi/vi_api_client/pull/120)). How far back
 the provider retains events is not verified; treat an empty or cursor-less
 page as the end of the available window.
 
