@@ -120,9 +120,11 @@ replaced by another without changing the domain logic above it.
 use the same discovery, parsing, refresh, and command rules.
 
 **Impact:** The seam stays private inside the `_adapter` module and adds no
-public complexity. The command adapter returns the raw JSON value and the
+public complexity. Every adapter operation returns the raw JSON value and the
 core validates its shape, so no unvalidated transport data enters domain
 logic. Live and fixture behavior can be tested against the same contract.
+Discovery and commands are separate ports so fixture adapters and test doubles
+implement only the role they exercise; `LiveAdapter` implements both.
 This seam is justified by two existing implementations; it is not a general
 requirement to add a seam around every function.
 
@@ -323,7 +325,7 @@ sequenceDiagram
     API-->>Auth: HTTP response
     Auth-->>Adapter: response
     Adapter->>Adapter: validate status and JSON
-    Adapter-->>Client: validated JSON envelope
+    Adapter-->>Client: decoded JSON value
     Client->>Client: validate data and entries
     Client->>Parser: convert raw features
     Parser-->>Client: flat features
@@ -472,7 +474,10 @@ flowchart TB
 ```
 
 `ViClient(auth)` uses `LiveAdapter`, which builds URLs, performs
-authenticated requests, and validates transport responses.
+authenticated requests, and validates transport responses. Command URIs come
+from API responses while every request carries the access token, so the live
+adapter refuses any URL outside the Vi API with `ViResponseError` before
+sending it.
 
 `FixtureViClient(device_name)` uses fixture adapters and needs no authentication,
 network, or session. Fixtures in `src/vi_api_client/fixtures/` are bundled
