@@ -137,7 +137,7 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | `step` | `float \| None` | Step increment (numeric). | `0.1` |
 | `value_type` | `str \| None` | API command value type, e.g. `number`, `boolean`, or `string`. | `'number'` |
 | `options` | `Sequence[JsonValue] \| None` | Read-only valid enum values. | `('eco', 'comfort')` |
-| `pattern` | `str \| None` | Regex pattern for validation (string). | `'^[a-z]+$'` |
+| `pattern` | `str \| None` | Regex the whole string value must match. | `'^[a-z]+$'` |
 | `min_length` | `int \| None` | Minimum string length. | `1` |
 | `max_length` | `int \| None` | Maximum string length. | `20` |
 

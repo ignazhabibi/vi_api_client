@@ -796,7 +796,7 @@ class ViClient:
             raise ValueError(
                 f"Value length {len(value)} > max_length ({control.max_length})"
             )
-        if control.pattern and not re.match(control.pattern, value):
+        if control.pattern and not re.fullmatch(control.pattern, value):
             raise ValueError(
                 f"Value '{value}' does not match pattern '{control.pattern}'"
             )

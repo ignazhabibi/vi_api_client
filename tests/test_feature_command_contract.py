@@ -258,6 +258,7 @@ async def test_set_feature_accepts_declared_option_values(
         ({"min_length": 3}, "ab", "min_length"),
         ({"max_length": 3}, "toolong", "max_length"),
         ({"pattern": "^[a-z]+$"}, "UPPER", "does not match pattern"),
+        ({"pattern": r"^[\d]{2}-[\d]{2}$"}, "12-31\n", "does not match pattern"),
     ],
     ids=[
         "below-min",
@@ -265,6 +266,7 @@ async def test_set_feature_accepts_declared_option_values(
         "below-min-length",
         "above-max-length",
         "pattern-mismatch",
+        "pattern-trailing-newline",
     ],
 )
 @pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
