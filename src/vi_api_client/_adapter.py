@@ -204,8 +204,8 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         error_body = cast("dict[str, Any]", data)
         vi_error_id = _structured_error_text(error_body.get("viErrorId"))
         error_type = _structured_error_text(error_body.get("errorType"))
-        message = error_body.get("message")
-        if isinstance(message, str):
+        message = _structured_error_text(error_body.get("message"))
+        if message is not None:
             error_message = message
         validation_details = _parse_validation_details(
             error_body.get("validationErrors")
@@ -245,9 +245,7 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
 
 def _structured_error_text(value: object) -> str | None:
     """Return a structured API error text field, or None when unusable."""
-    if isinstance(value, str):
-        return value
-    return None
+    return value if isinstance(value, str) else None
 
 
 def _parse_validation_details(value: object) -> list[ValidationDetail]:
@@ -262,14 +260,12 @@ def _parse_validation_details(value: object) -> list[ValidationDetail]:
         validated = validate_json_value(value, path="API validationErrors")
     except ViResponseError:
         return []
-    if not isinstance(validated, list):
+    if not isinstance(validated, list) or not all(
+        isinstance(entry, dict) for entry in validated
+    ):
         return []
-    details: list[ValidationDetail] = []
-    for entry in validated:
-        if not isinstance(entry, dict):
-            return []
-        details.append(entry)
-    return details
+    # Every entry was runtime-checked as a validated JSON object above.
+    return cast("list[ValidationDetail]", validated)
 
 
 def _parse_retry_after(value: str | None) -> float | None:
@@ -280,11 +276,10 @@ def _parse_retry_after(value: str | None) -> float | None:
     try:
         numeric_delay = float(value)
     except ValueError:
-        numeric_delay = None
-    if numeric_delay is not None:
-        if not math.isfinite(numeric_delay) or numeric_delay < 0:
-            return None
-        return numeric_delay
+        pass
+    else:
+        is_valid_delay = math.isfinite(numeric_delay) and numeric_delay >= 0
+        return numeric_delay if is_valid_delay else None
 
     try:
         retry_at = parsedate_to_datetime(value)

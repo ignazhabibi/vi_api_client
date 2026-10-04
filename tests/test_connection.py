@@ -96,6 +96,7 @@ async def test_live_adapter_wraps_aiohttp_connection_error() -> None:
         (403, ViAuthError),
         (404, ViNotFoundError),
         (418, ViError),
+        (422, ViValidationError),
         (429, ViRateLimitError),
         (500, ViServerInternalError),
     ],
@@ -271,9 +272,13 @@ def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
     ("retry_after_header", "expected_retry_after"),
     [
         ("12.5", 12.5),
+        ("0", 0.0),
         ("-5", None),
+        ("inf", None),
+        ("nan", None),
         ("not-a-duration", None),
         ("Wed, 21 Oct 2015 07:28:00", None),
+        ("Wed, 21 Oct 2015 07:28:00 GMT", 0.0),
         (None, None),
     ],
 )
