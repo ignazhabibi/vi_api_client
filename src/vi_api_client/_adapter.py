@@ -185,7 +185,20 @@ def _api_url(url: str) -> str:
 
 
 async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
-    """Raise the matching library error for an unsuccessful API response."""
+    """Raise the matching library error for an unsuccessful API response.
+
+    The HTTP status decides the exception class. The JSON error body only
+    enriches it, so a missing or non-JSON body (such as a proxy error page)
+    falls back to HTTP-level defaults instead of masking the status.
+
+    Raises:
+        ViAuthError: For 401 and 403.
+        ViNotFoundError: For 404.
+        ViRateLimitError: For 429, with parsed Retry-After guidance.
+        ViValidationError: For 400 and 422, with validated details.
+        ViServerInternalError: For 5xx.
+        ViError: For any other unsuccessful status.
+    """
     status = response.status
     if status < 400:
         return
@@ -232,6 +245,9 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
             error_type,
             retry_after=_parse_retry_after(response.headers.get("Retry-After")),
         )
+    # Vi reports unreachable devices as 400 DEVICE_COMMUNICATION_ERROR;
+    # ViClient.update_gateway_devices relies on this mapping for its
+    # per-device fallback.
     if status in (400, 422):
         raise ViValidationError(
             error_message, vi_error_id, validation_details, error_type
@@ -269,7 +285,13 @@ def _parse_validation_details(value: object) -> list[ValidationDetail]:
 
 
 def _parse_retry_after(value: str | None) -> float | None:
-    """Return a non-negative retry duration from an HTTP Retry-After value."""
+    """Return a non-negative retry duration from an HTTP Retry-After value.
+
+    The header carries either delay seconds or an HTTP-date (RFC 9110). A
+    date without a time zone is not a valid HTTP-date and cannot be compared
+    with the current UTC time, so it yields None like any unusable value. A
+    date in the past yields 0.
+    """
     if value is None:
         return None
 
