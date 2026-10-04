@@ -122,13 +122,10 @@ class ViClient:
                 len(devices),
                 only_active_features,
             )
-            populated_devices: list[Device] = []
-            for device in devices:
-                features = await self.get_features(
-                    device, only_enabled=only_active_features
-                )
-                populated_devices.append(replace(device, features=features))
-            return populated_devices
+            return [
+                await self.update_device(device, only_enabled=only_active_features)
+                for device in devices
+            ]
 
         return devices
 
@@ -651,7 +648,7 @@ class ViClient:
 
         for device in devices:
             try:
-                features = await self.get_features(device, only_enabled=True)
+                updated_device = await self.update_device(device, only_enabled=True)
             except ViError as error:
                 if error.error_type not in device_error_types:
                     raise
@@ -660,7 +657,7 @@ class ViClient:
                     "Individual refresh failed for device %s: %s", device.id, error
                 )
             else:
-                updated_devices.append(replace(device, features=features))
+                updated_devices.append(updated_device)
 
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
