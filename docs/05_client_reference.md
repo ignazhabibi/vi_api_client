@@ -199,8 +199,9 @@ successful command response, without an API read-back.
         client-side constraints, or a command parameter value is not a JSON
         value.
     *   `ViValidationError` if the API rejects the generated command payload.
-    *   `ViResponseError` if the successful command response violates the API
-        contract.
+    *   `ViResponseError` if the command URI is outside the Vi API or the
+        successful command response violates the API contract; no request is
+        sent to a URI outside the Vi API.
     *   `ViConnectionError` if the API call fails.
 *   **Magic**: This method uses the current device feature's command metadata,
     always includes its target parameter, and resolves each other required
@@ -236,7 +237,8 @@ value must be within the JSON value contract; a non-JSON value raises
 `ValueError` before any request is sent. The method raises `ValueError` for
 local contract violations. API and connection failures use the corresponding
 `ViError` subclasses, and a successful command response that violates the
-response contract raises `ViResponseError`.
+response contract raises `ViResponseError`. A command URI outside the Vi API
+also raises `ViResponseError`, before the access token is sent anywhere.
 
 ```python
 response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})

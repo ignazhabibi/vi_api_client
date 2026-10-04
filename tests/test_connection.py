@@ -19,9 +19,11 @@ from vi_api_client.exceptions import (
     ViError,
     ViNotFoundError,
     ViRateLimitError,
+    ViResponseError,
     ViServerInternalError,
     ViValidationError,
 )
+from vi_api_client.models import FeatureControl
 
 
 class _ExternalOAuthError(aiohttp.ClientResponseError):
@@ -322,21 +324,67 @@ async def test_client_normalizes_http_date_retry_after_without_retrying() -> Non
     assert len(mock_responses.requests) == 1
 
 
-def test_prepare_url_composes_relative_and_absolute_paths() -> None:
-    """Adapter URLs should compose into absolute Vi API URLs."""
-    # Arrange: Cover absolute, rooted, and relative URL spellings.
+@pytest.mark.parametrize(
+    "command_uri",
+    [
+        f"{API_BASE_URL}/iot/v2/features/commands/setMode",
+        "/iot/v2/features/commands/setMode",
+    ],
+)
+@pytest.mark.asyncio
+async def test_live_adapter_sends_commands_to_vi_api_uris(command_uri: str) -> None:
+    """Absolute and rooted command URIs resolve to the Vi API."""
+    # Arrange: Accept the command at its absolute Vi API URL.
+    url = f"{API_BASE_URL}/iot/v2/features/commands/setMode"
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": {"success": True}})
+        async with aiohttp.ClientSession() as session:
+            adapter = LiveAdapter(_StaticAuth(session))
 
-    # Act and assert: Each spelling resolves to the documented absolute form.
-    assert (
-        LiveAdapter._prepare_url("https://example.invalid/api")
-        == "https://example.invalid/api"
-    )
-    assert (
-        LiveAdapter._prepare_url("/iot/v2/features")
-        == f"{API_BASE_URL}/iot/v2/features"
-    )
-    assert (
-        LiveAdapter._prepare_url("iot/v2/features") == f"{API_BASE_URL}/iot/v2/features"
+            # Act: Execute a command whose URI uses the given spelling.
+            response = await adapter.execute_command(
+                _command_control(command_uri), {"mode": "dhw"}
+            )
+
+    # Assert: The command reached the Vi API URL.
+    assert response == {"data": {"success": True}}
+
+
+@pytest.mark.parametrize(
+    "command_uri",
+    [
+        "https://example.invalid/iot/v2/features/commands/setMode",
+        f"{API_BASE_URL}.example.invalid/commands/setMode",
+        "//example.invalid/commands/setMode",
+        "",
+    ],
+)
+@pytest.mark.asyncio
+async def test_live_adapter_refuses_command_uris_outside_vi_api(
+    command_uri: str,
+) -> None:
+    """Command URIs from API responses must not receive the bearer token."""
+    # Arrange: Record every outgoing request without registering any URL.
+    with aioresponses() as mock_responses:
+        async with aiohttp.ClientSession() as session:
+            adapter = LiveAdapter(_StaticAuth(session))
+
+            # Act and assert: The adapter refuses the URI before any request.
+            with pytest.raises(ViResponseError, match="outside the Vi API"):
+                await adapter.execute_command(
+                    _command_control(command_uri), {"mode": "dhw"}
+                )
+    assert mock_responses.requests == {}
+
+
+def _command_control(uri: str) -> FeatureControl:
+    """Build a command control targeting the given URI."""
+    return FeatureControl(
+        command_name="setMode",
+        param_name="mode",
+        required_params=["mode"],
+        parent_feature_name="heating.mode",
+        uri=uri,
     )
 
 

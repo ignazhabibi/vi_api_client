@@ -397,8 +397,8 @@ class ViClient:
                 required sibling is absent, unavailable, or has no value, the
                 target value violates its constraints, or a command parameter
                 value is not a JSON value.
-            ViResponseError: If the successful command response violates the
-                API contract.
+            ViResponseError: If the command URI is outside the Vi API or the
+                successful command response violates the API contract.
         """
         canonical_feature = device.get_feature(feature.name)
         if canonical_feature is None:
@@ -461,8 +461,8 @@ class ViClient:
             ValueError: If the feature is unavailable, the payload omits its
                 target or a required parameter, or a parameter value is not a
                 JSON value.
-            ViResponseError: If the successful command response violates the
-                API contract.
+            ViResponseError: If the command URI is outside the Vi API or the
+                successful command response violates the API contract.
         """
         control = self._get_writable_command_control(feature)
         self._validate_explicit_command_payload(control, parameters)

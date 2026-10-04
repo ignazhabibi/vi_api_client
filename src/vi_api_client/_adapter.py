@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Protocol, cast
+from urllib.parse import urljoin
 
 import aiohttp
 
@@ -83,29 +84,31 @@ class LiveAdapter:
 
     async def get_installations(self) -> dict[str, Any]:
         """Return the installations API envelope."""
-        return await self._get(ENDPOINT_INSTALLATIONS)
+        return await self._request("GET", ENDPOINT_INSTALLATIONS)
 
     async def get_gateways(self) -> dict[str, Any]:
         """Return the gateways API envelope."""
-        return await self._get(ENDPOINT_GATEWAYS)
+        return await self._request("GET", ENDPOINT_GATEWAYS)
 
     async def get_devices(
         self, installation_id: str, gateway_serial: str
     ) -> dict[str, Any]:
         """Return the devices API envelope."""
-        return await self._get(
+        return await self._request(
+            "GET",
             f"{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
-            f"{gateway_serial}/devices"
+            f"{gateway_serial}/devices",
         )
 
     async def get_features(
         self, device: Device, payload: dict[str, bool | list[str]]
     ) -> dict[str, Any]:
         """Return the feature API envelope for one device."""
-        return await self._post(
+        return await self._request(
+            "POST",
             f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
             f"{device.gateway_serial}/devices/{device.id}/features/filter",
-            payload,
+            json=payload,
         )
 
     async def get_gateway_features(
@@ -113,10 +116,11 @@ class LiveAdapter:
     ) -> dict[str, Any]:
         """Return the gateway-scoped feature API envelope."""
         first_device = devices[0]
-        return await self._post(
+        return await self._request(
+            "POST",
             f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
             f"{first_device.gateway_serial}/features/filter",
-            payload,
+            json=payload,
         )
 
     async def get_event_history(
@@ -133,21 +137,27 @@ class LiveAdapter:
         self, control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]:
         """Return the command API envelope."""
-        return await self._post(control.uri, parameters)
+        return await self._request("POST", control.uri, json=parameters)
 
-    async def _get(self, url: str) -> dict[str, Any]:
-        """Execute a GET request through authentication."""
-        return await self._request("GET", url)
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Mapping[str, int | str] | None = None,
+        json: Mapping[str, object] | None = None,
+    ) -> dict[str, Any]:
+        """Return a validated JSON response envelope.
 
-    async def _post(self, url: str, payload: Mapping[str, object]) -> dict[str, Any]:
-        """Execute a POST request through authentication."""
-        return await self._request("POST", url, json=payload)
-
-    async def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
-        """Return a validated JSON response envelope."""
-        full_url = self._prepare_url(url)
+        Raises:
+            ViResponseError: If the URL is outside the Vi API or a successful
+                response is not valid JSON.
+        """
+        full_url = _api_url(url)
         _LOGGER.debug("Request: %s %s", method, mask_pii(full_url))
-        async with await self._auth.request(method, full_url, **kwargs) as response:
+        async with await self._auth.request(
+            method, full_url, params=params, json=json
+        ) as response:
             await _raise_for_status(response)
             try:
                 return await response.json()
@@ -156,14 +166,22 @@ class LiveAdapter:
                     "Successful API response was not valid JSON"
                 ) from error
 
-    @staticmethod
-    def _prepare_url(url: str) -> str:
-        """Return an absolute Vi API URL."""
-        if url.startswith("http"):
-            return url
-        if not url.startswith("/"):
-            url = f"/{url}"
-        return f"{API_BASE_URL}{url}"
+
+def _api_url(url: str) -> str:
+    """Return the absolute Vi API URL for an endpoint path or command URI.
+
+    Command URIs come from API responses, and every request carries the
+    bearer token, so URLs outside the Vi API are refused rather than sent.
+
+    Raises:
+        ViResponseError: If the URL does not resolve inside the Vi API.
+    """
+    full_url = urljoin(API_BASE_URL, url)
+    if not full_url.startswith(f"{API_BASE_URL}/"):
+        raise ViResponseError(
+            f"Refusing request outside the Vi API: {mask_pii(full_url)}"
+        )
+    return full_url
 
 
 async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
