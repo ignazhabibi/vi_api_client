@@ -35,7 +35,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DiscoveryAdapter(Protocol):
-    """Retrieve API envelopes without constructing domain objects."""
+    """Retrieve API envelopes without constructing domain objects.
+
+    Kept separate from `CommandAdapter` so fixture adapters and test doubles
+    implement only the role they exercise; `LiveAdapter` fulfills both.
+    """
 
     async def get_installations(self) -> dict[str, Any]: ...
 
@@ -59,7 +63,11 @@ class DiscoveryAdapter(Protocol):
 
 
 class CommandAdapter(Protocol):
-    """Execute feature commands without constructing domain objects."""
+    """Execute feature commands without constructing domain objects.
+
+    Kept separate from `DiscoveryAdapter` so command-focused test doubles do
+    not need to stub discovery methods.
+    """
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
