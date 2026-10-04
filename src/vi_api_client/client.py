@@ -60,8 +60,11 @@ class ViClient:
 
         Returns:
             List of Installation objects available to the user.
+
+        Raises:
+            ViResponseError: If a successful response violates the API contract.
         """
-        _LOGGER.debug("Fetching installations...")
+        _LOGGER.debug("Fetching installations")
         installations_data = await self._discovery_adapter.get_installations()
         installations = [
             Installation.from_api(installation_data)
@@ -77,8 +80,11 @@ class ViClient:
 
         Returns:
             List of Gateway objects found (across all installations).
+
+        Raises:
+            ViResponseError: If a successful response violates the API contract.
         """
-        _LOGGER.debug("Fetching gateways...")
+        _LOGGER.debug("Fetching gateways")
         gateways_data = await self._discovery_adapter.get_gateways()
         gateways = [
             Gateway.from_api(gateway_data)
@@ -107,6 +113,9 @@ class ViClient:
         Returns:
             Device snapshots. When requested, device feature hydration produces
             new snapshots from the feature responses.
+
+        Raises:
+            ViResponseError: If a successful response violates the API contract.
         """
         devices_data = await self._discovery_adapter.get_devices(
             installation_id, gateway_serial
@@ -118,7 +127,7 @@ class ViClient:
 
         if include_features:
             _LOGGER.debug(
-                "Hydrating %s devices with features (active_only=%s)...",
+                "Hydrating %s devices with features (active_only=%s)",
                 len(devices),
                 only_active_features,
             )
@@ -162,7 +171,7 @@ class ViClient:
         }
 
         _LOGGER.debug(
-            "Fetching features for device %s (enabled=%s)...",
+            "Fetching features for device %s (enabled=%s)",
             device.id,
             only_enabled,
         )
@@ -199,6 +208,9 @@ class ViClient:
 
         Returns:
             List of Devices with their `features` list populated.
+
+        Raises:
+            ViResponseError: If a successful response violates the API contract.
         """
         gateways = await self.get_gateways()
         all_devices: list[Device] = []
@@ -287,6 +299,10 @@ class ViClient:
 
         Returns:
             A refreshed device snapshot with features from the API response.
+
+        Raises:
+            ViResponseError: If the API response is malformed or contains
+                duplicate feature names.
         """
         features = await self.get_features(device, only_enabled=only_enabled)
         return replace(device, features=features)
@@ -411,17 +427,12 @@ class ViClient:
             control.command_name,
         )
 
-        # 1. Prepare Payload (Dependency Resolution)
         payload = self._resolve_command_payload(device, control, target_value)
-
-        # 2. Client-Side Validation
         _validate_command_parameters(payload)
         self._validate_constraints(control, target_value)
 
-        # 3. Execution
         response = await self._execute_command(control, payload)
 
-        # 4. Build a command-updated device snapshot.
         if response.success:
             # Preserve all other feature values from the input snapshot.
             updated_feature = replace(canonical_feature, value=target_value)
@@ -440,7 +451,6 @@ class ViClient:
             control.command_name,
             response.reason,
         )
-        # Return unchanged device on failure
         return response, device
 
     async def execute_command(
@@ -468,10 +478,6 @@ class ViClient:
         _validate_command_parameters(parameters)
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
         return await self._execute_command(control, parameters)
-
-    # ------------------------------------------------------------------
-    # Private Helper Methods
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _get_writable_command_control(feature: Feature) -> FeatureControl:
@@ -675,7 +681,7 @@ class ViClient:
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
     def _resolve_command_payload(
-        self, device: Device, ctrl: FeatureControl, target_value: FeatureValue
+        self, device: Device, control: FeatureControl, target_value: FeatureValue
     ) -> dict[str, JsonValue]:
         """Resolve all parameters required for a command.
 
@@ -683,43 +689,42 @@ class ViClient:
 
         Args:
             device: The device object for dependency lookup.
-            ctrl: The feature control definition.
+            control: The feature control definition.
             target_value: The main value to set.
 
         Returns:
             Dictionary of JSON command parameters to be sent as payload.
         """
-        payload = {ctrl.param_name: target_value}
+        payload = {control.param_name: target_value}
 
-        for param_key in ctrl.required_params:
-            # Case A: The value we want to set
-            if param_key == ctrl.param_name:
+        for param_key in control.required_params:
+            if param_key == control.param_name:
                 continue
 
-            # Case B: A dependency parameter (e.g. 'shift' when setting 'slope')
-            # Look for sibling feature: parent_feature_name + "." + param_key
-            sibling_name = f"{ctrl.parent_feature_name}.{param_key}"
+            # Other required parameters come from sibling features, e.g. the
+            # current 'shift' when setting a heating curve's 'slope'.
+            sibling_name = f"{control.parent_feature_name}.{param_key}"
             sibling = device.get_feature(sibling_name)
 
             if sibling is None:
                 raise ValueError(
                     f"Required dependency '{sibling_name}' for command "
-                    f"'{ctrl.command_name}' is not present on the device."
+                    f"'{control.command_name}' is not present on the device."
                 )
             if not sibling.is_enabled:
                 raise ValueError(
                     f"Required dependency '{sibling_name}' for command "
-                    f"'{ctrl.command_name}' is disabled."
+                    f"'{control.command_name}' is disabled."
                 )
             if not sibling.is_ready:
                 raise ValueError(
                     f"Required dependency '{sibling_name}' for command "
-                    f"'{ctrl.command_name}' is not ready."
+                    f"'{control.command_name}' is not ready."
                 )
             if sibling.value is None:
                 raise ValueError(
                     f"Required dependency '{sibling_name}' for command "
-                    f"'{ctrl.command_name}' has no value."
+                    f"'{control.command_name}' has no value."
                 )
             payload[param_key] = sibling.value
             _LOGGER.debug(
@@ -729,66 +734,69 @@ class ViClient:
             )
         return payload
 
-    def _validate_constraints(self, ctrl: FeatureControl, value: FeatureValue) -> None:
+    def _validate_constraints(
+        self, control: FeatureControl, value: FeatureValue
+    ) -> None:
         """Validate value against all constraints using type-based dispatch.
 
         Args:
-            ctrl: The feature control definition containing constraints.
+            control: The feature control definition containing constraints.
             value: The JSON value to check.
 
         Raises:
             ValueError: If value violates any constraints.
         """
-        # Generic Enum Check (applies to all types)
-        if ctrl.options:
-            self._validate_enum_constraints(ctrl, value)
+        if control.options:
+            self._validate_enum_constraints(control, value)
 
-        # Type-specific Dispatch
         if isinstance(value, int | float):
-            self._validate_numeric_constraints(ctrl, value)
+            self._validate_numeric_constraints(control, value)
         elif isinstance(value, str):
-            self._validate_string_constraints(ctrl, value)
+            self._validate_string_constraints(control, value)
 
     def _validate_numeric_constraints(
-        self, ctrl: FeatureControl, value: int | float
+        self, control: FeatureControl, value: int | float
     ) -> None:
         """Validate numeric bounds and step."""
-        if ctrl.min is not None and value < ctrl.min:
-            raise ValueError(f"Value {value} < min ({ctrl.min})")
-        if ctrl.max is not None and value > ctrl.max:
-            raise ValueError(f"Value {value} > max ({ctrl.max})")
+        if control.min is not None and value < control.min:
+            raise ValueError(f"Value {value} < min ({control.min})")
+        if control.max is not None and value > control.max:
+            raise ValueError(f"Value {value} > max ({control.max})")
 
-        if ctrl.step is not None and ctrl.step > 0:
-            # Check if value aligns with step (relative to min, or 0 if min missing)
-            base = ctrl.min if ctrl.min is not None else 0
+        if control.step is not None and control.step > 0:
+            base = control.min if control.min is not None else 0
             diff = value - base
-            # Allow small float error (epsilon)
-            remainder = diff % ctrl.step
-            # remainder should be close to 0 or close to step
-            is_valid = remainder < 1e-9 or abs(remainder - ctrl.step) < 1e-9
+            remainder = diff % control.step
+            # Float modulo can land just below the step (0.3 % 0.1 is about
+            # 0.1), so remainders near either end count as aligned.
+            is_valid = remainder < 1e-9 or abs(remainder - control.step) < 1e-9
 
             if not is_valid:
                 raise ValueError(
-                    f"Value {value} does not align with step {ctrl.step} "
+                    f"Value {value} does not align with step {control.step} "
                     f"(starting from {base})"
                 )
 
     def _validate_enum_constraints(
-        self, ctrl: FeatureControl, value: FeatureValue
+        self, control: FeatureControl, value: FeatureValue
     ) -> None:
         """Validate enum options."""
-        if ctrl.options is not None and value not in ctrl.options:
-            raise ValueError(f"Value {value} is not in allowed options: {ctrl.options}")
+        if control.options is not None and value not in control.options:
+            raise ValueError(
+                f"Value {value} is not in allowed options: {control.options}"
+            )
 
-    def _validate_string_constraints(self, ctrl: FeatureControl, value: str) -> None:
+    def _validate_string_constraints(self, control: FeatureControl, value: str) -> None:
         """Validate string length and pattern."""
-        if ctrl.min_length is not None and len(value) < ctrl.min_length:
+        if control.min_length is not None and len(value) < control.min_length:
             raise ValueError(
-                f"Value length {len(value)} < min_length ({ctrl.min_length})"
+                f"Value length {len(value)} < min_length ({control.min_length})"
             )
-        if ctrl.max_length is not None and len(value) > ctrl.max_length:
+        if control.max_length is not None and len(value) > control.max_length:
             raise ValueError(
-                f"Value length {len(value)} > max_length ({ctrl.max_length})"
+                f"Value length {len(value)} > max_length ({control.max_length})"
             )
-        if ctrl.pattern and not re.match(ctrl.pattern, value):
-            raise ValueError(f"Value '{value}' does not match pattern '{ctrl.pattern}'")
+        if control.pattern and not re.match(control.pattern, value):
+            raise ValueError(
+                f"Value '{value}' does not match pattern '{control.pattern}'"
+            )
