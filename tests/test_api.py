@@ -254,6 +254,37 @@ async def test_update_gateway_devices_uses_shared_envelope_validation(
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
+@pytest.mark.asyncio
+async def test_update_gateway_devices_translates_duplicate_feature_names(
+    static_token_auth,
+):
+    """Duplicate device features in a gateway response violate the API contract."""
+    # Arrange: Return the same device feature twice from the gateway endpoint.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+    api_feature = {
+        "feature": "heating.status",
+        "uri": (
+            "/iot/v2/features/installations/installation-1/gateways/gateway-1/"
+            "devices/0/features/heating.status"
+        ),
+        "properties": {"value": {"type": "string", "value": "ready"}},
+        "commands": {},
+        "isEnabled": True,
+        "isReady": True,
+    }
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": [api_feature, dict(api_feature)]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act and assert: The refresh reports a response error, not a ValueError.
+            with pytest.raises(ViResponseError, match="Duplicate feature name"):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
 @pytest.mark.parametrize(
     "uri",
     [None, 5],
