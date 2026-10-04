@@ -42,21 +42,21 @@ class DiscoveryAdapter(Protocol):
     implement only the role they exercise; `LiveAdapter` fulfills both.
     """
 
-    async def get_installations(self) -> dict[str, Any]: ...
+    async def get_installations(self) -> object: ...
 
-    async def get_gateways(self) -> dict[str, Any]: ...
+    async def get_gateways(self) -> object: ...
 
     async def get_devices(
         self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_features(
         self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
-    ) -> dict[str, Any]: ...
+    ) -> object: ...
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
@@ -82,17 +82,15 @@ class LiveAdapter:
         """Initialize the adapter with the request provider."""
         self._auth = auth
 
-    async def get_installations(self) -> dict[str, Any]:
+    async def get_installations(self) -> object:
         """Return the installations API envelope."""
         return await self._request("GET", ENDPOINT_INSTALLATIONS)
 
-    async def get_gateways(self) -> dict[str, Any]:
+    async def get_gateways(self) -> object:
         """Return the gateways API envelope."""
         return await self._request("GET", ENDPOINT_GATEWAYS)
 
-    async def get_devices(
-        self, installation_id: str, gateway_serial: str
-    ) -> dict[str, Any]:
+    async def get_devices(self, installation_id: str, gateway_serial: str) -> object:
         """Return the devices API envelope."""
         return await self._request(
             "GET",
@@ -102,7 +100,7 @@ class LiveAdapter:
 
     async def get_features(
         self, device: Device, payload: dict[str, bool | list[str]]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the feature API envelope for one device."""
         return await self._request(
             "POST",
@@ -113,7 +111,7 @@ class LiveAdapter:
 
     async def get_gateway_features(
         self, devices: list[Device], payload: dict[str, bool]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the gateway-scoped feature API envelope."""
         first_device = devices[0]
         return await self._request(
@@ -125,7 +123,7 @@ class LiveAdapter:
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return one event history API envelope."""
         return await self._request(
             "GET",
@@ -135,7 +133,7 @@ class LiveAdapter:
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
-    ) -> dict[str, Any]:
+    ) -> object:
         """Return the command API envelope."""
         return await self._request("POST", control.uri, json=parameters)
 
@@ -146,8 +144,10 @@ class LiveAdapter:
         *,
         params: Mapping[str, int | str] | None = None,
         json: Mapping[str, object] | None = None,
-    ) -> dict[str, Any]:
-        """Return a validated JSON response envelope.
+    ) -> object:
+        """Return the decoded JSON body of a successful response.
+
+        The body is untrusted JSON of any shape; callers validate it.
 
         Raises:
             ViResponseError: If the URL is outside the Vi API or a successful
