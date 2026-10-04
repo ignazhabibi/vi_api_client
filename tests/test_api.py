@@ -231,6 +231,29 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
+@pytest.mark.asyncio
+async def test_update_gateway_devices_uses_shared_envelope_validation(
+    static_token_auth,
+):
+    """Gateway responses should fail with the same envelope messages as other reads."""
+    # Arrange: Return a gateway envelope whose entry is not an object.
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
+        "gateway-1/features/filter"
+    )
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": [None]})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act and assert: The shared envelope validation names the resource.
+            with pytest.raises(
+                ViResponseError,
+                match="Gateway feature response data entries must be objects",
+            ):
+                await client.update_gateway_devices([_build_gateway_device("0")])
+
+
 @pytest.mark.parametrize(
     "uri",
     [None, 5],
