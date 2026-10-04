@@ -9,7 +9,6 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._types import JsonValue
-from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import (
     API_BASE_URL,
@@ -29,23 +28,12 @@ from vi_api_client.exceptions import (
 from vi_api_client.models import Device
 
 
-class MockAuth(AbstractAuth):
-    """Mock implementation of AbstractAuth for testing."""
-
-    def __init__(self, session: aiohttp.ClientSession):
-        super().__init__(session)
-        self._access_token = "mock_access_token"
-
-    async def async_get_access_token(self) -> str:
-        return self._access_token
-
-
 @pytest.mark.asyncio
-async def test_live_client_hides_raw_transport_access():
+async def test_live_client_hides_raw_transport_access(static_token_auth):
     """Live clients should expose only typed client workflows."""
     # Arrange: Construct the client with an authenticated request provider.
     async with aiohttp.ClientSession() as session:
-        client = ViClient(MockAuth(session))
+        client = ViClient(static_token_auth(session))
 
         # Assert: The former raw connector is not part of the client contract.
         assert not hasattr(client, "connector")
@@ -66,6 +54,7 @@ def _build_gateway_device(device_id: str) -> Device:
 @pytest.mark.asyncio
 async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
     load_fixture_json,
+    static_token_auth,
 ):
     # Arrange: Mock a gateway response with requested and unrelated features.
     response = load_fixture_json("gateway_device_features.json")
@@ -78,7 +67,7 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload=response)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Refresh both devices through the public gateway operation.
             result = await client.update_gateway_devices(devices)
@@ -112,7 +101,9 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_decodes_complete_device_uri_segments():
+async def test_update_gateway_devices_decodes_complete_device_uri_segments(
+    static_token_auth,
+):
     # Arrange: Return a feature for a device ID containing an encoded slash.
     response = {
         "data": [
@@ -135,7 +126,7 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments():
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload=response)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Refresh the encoded device ID.
             result = await client.update_gateway_devices([device])
@@ -149,10 +140,12 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments():
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_accepts_empty_input_without_request():
+async def test_update_gateway_devices_accepts_empty_input_without_request(
+    static_token_auth,
+):
     # Arrange: Create a client without registering any HTTP response.
     async with aiohttp.ClientSession() as session:
-        client = ViClient(MockAuth(session))
+        client = ViClient(static_token_auth(session))
 
         # Act: Refresh an empty gateway device collection.
         result = await client.update_gateway_devices([])
@@ -188,11 +181,11 @@ async def test_update_gateway_devices_accepts_empty_input_without_request():
 )
 @pytest.mark.asyncio
 async def test_update_gateway_devices_rejects_ambiguous_device_sets(
-    devices: list[Device], message: str
+    devices: list[Device], message: str, static_token_auth
 ):
     # Arrange: Create a client without registering any HTTP response.
     async with aiohttp.ClientSession() as session:
-        client = ViClient(MockAuth(session))
+        client = ViClient(static_token_auth(session))
 
         # Act and assert: Invalid device collections fail before network access.
         with pytest.raises(ValueError, match=message):
@@ -220,7 +213,9 @@ async def test_update_gateway_devices_rejects_ambiguous_device_sets(
     ],
 )
 @pytest.mark.asyncio
-async def test_update_gateway_devices_rejects_invalid_bulk_responses(response):
+async def test_update_gateway_devices_rejects_invalid_bulk_responses(
+    response, static_token_auth
+):
     # Arrange: Return a malformed successful response from the gateway endpoint.
     url = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
@@ -230,7 +225,7 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(response):
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload=response)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: Invalid response ownership is a public response error.
             with pytest.raises(ViResponseError):
@@ -243,7 +238,9 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(response):
     ids=["missing-uri", "non-string-uri"],
 )
 @pytest.mark.asyncio
-async def test_update_gateway_devices_rejects_entries_without_valid_uris(uri):
+async def test_update_gateway_devices_rejects_entries_without_valid_uris(
+    uri, static_token_auth
+):
     """Bulk entries without a usable device URI should reject as response errors."""
     # Arrange: Return a bulk entry whose device URI is missing or malformed.
     entry = {"feature": "heating.status", "properties": {"value": "ready"}, "uri": uri}
@@ -255,7 +252,7 @@ async def test_update_gateway_devices_rejects_entries_without_valid_uris(uri):
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload={"data": [entry]})
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The unusable URI becomes a public response error.
             with pytest.raises(ViResponseError, match="no valid URI"):
@@ -263,7 +260,9 @@ async def test_update_gateway_devices_rejects_entries_without_valid_uris(uri):
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_rejects_undecodable_device_uris():
+async def test_update_gateway_devices_rejects_undecodable_device_uris(
+    static_token_auth,
+):
     """Device URIs that fail strict decoding should reject as response errors."""
     # Arrange: Return a URI whose percent sequence is invalid UTF-8.
     entry = {
@@ -279,7 +278,7 @@ async def test_update_gateway_devices_rejects_undecodable_device_uris():
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload={"data": [entry]})
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The undecodable URI becomes a public response error.
             with pytest.raises(ViResponseError, match="an invalid URI"):
@@ -289,6 +288,7 @@ async def test_update_gateway_devices_rejects_undecodable_device_uris():
 @pytest.mark.asyncio
 async def test_update_gateway_devices_falls_back_only_for_missing_devices(
     load_fixture_json,
+    static_token_auth,
 ):
     # Arrange: The bulk response includes device 10 but omits device 0.
     fixture = load_fixture_json("gateway_device_features.json")
@@ -311,7 +311,7 @@ async def test_update_gateway_devices_falls_back_only_for_missing_devices(
         mock_responses.post(gateway_url, payload=bulk_response)
         mock_responses.post(device_url, payload={"data": []})
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Refresh the two devices.
             result = await client.update_gateway_devices(devices)
@@ -337,7 +337,7 @@ async def test_update_gateway_devices_falls_back_only_for_missing_devices(
 )
 @pytest.mark.asyncio
 async def test_update_gateway_devices_captures_device_specific_fallback_errors(
-    status: int, error_type: str, load_fixture_json
+    status: int, error_type: str, load_fixture_json, static_token_auth
 ):
     # Arrange: Gateway communication fails and device 0 then fails specifically.
     fixture = load_fixture_json("gateway_device_features.json")
@@ -367,7 +367,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
             payload={"message": "Device unavailable", "errorType": error_type},
         )
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Refresh through the public gateway operation.
             result = await client.update_gateway_devices(devices)
@@ -390,7 +390,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
 )
 @pytest.mark.asyncio
 async def test_update_gateway_devices_propagates_global_gateway_errors(
-    status: int, error_type: str, expected_error: type[Exception]
+    status: int, error_type: str, expected_error: type[Exception], static_token_auth
 ):
     # Arrange: Return a non-fallback gateway error.
     url = (
@@ -405,7 +405,7 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
             payload={"message": "Global failure", "errorType": error_type},
         )
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: Global failures abort the entire refresh.
             with pytest.raises(expected_error):
@@ -413,11 +413,11 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_propagates_connection_errors():
+async def test_update_gateway_devices_propagates_connection_errors(static_token_auth):
     # Arrange: Do not register the bulk endpoint, causing a network failure.
     with aioresponses():
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: Connection failures abort the entire refresh.
             with pytest.raises(ViConnectionError):
@@ -425,7 +425,9 @@ async def test_update_gateway_devices_propagates_connection_errors():
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_translates_malformed_fallback_response():
+async def test_update_gateway_devices_translates_malformed_fallback_response(
+    static_token_auth,
+):
     # Arrange: Trigger fallback and return invalid feature properties.
     base_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1"
     with aioresponses() as mock_responses:
@@ -435,7 +437,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response():
             payload={"data": [{"feature": "broken", "properties": []}]},
         )
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: Fallback contract failures use the public error.
             with pytest.raises(ViResponseError):
@@ -443,7 +445,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response():
 
 
 @pytest.mark.asyncio
-async def test_get_installations(load_fixture_json):
+async def test_get_installations(load_fixture_json, static_token_auth):
     """Test fetching installations."""
     # Arrange: Load fixture and mock API endpoint for installations.
     data = load_fixture_json("installations.json")
@@ -453,7 +455,7 @@ async def test_get_installations(load_fixture_json):
         m.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act: Fetch installations from API.
@@ -466,7 +468,7 @@ async def test_get_installations(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_get_installations_error():
+async def test_get_installations_error(static_token_auth):
     """Test error handling when fetching installations fails."""
     # Arrange: Mock API to return 500 Internal Server Error.
     url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
@@ -475,7 +477,7 @@ async def test_get_installations_error():
         m.get(url, status=500)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act and assert: The public client raises the server error type.
@@ -484,7 +486,7 @@ async def test_get_installations_error():
 
 
 @pytest.mark.asyncio
-async def test_get_gateways(load_fixture_json):
+async def test_get_gateways(load_fixture_json, static_token_auth):
     """Test fetching gateways."""
     # Arrange: Load fixture and mock gateways endpoint.
     data = load_fixture_json("gateways.json")
@@ -494,7 +496,7 @@ async def test_get_gateways(load_fixture_json):
         m.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act: Fetch gateways from API.
@@ -526,7 +528,7 @@ async def test_get_gateways(load_fixture_json):
     ],
 )
 async def test_discovery_rejects_successful_non_json_responses(
-    url, request_method, operation, arguments
+    url, request_method, operation, arguments, static_token_auth
 ):
     """Discovery should reject successful responses that are not JSON objects."""
     # Arrange: Return non-JSON content from each discovery endpoint.
@@ -535,7 +537,7 @@ async def test_discovery_rejects_successful_non_json_responses(
             url, body="not JSON", content_type="text/plain"
         )
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The public response error communicates the contract failure.
             with pytest.raises(ViResponseError):
@@ -544,19 +546,23 @@ async def test_discovery_rejects_successful_non_json_responses(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("url", "request_method", "operation", "arguments"),
+    ("endpoint", "operation", "arguments"),
     [
-        (f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}", "get", "get_installations", ()),
-        (f"{API_BASE_URL}{ENDPOINT_GATEWAYS}", "get", "get_gateways", ()),
+        (("get", f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"), "get_installations", ()),
+        (("get", f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"), "get_gateways", ()),
         (
-            f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
-            "get",
+            (
+                "get",
+                f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
+            ),
             "get_devices",
             ("installation-1", "gateway-1"),
         ),
         (
-            f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
-            "post",
+            (
+                "post",
+                f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
+            ),
             "get_features",
             (_build_gateway_device("0"),),
         ),
@@ -568,14 +574,15 @@ async def test_discovery_rejects_successful_non_json_responses(
     ids=["root-list", "missing-data", "data-not-list", "data-entry-not-object"],
 )
 async def test_discovery_rejects_successful_malformed_json_envelopes(
-    url, request_method, operation, arguments, response
+    endpoint, operation, arguments, response, static_token_auth
 ):
     """Discovery should reject successful JSON that violates its envelope contract."""
     # Arrange: Return JSON that violates a collection envelope requirement.
     with aioresponses() as mock_responses:
+        request_method, url = endpoint
         getattr(mock_responses, request_method)(url, payload=response)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The public response error communicates the contract failure.
             with pytest.raises(ViResponseError):
@@ -583,7 +590,9 @@ async def test_discovery_rejects_successful_malformed_json_envelopes(
 
 
 @pytest.mark.asyncio
-async def test_discovery_keeps_a_caller_managed_session_open(load_fixture_json):
+async def test_discovery_keeps_a_caller_managed_session_open(
+    load_fixture_json, static_token_auth
+):
     """Discovery must not close a session supplied through authentication."""
     # Arrange: Provide a caller-owned session and successful installation envelope.
     url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
@@ -591,7 +600,7 @@ async def test_discovery_keeps_a_caller_managed_session_open(load_fixture_json):
         mock_responses.get(url, payload=load_fixture_json("installations.json"))
         session = aiohttp.ClientSession()
         try:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Run discovery through the adapter-backed client.
             await client.get_installations()
@@ -603,7 +612,9 @@ async def test_discovery_keeps_a_caller_managed_session_open(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_get_full_installation_status_uses_matching_gateways_only():
+async def test_get_full_installation_status_uses_matching_gateways_only(
+    static_token_auth,
+):
     """Full status should not query gateways from other installations."""
     # Arrange: Mock one gateway for each of two installations.
     installation_id = "installation-a"
@@ -638,7 +649,7 @@ async def test_get_full_installation_status_uses_matching_gateways_only():
         mock_responses.get(devices_url, payload={"data": []})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Fetch the complete status for the first installation.
             devices = await client.get_full_installation_status(installation_id)
@@ -651,7 +662,9 @@ async def test_get_full_installation_status_uses_matching_gateways_only():
 
 
 @pytest.mark.asyncio
-async def test_get_full_installation_status_rejects_malformed_device_responses():
+async def test_get_full_installation_status_rejects_malformed_device_responses(
+    static_token_auth,
+):
     """Full status should preserve discovery envelope validation."""
     # Arrange: Return a matching gateway followed by invalid device collection entries.
     installation_id = "installation-1"
@@ -677,7 +690,7 @@ async def test_get_full_installation_status_rejects_malformed_device_responses()
         )
         mock_responses.get(devices_url, payload={"data": [None]})
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The composed read keeps the public response error.
             with pytest.raises(ViResponseError, match="entries must be objects"):
@@ -685,7 +698,7 @@ async def test_get_full_installation_status_rejects_malformed_device_responses()
 
 
 @pytest.mark.asyncio
-async def test_get_devices(load_fixture_json):
+async def test_get_devices(load_fixture_json, static_token_auth):
     """Test fetching devices for a gateway."""
     # Arrange: Load device fixture and fixture devices endpoint.
     data = load_fixture_json("devices_heating.json")
@@ -699,7 +712,7 @@ async def test_get_devices(load_fixture_json):
         m.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act: Fetch devices for specific gateway.
@@ -712,7 +725,7 @@ async def test_get_devices(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_get_features(load_fixture_json):
+async def test_get_features(load_fixture_json, static_token_auth):
     """Test fetching all features for a device (Parsing check)."""
     # Arrange: Create device and mock features endpoint to return all features.
     data = load_fixture_json("features_heating_sensors.json")
@@ -722,7 +735,7 @@ async def test_get_features(load_fixture_json):
         m.post(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             device = Device(
@@ -745,7 +758,9 @@ async def test_get_features(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_get_features_translates_duplicate_api_feature_names(load_fixture_json):
+async def test_get_features_translates_duplicate_api_feature_names(
+    load_fixture_json, static_token_auth
+):
     # Arrange: Mock a response containing the same feature twice.
     data = load_fixture_json("features_heating_sensors.json")
     data["data"].append(deepcopy(data["data"][0]))
@@ -762,7 +777,7 @@ async def test_get_features_translates_duplicate_api_feature_names(load_fixture_
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload=data)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The client translates an invalid API response.
             with pytest.raises(ViResponseError, match="Duplicate feature name"):
@@ -774,6 +789,7 @@ async def test_get_features_translates_duplicate_api_feature_names(load_fixture_
 @pytest.mark.asyncio
 async def test_get_features_applies_enabled_ready_and_name_filters_after_response(
     load_fixture_json,
+    static_token_auth,
 ):
     """Live feature filtering should not rely only on server-side filter hints."""
     # Arrange: Return requested, disabled, and not-ready features despite filter hints.
@@ -797,7 +813,7 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload=data)
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Ask for a specific enabled and ready feature.
             features = await client.get_features(
@@ -811,7 +827,7 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
 
 
 @pytest.mark.asyncio
-async def test_get_feature(load_fixture_json):
+async def test_get_feature(load_fixture_json, static_token_auth):
     """Test fetching a specific feature."""
     # Arrange: Create device and mock features endpoint to return a single filtered feature.
     data = load_fixture_json("features_filtered_single.json")
@@ -821,7 +837,7 @@ async def test_get_feature(load_fixture_json):
         m.post(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             device = Device(
@@ -847,7 +863,7 @@ async def test_get_feature(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_get_feature_not_found(load_fixture_json):
+async def test_get_feature_not_found(load_fixture_json, static_token_auth):
     """Test fetching a non-existent feature."""
     # Arrange: Create device and mock features endpoint to return 404 for a non-existent feature.
     data = load_fixture_json("device_error_404.json")
@@ -857,7 +873,7 @@ async def test_get_feature_not_found(load_fixture_json):
         m.post(url, status=404, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             device = Device(
@@ -875,7 +891,7 @@ async def test_get_feature_not_found(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_update_device(load_fixture_json):
+async def test_update_device(load_fixture_json, static_token_auth):
     """Test efficient device update."""
     # Arrange: Load the refresh response fixture for one new feature.
     data = load_fixture_json("update_device_response.json")
@@ -895,7 +911,7 @@ async def test_update_device(load_fixture_json):
         )
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act: Refresh the device through the public client method.
             updated_dev = await client.update_device(dev)
@@ -907,7 +923,7 @@ async def test_update_device(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_update_device_rejects_malformed_feature_responses():
+async def test_update_device_rejects_malformed_feature_responses(static_token_auth):
     """Device refresh should preserve feature envelope validation."""
     # Arrange: Return an invalid feature collection for an existing device.
     device = _build_gateway_device("0")
@@ -918,7 +934,7 @@ async def test_update_device_rejects_malformed_feature_responses():
     with aioresponses() as mock_responses:
         mock_responses.post(url, payload={"data": [None]})
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Act and assert: The composed refresh keeps the public response error.
             with pytest.raises(ViResponseError, match="entries must be objects"):
@@ -926,7 +942,7 @@ async def test_update_device_rejects_malformed_feature_responses():
 
 
 @pytest.mark.asyncio
-async def test_get_devices_with_hydration(load_fixture_json):
+async def test_get_devices_with_hydration(load_fixture_json, static_token_auth):
     """Test fetching devices with automatic feature hydration."""
     # Arrange: Load fixtures.
     devices_data = load_fixture_json("devices_heating.json")
@@ -950,7 +966,7 @@ async def test_get_devices_with_hydration(load_fixture_json):
         m.post(features_pattern, payload=features_data, repeat=True)
 
         async with aiohttp.ClientSession() as session:
-            auth = MockAuth(session)
+            auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act: Fetch devices with hydration enabled.
@@ -968,7 +984,7 @@ async def test_get_devices_with_hydration(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_set_feature_with_dependency(load_fixture_json):
+async def test_set_feature_with_dependency(load_fixture_json, static_token_auth):
     """Test setting a feature that has a sibling dependency (slope needs shift)."""
     # Arrange: Load the curve fixture whose setCurve command requires slope and shift.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -994,7 +1010,7 @@ async def test_set_feature_with_dependency(load_fixture_json):
         m.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # 1. Manually construct device
             device = Device(
@@ -1033,7 +1049,7 @@ async def test_set_feature_with_dependency(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_set_feature_validation_limit(load_fixture_json):
+async def test_set_feature_validation_limit(load_fixture_json, static_token_auth):
     """Test client-side validation for min/max limits."""
     fixtures_data = load_fixture_json("feature_heating_curve.json")
     install_id = "123"
@@ -1045,7 +1061,7 @@ async def test_set_feature_validation_limit(load_fixture_json):
         m.post(features_url, payload={"data": fixtures_data})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             device = Device(
                 id=device_id,
@@ -1066,7 +1082,7 @@ async def test_set_feature_validation_limit(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_set_feature_validation_step(load_fixture_json):
+async def test_set_feature_validation_step(load_fixture_json, static_token_auth):
     """Client-side validation accepts aligned steps and rejects misaligned ones."""
     # Arrange: Load the heating curve fixture (slope step is 0.1) and mock writes.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1084,7 +1100,7 @@ async def test_set_feature_validation_step(load_fixture_json):
         m.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             device = Device(
                 id=device_id,
@@ -1113,7 +1129,7 @@ async def test_set_feature_validation_step(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_set_feature_returns_updated_device(load_fixture_json):
+async def test_set_feature_returns_updated_device(load_fixture_json, static_token_auth):
     """Verify optimistic device update on success."""
     # Arrange: Load heating curve fixture and setup mocks.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1132,7 +1148,7 @@ async def test_set_feature_returns_updated_device(load_fixture_json):
         mock_responses.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Create base device
             base_device = Device(
@@ -1168,7 +1184,9 @@ async def test_set_feature_returns_updated_device(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_execute_command_preserves_explicit_parameters(load_fixture_json):
+async def test_execute_command_preserves_explicit_parameters(
+    load_fixture_json, static_token_auth
+):
     """Execute an explicit command without enriching its parameter payload."""
     # Arrange: Load a writable feature and configure its command endpoint.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1187,7 +1205,7 @@ async def test_execute_command_preserves_explicit_parameters(load_fixture_json):
         mock_responses.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
             device = Device(
                 id=device_id,
                 gateway_serial=gw_serial,
@@ -1215,7 +1233,9 @@ async def test_execute_command_preserves_explicit_parameters(load_fixture_json):
 
 
 @pytest.mark.asyncio
-async def test_execute_command_rejects_malformed_success_response(load_fixture_json):
+async def test_execute_command_rejects_malformed_success_response(
+    load_fixture_json, static_token_auth
+):
     """Translate malformed successful command responses into library errors."""
     # Arrange: Return a valid JSON value that violates the command response contract.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1233,7 +1253,7 @@ async def test_execute_command_rejects_malformed_success_response(load_fixture_j
         mock_responses.post(command_url, payload=["unexpected"])
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
             device = Device(
                 id=device_id,
                 gateway_serial=gw_serial,
@@ -1254,7 +1274,9 @@ async def test_execute_command_rejects_malformed_success_response(load_fixture_j
 
 
 @pytest.mark.asyncio
-async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json):
+async def test_set_feature_returns_unchanged_device_on_failure(
+    load_fixture_json, static_token_auth
+):
     """Verify device unchanged on command failure."""
     # Arrange: Load fixture and mock API failure.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1276,7 +1298,7 @@ async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json
         )
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Create base device
             base_device = Device(
@@ -1312,7 +1334,9 @@ async def test_set_feature_returns_unchanged_device_on_failure(load_fixture_json
 
 
 @pytest.mark.asyncio
-async def test_interdependent_features_use_optimistic_values(load_fixture_json):
+async def test_interdependent_features_use_optimistic_values(
+    load_fixture_json, static_token_auth
+):
     """Test that dependencies resolve from optimistic updates."""
     # Arrange: Load heating curve fixture with slope=0.6, shift=4.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
@@ -1334,7 +1358,7 @@ async def test_interdependent_features_use_optimistic_values(load_fixture_json):
         )
 
         async with aiohttp.ClientSession() as session:
-            client = ViClient(MockAuth(session))
+            client = ViClient(static_token_auth(session))
 
             # Create base device
             base_device = Device(
