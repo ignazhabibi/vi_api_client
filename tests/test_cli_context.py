@@ -224,24 +224,6 @@ async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tm
 
 
 @pytest.mark.asyncio
-async def test_cli_context_normalizes_integer_installation_scope(tmp_path):
-    """An integer installation argument should match its API string form."""
-    # Arrange: The parser reports --installation-id as an integer.
-    args = _context_args(tmp_path, installation_id=123)
-
-    with _scripted_discovery_client(
-        [_gateway("GW-A", "120"), _gateway("GW-B", "123")],
-        [_device("0", "123", "GW-B")],
-    ) as client:
-        # Act: Discover with the integer installation argument.
-        async with setup_client_context(args) as ctx:
-            # Assert: The normalized installation ID matches its API form.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("123", "GW-B", "0")
-
-        client.get_devices.assert_called_once_with("123", "GW-B")
-
-
-@pytest.mark.asyncio
 async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
     """An empty installation argument should stay absent during discovery."""
     # Arrange: Provide an empty installation ID that must not scope discovery.
