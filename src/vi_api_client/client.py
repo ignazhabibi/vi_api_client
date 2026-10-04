@@ -65,7 +65,7 @@ class ViClient:
         installations_data = await self._discovery_adapter.get_installations()
         installations = [
             Installation.from_api(installation_data)
-            for installation_data in self._get_discovery_data(
+            for installation_data in self._validated_envelope_entries(
                 installations_data, "Installation"
             )
         ]
@@ -82,7 +82,9 @@ class ViClient:
         gateways_data = await self._discovery_adapter.get_gateways()
         gateways = [
             Gateway.from_api(gateway_data)
-            for gateway_data in self._get_discovery_data(gateways_data, "Gateway")
+            for gateway_data in self._validated_envelope_entries(
+                gateways_data, "Gateway"
+            )
         ]
         _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
@@ -111,7 +113,7 @@ class ViClient:
         )
         devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
-            for device_data in self._get_discovery_data(devices_data, "Device")
+            for device_data in self._validated_envelope_entries(devices_data, "Device")
         ]
 
         if include_features:
@@ -168,7 +170,7 @@ class ViClient:
             only_enabled,
         )
         response = await self._discovery_adapter.get_features(device, payload)
-        raw_features = self._get_discovery_data(response, "Feature")
+        raw_features = self._validated_envelope_entries(response, "Feature")
 
         flat_features: list[tuple[str, Feature]] = []
         for raw_feature in raw_features:
@@ -350,15 +352,15 @@ class ViClient:
             raise
 
         requested_device_ids = {device.id for device in devices}
-        raw_features_by_device_id, seen_device_ids = self._group_gateway_features(
+        api_features_by_device_id = self._group_api_features_by_device(
             response, requested_device_ids
         )
 
         updated_devices_by_id: dict[str, Device] = {}
         for device in devices:
-            if device.id not in seen_device_ids:
+            if device.id not in api_features_by_device_id:
                 continue
-            raw_features = raw_features_by_device_id[device.id]
+            raw_features = api_features_by_device_id[device.id]
             features = [
                 feature
                 for raw_feature in raw_features
@@ -367,7 +369,7 @@ class ViClient:
             updated_devices_by_id[device.id] = replace(device, features=features)
 
         missing_devices = [
-            device for device in devices if device.id not in seen_device_ids
+            device for device in devices if device.id not in api_features_by_device_id
         ]
         if missing_devices:
             _LOGGER.debug(
@@ -530,10 +532,10 @@ class ViClient:
                 )
 
     @staticmethod
-    def _get_discovery_data(
+    def _validated_envelope_entries(
         envelope: object, resource_name: str
     ) -> list[dict[str, Any]]:
-        """Validate and return the data collection from a discovery envelope."""
+        """Validate an API envelope and return its data entries."""
         if not isinstance(envelope, dict):
             raise ViResponseError(f"{resource_name} response must be an object")
         # Runtime-checked containers from the transport boundary; every entry
@@ -583,37 +585,23 @@ class ViClient:
         if len(set(device_ids)) != len(device_ids):
             raise ValueError("Devices must have unique IDs")
 
-    def _group_gateway_features(
+    def _group_api_features_by_device(
         self, response: object, requested_device_ids: set[str]
-    ) -> tuple[dict[str, list[dict[str, Any]]], set[str]]:
-        """Validate and group a gateway response by requested device ID."""
-        if not isinstance(response, dict):
-            raise ViResponseError("Gateway feature response must be an object")
-        # Runtime-checked containers from the transport boundary; every entry
-        # is re-validated field by field by the feature parsers.
-        body = cast("dict[str, Any]", response)
-        raw_response_features = body.get("data")
-        if not isinstance(raw_response_features, list):
-            raise ViResponseError("Gateway feature response data must be a list")
-        raw_features = cast("list[object]", raw_response_features)
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Validate a gateway response and group its API features by device ID.
 
-        grouped_features: dict[str, list[dict[str, Any]]] = {
-            device_id: [] for device_id in requested_device_ids
-        }
-        seen_device_ids: set[str] = set()
-        for raw_feature in raw_features:
-            if not isinstance(raw_feature, dict):
-                raise ViResponseError("Gateway feature entries must be objects")
-            entry = cast("dict[str, Any]", raw_feature)
-            device_id = self._get_feature_device_id(entry.get("uri"))
+        Only requested devices with at least one API feature appear as keys;
+        gateway-owned API features and other devices are dropped.
+        """
+        grouped_api_features: dict[str, list[dict[str, Any]]] = {}
+        for entry in self._validated_envelope_entries(response, "Gateway feature"):
+            device_id = self._device_id_from_feature_uri(entry.get("uri"))
             validate_feature_entry(entry)
-            if device_id in grouped_features:
-                grouped_features[device_id].append(entry)
-                seen_device_ids.add(device_id)
+            if device_id in requested_device_ids:
+                grouped_api_features.setdefault(device_id, []).append(entry)
+        return grouped_api_features
 
-        return grouped_features, seen_device_ids
-
-    def _get_feature_device_id(self, uri: object) -> str | None:
+    def _device_id_from_feature_uri(self, uri: object) -> str | None:
         """Return the decoded device ID from a device feature URI."""
         if not isinstance(uri, str) or not uri:
             raise ViResponseError("Gateway feature entry has no valid URI")
