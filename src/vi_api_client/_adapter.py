@@ -55,7 +55,7 @@ class DiscoveryAdapter(Protocol):
     ) -> object: ...
 
     async def get_gateway_features(
-        self, devices: list[Device], payload: dict[str, bool]
+        self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> object: ...
 
     async def get_event_history(
@@ -110,14 +110,13 @@ class LiveAdapter:
         )
 
     async def get_gateway_features(
-        self, devices: list[Device], payload: dict[str, bool]
+        self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> object:
         """Return the gateway-scoped feature API envelope."""
-        first_device = devices[0]
         return await self._request(
             "POST",
-            f"{ENDPOINT_FEATURES}/{first_device.installation_id}/gateways/"
-            f"{first_device.gateway_serial}/features/filter",
+            f"{ENDPOINT_FEATURES}/{installation_id}/gateways/"
+            f"{gateway_serial}/features/filter",
             json=payload,
         )
 

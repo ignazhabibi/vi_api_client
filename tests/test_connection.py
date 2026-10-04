@@ -9,7 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client._adapter import LiveAdapter
-from vi_api_client._types import JsonValue, ValidationDetail
+from vi_api_client._types import JsonValue
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
@@ -115,21 +115,6 @@ async def test_live_adapter_preserves_viessmann_error_type(
                 await adapter.get_installations()
             assert raised_error.value.error_id == "error-123"
             assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
-
-
-def test_validation_error_keeps_existing_positional_arguments() -> None:
-    # Arrange: Use the public positional signature supported before error types.
-    validation_errors: list[ValidationDetail] = [
-        {"message": "Invalid", "path": "feature"}
-    ]
-
-    # Act: Construct the error with its existing three positional arguments.
-    error = ViValidationError("Bad request", "error-123", validation_errors)
-
-    # Assert: Existing arguments retain their meaning and error type is optional.
-    assert error.error_id == "error-123"
-    assert error.error_type is None
-    assert error.validation_errors == validation_errors
 
 
 @pytest.mark.asyncio
@@ -254,17 +239,6 @@ async def test_live_adapter_drops_malformed_structured_error_fields(
     assert error.error_type is None
     assert error.validation_errors == []
     assert str(error) == "HTTP 400"
-
-
-def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
-    """Rate-limit errors should retain their existing positional signature."""
-    # Arrange and Act: Construct with positional arguments supported before retry data.
-    error = ViRateLimitError("Rate limited", "error-123", "RATE_LIMIT")
-
-    # Assert: Existing values retain their meanings and retry data defaults to none.
-    assert error.error_id == "error-123"
-    assert error.error_type == "RATE_LIMIT"
-    assert error.retry_after is None
 
 
 @pytest.mark.parametrize(

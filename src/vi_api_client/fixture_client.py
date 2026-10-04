@@ -93,7 +93,7 @@ class _FixtureDiscoveryAdapter:
         return self._load_feature_data()
 
     async def get_gateway_features(
-        self, devices: list[Device], payload: dict[str, bool]
+        self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> dict[str, Any]:
         """Return the selected fixture's raw gateway-scoped feature envelope."""
         return self._load_feature_data()
