@@ -343,7 +343,11 @@ class ViClient:
             if device.id not in seen_device_ids:
                 continue
             raw_features = raw_features_by_device_id[device.id]
-            features = self._parse_gateway_device_features(device.id, raw_features)
+            features = [
+                feature
+                for raw_feature in raw_features
+                for feature in parse_feature_flat(raw_feature)
+            ]
             updated_devices_by_id[device.id] = replace(device, features=features)
 
         missing_devices = [
@@ -431,15 +435,12 @@ class ViClient:
             updated_device = replace(device, features=updated_features)
             return response, updated_device
 
-        # Defensive double-check: the successful path returns above.
-        if not response.success:  # pragma: no branch
-            _LOGGER.warning(
-                "Setting %s via %s failed (reason: %s)",
-                canonical_feature.name,
-                control.command_name,
-                response.reason,
-            )
-
+        _LOGGER.warning(
+            "Setting %s via %s failed (reason: %s)",
+            canonical_feature.name,
+            control.command_name,
+            response.reason,
+        )
         # Return unchanged device on failure
         return response, device
 
@@ -596,28 +597,6 @@ class ViClient:
 
         return grouped_features, seen_device_ids
 
-    @staticmethod
-    def _parse_gateway_device_features(
-        device_id: str, raw_features: list[dict[str, Any]]
-    ) -> list[Feature]:
-        """Parse one device's features and expose contract failures consistently."""
-        features: list[Feature] = []
-        try:
-            for raw_feature in raw_features:
-                features.extend(parse_feature_flat(raw_feature))
-        # Defensive: entries are validated before grouping and parse failures
-        # surface as ViResponseError, which this handler does not intercept.
-        except (  # pragma: no cover
-            AttributeError,
-            KeyError,
-            TypeError,
-            ValueError,
-        ) as error:
-            raise ViResponseError(
-                f"Invalid feature data for device {device_id}"
-            ) from error
-        return features
-
     def _get_feature_device_id(self, uri: object) -> str | None:
         """Return the decoded device ID from a device feature URI."""
         if not isinstance(uri, str) or not uri:
@@ -676,17 +655,6 @@ class ViClient:
                 _LOGGER.debug(
                     "Individual refresh failed for device %s: %s", device.id, error
                 )
-            # Defensive: the public read path raises ViError subclasses,
-            # which the handler above already isolates or re-raises.
-            except (  # pragma: no cover
-                AttributeError,
-                KeyError,
-                TypeError,
-                ValueError,
-            ) as error:
-                raise ViResponseError(
-                    f"Invalid feature data for device {device.id}"
-                ) from error
             else:
                 updated_devices.append(replace(device, features=features))
 
