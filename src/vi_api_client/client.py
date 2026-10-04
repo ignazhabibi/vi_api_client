@@ -122,13 +122,10 @@ class ViClient:
                 len(devices),
                 only_active_features,
             )
-            populated_devices: list[Device] = []
-            for device in devices:
-                features = await self.get_features(
-                    device, only_enabled=only_active_features
-                )
-                populated_devices.append(replace(device, features=features))
-            return populated_devices
+            return [
+                await self.update_device(device, only_enabled=only_active_features)
+                for device in devices
+            ]
 
         return devices
 
@@ -171,27 +168,11 @@ class ViClient:
         )
         response = await self._discovery_adapter.get_features(device, payload)
         raw_features = self._validated_envelope_entries(response, "Feature")
-
-        flat_features: list[tuple[str, Feature]] = []
-        for raw_feature in raw_features:
-            parsed_features = parse_feature_flat(raw_feature)
-            # parse_feature_flat validated the entry's API feature name.
-            api_feature_name: str = raw_feature["feature"]
-            flat_features.extend(
-                (api_feature_name, feature) for feature in parsed_features
-            )
-
-        feature_names_seen: set[str] = set()
-        for _, feature in flat_features:
-            if feature.name in feature_names_seen:
-                raise ViResponseError(
-                    f"Duplicate feature name in API response: {feature.name}"
-                )
-            feature_names_seen.add(feature.name)
+        parsed_features = self._parse_device_features(raw_features)
 
         filtered_features = [
             feature
-            for api_feature_name, feature in flat_features
+            for api_feature_name, feature in parsed_features
             if (not only_enabled or (feature.is_enabled and feature.is_ready))
             and (
                 not feature_names
@@ -360,11 +341,11 @@ class ViClient:
         for device in devices:
             if device.id not in api_features_by_device_id:
                 continue
-            raw_features = api_features_by_device_id[device.id]
             features = [
                 feature
-                for raw_feature in raw_features
-                for feature in parse_feature_flat(raw_feature)
+                for _, feature in self._parse_device_features(
+                    api_features_by_device_id[device.id]
+                )
             ]
             updated_devices_by_id[device.id] = replace(device, features=features)
 
@@ -551,6 +532,35 @@ class ViClient:
             )
         return cast("list[dict[str, Any]]", data)
 
+    @staticmethod
+    def _parse_device_features(
+        api_features: list[dict[str, Any]],
+    ) -> list[tuple[str, Feature]]:
+        """Parse one device's API features into features with unique names.
+
+        Each feature is paired with the name of the API feature it was parsed
+        from. A device snapshot requires unique feature names, so a duplicate
+        is an API contract violation.
+
+        Raises:
+            ViResponseError: If an API feature is malformed or two parsed
+                features share a name.
+        """
+        parsed_features: list[tuple[str, Feature]] = []
+        feature_names_seen: set[str] = set()
+        for api_feature in api_features:
+            features = parse_feature_flat(api_feature)
+            # parse_feature_flat validated the entry's API feature name.
+            api_feature_name: str = api_feature["feature"]
+            for feature in features:
+                if feature.name in feature_names_seen:
+                    raise ViResponseError(
+                        f"Duplicate feature name in API response: {feature.name}"
+                    )
+                feature_names_seen.add(feature.name)
+                parsed_features.append((api_feature_name, feature))
+        return parsed_features
+
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, JsonValue]
     ) -> CommandResponse:
@@ -651,7 +661,7 @@ class ViClient:
 
         for device in devices:
             try:
-                features = await self.get_features(device, only_enabled=True)
+                updated_device = await self.update_device(device, only_enabled=True)
             except ViError as error:
                 if error.error_type not in device_error_types:
                     raise
@@ -660,7 +670,7 @@ class ViClient:
                     "Individual refresh failed for device %s: %s", device.id, error
                 )
             else:
-                updated_devices.append(replace(device, features=features))
+                updated_devices.append(updated_device)
 
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
