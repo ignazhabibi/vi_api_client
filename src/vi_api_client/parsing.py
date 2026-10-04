@@ -101,11 +101,6 @@ def parse_feature_flat(data: dict[str, Any]) -> list[Feature]:
                 continue
         data_keys.append(key)
 
-    # Defensive fallback: unreachable in practice because "value" is never
-    # ignored, so data_keys already contains it whenever it is present.
-    if not data_keys and "value" in properties:  # pragma: no cover
-        data_keys = ["value"]
-
     default_unit = properties.get("unit")
     if not isinstance(default_unit, str):
         default_unit = None
@@ -175,7 +170,7 @@ def validate_feature_entry(
     return base_name, properties, commands, is_enabled, is_ready
 
 
-def _validate_commands(commands: dict[str, Any]) -> None:  # noqa: PLR0912
+def _validate_commands(commands: dict[str, Any]) -> None:
     """Validate known command and parameter metadata without closing the schema."""
     # The container casts assert string keys; programmatic mappings may use
     # other key types, so every key is still runtime-checked here.
@@ -210,14 +205,6 @@ def _validate_commands(commands: dict[str, Any]) -> None:  # noqa: PLR0912
             value_type = parameter.get("type")
             if value_type is not None and not isinstance(value_type, str):
                 raise ViResponseError("Feature command type must be a string")
-            enum = parameter.get("enum")
-            # The constraint validation above already rejected non-list enums.
-            if enum is not None and not isinstance(enum, list):  # pragma: no cover
-                raise ViResponseError("Feature command enum must be a list")
-            if enum is not None:
-                validate_json_value(
-                    cast("list[object]", enum), path="Feature command enum"
-                )
             raw_constraints = parameter.get("constraints")
             if raw_constraints is not None and not isinstance(raw_constraints, dict):
                 raise ViResponseError("Feature command constraints must be an object")
@@ -489,21 +476,19 @@ def _find_control_for_complex_feature(
     Returns:
         FeatureControl if a likely command is found.
     """
+    allowed = {"schedule", "entries", "newSchedule"}
     for cmd_name, cmd_data in commands.items():
         params = cmd_data.get("params", {})
-        if "schedule" in params or "entries" in params or "newSchedule" in params:
-            # Just pick the first param found
-            allowed = {"schedule", "entries", "newSchedule"}
-            target_param = next((k for k in params if k in allowed), None)
-            # Defensive: the membership check above guarantees a found target.
-            if target_param:  # pragma: no branch
-                return FeatureControl(
-                    command_name=cmd_name,
-                    param_name=target_param,
-                    required_params=_get_required_params(params),
-                    parent_feature_name=base_name,
-                    uri=cmd_data.get("uri", ""),
-                    value_type=params[target_param].get("type"),
-                    # Complex controls rarely have simple min/max
-                )
+        # Pick the first schedule-like parameter found.
+        target_param = next((k for k in params if k in allowed), None)
+        if target_param:
+            return FeatureControl(
+                command_name=cmd_name,
+                param_name=target_param,
+                required_params=_get_required_params(params),
+                parent_feature_name=base_name,
+                uri=cmd_data.get("uri", ""),
+                value_type=params[target_param].get("type"),
+                # Complex controls rarely have simple min/max
+            )
     return None
