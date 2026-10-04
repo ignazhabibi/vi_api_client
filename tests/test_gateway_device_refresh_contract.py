@@ -47,7 +47,7 @@ class _ScriptedGatewayDiscoveryAdapter:
         return self.devices_response
 
     async def get_gateway_features(
-        self, devices: list[Device], payload: dict[str, bool]
+        self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> dict[str, Any]:
         """Return the scripted gateway-scoped response."""
         self.calls.append("gateway")

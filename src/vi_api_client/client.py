@@ -319,9 +319,10 @@ class ViClient:
             "skipDisabled": True,
             "skipNotReady": True,
         }
+        scope = devices[0]
         try:
             response = await self._discovery_adapter.get_gateway_features(
-                devices, payload
+                scope.installation_id, scope.gateway_serial, payload
             )
         except ViValidationError as error:
             if error.error_type == "DEVICE_COMMUNICATION_ERROR":
