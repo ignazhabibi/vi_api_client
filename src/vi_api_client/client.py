@@ -68,8 +68,8 @@ class ViClient:
         installations_data = await self._discovery_adapter.get_installations()
         installations = [
             Installation.from_api(installation_data)
-            for installation_data in self._validated_envelope_entries(
-                installations_data, "Installation"
+            for installation_data in self._response_items(
+                installations_data, resource="Installation"
             )
         ]
         _LOGGER.debug("Found %s installations", len(installations))
@@ -88,9 +88,7 @@ class ViClient:
         gateways_data = await self._discovery_adapter.get_gateways()
         gateways = [
             Gateway.from_api(gateway_data)
-            for gateway_data in self._validated_envelope_entries(
-                gateways_data, "Gateway"
-            )
+            for gateway_data in self._response_items(gateways_data, resource="Gateway")
         ]
         _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
@@ -122,7 +120,7 @@ class ViClient:
         )
         devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
-            for device_data in self._validated_envelope_entries(devices_data, "Device")
+            for device_data in self._response_items(devices_data, resource="Device")
         ]
 
         if include_features:
@@ -162,8 +160,8 @@ class ViClient:
             List of Feature objects (flattened).
 
         Raises:
-            ViResponseError: If the API response is malformed or contains
-                duplicate feature names.
+            ViResponseError: If the API response is malformed or the returned
+                features contain duplicate names.
         """
         payload = {
             "skipDisabled": only_enabled,
@@ -176,26 +174,21 @@ class ViClient:
             only_enabled,
         )
         response = await self._discovery_adapter.get_features(device, payload)
-        raw_features = self._validated_envelope_entries(response, "Feature")
-        parsed_features = self._parse_device_features(raw_features)
+        api_features = self._response_items(response, resource="Feature")
 
-        filtered_features = [
-            feature
-            for api_feature_name, feature in parsed_features
-            if (not only_enabled or (feature.is_enabled and feature.is_ready))
-            and (
-                not feature_names
-                or feature.name in feature_names
-                or api_feature_name in feature_names
-            )
-        ]
+        features = self._api_features_to_flat_features(api_features, feature_names)
+        self._reject_duplicate_feature_names(features)
+        if only_enabled:
+            features = [
+                feature
+                for feature in features
+                if feature.is_enabled and feature.is_ready
+            ]
 
         _LOGGER.debug(
-            "Fetched %s raw objects -> %s flat features",
-            len(raw_features),
-            len(filtered_features),
+            "Fetched %s API features -> %s features", len(api_features), len(features)
         )
-        return filtered_features
+        return features
 
     async def get_full_installation_status(
         self, installation_id: str, only_enabled: bool = True
@@ -357,12 +350,10 @@ class ViClient:
         for device in devices:
             if device.id not in api_features_by_device_id:
                 continue
-            features = [
-                feature
-                for _, feature in self._parse_device_features(
-                    api_features_by_device_id[device.id]
-                )
-            ]
+            features = self._api_features_to_flat_features(
+                api_features_by_device_id[device.id]
+            )
+            self._reject_duplicate_feature_names(features)
             updated_devices_by_id[device.id] = replace(device, features=features)
 
         missing_devices = [
@@ -519,53 +510,67 @@ class ViClient:
                 )
 
     @staticmethod
-    def _validated_envelope_entries(
-        envelope: object, resource_name: str
-    ) -> list[dict[str, Any]]:
-        """Validate an API envelope and return its data entries."""
-        if not isinstance(envelope, dict):
-            raise ViResponseError(f"{resource_name} response must be an object")
+    def _response_items(response: object, *, resource: str) -> list[dict[str, Any]]:
+        """Return the entries of an API response's ``{"data": [...]}`` envelope.
+
+        ``resource`` names the response in error messages only.
+
+        Raises:
+            ViResponseError: If the response is not an object, its ``data`` is
+                not a list, or an entry is not an object.
+        """
+        if not isinstance(response, dict):
+            raise ViResponseError(f"{resource} response must be an object")
         # Runtime-checked containers from the transport boundary; every entry
         # is re-validated field by field by the parsers.
-        body = cast("dict[str, Any]", envelope)
+        body = cast("dict[str, Any]", response)
         data = body.get("data")
         if not isinstance(data, list):
-            raise ViResponseError(f"{resource_name} response data must be a list")
+            raise ViResponseError(f"{resource} response data must be a list")
         items = cast("list[object]", data)
         if not all(isinstance(item, dict) for item in items):
-            raise ViResponseError(
-                f"{resource_name} response data entries must be objects"
-            )
+            raise ViResponseError(f"{resource} response data entries must be objects")
         return cast("list[dict[str, Any]]", data)
 
     @staticmethod
-    def _parse_device_features(
-        api_features: list[dict[str, Any]],
-    ) -> list[tuple[str, Feature]]:
-        """Parse one device's API features into features with unique names.
+    def _api_features_to_flat_features(
+        api_features: list[dict[str, Any]], feature_names: list[str] | None = None
+    ) -> list[Feature]:
+        """Parse one device's API features into flat features.
 
-        Each feature is paired with the name of the API feature it was parsed
-        from. A device snapshot requires unique feature names, so a duplicate
-        is an API contract violation.
+        A name selects a feature by its own name or by the name of the API
+        feature it was parsed from; without names every feature is kept.
 
         Raises:
-            ViResponseError: If an API feature is malformed or two parsed
-                features share a name.
+            ViResponseError: If an API feature is malformed.
         """
-        parsed_features: list[tuple[str, Feature]] = []
-        feature_names_seen: set[str] = set()
+        requested_names = set(feature_names or ())
+        selected_features: list[Feature] = []
         for api_feature in api_features:
             features = parse_feature_flat(api_feature)
             # parse_feature_flat validated the entry's API feature name.
-            api_feature_name: str = api_feature["feature"]
-            for feature in features:
-                if feature.name in feature_names_seen:
-                    raise ViResponseError(
-                        f"Duplicate feature name in API response: {feature.name}"
-                    )
-                feature_names_seen.add(feature.name)
-                parsed_features.append((api_feature_name, feature))
-        return parsed_features
+            if not requested_names or api_feature["feature"] in requested_names:
+                selected_features.extend(features)
+            else:
+                selected_features.extend(
+                    feature for feature in features if feature.name in requested_names
+                )
+        return selected_features
+
+    @staticmethod
+    def _reject_duplicate_feature_names(features: list[Feature]) -> None:
+        """Reject API features that would give a device two features of one name.
+
+        Raises:
+            ViResponseError: If two features share a name.
+        """
+        feature_names_seen: set[str] = set()
+        for feature in features:
+            if feature.name in feature_names_seen:
+                raise ViResponseError(
+                    f"Duplicate feature name in API response: {feature.name}"
+                )
+            feature_names_seen.add(feature.name)
 
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, JsonValue]
@@ -610,7 +615,7 @@ class ViClient:
         gateway-owned API features and other devices are dropped.
         """
         grouped_api_features: dict[str, list[dict[str, Any]]] = {}
-        for entry in self._validated_envelope_entries(response, "Gateway feature"):
+        for entry in self._response_items(response, resource="Gateway feature"):
             device_id = self._device_id_from_feature_uri(entry.get("uri"))
             validate_feature_entry(entry)
             if device_id in requested_device_ids:
