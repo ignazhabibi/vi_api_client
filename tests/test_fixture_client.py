@@ -4,9 +4,8 @@ import logging
 
 import pytest
 
-from vi_api_client import FixtureViClient
+from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.fixture_client import _FixtureDiscoveryAdapter
 
 
 def test_fixture_client_rejects_obsolete_authentication_argument():
@@ -14,6 +13,15 @@ def test_fixture_client_rejects_obsolete_authentication_argument():
     # Act and assert: Fixture clients must not accept unused authentication state.
     with pytest.raises(TypeError, match="auth"):
         FixtureViClient("Vitodens200W", auth=None)  # pyright: ignore[reportCallIssue]
+
+
+def test_fixture_client_rejects_unknown_device_with_available_names():
+    """Unknown fixture names should explain which fixture devices exist."""
+    # Act and assert: The error names the unknown device and the catalog entries.
+    with pytest.raises(
+        ValueError, match=r"Unknown fixture device 'Nope'\. Available: .*Vitodens200W"
+    ):
+        FixtureViClient("Nope")
 
 
 @pytest.mark.asyncio
@@ -172,14 +180,16 @@ async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics()
 
 
 @pytest.mark.asyncio
-async def test_fixture_client_rejects_malformed_fixture_feature_envelopes():
+async def test_fixture_client_rejects_malformed_fixture_feature_envelopes(
+    monkeypatch,
+):
     """Fixture feature responses should use the same envelope validation as live ones."""
-    # Arrange: Replace the cached fixture response with an invalid collection entry.
+    # Arrange: Serve the fixture feature response with an invalid collection entry.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    fixture_adapter = client._discovery_adapter
-    assert isinstance(fixture_adapter, _FixtureDiscoveryAdapter)
-    fixture_adapter._feature_data = {"data": [None]}
+    monkeypatch.setattr(
+        fixture_client, "_read_fixture_file", lambda file_name: {"data": [None]}
+    )
 
     # Act and assert: The inherited public feature read exposes ViResponseError.
     with pytest.raises(ViResponseError, match="entries must be objects"):

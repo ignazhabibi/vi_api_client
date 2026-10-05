@@ -8,12 +8,11 @@ from typing import Any, TypedDict, cast
 from ._adapter import CommandAdapter, DiscoveryAdapter
 from ._types import JsonValue
 from .client import ViClient
-from .models import (
-    Device,
-    FeatureControl,
-)
+from .models import Device, FeatureControl
 
 _LOGGER = logging.getLogger(__name__)
+
+_FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 class _FixtureMetadata(TypedDict):
@@ -25,50 +24,54 @@ class _FixtureMetadata(TypedDict):
 
 
 class _FixtureDiscoveryData(TypedDict):
-    """The bundled fixture discovery envelopes and metadata catalog."""
+    """The bundled fixture discovery responses and metadata catalog."""
 
     installations: dict[str, list[dict[str, Any]]]
     gateways: dict[str, list[dict[str, Any]]]
     devices: list[_FixtureMetadata]
 
 
+def _read_fixture_file(file_name: str) -> dict[str, Any]:
+    """Read one bundled JSON fixture file."""
+    with (_FIXTURES_DIR / file_name).open(encoding="utf-8") as file:
+        return cast(dict[str, Any], json.load(file))
+
+
 def _load_fixture_discovery_data() -> _FixtureDiscoveryData:
-    """Load the bundled fixture discovery envelopes and metadata catalog."""
-    fixture_path = Path(__file__).parent / "fixtures" / "discovery.json"
-    with fixture_path.open(encoding="utf-8") as file:
-        return cast(_FixtureDiscoveryData, json.load(file))
+    """Load the bundled fixture discovery responses and metadata catalog."""
+    return cast(_FixtureDiscoveryData, _read_fixture_file("discovery.json"))
 
 
 class _FixtureDiscoveryAdapter:
-    """Return deterministic client envelopes without authentication or HTTP."""
+    """Return deterministic API responses without authentication or HTTP."""
 
     def __init__(self, device_name: str) -> None:
-        """Initialize the adapter for a selected fixture device."""
+        """Initialize the adapter for a selected fixture device.
+
+        Raises:
+            ValueError: If the device name is not in the fixture catalog.
+        """
         self._device_name = device_name
         self._discovery_data = _load_fixture_discovery_data()
-        self._device_metadata = next(
-            metadata
+        catalog = {
+            metadata["fixtureName"]: metadata
             for metadata in self._discovery_data["devices"]
-            if metadata["fixtureName"] == device_name
-        )
-        self._feature_data: dict[str, Any] | None = None
-        self._event_history_data: dict[str, Any] | None = None
+        }
+        if device_name not in catalog:
+            available = ", ".join(sorted(catalog))
+            raise ValueError(
+                f"Unknown fixture device {device_name!r}. Available: {available}"
+            )
+        self._device_metadata = catalog[device_name]
 
     async def get_installations(self) -> dict[str, Any]:
-        """Return the fixture installation envelope."""
-        return {
-            "data": [
-                {
-                    **self._discovery_data["installations"]["data"][0],
-                    "description": self._discovery_data["installations"]["data"][0][
-                        "description"
-                    ].format(device_name=self._device_name),
-                }
-            ]
-        }
+        """Return the fixture installation response named after the device."""
+        installation = self._discovery_data["installations"]["data"][0]
+        description = installation["description"].format(device_name=self._device_name)
+        return {"data": [{**installation, "description": description}]}
 
     async def get_gateways(self) -> dict[str, Any]:
-        """Return the fixture gateway envelope."""
+        """Return the fixture gateway response."""
         return self._discovery_data["gateways"]
 
     async def get_devices(
@@ -89,14 +92,14 @@ class _FixtureDiscoveryAdapter:
     async def get_features(
         self, device: Device, payload: dict[str, bool]
     ) -> dict[str, Any]:
-        """Return the selected fixture's raw feature envelope."""
-        return self._load_feature_data()
+        """Return the selected fixture's raw feature response."""
+        return _read_fixture_file(f"{self._device_name}.json")
 
     async def get_gateway_features(
         self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> dict[str, Any]:
-        """Return the selected fixture's raw gateway-scoped feature envelope."""
-        return self._load_feature_data()
+        """Return the selected fixture's raw gateway-scoped feature response."""
+        return _read_fixture_file(f"{self._device_name}.json")
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
@@ -109,27 +112,8 @@ class _FixtureDiscoveryAdapter:
         live API.
         """
         if "cursor" in params:
-            return self._read_fixture_file("event_history_final_page.json")
-        return self._load_event_history_data()
-
-    def _load_feature_data(self) -> dict[str, Any]:
-        """Load the selected fixture feature envelope once."""
-        if self._feature_data is None:
-            self._feature_data = self._read_fixture_file(f"{self._device_name}.json")
-        return self._feature_data
-
-    def _load_event_history_data(self) -> dict[str, Any]:
-        """Load the bundled event history envelope once."""
-        if self._event_history_data is None:
-            self._event_history_data = self._read_fixture_file("event_history.json")
-        return self._event_history_data
-
-    @staticmethod
-    def _read_fixture_file(file_name: str) -> dict[str, Any]:
-        """Read one bundled JSON fixture file."""
-        fixture_path = Path(__file__).parent / "fixtures" / file_name
-        with fixture_path.open(encoding="utf-8") as file:
-            return cast(dict[str, Any], json.load(file))
+            return _read_fixture_file("event_history_final_page.json")
+        return _read_fixture_file("event_history.json")
 
 
 class _FixtureCommandAdapter:
@@ -140,7 +124,7 @@ class _FixtureCommandAdapter:
     ) -> dict[str, Any]:
         """Return a successful fixture command response."""
         _LOGGER.debug(
-            "Executing fixture command %r for feature %r (param: %s) with params: %s",
+            "Executing fixture command %r for feature %r (parameter %r) with values %s",
             control.command_name,
             control.parent_feature_name,
             control.param_name,
@@ -161,8 +145,13 @@ class FixtureViClient(ViClient):
 
         Args:
             device_name: The name of the fixture device (e.g. "Vitodens200W").
-                Must correspond to a file in the fixtures directory.
+                Must be listed by `get_available_fixture_devices`.
+
+        Raises:
+            ValueError: If the device name is not a bundled fixture device.
         """
+        # ViClient.__init__ is skipped on purpose: it needs authentication
+        # and creates the live adapter that the fixture adapters replace.
         self.device_name = device_name
         self._discovery_adapter: DiscoveryAdapter = _FixtureDiscoveryAdapter(
             device_name

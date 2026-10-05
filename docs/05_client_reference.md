@@ -37,7 +37,8 @@ workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
 responses without authentication or network requests. Its bundled fixture
 catalog defines each selectable fixture name, model identity, and device type;
-`FixtureViClient.get_available_fixture_devices()` lists those selectable names.
+`FixtureViClient.get_available_fixture_devices()` lists those selectable names,
+and an unknown name raises `ValueError`.
 
 ## Discovery Methods
 
