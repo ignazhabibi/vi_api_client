@@ -27,7 +27,12 @@ class _RecordingCommandAdapter:
 
 
 def _create_client(adapter: _RecordingCommandAdapter) -> ViClient:
-    """Create a live client with a recording command adapter."""
+    """Create a client whose only collaborator is the recording command adapter.
+
+    ``__init__`` is skipped because it builds live adapters around an auth
+    provider; these tests need no authentication or discovery, only the
+    command adapter that ``set_feature`` and ``execute_command`` call.
+    """
     client = ViClient.__new__(ViClient)
     client._command_adapter = adapter
     return client
@@ -134,6 +139,12 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
             "Required dependency",
         ),
     ],
+    ids=[
+        "feature-not-on-device",
+        "current-feature-disabled",
+        "current-feature-not-ready",
+        "required-sibling-missing",
+    ],
 )
 @pytest.mark.asyncio
 async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
@@ -160,6 +171,7 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
         (_feature("heating.mode.other", "value", is_ready=False), "not ready"),
         (_feature("heating.mode.other", None), "has no value"),
     ],
+    ids=["sibling-disabled", "sibling-not-ready", "sibling-without-value"],
 )
 @pytest.mark.asyncio
 async def test_set_feature_rejects_unavailable_required_dependencies_before_constraints(
@@ -258,7 +270,6 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     target_value: Any,
     error: str,
 ):
-    """Canonical constraints reject invalid values before adapter I/O."""
     # Arrange: The current device feature carries the violated constraint.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
@@ -413,6 +424,13 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
             {"target": "new"},
             "required parameter",
         ),
+    ],
+    ids=[
+        "read-only-feature",
+        "disabled-feature",
+        "not-ready-feature",
+        "missing-target-parameter",
+        "missing-required-parameter",
     ],
 )
 @pytest.mark.asyncio

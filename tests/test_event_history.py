@@ -101,6 +101,15 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
         (7, None, 0, "between 1 and 1000"),
         (7, None, 1001, "between 1 and 1000"),
     ],
+    ids=[
+        "neither-days-nor-cursor",
+        "both-days-and-cursor",
+        "zero-days",
+        "negative-days",
+        "empty-cursor",
+        "limit-below-range",
+        "limit-above-range",
+    ],
 )
 @pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_invalid_windows(
@@ -139,6 +148,7 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
+        ([], "response must be an object"),
         ({"data": {}}, "data must be a list"),
         ({"data": ["not-an-object"]}, "entries must be objects"),
         (
@@ -200,6 +210,7 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
         ({"data": [], "cursor": {"next": 5}}, "cursor next must be a string"),
     ],
     ids=[
+        "root-not-object",
         "data-not-list",
         "data-entry-not-object",
         "missing-required-fields",
@@ -212,9 +223,8 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
     ],
 )
 async def test_get_event_history_rejects_malformed_responses(
-    payload: dict, message: str, static_token_auth
+    payload: dict | list, message: str, static_token_auth
 ):
-    """Contract violations in successful responses should raise publicly."""
     # Arrange: Return one malformed successful response from the route.
     url = _page_url("lastNDays=7")
 
@@ -250,26 +260,9 @@ async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
 
 
 @pytest.mark.asyncio
-async def test_get_event_history_rejects_non_object_responses(static_token_auth):
-    """A successful event history response must be a JSON object."""
-    # Arrange: Return a JSON array instead of the page response.
-    url = _page_url("lastNDays=7")
-
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload=[])
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
-
-            # Act and assert: The response check raises the public error.
-            with pytest.raises(ViResponseError, match="must be an object"):
-                await client.get_event_history(INSTALLATION_ID, days=7)
-
-
-@pytest.mark.asyncio
 async def test_get_event_history_rejects_successful_non_json_responses(
     static_token_auth,
 ):
-    """A successful event history response must be JSON."""
     # Arrange: Return plain text content from the route.
     url = _page_url("lastNDays=7")
 

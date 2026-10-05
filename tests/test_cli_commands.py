@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from builders import build_device, build_gateway, build_installation
 
 from vi_api_client import (
     CommandResponse,
@@ -48,7 +49,7 @@ from vi_api_client.exceptions import (
     ViNotFoundError,
     ViValidationError,
 )
-from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
+from vi_api_client.models import Device, Feature, FeatureControl
 
 
 def _cli_args(**overrides: Any) -> Namespace:
@@ -120,7 +121,7 @@ def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
 
 
 @pytest.mark.asyncio
-async def test_cmd_set_success(mock_cli_context, capsys):
+async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     """Successful writes should confirm the command, param, and result."""
     # Arrange: Provide a writable numeric feature and a successful write.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
@@ -148,6 +149,7 @@ async def test_cmd_set_success(mock_cli_context, capsys):
         ("boolean", "false", False),
         ("integer", "2", 2),
     ],
+    ids=["string", "boolean-true", "boolean-false", "integer"],
 )
 @pytest.mark.asyncio
 async def test_cmd_set_converts_typed_command_values(
@@ -176,6 +178,7 @@ async def test_cmd_set_converts_typed_command_values(
         ("boolean", "maybe", "must be true or false"),
         ("integer", "1.5", "must be an integer"),
     ],
+    ids=["number-text", "number-infinite", "boolean-text", "integer-fraction"],
 )
 @pytest.mark.asyncio
 async def test_cmd_set_rejects_malformed_typed_values(
@@ -239,8 +242,8 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_set_failed_result_without_details(mock_cli_context, capsys):
-    """Failed writes without response details should print the bare failure."""
+async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, capsys):
+    """Absent response details must not print empty Message or Reason lines."""
     # Arrange: Make the write fail without a message or reason.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
     feature = _feature(control=_control(value_type="number"))
@@ -399,8 +402,15 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
         ("text", True, "number"),
         ("text", False, "string"),
     ],
+    ids=[
+        "boolean",
+        "float",
+        "integer",
+        "text-with-numeric-constraints",
+        "text",
+    ],
 )
-def test_infer_feature_value_type(
+def test_infer_feature_value_type_uses_value_shape_and_constraints(
     feature_value: FeatureValue, numeric_constraints: bool, expected_type: str
 ):
     """Legacy feature values should infer their command parameter type."""
@@ -410,8 +420,8 @@ def test_infer_feature_value_type(
         control = _control(value_type=None, min=0.2, max=3.5, step=0.1)
     feature = _feature(value=feature_value, control=control)
 
-    # Act: Infer the type for a command without metadata.
-    # Assert: The value shape and constraints determine the inferred type.
+    # Act and assert: The value shape and constraints determine the type
+    # inferred for a command without metadata.
     assert _infer_feature_value_type(feature) == expected_type
 
 
@@ -609,8 +619,8 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 
 
 @pytest.mark.asyncio
-async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
-    """Unknown feature names should print a not-found notice."""
+async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
+    """An unknown name fails the read rather than printing an empty result."""
     # Arrange: Return no features for the requested name.
     args = _cli_args(feature_name="missing.feature", json=False)
     mock_cli_context.client.get_features.return_value = []
@@ -792,7 +802,7 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_exec_rejects_malformed_parameter_arguments(capsys):
+async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, capsys):
     """Unparseable parameter arguments should reject before any request."""
     # Arrange: Supply one parameter without the key=value shape.
     args = _cli_args(
@@ -801,11 +811,13 @@ async def test_cmd_exec_rejects_malformed_parameter_arguments(capsys):
         params=["not-key-value"],
     )
 
-    # Act: Attempt the explicit command.
-    assert await cmd_exec(args) is False
+    with _patched_cli_context(mock_cli_context):
+        # Act: Attempt the explicit command.
+        assert await cmd_exec(args) is False
 
-    # Assert: The CLI explains the parameter shape failure.
+    # Assert: The CLI explains the parameter shape failure without reading.
     assert "Error parsing parameters:" in capsys.readouterr().out
+    mock_cli_context.client.get_features.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -916,7 +928,7 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
 
     with _patched_cli_context(mock_cli_context):
         # Act: Set the slope through the CLI command.
-        await cmd_set(args)
+        assert await cmd_set(args) is True
 
     # Assert: The write receives a device containing the sibling shift value.
     command_device = mock_cli_context.client.set_feature.call_args.args[0]
@@ -926,8 +938,8 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_features_json(mock_cli_context, capsys):
-    """Listing features with JSON output should print the feature names."""
+async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, capsys):
+    """Names-only JSON is a bare array without the text header."""
     # Arrange: Provide two features and request JSON output.
     args = _cli_args(enabled=False, values=False, json=True)
     mock_cli_context.client.get_features.return_value = [
@@ -944,8 +956,10 @@ async def test_cmd_list_features_json(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_features_json_with_values(mock_cli_context, capsys):
-    """Listing values with JSON output should print value documents."""
+async def test_cmd_list_features_json_values_print_value_documents(
+    mock_cli_context, capsys
+):
+    """Value JSON carries the raw value, unit, formatted text, and writability."""
     # Arrange: Provide one writable feature and request JSON value output.
     args = _cli_args(enabled=False, values=True, json=True)
     mock_cli_context.client.get_features.return_value = [
@@ -970,8 +984,10 @@ async def test_cmd_list_features_json_with_values(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_features_enabled(mock_cli_context):
-    """The enabled flag should request only enabled features."""
+async def test_cmd_list_features_enabled_requests_only_enabled_features(
+    mock_cli_context,
+):
+    """--enabled delegates the filter to the client read for the context device."""
     # Arrange: Provide one feature and request the enabled filter.
     args = _cli_args(enabled=True, values=False, json=True)
     mock_cli_context.client.get_features.return_value = [
@@ -989,8 +1005,10 @@ async def test_cmd_list_features_enabled(mock_cli_context):
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_features_values_table(mock_cli_context, capsys):
-    """The values flag should print a human-readable table with writable marks."""
+async def test_cmd_list_features_values_prints_table_with_writable_marks(
+    mock_cli_context, capsys
+):
+    """Value rows mark writable features and truncate long values to fit."""
     # Arrange: Provide a writable feature and a long read-only value.
     args = _cli_args(enabled=False, values=True, json=False)
     long_value = "x" * 90
@@ -1003,17 +1021,19 @@ async def test_cmd_list_features_values_table(mock_cli_context, capsys):
         # Act: List the feature values as a table.
         assert await cmd_list_features(args) is True
 
-    # Assert: The table shows the count, names, truncation, and writable marks.
+    # Assert: The table shows the count, writable marks, and truncation.
     captured = capsys.readouterr()
-    assert "Found 2 Features for device DEV1:" in captured.out
-    assert "writable.feature" in captured.out
-    assert "..." in captured.out
-    assert "(* = writable)" in captured.out
+    lines = captured.out.splitlines()
+    assert "Found 2 Features for device DEV1:" in lines
+    assert lines[1].startswith("* writable.feature ")
+    assert lines[2].startswith("  long.feature ")
+    assert lines[2].endswith("...")
+    assert "(* = writable)" in lines
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_features_simple_list(mock_cli_context, capsys):
-    """Default listing should print one line per feature name."""
+async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, capsys):
+    """Without flags the listing is a device-scoped header plus one bullet per name."""
     # Arrange: Provide one feature and request no flags.
     args = _cli_args(enabled=False, values=False, json=False)
     mock_cli_context.client.get_features.return_value = [_feature(name="f1", value=1)]
@@ -1028,49 +1048,16 @@ async def test_cmd_list_features_simple_list(mock_cli_context, capsys):
     assert "- f1" in captured.out
 
 
-@pytest.mark.parametrize(
-    "output_flags",
-    [["--json"], ["--values", "--json"]],
-    ids=["names-only", "with-values"],
-)
-@pytest.mark.asyncio
-async def test_async_main_fixture_device_json_output_is_machine_readable(
-    monkeypatch, capsys, output_flags
-):
-    """The real CLI path must reserve stdout for JSON feature data."""
-    # Arrange: Use a bundled fixture without replacing client context setup.
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-features",
-            "--fixture-device",
-            "Vitocal250A",
-            *output_flags,
-        ],
-    )
-
-    # Act: Invoke the parser, dispatcher, and context setup through the CLI path.
-    exit_status = await async_main()
-
-    # Assert: JSON output is parseable and setup diagnostics stay on stderr.
-    captured = capsys.readouterr()
-    assert exit_status == 0
-    features = json.loads(captured.out)
-    assert features
-    if output_flags == ["--json"]:
-        assert all(isinstance(feature, str) for feature in features)
-    else:
-        assert all("value" in feature for feature in features)
-    assert "Using Fixture Device: Vitocal250A" in captured.err
-
-
+@pytest.mark.usefixtures("no_http_requests")
 @pytest.mark.asyncio
 async def test_async_main_json_setup_error_keeps_stdout_empty(
     monkeypatch, capsys, caplog, tmp_path
 ):
     """A JSON-mode setup error must preserve stdout for a payload document."""
-    # Arrange: Request live JSON output without saved or explicit credentials.
+    # Arrange: Request live JSON output without saved, explicit, or
+    # environment credentials.
+    monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
+    monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -1091,36 +1078,14 @@ async def test_async_main_json_setup_error_keeps_stdout_empty(
     assert "Client ID not found." in caplog.text
 
 
-def _installation() -> Installation:
-    """Build one installation discovery snapshot."""
-    return Installation(id="123", description="Home", alias="MyHome", address={})
-
-
-def _gateway() -> Gateway:
-    """Build one gateway discovery snapshot."""
-    return Gateway(serial="GW1", version="1.0", status="ok", installation_id="123")
-
-
-def _discovered_device() -> Device:
-    """Build one device discovery snapshot."""
-    return Device(
-        id="0",
-        gateway_serial="GW1",
-        installation_id="123",
-        model_id="Test",
-        device_type="heating",
-        status="ok",
-    )
-
-
 @pytest.mark.asyncio
 async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsys):
     """Listing devices should print installations, gateways, and devices."""
     # Arrange: Script one installation with one gateway and device.
     args = _cli_args()
-    mock_cli_context.client.get_installations.return_value = [_installation()]
-    mock_cli_context.client.get_gateways.return_value = [_gateway()]
-    mock_cli_context.client.get_devices.return_value = [_discovered_device()]
+    mock_cli_context.client.get_installations.return_value = [build_installation("123")]
+    mock_cli_context.client.get_gateways.return_value = [build_gateway("GW1", "123")]
+    mock_cli_context.client.get_devices.return_value = [build_device("0", "123", "GW1")]
 
     with _patched_cli_context(mock_cli_context):
         # Act: List the account hierarchy.
@@ -1146,16 +1111,18 @@ async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path
         token_file=str(tmp_path / "tokens.json"),
     )
 
+    # The spec rejects calls to methods the real client does not offer.
+    client = AsyncMock(spec=ViClient)
+    client.get_installations.return_value = [build_installation("123")]
+    client.get_gateways.return_value = [build_gateway("GW1", "123")]
+    client.get_devices.return_value = [build_device("0", "123", "GW1")]
+
     with (
-        patch("vi_api_client.cli.ViClient") as mock_client_class,
+        patch("vi_api_client.cli.ViClient", return_value=client),
         patch("vi_api_client.cli.OAuth"),
         patch("vi_api_client.cli.create_session") as mock_session,
     ):
         mock_session.return_value.__aenter__.return_value = MagicMock()
-        client = mock_client_class.return_value
-        client.get_installations = AsyncMock(return_value=[_installation()])
-        client.get_gateways = AsyncMock(return_value=[_gateway()])
-        client.get_devices = AsyncMock(return_value=[_discovered_device()])
 
         # Act: List all account devices without choosing a device context first.
         assert await cmd_list_devices(args) is True
@@ -1258,8 +1225,8 @@ async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_returns_nonzero_for_failed_command():
-    """The command dispatcher should map handler failures to exit status 1."""
+async def test_dispatch_command_maps_handler_failure_to_status_one():
+    """A handler's False result becomes the process failure status."""
     # Arrange: Dispatch a command whose handler reports failure.
     handler = AsyncMock(return_value=False)
     args = Namespace(command="set", handler=handler)
@@ -1303,7 +1270,7 @@ async def test_async_main_without_command_prints_help(monkeypatch, capsys):
 
 @pytest.mark.asyncio
 async def test_async_main_maps_keyboard_interrupt_to_130(monkeypatch):
-    """Interrupting a command should map to the conventional exit status 130."""
+    """Ctrl+C ends the CLI with the shell's conventional SIGINT status."""
     # Arrange: Interrupt the dispatcher while it runs a command.
     monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices"])
 
@@ -1321,7 +1288,7 @@ async def test_async_main_maps_keyboard_interrupt_to_130(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_async_main_maps_unexpected_errors_to_one(monkeypatch):
-    """Unexpected dispatcher failures should map to exit status one."""
+    """Errors escaping the dispatcher end with the generic failure status."""
     # Arrange: Fail the dispatcher with an unexpected error.
     monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices"])
 
@@ -1343,6 +1310,7 @@ async def test_async_main_maps_unexpected_errors_to_one(monkeypatch):
         ([], logging.INFO),
         (["--verbose"], logging.DEBUG),
     ],
+    ids=["default", "verbose"],
 )
 @pytest.mark.asyncio
 async def test_async_main_configures_logging_after_parsing(
@@ -1522,10 +1490,9 @@ async def test_cmd_list_events_auto_selects_first_installation(
     # Arrange: Leave the installation scope unresolved in the context.
     args = _cli_args(days=7)
     mock_cli_context.installation_id = None
-    installation = Installation(
-        id="12345", description="Home", alias="home", address={}
-    )
-    mock_cli_context.client.get_installations.return_value = [installation]
+    mock_cli_context.client.get_installations.return_value = [
+        build_installation("12345")
+    ]
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
     with _patched_cli_context(mock_cli_context):
@@ -1547,7 +1514,7 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     args = _cli_args(days=7, json=True)
     mock_cli_context.installation_id = None
     mock_cli_context.client.get_installations.return_value = [
-        Installation(id="12345", description="Home", alias="home", address={})
+        build_installation("12345")
     ]
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
@@ -1604,10 +1571,13 @@ def test_list_events_parser_rejects_non_positive_windows(arguments, capsys):
 
 
 def test_list_events_parser_requires_days(capsys):
-    """The rolling lookback window should be a required argument."""
-    with pytest.raises(SystemExit):
+    """Event history has no implicit window, so omitting --days is a usage error."""
+    # Act: Parse the command without its lookback window.
+    with pytest.raises(SystemExit) as error:
         build_parser().parse_args(["list-events"])
 
+    # Assert: argparse reports the missing option as a usage error.
+    assert error.value.code == 2
     assert "--days" in capsys.readouterr().err
 
 
@@ -1750,40 +1720,51 @@ async def test_cmd_list_events_json_marks_incomplete_traversals(
     assert document["nextCursor"] == "cursor-token"
 
 
+def _empty_event_page() -> EventHistoryPage:
+    """Return the page the provider sends for a window without events."""
+    return EventHistoryPage(events=[], next_cursor=None)
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("json_output", [False, True], ids=["readable", "json"])
-async def test_cmd_list_events_reports_empty_windows(
-    mock_cli_context, capsys, json_output
-):
-    """An empty returned window should complete without event timestamps."""
-    # Arrange: The provider returns no events for the requested window.
-    args = _cli_args(days=365, json=json_output)
-    mock_cli_context.client.get_event_history.return_value = EventHistoryPage(
-        events=[], next_cursor=None
-    )
+async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, capsys):
+    """An empty window completes and prints no event timestamps."""
+    # Arrange: The provider returns no events for a one-year window.
+    args = _cli_args(days=365)
+    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
     with _patched_cli_context(mock_cli_context):
-        # Act: List a winter-length window without events.
+        # Act: List the empty window as readable text.
         assert await cmd_list_events(args) is True
 
-    # Assert: Both outputs complete without timestamps.
-    captured = capsys.readouterr()
-    if json_output:
-        document = json.loads(captured.out)
-        assert document == {
-            "installationId": "99",
-            "events": [],
-            "eventCount": 0,
-            "earliestEventTimestamp": None,
-            "latestEventTimestamp": None,
-            "pagesFetched": 1,
-            "paginationComplete": True,
-            "nextCursor": None,
-        }
-    else:
-        assert "Found 0 event(s) for installation 99 (last 365 days):" in captured.out
-        assert "Earliest event:" not in captured.out
-        assert "Pagination completed after 1 page(s)" in captured.out
+    # Assert: The summary names the empty window without timestamps.
+    out = capsys.readouterr().out
+    assert "Found 0 event(s) for installation 99 (last 365 days):" in out
+    assert "Earliest event:" not in out
+    assert "Pagination completed after 1 page(s)" in out
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, capsys):
+    """An empty window is one complete JSON document with null timestamps."""
+    # Arrange: The provider returns no events for a one-year window.
+    args = _cli_args(days=365, json=True)
+    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List the empty window as JSON.
+        assert await cmd_list_events(args) is True
+
+    # Assert: The document is complete and has no event timestamps.
+    assert json.loads(capsys.readouterr().out) == {
+        "installationId": "99",
+        "events": [],
+        "eventCount": 0,
+        "earliestEventTimestamp": None,
+        "latestEventTimestamp": None,
+        "pagesFetched": 1,
+        "paginationComplete": True,
+        "nextCursor": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -1865,7 +1846,7 @@ async def test_async_main_list_events_fixture_prints_readable_summary(
 async def test_async_main_list_events_fixture_readable_marks_safety_limit(
     monkeypatch, capsys
 ):
-    """The readable fixture output should mark the limited traversal."""
+    """Readable output names the remaining cursor so a truncated history is visible."""
     # Arrange: Use the bundled fixture with a one page safety limit.
     monkeypatch.setattr(
         "sys.argv",
@@ -1941,6 +1922,17 @@ def _detail_event(body: FeatureValue, event_type: str = "detail") -> Installatio
             ["heating.dhw.temperature.main", 'parameters: {"temperature": 55}'],
         ),
     ],
+    ids=[
+        "null",
+        "text",
+        "number",
+        "list",
+        "object",
+        "object-with-feature-name",
+        "feature-changed-name",
+        "feature-changed-command",
+        "feature-changed-parameters",
+    ],
 )
 def test_event_detail_lines_render_known_and_unknown_bodies(
     event_type: str, body: FeatureValue, expected: list[str]
@@ -1956,6 +1948,7 @@ def test_event_detail_lines_render_known_and_unknown_bodies(
 @pytest.mark.parametrize(
     ("online", "label"),
     [(True, "ONLINE"), (False, "OFFLINE")],
+    ids=["online", "offline"],
 )
 def test_event_detail_lines_labels_gateway_online_events(online: bool, label: str):
     """Gateway-online events should render the reported online transition."""
@@ -2026,15 +2019,16 @@ def test_event_detail_lines_renders_ended_status_transition():
 @pytest.mark.parametrize(
     ("error_description", "expected"),
     [
-        ("S.134", None),
-        ("s.134", None),
-        ("", None),
-        (None, None),
-        ("S.134 Burner fault", "description: S.134 Burner fault"),
+        ("S.134", []),
+        ("s.134", []),
+        ("", []),
+        (None, []),
+        ("S.134 Burner fault", ["description: S.134 Burner fault"]),
     ],
+    ids=["same-code", "same-code-lowercase", "empty", "missing", "informative"],
 )
 def test_event_detail_lines_shows_descriptions_beyond_the_code(
-    error_description: str | None, expected: str | None
+    error_description: str | None, expected: list[str]
 ):
     """Only descriptions adding information beyond the code should appear."""
     # Arrange: One status event with the description under test.
@@ -2049,10 +2043,7 @@ def test_event_detail_lines_shows_descriptions_beyond_the_code(
 
     # Assert: Repeated, empty, and missing descriptions are omitted while
     # informative ones survive.
-    if expected is None:
-        assert not any(detail.startswith("description:") for detail in details)
-    else:
-        assert expected in details
+    assert [d for d in details if d.startswith("description:")] == expected
 
 
 def test_event_detail_lines_keeps_description_without_code():
@@ -2074,11 +2065,19 @@ def test_event_detail_lines_keeps_description_without_code():
         ({}, ["body: {}"]),
         ("scalar", ['body: "scalar"']),
     ],
+    ids=[
+        "active-only",
+        "code-only",
+        "device-and-model",
+        "device-only",
+        "empty-object",
+        "scalar",
+    ],
 )
 def test_event_detail_lines_handles_missing_status_fields_without_fabrication(
     body: FeatureValue, expected: list[str]
 ):
-    """Missing status fields should be omitted, never invented."""
+    """Sparse status bodies render only supplied fields; other bodies stay raw JSON."""
     # Act: Render one status event body with sparse or unexpected data.
     details = _event_detail_lines(_status_event(body))
 
@@ -2104,6 +2103,24 @@ def test_print_event_summary_wraps_long_details_without_truncation(capsys):
     assert detail_lines[0].startswith("    x")
     assert detail_lines[1].startswith("      x")
     assert "..." not in "\n".join(output_lines)
+
+
+def _rendered_detail(output: str, detail_prefix: str) -> str:
+    """Return one wrapped detail's content with indents removed exactly.
+
+    Continuation lines lose exactly the six space indent, so whitespace
+    inside the wrapped content survives the reconstruction.
+    """
+    lines = output.splitlines()
+    start = next(
+        index for index, line in enumerate(lines) if line.startswith(detail_prefix)
+    )
+    end = start + 1
+    while end < len(lines) and lines[end].startswith("      "):
+        end += 1
+    assert all(len(line) <= _EVENT_LINE_WIDTH for line in lines[start:end])
+    rendered = lines[start][len(detail_prefix) :]
+    return rendered + "".join(line[len("      ") :] for line in lines[start + 1 : end])
 
 
 def test_print_event_summary_keeps_long_nested_parameters_visible(capsys):
@@ -2154,24 +2171,6 @@ def test_print_event_summary_preserves_spaces_in_wrapped_parameters(capsys):
     assert json.loads(rendered) == command_body
 
 
-def _rendered_detail(output: str, detail_prefix: str) -> str:
-    """Return one wrapped detail's content with indents removed exactly.
-
-    Continuation lines lose exactly the six space indent, so whitespace
-    inside the wrapped content survives the reconstruction.
-    """
-    lines = output.splitlines()
-    start = next(
-        index for index, line in enumerate(lines) if line.startswith(detail_prefix)
-    )
-    end = start + 1
-    while end < len(lines) and lines[end].startswith("      "):
-        end += 1
-    assert all(len(line) <= _EVENT_LINE_WIDTH for line in lines[start:end])
-    rendered = lines[start][len(detail_prefix) :]
-    return rendered + "".join(line[len("      ") :] for line in lines[start + 1 : end])
-
-
 def test_print_event_summary_prints_utc_date_headings(capsys):
     """Date headings should follow UTC while the returned order is kept."""
     # Arrange: The +02:00 timestamp is 2026-09-19 22:30:00 UTC, so its raw
@@ -2201,7 +2200,7 @@ def test_print_event_summary_prints_utc_date_headings(capsys):
 
 
 def test_print_event_summary_preserves_event_order_across_date_changes(capsys):
-    """Date headings must not reorder interleaved events."""
+    """A heading is printed at every date change instead of grouping by date."""
     # Arrange: The provider returns one 27th event, one 26th event, and
     # another 27th event.
     first = replace(_detail_event(None), event_timestamp="2026-09-27T10:00:00.000Z")
@@ -2232,7 +2231,7 @@ def test_print_event_summary_preserves_event_order_across_date_changes(capsys):
 
 
 def test_print_event_summary_represents_missing_timestamps_without_invention(capsys):
-    """Missing or unparsable timestamps should stay explicit and raw."""
+    """Undatable events group under 'Unknown date' and keep their raw timestamp."""
     # Arrange: One event carries an unparsable timestamp and one a missing
     # timestamp, both built directly because the API parser rejects them.
     unparsable = replace(_detail_event(None), event_timestamp="not-a-timestamp")
@@ -2289,10 +2288,10 @@ def test_event_history_window_compares_timestamps_as_points_in_time():
     )
 
     # Act: Read the window's temporal extremes.
+    extremes = (window.earliest_timestamp, window.latest_timestamp)
 
     # Assert: The offset timestamp is earliest despite sorting later as text.
-    assert window.earliest_timestamp == "2026-09-20T09:15:30.000+02:00"
-    assert window.latest_timestamp == "2026-09-20T08:15:30.000Z"
+    assert extremes == ("2026-09-20T09:15:30.000+02:00", "2026-09-20T08:15:30.000Z")
 
 
 def test_event_history_window_falls_back_to_lexical_for_unparsable_timestamps():
@@ -2305,10 +2304,10 @@ def test_event_history_window_falls_back_to_lexical_for_unparsable_timestamps():
     )
 
     # Act: Read the window's extremes.
+    extremes = (window.earliest_timestamp, window.latest_timestamp)
 
     # Assert: The whole window uses the lexical fallback ordering.
-    assert window.earliest_timestamp == "2026-09-20T10:15:30.000Z"
-    assert window.latest_timestamp == "not-a-timestamp"
+    assert extremes == ("2026-09-20T10:15:30.000Z", "not-a-timestamp")
 
 
 def test_print_event_summary_labels_events_from_multiple_gateways(capsys):

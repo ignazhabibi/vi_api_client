@@ -1,0 +1,9 @@
+{
+    "feature": "heating.sensors.temperature.outside",
+    "isEnabled": true,
+    "properties": {
+        "unit": "celsius",
+        "type": "number",
+        "value": 5.5
+    }
+}

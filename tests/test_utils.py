@@ -19,56 +19,68 @@ def _feature(value, unit=None) -> Feature:
 
 
 def test_parse_cli_params_accepts_one_json_object_argument():
-    # Arrange: The CLI passes a JSON object as one argument string.
-    inputs = ['{"slope": 1.4, "shift": 0}']
-    expected = {"slope": 1.4, "shift": 0}
+    """A single JSON object argument becomes the parameter mapping."""
+    # Act: Parse the JSON object the CLI passes as one argument string.
+    params = parse_cli_params(['{"slope": 1.4, "shift": 0}'])
 
-    # Act: Parse the JSON string argument.
-    params = parse_cli_params(inputs)
-
-    # Assert: The JSON object string is extracted as a parameter mapping.
-    assert params == expected
+    # Assert: The object's members become the parameters unchanged.
+    assert params == {"slope": 1.4, "shift": 0}
 
 
 def test_parse_cli_params_infers_value_types_from_key_value_pairs():
+    """Key=value pairs carry numbers and booleans as typed values, not text."""
     # Arrange: Create key=value strings with int, float, bool, string values.
     inputs = ["int=42", "float=42.5", "bool_t=true", "bool_f=False", "str=hello"]
 
     # Act: Parse CLI params with automatic type inference.
     params = parse_cli_params(inputs)
 
-    # Assert: Verify each value has correct type (int, float, bool, str).
-    assert params["int"] == 42
+    # Assert: Equality alone would accept 42.0 for 42 and 1 for True.
+    assert params == {
+        "int": 42,
+        "float": 42.5,
+        "bool_t": True,
+        "bool_f": False,
+        "str": "hello",
+    }
     assert isinstance(params["int"], int)
-
-    assert params["float"] == 42.5
     assert isinstance(params["float"], float)
-
     assert params["bool_t"] is True
     assert params["bool_f"] is False
 
-    assert params["str"] == "hello"
+
+def test_parse_cli_params_parses_json_values_inside_pairs():
+    """A JSON value on the right of a key=value pair is decoded."""
+    # Act: Parse a key=value pair whose value is a JSON object.
+    params = parse_cli_params(['schedule={"day": 1, "temp": 20}'])
+
+    # Assert: The nested object arrives as a mapping, not as text.
+    assert params == {"schedule": {"day": 1, "temp": 20}}
+
+
+def test_parse_cli_params_returns_empty_mapping_without_arguments():
+    """No parameter arguments should yield an empty mapping."""
+    # Act and assert: An empty argument list parses to no parameters.
+    assert parse_cli_params([]) == {}
 
 
 def test_parse_cli_params_rejects_arguments_without_equals_sign():
+    """Arguments that are neither JSON nor key=value pairs are rejected."""
     # Act and assert: An argument without "=" names the expected format.
     with pytest.raises(ValueError, match="Expected key=value"):
         parse_cli_params(["invalid_arg"])
 
 
-def test_parse_cli_params_parses_json_values_inside_pairs():
-    # Arrange: A key=value pair whose value is a JSON object.
-    inputs = ['schedule={"day": 1, "temp": 20}']
-
-    # Act: Parse CLI params - value should be extracted as dict.
-    params = parse_cli_params(inputs)
-
-    # Assert: Nested JSON should be parsed as Python dict.
-    assert isinstance(params["schedule"], dict)
-    assert params["schedule"]["day"] == 1
+def test_parse_cli_params_rejects_malformed_json_arguments():
+    """JSON-looking single arguments that are unusable should reject clearly."""
+    # Act and assert: The malformed JSON argument raises with its reason.
+    with pytest.raises(ValueError, match="could not be parsed"):
+        parse_cli_params(["{not-json"])
 
 
-@pytest.mark.parametrize("prefix", ["Bearer", "bearer", "BEARER"])
+@pytest.mark.parametrize(
+    "prefix", ["Bearer", "bearer", "BEARER"], ids=["title", "lower", "upper"]
+)
 def test_mask_pii_redacts_bearer_tokens_case_insensitively(prefix):
     """Bearer token redaction should not depend on header capitalization."""
     # Arrange: Build an Authorization value with a secret token.
@@ -114,7 +126,7 @@ def test_mask_pii_redacts_gateway_serials_in_compact_json():
     assert 'serial":"****************' in masked_text
 
 
-def test_mask_pii_redacts_installation_ids_in_contexts():
+def test_mask_pii_redacts_installation_ids_in_paths_and_labels():
     """Installation IDs should be redacted in paths and labeled contexts."""
     # Arrange: Build log lines with installation IDs in two known contexts.
     path_text = "GET /iot/v2/features/installations/123456/gateways/GW1"
@@ -187,23 +199,3 @@ def test_format_feature_renders_slotless_schedules_as_empty():
 
     # Assert: The empty marker communicates the absence of slots.
     assert formatted == "(empty)"
-
-
-def test_parse_cli_params_returns_empty_mapping_without_arguments():
-    """No parameter arguments should yield an empty mapping."""
-    # Act and assert: An empty argument list parses to no parameters.
-    assert parse_cli_params([]) == {}
-
-
-@pytest.mark.parametrize(
-    ("arguments", "message"),
-    [
-        (["{not-json"], "could not be parsed"),
-    ],
-    ids=["malformed-json"],
-)
-def test_parse_cli_params_rejects_malformed_json_arguments(arguments, message):
-    """JSON-looking single arguments that are unusable should reject clearly."""
-    # Act and assert: The malformed JSON argument raises with its reason.
-    with pytest.raises(ValueError, match=message):
-        parse_cli_params(arguments)

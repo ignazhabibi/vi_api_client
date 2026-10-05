@@ -15,34 +15,34 @@ from vi_api_client.exceptions import ViResponseError
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("operation", "endpoint", "response", "message"),
+    ("call", "endpoint", "response", "message"),
     [
         (
-            "installations",
+            ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {"data": [{"description": "Home"}]},
-            "id",
+            "Installation id must be a string or integer",
         ),
         (
-            "installations",
+            ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {"data": [{"id": "", "description": "Home"}]},
-            "id",
+            "Installation id must be a string or integer",
         ),
         (
-            "gateways",
+            ("get_gateways", ()),
             ENDPOINT_GATEWAYS,
             {"data": [{"serial": "gateway-1", "installationId": True}]},
-            "installationId",
+            "Gateway installationId must be a string or integer",
         ),
         (
-            "devices",
+            ("get_devices", ("installation-1", "gateway-1")),
             f"{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
             {"data": [{"id": "device-1", "deviceType": "heating"}]},
-            "modelId",
+            "Device modelId must be a non-empty string",
         ),
         (
-            "gateways",
+            ("get_gateways", ()),
             ENDPOINT_GATEWAYS,
             {
                 "data": [
@@ -53,10 +53,10 @@ from vi_api_client.exceptions import ViResponseError
                     }
                 ]
             },
-            "version must be a string",
+            "Gateway version must be a string",
         ),
         (
-            "installations",
+            ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {
                 "data": [
@@ -70,16 +70,25 @@ from vi_api_client.exceptions import ViResponseError
             "Installation address must be an object",
         ),
     ],
+    ids=[
+        "installation-without-id",
+        "installation-empty-id",
+        "gateway-boolean-installation-id",
+        "device-without-model-id",
+        "gateway-numeric-version",
+        "installation-address-not-object",
+    ],
 )
 async def test_discovery_rejects_missing_or_malformed_known_fields(
     static_token_auth,
-    operation: str,
+    call: tuple[str, tuple[str, ...]],
     endpoint: str,
     response: dict[str, object],
     message: str,
 ) -> None:
     """Public discovery methods reject invalid known snapshot fields."""
     # Arrange: Return the invalid response through the live client HTTP boundary.
+    operation, arguments = call
     with aioresponses() as mock_responses:
         mock_responses.get(f"{API_BASE_URL}{endpoint}", payload=response)
         async with aiohttp.ClientSession() as session:
@@ -87,19 +96,14 @@ async def test_discovery_rejects_missing_or_malformed_known_fields(
 
             # Act and assert: Known violations become library-owned response errors.
             with pytest.raises(ViResponseError, match=message):
-                if operation == "installations":
-                    await client.get_installations()
-                elif operation == "gateways":
-                    await client.get_gateways()
-                else:
-                    await client.get_devices("installation-1", "gateway-1")
+                await getattr(client, operation)(*arguments)
 
 
 @pytest.mark.asyncio
-async def test_discovery_keeps_unknown_installation_fields_and_json_address(
+async def test_discovery_tolerates_unknown_installation_fields_and_json_address(
     static_token_auth,
 ) -> None:
-    """Forward-compatible discovery preserves only the documented snapshot data."""
+    """Unknown installation fields are ignored while the JSON address is kept."""
     # Arrange: Return valid fields and future API data through the live client.
     with aioresponses() as mock_responses:
         mock_responses.get(
@@ -121,6 +125,7 @@ async def test_discovery_keeps_unknown_installation_fields_and_json_address(
             # Act: Read the public discovery snapshot.
             installations = await client.get_installations()
 
-    # Assert: Identifier normalization and flexible JSON address are retained.
+    # Assert: The numeric ID is normalized and the free-form address survives;
+    # Installation has no field for unknown data, so futureField is dropped.
     assert installations[0].id == "12"
     assert installations[0].address == {"city": "Berlin", "future": ["value"]}

@@ -11,12 +11,6 @@ from vi_api_client.credentials import CredentialDocument
 from vi_api_client.exceptions import ViAuthError
 
 
-@pytest.fixture
-def token_file(tmp_path) -> Path:
-    """Return the path of a credential document in a temporary directory."""
-    return tmp_path / "tokens.json"
-
-
 def test_read_reports_unreadable_documents(tmp_path):
     """Reading an unreadable document should raise a library auth error."""
     # Arrange: Point the document at a directory, which cannot be read as a file.
@@ -27,10 +21,9 @@ def test_read_reports_unreadable_documents(tmp_path):
         document.read()
 
 
-def test_read_rejects_non_json_credential_values(tmp_path):
+def test_read_rejects_non_json_credential_values(token_file):
     """Documents containing non-JSON values should reject without modification."""
     # Arrange: Store a document whose expiry value cannot be represented as JSON.
-    token_file = tmp_path / "tokens.json"
     original_content = '{"expires_at": NaN}'
     token_file.write_text(original_content, encoding="utf-8")
 
@@ -47,10 +40,9 @@ def test_read_rejects_non_json_credential_values(tmp_path):
     ["[]", '"tokens"', "5"],
     ids=["list", "string", "number"],
 )
-def test_read_rejects_non_object_documents(tmp_path, document_content: str):
+def test_read_rejects_non_object_documents(token_file, document_content: str):
     """Documents that are not JSON objects should reject with recovery guidance."""
     # Arrange: Store a JSON document with a non-object root.
-    token_file = tmp_path / "tokens.json"
     token_file.write_text(document_content, encoding="utf-8")
 
     # Act and assert: The non-object root rejects as an auth error.
@@ -94,6 +86,15 @@ def test_update_rejects_invalid_fields_without_overwriting(
         ("redirect_uri", 1, "must be a string"),
         ("expires_in", "600", "must be a finite number"),
         ("expires_at", True, "must be a finite number"),
+    ],
+    ids=[
+        "access-token",
+        "refresh-token",
+        "token-type",
+        "client-id",
+        "redirect-uri",
+        "expires-in",
+        "expires-at",
     ],
 )
 def test_read_rejects_invalid_known_fields(
@@ -195,8 +196,8 @@ def test_update_uses_atomic_replacement_in_the_token_directory(token_file, monke
     # Act: Save new credentials.
     CredentialDocument(token_file).update(credentials)
 
-    # Assert: The temporary file should be a sibling of the destination.
-    source, destination = replacement_calls[0]
+    # Assert: One replacement moved a sibling temporary file onto the destination.
+    ((source, destination),) = replacement_calls
     assert Path(source).parent == token_file.parent
     assert destination == token_file
 

@@ -3,26 +3,29 @@
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from builders import build_gateway_device
 
 from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_FEATURES
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.models import Device
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("feature", "message"),
     [
-        ({"properties": {"value": 1}}, "Feature name"),
-        ({"feature": "heating.status", "properties": []}, "properties"),
+        ({"properties": {"value": 1}}, "Feature name must be a non-empty string"),
+        (
+            {"feature": "heating.status", "properties": []},
+            "Feature properties must be an object",
+        ),
         (
             {
                 "feature": "heating.status",
                 "properties": {"value": 1},
                 "isEnabled": "true",
             },
-            "booleans",
+            "Feature enabled and ready fields must be booleans",
         ),
         (
             {
@@ -192,20 +195,40 @@ from vi_api_client.models import Device
             "Feature constraint min must be a finite number",
         ),
     ],
+    ids=[
+        "missing-feature-name",
+        "properties-not-object",
+        "enabled-not-boolean",
+        "command-params-not-object",
+        "property-unit-not-string",
+        "commands-not-object",
+        "command-not-object",
+        "command-uri-not-string",
+        "command-executable-not-boolean",
+        "command-param-not-object",
+        "command-param-required-not-boolean",
+        "command-param-type-not-string",
+        "command-param-enum-not-list",
+        "command-param-enum-non-finite",
+        "command-param-constraints-not-object",
+        "command-param-min-not-number",
+        "property-min-not-number",
+        "property-constraints-not-object",
+        "property-constraint-min-not-number",
+        "property-constraint-min-length-not-integer",
+        "property-constraint-pattern-not-string",
+        "property-constraint-regex-not-string",
+        "property-constraint-enum-not-list",
+        "property-constraint-min-non-finite",
+        "command-param-min-non-finite",
+    ],
 )
 async def test_live_feature_read_rejects_malformed_known_fields(
     static_token_auth, feature, message
 ):
     """Live feature reads reject malformed known fields before flattening."""
     # Arrange: Return an invalid feature through the public HTTP request flow.
-    device = Device(
-        id="device-1",
-        gateway_serial="gateway-1",
-        installation_id="installation-1",
-        model_id="model-1",
-        device_type="heating",
-        status="connected",
-    )
+    device = build_gateway_device("device-1")
     endpoint = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/"
         "devices/device-1/features/filter"
