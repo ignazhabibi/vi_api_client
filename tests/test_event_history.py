@@ -83,22 +83,25 @@ async def test_get_event_history_follows_cursor_without_window(
 @pytest.mark.parametrize(
     ("days", "cursor", "limit", "message"),
     [
-        (None, None, None, "exactly one of 'days' or 'cursor'"),
-        (7, "cursor-token", None, "exactly one of 'days' or 'cursor'"),
-        (0, None, None, "positive lookback window"),
-        (-3, None, None, "positive lookback window"),
-        (None, "", None, "non-empty string"),
-        (7, None, 0, "between 1 and 1000"),
-        (7, None, 1001, "between 1 and 1000"),
-    ],
-    ids=[
-        "neither-days-nor-cursor",
-        "both-days-and-cursor",
-        "zero-days",
-        "negative-days",
-        "empty-cursor",
-        "limit-below-range",
-        "limit-above-range",
+        pytest.param(
+            None,
+            None,
+            None,
+            "exactly one of 'days' or 'cursor'",
+            id="neither-days-nor-cursor",
+        ),
+        pytest.param(
+            7,
+            "cursor-token",
+            None,
+            "exactly one of 'days' or 'cursor'",
+            id="both-days-and-cursor",
+        ),
+        pytest.param(0, None, None, "positive lookback window", id="zero-days"),
+        pytest.param(-3, None, None, "positive lookback window", id="negative-days"),
+        pytest.param(None, "", None, "non-empty string", id="empty-cursor"),
+        pytest.param(7, None, 0, "between 1 and 1000", id="limit-below-range"),
+        pytest.param(7, None, 1001, "between 1 and 1000", id="limit-above-range"),
     ],
 )
 @pytest.mark.usefixtures("no_http_requests")
@@ -128,14 +131,19 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
-        ([], "response must be an object"),
-        ({"data": {}}, "data must be a list"),
-        ({"data": ["not-an-object"]}, "entries must be objects"),
-        (
+        pytest.param([], "response must be an object", id="root-not-object"),
+        pytest.param({"data": {}}, "data must be a list", id="data-not-list"),
+        pytest.param(
+            {"data": ["not-an-object"]},
+            "entries must be objects",
+            id="data-entry-not-object",
+        ),
+        pytest.param(
             {"data": [{"eventType": "device.error.raised"}]},
             "createdAt must be a non-empty string",
+            id="missing-required-fields",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -146,8 +154,9 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
                 ]
             },
             "createdAt must be a non-empty string",
+            id="createdAt-not-string",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -159,8 +168,9 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
                 ]
             },
             "gatewaySerial must be a string",
+            id="gatewaySerial-not-string",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -172,8 +182,9 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
                 ]
             },
             "audiences must be a list of strings",
+            id="audiences-not-list",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -185,21 +196,18 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
                 ]
             },
             "audiences must be a list of strings",
+            id="audiences-entry-not-string",
         ),
-        ({"data": [], "cursor": []}, "cursor must be an object"),
-        ({"data": [], "cursor": {"next": 5}}, "cursor next must be a string"),
-    ],
-    ids=[
-        "root-not-object",
-        "data-not-list",
-        "data-entry-not-object",
-        "missing-required-fields",
-        "createdAt-not-string",
-        "gatewaySerial-not-string",
-        "audiences-not-list",
-        "audiences-entry-not-string",
-        "cursor-not-object",
-        "cursor-next-not-string",
+        pytest.param(
+            {"data": [], "cursor": []},
+            "cursor must be an object",
+            id="cursor-not-object",
+        ),
+        pytest.param(
+            {"data": [], "cursor": {"next": 5}},
+            "cursor next must be a string",
+            id="cursor-next-not-string",
+        ),
     ],
 )
 async def test_get_event_history_rejects_malformed_responses(
@@ -282,3 +290,10 @@ def test_event_history_page_stores_immutable_snapshots():
     assert page.events[0].body == {"errorCode": "F.9000"}
     assert page.events[0].fields["body"] == {"errorCode": "F.9000"}
     assert page.next_cursor == "cursor-token"
+
+
+def test_installation_event_rejects_non_object_events():
+    """An event must be a JSON object."""
+    # Act and assert: A list where an event belongs violates the contract.
+    with pytest.raises(ViResponseError, match="Event must be an object"):
+        InstallationEvent.from_api(["not", "an", "event"])  # type: ignore[arg-type]

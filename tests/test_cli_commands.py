@@ -136,12 +136,11 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
 @pytest.mark.parametrize(
     ("value_type", "raw_value", "expected_value"),
     [
-        ("string", "01", "01"),
-        ("boolean", "TRUE", True),
-        ("boolean", "false", False),
-        ("integer", "2", 2),
+        pytest.param("string", "01", "01", id="string"),
+        pytest.param("boolean", "TRUE", True, id="boolean-true"),
+        pytest.param("boolean", "false", False, id="boolean-false"),
+        pytest.param("integer", "2", 2, id="integer"),
     ],
-    ids=["string", "boolean-true", "boolean-false", "integer"],
 )
 async def test_cmd_set_converts_typed_command_values(
     mock_cli_context, value_type: str, raw_value: str, expected_value: Any
@@ -163,12 +162,11 @@ async def test_cmd_set_converts_typed_command_values(
 @pytest.mark.parametrize(
     ("value_type", "raw_value", "message"),
     [
-        ("number", "automatic", "must be a number"),
-        ("number", "inf", "must be finite"),
-        ("boolean", "maybe", "must be true or false"),
-        ("integer", "1.5", "must be an integer"),
+        pytest.param("number", "automatic", "must be a number", id="number-text"),
+        pytest.param("number", "inf", "must be finite", id="number-infinite"),
+        pytest.param("boolean", "maybe", "must be true or false", id="boolean-text"),
+        pytest.param("integer", "1.5", "must be an integer", id="integer-fraction"),
     ],
-    ids=["number-text", "number-infinite", "boolean-text", "integer-fraction"],
 )
 async def test_cmd_set_rejects_malformed_typed_values(
     mock_cli_context, capsys, value_type: str, raw_value: str, message: str
@@ -265,17 +263,19 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
 @pytest.mark.parametrize(
     ("command", "arguments", "failure"),
     [
-        (
+        pytest.param(
             cmd_set,
             {"feature_name": "heating.curve.slope", "value": "1.4"},
             ("set_feature", "setting feature"),
+            id="set",
         ),
-        (
+        pytest.param(
             cmd_get_feature,
             {"feature_name": "heating.curve.slope"},
             ("get_features", "fetching feature"),
+            id="get-feature",
         ),
-        (
+        pytest.param(
             cmd_exec,
             {
                 "feature_name": "heating.curve.slope",
@@ -283,24 +283,32 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
                 "params": ["slope=1.4"],
             },
             ("execute_command", "executing command"),
+            id="exec",
         ),
-        (
+        pytest.param(
             cmd_list_features,
             {"enabled": False, "values": False},
             ("get_features", "listing features"),
+            id="list-features",
         ),
-        (cmd_list_devices, {}, ("get_installations", "listing devices")),
-        (cmd_list_writable, {}, ("get_features", "listing writable features")),
-        (cmd_list_events, {"days": 7}, ("get_event_history", "listing events")),
-    ],
-    ids=[
-        "set",
-        "get-feature",
-        "exec",
-        "list-features",
-        "list-devices",
-        "list-writable",
-        "list-events",
+        pytest.param(
+            cmd_list_devices,
+            {},
+            ("get_installations", "listing devices"),
+            id="list-devices",
+        ),
+        pytest.param(
+            cmd_list_writable,
+            {},
+            ("get_features", "listing writable features"),
+            id="list-writable",
+        ),
+        pytest.param(
+            cmd_list_events,
+            {"days": 7},
+            ("get_event_history", "listing events"),
+            id="list-events",
+        ),
     ],
 )
 async def test_commands_log_unexpected_client_errors_and_fail(
@@ -368,18 +376,11 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
 @pytest.mark.parametrize(
     ("feature_value", "numeric_constraints", "expected_type"),
     [
-        (True, False, "boolean"),
-        (1.4, False, "number"),
-        (3, False, "number"),
-        ("text", True, "number"),
-        ("text", False, "string"),
-    ],
-    ids=[
-        "boolean",
-        "float",
-        "integer",
-        "text-with-numeric-constraints",
-        "text",
+        pytest.param(True, False, "boolean", id="boolean"),
+        pytest.param(1.4, False, "number", id="float"),
+        pytest.param(3, False, "number", id="integer"),
+        pytest.param("text", True, "number", id="text-with-numeric-constraints"),
+        pytest.param("text", False, "string", id="text"),
     ],
 )
 def test_infer_feature_value_type_uses_value_shape_and_constraints(
@@ -451,10 +452,9 @@ async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys)
 @pytest.mark.parametrize(
     ("control_overrides", "expect_constraints"),
     [
-        ({"options": ["low", "high"]}, False),
-        ({"min": 0.2}, True),
+        pytest.param({"options": ["low", "high"]}, False, id="options-only"),
+        pytest.param({"min": 0.2}, True, id="min-only"),
     ],
-    ids=["options-only", "min-only"],
 )
 async def test_cmd_get_feature_prints_only_present_control_details(
     mock_cli_context, capsys, control_overrides: dict, expect_constraints: bool
@@ -1201,10 +1201,9 @@ async def test_async_main_maps_unexpected_errors_to_one():
 @pytest.mark.parametrize(
     ("extra_argv", "expected_level"),
     [
-        ([], logging.INFO),
-        (["--verbose"], logging.DEBUG),
+        pytest.param([], logging.INFO, id="default"),
+        pytest.param(["--verbose"], logging.DEBUG, id="verbose"),
     ],
-    ids=["default", "verbose"],
 )
 async def test_async_main_configures_logging_after_parsing(
     monkeypatch, extra_argv, expected_level
@@ -1306,13 +1305,12 @@ async def test_cmd_list_events_fails_without_installations(mock_cli_context, cap
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["--days", "0"],
-        ["--days", "-2"],
-        ["--days", "seven"],
-        ["--days", "7", "--limit", "0"],
-        ["--days", "7", "--max-pages", "-1"],
+        pytest.param(["--days", "0"], id="zero-days"),
+        pytest.param(["--days", "-2"], id="negative-days"),
+        pytest.param(["--days", "seven"], id="text-days"),
+        pytest.param(["--days", "7", "--limit", "0"], id="zero-limit"),
+        pytest.param(["--days", "7", "--max-pages", "-1"], id="negative-pages"),
     ],
-    ids=["zero-days", "negative-days", "text-days", "zero-limit", "negative-pages"],
 )
 def test_list_events_parser_rejects_non_positive_windows(arguments, capsys):
     """Non-positive windows and limits should fail before any command runs."""
@@ -1519,48 +1517,49 @@ def _detail_event(body: FeatureValue, event_type: str = "detail") -> Installatio
 @pytest.mark.parametrize(
     ("event_type", "body", "expected"),
     [
-        ("detail", None, ["body: null"]),
-        ("detail", "plain text", ['body: "plain text"']),
-        ("detail", 42, ["body: 42"]),
-        ("detail", ["a", "b"], ['body: ["a", "b"]']),
-        ("detail", {"online": True}, ['body: {"online": true}']),
-        (
+        pytest.param("detail", None, ["body: null"], id="null"),
+        pytest.param("detail", "plain text", ['body: "plain text"'], id="text"),
+        pytest.param("detail", 42, ["body: 42"], id="number"),
+        pytest.param("detail", ["a", "b"], ['body: ["a", "b"]'], id="list"),
+        pytest.param(
+            "detail", {"online": True}, ['body: {"online": true}'], id="object"
+        ),
+        pytest.param(
             "detail",
             {"featureName": "heating.dhw.temperature.main", "reason": "user"},
             ['body: {"featureName": "heating.dhw.temperature.main", "reason": "user"}'],
+            id="object-with-feature-name",
         ),
-        (
+        pytest.param(
             "feature-changed",
             {"featureName": "heating.dhw.temperature.main"},
             ["heating.dhw.temperature.main"],
+            id="feature-changed-name",
         ),
-        (
+        pytest.param(
             "feature-changed",
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandName": "setTargetTemperature",
             },
             ["heating.dhw.temperature.main", "command: setTargetTemperature"],
+            id="feature-changed-command",
         ),
-        (
+        pytest.param(
             "feature-changed",
             {
                 "featureName": "heating.dhw.temperature.main",
                 "commandBody": {"temperature": 55},
             },
             ["heating.dhw.temperature.main", 'parameters: {"temperature": 55}'],
+            id="feature-changed-parameters",
         ),
-    ],
-    ids=[
-        "null",
-        "text",
-        "number",
-        "list",
-        "object",
-        "object-with-feature-name",
-        "feature-changed-name",
-        "feature-changed-command",
-        "feature-changed-parameters",
+        pytest.param(
+            "feature-changed",
+            {"commandName": "setTargetTemperature"},
+            ['body: {"commandName": "setTargetTemperature"}'],
+            id="feature-changed-without-name",
+        ),
     ],
 )
 def test_event_detail_lines_render_known_and_unknown_bodies(
@@ -1576,8 +1575,10 @@ def test_event_detail_lines_render_known_and_unknown_bodies(
 
 @pytest.mark.parametrize(
     ("online", "label"),
-    [(True, "ONLINE"), (False, "OFFLINE")],
-    ids=["online", "offline"],
+    [
+        pytest.param(True, "ONLINE", id="online"),
+        pytest.param(False, "OFFLINE", id="offline"),
+    ],
 )
 def test_event_detail_lines_labels_gateway_online_events(online: bool, label: str):
     """Gateway-online events should render the reported online transition."""
@@ -1648,13 +1649,14 @@ def test_event_detail_lines_renders_ended_status_transition():
 @pytest.mark.parametrize(
     ("error_description", "expected"),
     [
-        ("S.134", []),
-        ("s.134", []),
-        ("", []),
-        (None, []),
-        ("S.134 Burner fault", ["description: S.134 Burner fault"]),
+        pytest.param("S.134", [], id="same-code"),
+        pytest.param("s.134", [], id="same-code-lowercase"),
+        pytest.param("", [], id="empty"),
+        pytest.param(None, [], id="missing"),
+        pytest.param(
+            "S.134 Burner fault", ["description: S.134 Burner fault"], id="informative"
+        ),
     ],
-    ids=["same-code", "same-code-lowercase", "empty", "missing", "informative"],
 )
 def test_event_detail_lines_shows_descriptions_beyond_the_code(
     error_description: str | None, expected: list[str]
@@ -1687,20 +1689,16 @@ def test_event_detail_lines_keeps_description_without_code():
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
-        ({"active": True}, ["ACTIVE"]),
-        ({"errorCode": "S.134"}, ["code: S.134"]),
-        ({"deviceId": "17", "modelId": "67"}, ["device: 17, model: 67"]),
-        ({"deviceId": "17"}, ["device: 17"]),
-        ({}, ["body: {}"]),
-        ("scalar", ['body: "scalar"']),
-    ],
-    ids=[
-        "active-only",
-        "code-only",
-        "device-and-model",
-        "device-only",
-        "empty-object",
-        "scalar",
+        pytest.param({"active": True}, ["ACTIVE"], id="active-only"),
+        pytest.param({"errorCode": "S.134"}, ["code: S.134"], id="code-only"),
+        pytest.param(
+            {"deviceId": "17", "modelId": "67"},
+            ["device: 17, model: 67"],
+            id="device-and-model",
+        ),
+        pytest.param({"deviceId": "17"}, ["device: 17"], id="device-only"),
+        pytest.param({}, ["body: {}"], id="empty-object"),
+        pytest.param("scalar", ['body: "scalar"'], id="scalar"),
     ],
 )
 def test_event_detail_lines_handles_missing_status_fields_without_fabrication(
@@ -1902,25 +1900,32 @@ def test_print_event_summary_marks_safety_limit_results(capsys):
     assert "Earliest event:" in output
 
 
-def test_event_history_window_compares_timestamps_as_points_in_time():
+@pytest.mark.parametrize(
+    ("early", "late"),
+    [
+        # 09:15:30+02:00 is 07:15:30Z, so it sorts later as text only.
+        ("2026-09-20T09:15:30.000+02:00", "2026-09-20T08:15:30.000Z"),
+        # A timestamp without offset counts as UTC: 08:00 follows 07:30Z.
+        ("2026-09-20T09:30:00+02:00", "2026-09-20T08:00:00"),
+    ],
+    ids=["utc-offset", "no-offset-as-utc"],
+)
+def test_event_history_window_compares_timestamps_as_points_in_time(
+    early: str, late: str
+):
     """Earliest and latest should order by instant, not lexically."""
-    # Arrange: The offset timestamp is lexically later but temporally earlier
-    # than the UTC timestamp (09:15:30+02:00 is 07:15:30Z; 08:15:30Z follows).
-    temporally_early = replace(
-        _detail_event(None), event_timestamp="2026-09-20T09:15:30.000+02:00"
-    )
-    temporally_late = replace(
-        _detail_event(None), event_timestamp="2026-09-20T08:15:30.000Z"
-    )
+    # Arrange: The two timestamps sort the other way round as text.
     window = EventHistoryWindow(
-        events=[temporally_late, temporally_early], next_cursor=None, pages_fetched=1
+        events=[
+            replace(_detail_event(None), event_timestamp=late),
+            replace(_detail_event(None), event_timestamp=early),
+        ],
+        next_cursor=None,
+        pages_fetched=1,
     )
 
-    # Act: Read the window's temporal extremes.
-    extremes = (window.earliest_timestamp, window.latest_timestamp)
-
-    # Assert: The offset timestamp is earliest despite sorting later as text.
-    assert extremes == ("2026-09-20T09:15:30.000+02:00", "2026-09-20T08:15:30.000Z")
+    # Act and assert: The window orders the timestamps by instant.
+    assert (window.earliest_timestamp, window.latest_timestamp) == (early, late)
 
 
 def test_event_history_window_falls_back_to_lexical_for_unparsable_timestamps():

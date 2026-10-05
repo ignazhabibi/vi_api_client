@@ -25,8 +25,10 @@ def test_fixture_discovery_metadata_matches_bundled_device_fixtures(
     # Act: Compare catalog fixture names with bundled feature-response filenames.
     catalogued_fixture_names = {device["fixtureName"] for device in device_metadata}
 
-    # Assert: Metadata is complete, unique, and has the discovery identity fields.
+    # Assert: Metadata is complete, unique, and has the discovery identity
+    # fields, and the public catalog lists exactly the bundled devices.
     assert catalogued_fixture_names == set(available_fixture_devices)
+    assert FixtureViClient.get_available_fixture_devices() == available_fixture_devices
     assert len(device_metadata) == len(catalogued_fixture_names)
     assert all(
         isinstance(device["modelId"], str) and isinstance(device["deviceType"], str)

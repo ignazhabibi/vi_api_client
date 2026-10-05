@@ -100,24 +100,14 @@ async def test_live_adapter_wraps_aiohttp_connection_error(
 @pytest.mark.parametrize(
     ("status", "expected_error"),
     [
-        (400, ViValidationError),
-        (401, ViAuthError),
-        (403, ViAuthError),
-        (404, ViNotFoundError),
-        (418, ViError),
-        (422, ViValidationError),
-        (429, ViRateLimitError),
-        (500, ViServerInternalError),
-    ],
-    ids=[
-        "bad-request",
-        "unauthorized",
-        "forbidden",
-        "not-found",
-        "unmapped-status",
-        "unprocessable",
-        "rate-limited",
-        "server-error",
+        pytest.param(400, ViValidationError, id="bad-request"),
+        pytest.param(401, ViAuthError, id="unauthorized"),
+        pytest.param(403, ViAuthError, id="forbidden"),
+        pytest.param(404, ViNotFoundError, id="not-found"),
+        pytest.param(418, ViError, id="unmapped-status"),
+        pytest.param(422, ViValidationError, id="unprocessable"),
+        pytest.param(429, ViRateLimitError, id="rate-limited"),
+        pytest.param(500, ViServerInternalError, id="server-error"),
     ],
 )
 async def test_live_adapter_preserves_viessmann_error_type(
@@ -176,8 +166,12 @@ async def test_live_adapter_exposes_validated_validation_details(
 
 @pytest.mark.parametrize(
     "validation_errors",
-    ["not-a-list", 42, [{"message": "ok"}, "entry"], ["entry", 42]],
-    ids=["string", "number", "mixed-entries", "no-object-entries"],
+    [
+        pytest.param("not-a-list", id="string"),
+        pytest.param(42, id="number"),
+        pytest.param([{"message": "ok"}, "entry"], id="mixed-entries"),
+        pytest.param(["entry", 42], id="no-object-entries"),
+    ],
 )
 async def test_live_adapter_drops_unusable_validation_details(
     live_adapter,
@@ -253,24 +247,14 @@ async def test_live_adapter_drops_malformed_structured_error_fields(
 @pytest.mark.parametrize(
     ("retry_after_header", "expected_retry_after"),
     [
-        ("12.5", 12.5),
-        ("0", 0.0),
-        ("-5", None),
-        ("inf", None),
-        ("nan", None),
-        ("not-a-duration", None),
-        ("Wed, 21 Oct 2015 07:28:00", None),
-        (None, None),
-    ],
-    ids=[
-        "fractional-seconds",
-        "zero-seconds",
-        "negative-seconds",
-        "infinite-seconds",
-        "nan-seconds",
-        "not-a-duration",
-        "date-without-timezone",
-        "missing-header",
+        pytest.param("12.5", 12.5, id="fractional-seconds"),
+        pytest.param("0", 0.0, id="zero-seconds"),
+        pytest.param("-5", None, id="negative-seconds"),
+        pytest.param("inf", None, id="infinite-seconds"),
+        pytest.param("nan", None, id="nan-seconds"),
+        pytest.param("not-a-duration", None, id="not-a-duration"),
+        pytest.param("Wed, 21 Oct 2015 07:28:00", None, id="date-without-timezone"),
+        pytest.param(None, None, id="missing-header"),
     ],
 )
 async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying(
@@ -298,15 +282,15 @@ async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying
 @pytest.mark.parametrize(
     ("retry_after_header", "max_retry_after"),
     [
-        (
+        pytest.param(
             lambda: format_datetime(
                 datetime.now(UTC) + timedelta(seconds=30), usegmt=True
             ),
             30,
+            id="future-date",
         ),
-        (lambda: "Wed, 21 Oct 2015 07:28:00 GMT", 0),
+        pytest.param(lambda: "Wed, 21 Oct 2015 07:28:00 GMT", 0, id="past-date"),
     ],
-    ids=["future-date", "past-date"],
 )
 async def test_client_normalizes_http_date_retry_after_without_retrying(
     vi_client,
@@ -337,10 +321,11 @@ async def test_client_normalizes_http_date_retry_after_without_retrying(
 @pytest.mark.parametrize(
     "command_uri",
     [
-        f"{API_BASE_URL}/iot/v2/features/commands/setMode",
-        "/iot/v2/features/commands/setMode",
+        pytest.param(
+            f"{API_BASE_URL}/iot/v2/features/commands/setMode", id="absolute-uri"
+        ),
+        pytest.param("/iot/v2/features/commands/setMode", id="rooted-uri"),
     ],
-    ids=["absolute-uri", "rooted-uri"],
 )
 async def test_live_adapter_sends_commands_to_vi_api_uris(
     live_adapter, mock_responses, command_uri: str
@@ -361,12 +346,16 @@ async def test_live_adapter_sends_commands_to_vi_api_uris(
 @pytest.mark.parametrize(
     "command_uri",
     [
-        "https://example.invalid/iot/v2/features/commands/setMode",
-        f"{API_BASE_URL}.example.invalid/commands/setMode",
-        "//example.invalid/commands/setMode",
-        "",
+        pytest.param(
+            "https://example.invalid/iot/v2/features/commands/setMode",
+            id="foreign-host",
+        ),
+        pytest.param(
+            f"{API_BASE_URL}.example.invalid/commands/setMode", id="lookalike-host"
+        ),
+        pytest.param("//example.invalid/commands/setMode", id="scheme-relative"),
+        pytest.param("", id="empty"),
     ],
-    ids=["foreign-host", "lookalike-host", "scheme-relative", "empty"],
 )
 @pytest.mark.usefixtures("no_http_requests")
 async def test_live_adapter_refuses_command_uris_outside_vi_api(
@@ -405,12 +394,28 @@ async def test_live_adapter_maps_non_json_error_bodies(
 @pytest.mark.parametrize(
     ("status", "expected_error", "expected_message"),
     [
-        (401, ViAuthError, "Unauthorized: Device communication failed"),
-        (403, ViAuthError, "Forbidden: Device communication failed"),
-        (404, ViNotFoundError, "Not Found: Device communication failed"),
-        (418, ViError, "Unknown Error 418: Device communication failed"),
+        pytest.param(
+            401,
+            ViAuthError,
+            "Unauthorized: Device communication failed",
+            id="unauthorized",
+        ),
+        pytest.param(
+            403, ViAuthError, "Forbidden: Device communication failed", id="forbidden"
+        ),
+        pytest.param(
+            404,
+            ViNotFoundError,
+            "Not Found: Device communication failed",
+            id="not-found",
+        ),
+        pytest.param(
+            418,
+            ViError,
+            "Unknown Error 418: Device communication failed",
+            id="unmapped-status",
+        ),
     ],
-    ids=["unauthorized", "forbidden", "not-found", "unmapped-status"],
 )
 async def test_client_errors_name_the_http_status_in_their_message(
     vi_client,

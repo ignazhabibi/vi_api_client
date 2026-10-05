@@ -162,8 +162,10 @@ def test_oauth_rejects_malformed_token_file_without_modifying_it(token_file):
 
 @pytest.mark.parametrize(
     ("seconds_left", "expected_token", "expected_refreshes"),
-    [(30, "refreshed-access", 1), (120, "stored-access", 0)],
-    ids=["inside-margin-refreshes", "outside-margin-reuses"],
+    [
+        pytest.param(30, "refreshed-access", 1, id="inside-margin-refreshes"),
+        pytest.param(120, "stored-access", 0, id="outside-margin-reuses"),
+    ],
 )
 async def test_access_token_is_renewed_shortly_before_it_expires(
     mock_responses, token_file, seconds_left, expected_token, expected_refreshes
@@ -577,26 +579,43 @@ async def test_code_exchange_failure_does_not_write_tokens(mock_responses, token
 @pytest.mark.parametrize(
     ("token_body", "message"),
     [
-        ("{invalid", "invalid JSON data"),
-        ("[]", "must be a JSON object"),
-        ('{"refresh_token": "new"}', "access_token must be a non-empty string"),
-        ('{"access_token": 1}', "access_token must be a non-empty string"),
-        ('{"access_token": "t", "refresh_token": 5}', "refresh_token must be a string"),
-        ('{"access_token": "t", "token_type": 5}', "token_type must be a string"),
-        ('{"access_token": "t", "expires_in": NaN}', "invalid JSON data"),
-        ('{"access_token": "t", "expires_in": -1}', "non-negative finite number"),
-        ('{"access_token": "t", "expires_in": true}', "non-negative finite number"),
-    ],
-    ids=[
-        "malformed-json",
-        "not-an-object",
-        "access-token-missing",
-        "access-token-not-text",
-        "refresh-token-not-text",
-        "token-type-not-text",
-        "expires-in-not-json",
-        "expires-in-negative",
-        "expires-in-boolean",
+        pytest.param("{invalid", "invalid JSON data", id="malformed-json"),
+        pytest.param("[]", "must be a JSON object", id="not-an-object"),
+        pytest.param(
+            '{"refresh_token": "new"}',
+            "access_token must be a non-empty string",
+            id="access-token-missing",
+        ),
+        pytest.param(
+            '{"access_token": 1}',
+            "access_token must be a non-empty string",
+            id="access-token-not-text",
+        ),
+        pytest.param(
+            '{"access_token": "t", "refresh_token": 5}',
+            "refresh_token must be a string",
+            id="refresh-token-not-text",
+        ),
+        pytest.param(
+            '{"access_token": "t", "token_type": 5}',
+            "token_type must be a string",
+            id="token-type-not-text",
+        ),
+        pytest.param(
+            '{"access_token": "t", "expires_in": NaN}',
+            "invalid JSON data",
+            id="expires-in-not-json",
+        ),
+        pytest.param(
+            '{"access_token": "t", "expires_in": -1}',
+            "non-negative finite number",
+            id="expires-in-negative",
+        ),
+        pytest.param(
+            '{"access_token": "t", "expires_in": true}',
+            "non-negative finite number",
+            id="expires-in-boolean",
+        ),
     ],
 )
 async def test_code_exchange_rejects_invalid_token_response_without_overwriting(

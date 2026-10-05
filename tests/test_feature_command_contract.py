@@ -115,18 +115,25 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
 @pytest.mark.parametrize(
     ("feature", "device_features", "error"),
     [
-        (_feature("absent", "value", _control()), [], "not present"),
-        (
+        pytest.param(
+            _feature("absent", "value", _control()),
+            [],
+            "not present",
+            id="feature-not-on-device",
+        ),
+        pytest.param(
             _feature("heating.mode.target", "old"),
             [_feature("heating.mode.target", "old", _control(), is_enabled=False)],
             "disabled",
+            id="current-feature-disabled",
         ),
-        (
+        pytest.param(
             _feature("heating.mode.target", "old"),
             [_feature("heating.mode.target", "old", _control(), is_ready=False)],
             "not ready",
+            id="current-feature-not-ready",
         ),
-        (
+        pytest.param(
             _feature("heating.mode.target", "old"),
             [
                 _feature(
@@ -136,13 +143,8 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
                 )
             ],
             "Required dependency",
+            id="required-sibling-missing",
         ),
-    ],
-    ids=[
-        "feature-not-on-device",
-        "current-feature-disabled",
-        "current-feature-not-ready",
-        "required-sibling-missing",
     ],
 )
 async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
@@ -165,11 +167,22 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
 @pytest.mark.parametrize(
     ("sibling", "error"),
     [
-        (_feature("heating.mode.other", "value", is_enabled=False), "disabled"),
-        (_feature("heating.mode.other", "value", is_ready=False), "not ready"),
-        (_feature("heating.mode.other", None), "has no value"),
+        pytest.param(
+            _feature("heating.mode.other", "value", is_enabled=False),
+            "disabled",
+            id="sibling-disabled",
+        ),
+        pytest.param(
+            _feature("heating.mode.other", "value", is_ready=False),
+            "not ready",
+            id="sibling-not-ready",
+        ),
+        pytest.param(
+            _feature("heating.mode.other", None),
+            "has no value",
+            id="sibling-without-value",
+        ),
     ],
-    ids=["sibling-disabled", "sibling-not-ready", "sibling-without-value"],
 )
 async def test_set_feature_rejects_unavailable_required_dependencies_before_constraints(
     sibling: Feature,
@@ -207,10 +220,9 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io():
 @pytest.mark.parametrize(
     ("initial_value", "written_value", "options"),
     [
-        ("low", "high", ["low", "high"]),
-        (1, 2, [1, 2, 3]),
+        pytest.param("low", "high", ["low", "high"], id="string-options"),
+        pytest.param(1, 2, [1, 2, 3], id="numeric-options"),
     ],
-    ids=["string-options", "numeric-options"],
 )
 async def test_set_feature_accepts_declared_option_values(
     initial_value: Any,
@@ -239,24 +251,31 @@ async def test_set_feature_accepts_declared_option_values(
 @pytest.mark.parametrize(
     ("control_overrides", "target_value", "error"),
     [
-        ({"min": 2.0}, 1, "< min"),
-        ({"max": 3.5}, 5.0, "> max"),
-        ({"min": 0.2, "step": 0.1}, 0.25, "does not align with step"),
-        ({"options": ["low", "high"]}, "medium", "allowed options"),
-        ({"min_length": 3}, "ab", "min_length"),
-        ({"max_length": 3}, "toolong", "max_length"),
-        ({"pattern": "^[a-z]+$"}, "UPPER", "does not match pattern"),
-        ({"pattern": r"^[\d]{2}-[\d]{2}$"}, "12-31\n", "does not match pattern"),
-    ],
-    ids=[
-        "below-min",
-        "above-max",
-        "off-step",
-        "outside-options",
-        "below-min-length",
-        "above-max-length",
-        "pattern-mismatch",
-        "pattern-trailing-newline",
+        pytest.param({"min": 2.0}, 1, "< min", id="below-min"),
+        pytest.param({"max": 3.5}, 5.0, "> max", id="above-max"),
+        pytest.param(
+            {"min": 0.2, "step": 0.1}, 0.25, "does not align with step", id="off-step"
+        ),
+        pytest.param(
+            {"options": ["low", "high"]},
+            "medium",
+            "allowed options",
+            id="outside-options",
+        ),
+        pytest.param({"min_length": 3}, "ab", "min_length", id="below-min-length"),
+        pytest.param({"max_length": 3}, "toolong", "max_length", id="above-max-length"),
+        pytest.param(
+            {"pattern": "^[a-z]+$"},
+            "UPPER",
+            "does not match pattern",
+            id="pattern-mismatch",
+        ),
+        pytest.param(
+            {"pattern": r"^[\d]{2}-[\d]{2}$"},
+            "12-31\n",
+            "does not match pattern",
+            id="pattern-trailing-newline",
+        ),
     ],
 )
 async def test_set_feature_rejects_values_outside_canonical_constraints(
@@ -394,30 +413,36 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
 @pytest.mark.parametrize(
     ("feature", "parameters", "error"),
     [
-        (_feature("target", "old"), {"target": "new"}, "read-only"),
-        (
+        pytest.param(
+            _feature("target", "old"),
+            {"target": "new"},
+            "read-only",
+            id="read-only-feature",
+        ),
+        pytest.param(
             _feature("target", "old", _control(), is_enabled=False),
             {"target": "new"},
             "disabled",
+            id="disabled-feature",
         ),
-        (
+        pytest.param(
             _feature("target", "old", _control(), is_ready=False),
             {"target": "new"},
             "not ready",
+            id="not-ready-feature",
         ),
-        (_feature("target", "old", _control()), {}, "target parameter"),
-        (
+        pytest.param(
+            _feature("target", "old", _control()),
+            {},
+            "target parameter",
+            id="missing-target-parameter",
+        ),
+        pytest.param(
             _feature("target", "old", _control(required_params=["target", "other"])),
             {"target": "new"},
             "required parameter",
+            id="missing-required-parameter",
         ),
-    ],
-    ids=[
-        "read-only-feature",
-        "disabled-feature",
-        "not-ready-feature",
-        "missing-target-parameter",
-        "missing-required-parameter",
     ],
 )
 async def test_execute_command_rejects_invalid_local_contract_without_adapter_io(

@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
-from builders import build_gateway_device
+from builders import build_device
 from yarl import URL
 
 from vi_api_client._types import JsonValue
@@ -63,7 +63,7 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
 ):
     # Arrange: Mock a gateway response with requested and unrelated features.
     response = load_fixture_json("gateway_device_features.json")
-    devices = [build_gateway_device("10"), build_gateway_device("0")]
+    devices = [build_device("10"), build_device("0")]
     url = _gateway_features_url(devices[0])
 
     mock_responses.post(url, payload=response)
@@ -104,8 +104,8 @@ async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_inp
 ):
     # Arrange: The bulk response covers device 10 only, so device 0 needs its
     # own read.
-    device_10 = build_gateway_device("10")
-    device_0 = build_gateway_device("0")
+    device_10 = build_device("10")
+    device_0 = build_device("0")
     gateway_url = _gateway_features_url(device_10)
     bulk_response = {
         "data": [
@@ -144,7 +144,7 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
 ):
     # Arrange: The bulk response mixes the requested device's feature with a
     # gateway feature and a feature of a device the caller did not request.
-    device = build_gateway_device("0")
+    device = build_device("0")
     url = _gateway_features_url(device)
     response = {
         "data": [
@@ -182,19 +182,20 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
 @pytest.mark.parametrize(
     ("devices", "message"),
     [
-        (
-            [build_gateway_device("0"), build_gateway_device("0")],
+        pytest.param(
+            [build_device("0"), build_device("0")],
             "unique IDs",
+            id="duplicate-device-ids",
         ),
-        (
+        pytest.param(
             [
-                build_gateway_device("0"),
-                replace(build_gateway_device("1"), gateway_serial="gateway-2"),
+                build_device("0"),
+                replace(build_device("1"), gateway_serial="gateway-2"),
             ],
             "same installation and gateway",
+            id="different-gateways",
         ),
     ],
-    ids=["duplicate-device-ids", "different-gateways"],
 )
 @pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_rejects_ambiguous_device_sets_before_any_request(
@@ -222,7 +223,7 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
             }
         ]
     }
-    device = build_gateway_device("device/0")
+    device = build_device("device/0")
 
     mock_responses.post(_gateway_features_url(device), payload=response)
 
@@ -261,27 +262,38 @@ _DUPLICATED_GATEWAY_FEATURE = {
 @pytest.mark.parametrize(
     ("response", "message"),
     [
-        ([], "response must be an object"),
-        ({"data": {}}, "data must be a list"),
-        ({"data": ["not-an-object"]}, "entries must be objects"),
-        ({"data": [{"uri": "/iot/v2/features/devices"}]}, "URI has no device ID"),
-        (
+        pytest.param([], "response must be an object", id="not-an-object"),
+        pytest.param({"data": {}}, "data must be a list", id="data-not-a-list"),
+        pytest.param(
+            {"data": ["not-an-object"]},
+            "entries must be objects",
+            id="entry-not-an-object",
+        ),
+        pytest.param(
+            {"data": [{"uri": "/iot/v2/features/devices"}]},
+            "URI has no device ID",
+            id="uri-without-device",
+        ),
+        pytest.param(
             {"data": [{"uri": "/iot/v2/features/devices/%ZZ/features/heating"}]},
             "invalid encoded URI",
+            id="invalid-encoded-uri",
         ),
-        (
+        pytest.param(
             {"data": [{"uri": "/iot/v2/features/devices/0/features/missing.feature"}]},
             "Feature name must be a non-empty string",
+            id="missing-feature-name",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {"uri": "/iot/v2/features/devices/0/features/devices/10/heating"}
                 ]
             },
             "ambiguous device ownership",
+            id="ambiguous-ownership",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -292,20 +304,24 @@ _DUPLICATED_GATEWAY_FEATURE = {
                 ]
             },
             "Feature properties must be an object",
+            id="properties-not-an-object",
         ),
-        (
+        pytest.param(
             {"data": [_DUPLICATED_GATEWAY_FEATURE, dict(_DUPLICATED_GATEWAY_FEATURE)]},
             "Duplicate feature name in API response: heating.status",
+            id="duplicate-feature-name",
         ),
-        (
+        pytest.param(
             {"data": [{"feature": "heating.status", "properties": {}, "uri": None}]},
             "Gateway feature entry has no valid URI",
+            id="missing-uri",
         ),
-        (
+        pytest.param(
             {"data": [{"feature": "heating.status", "properties": {}, "uri": 5}]},
             "Gateway feature entry has no valid URI",
+            id="non-string-uri",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -316,28 +332,15 @@ _DUPLICATED_GATEWAY_FEATURE = {
                 ]
             },
             "Gateway feature entry has an invalid URI",
+            id="undecodable-uri",
         ),
-    ],
-    ids=[
-        "not-an-object",
-        "data-not-a-list",
-        "entry-not-an-object",
-        "uri-without-device",
-        "invalid-encoded-uri",
-        "missing-feature-name",
-        "ambiguous-ownership",
-        "properties-not-an-object",
-        "duplicate-feature-name",
-        "missing-uri",
-        "non-string-uri",
-        "undecodable-uri",
     ],
 )
 async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     vi_client, mock_responses, response, message
 ):
     # Arrange: Return a malformed successful response from the gateway endpoint.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_gateway_features_url(device), payload=response)
 
@@ -350,11 +353,12 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
 @pytest.mark.parametrize(
     ("status", "error_type"),
     [
-        (400, "DEVICE_COMMUNICATION_ERROR"),
-        (404, "DEVICE_NOT_FOUND"),
-        (403, "PACKAGE_NOT_PAID_FOR"),
+        pytest.param(
+            400, "DEVICE_COMMUNICATION_ERROR", id="device-communication-error"
+        ),
+        pytest.param(404, "DEVICE_NOT_FOUND", id="device-not-found"),
+        pytest.param(403, "PACKAGE_NOT_PAID_FOR", id="package-not-paid-for"),
     ],
-    ids=["device-communication-error", "device-not-found", "package-not-paid-for"],
 )
 async def test_update_gateway_devices_captures_device_specific_fallback_errors(
     vi_client, mock_responses, status: int, error_type: str, load_fixture_json
@@ -366,7 +370,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
             feature for feature in fixture["data"] if "/devices/10/" in feature["uri"]
         ]
     }
-    devices = [build_gateway_device("10"), build_gateway_device("0")]
+    devices = [build_device("10"), build_device("0")]
 
     mock_responses.post(
         _gateway_features_url(devices[0]),
@@ -396,12 +400,35 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
 @pytest.mark.parametrize(
     ("status", "error_type", "expected_error", "message"),
     [
-        (401, "UNAUTHORIZED", ViAuthError, "Unauthorized: Global failure"),
-        (429, "RATE_LIMIT_EXCEEDED", ViRateLimitError, "Rate Limit Exceeded"),
-        (500, "INTERNAL_ERROR", ViServerInternalError, "Server Error 500"),
-        (400, "UNKNOWN_VALIDATION_ERROR", ViValidationError, "Global failure"),
+        pytest.param(
+            401,
+            "UNAUTHORIZED",
+            ViAuthError,
+            "Unauthorized: Global failure",
+            id="unauthorized",
+        ),
+        pytest.param(
+            429,
+            "RATE_LIMIT_EXCEEDED",
+            ViRateLimitError,
+            "Rate Limit Exceeded",
+            id="rate-limited",
+        ),
+        pytest.param(
+            500,
+            "INTERNAL_ERROR",
+            ViServerInternalError,
+            "Server Error 500",
+            id="server-error",
+        ),
+        pytest.param(
+            400,
+            "UNKNOWN_VALIDATION_ERROR",
+            ViValidationError,
+            "Global failure",
+            id="non-fallback-validation",
+        ),
     ],
-    ids=["unauthorized", "rate-limited", "server-error", "non-fallback-validation"],
 )
 async def test_update_gateway_devices_propagates_global_gateway_errors(
     vi_client,
@@ -412,7 +439,7 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
     message: str,
 ):
     # Arrange: Return a gateway error that does not trigger the device fallback.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _gateway_features_url(device),
@@ -430,7 +457,7 @@ async def test_update_gateway_devices_propagates_connection_errors(vi_client):
 
     # Act and assert: Connection failures abort the entire refresh.
     with pytest.raises(ViConnectionError, match="Network error"):
-        await vi_client.update_gateway_devices([build_gateway_device("0")])
+        await vi_client.update_gateway_devices([build_device("0")])
 
 
 async def test_update_gateway_devices_translates_malformed_fallback_response(
@@ -438,7 +465,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
 ):
     # Arrange: An empty bulk response triggers the fallback, which then returns
     # invalid feature properties.
-    device = build_gateway_device("0")
+    device = build_device("0")
     mock_responses.post(_gateway_features_url(device), payload={"data": []})
     mock_responses.post(
         _device_features_url(device),
@@ -486,22 +513,35 @@ async def test_get_gateways_returns_the_listed_gateway(
 @pytest.mark.parametrize(
     ("url", "request_method", "operation", "arguments"),
     [
-        (f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}", "get", "get_installations", ()),
-        (f"{API_BASE_URL}{ENDPOINT_GATEWAYS}", "get", "get_gateways", ()),
-        (
+        pytest.param(
+            f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}",
+            "get",
+            "get_installations",
+            (),
+            id="installations",
+        ),
+        pytest.param(
+            f"{API_BASE_URL}{ENDPOINT_GATEWAYS}",
+            "get",
+            "get_gateways",
+            (),
+            id="gateways",
+        ),
+        pytest.param(
             _devices_url("installation-1", "gateway-1"),
             "get",
             "get_devices",
             ("installation-1", "gateway-1"),
+            id="devices",
         ),
-        (
-            _device_features_url(build_gateway_device("0")),
+        pytest.param(
+            _device_features_url(build_device("0")),
             "post",
             "get_features",
-            (build_gateway_device("0"),),
+            (build_device("0"),),
+            id="features",
         ),
     ],
-    ids=["installations", "gateways", "devices", "features"],
 )
 async def test_discovery_rejects_successful_non_json_responses(
     vi_client, mock_responses, url, request_method, operation, arguments
@@ -519,28 +559,38 @@ async def test_discovery_rejects_successful_non_json_responses(
 @pytest.mark.parametrize(
     ("endpoint", "call"),
     [
-        (("get", f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"), ("get_installations", ())),
-        (("get", f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"), ("get_gateways", ())),
-        (
+        pytest.param(
+            ("get", f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"),
+            ("get_installations", ()),
+            id="installations",
+        ),
+        pytest.param(
+            ("get", f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"),
+            ("get_gateways", ()),
+            id="gateways",
+        ),
+        pytest.param(
             ("get", _devices_url("installation-1", "gateway-1")),
             ("get_devices", ("installation-1", "gateway-1")),
+            id="devices",
         ),
-        (
-            ("post", _device_features_url(build_gateway_device("0"))),
-            ("get_features", (build_gateway_device("0"),)),
+        pytest.param(
+            ("post", _device_features_url(build_device("0"))),
+            ("get_features", (build_device("0"),)),
+            id="features",
         ),
     ],
-    ids=["installations", "gateways", "devices", "features"],
 )
 @pytest.mark.parametrize(
     ("response", "message"),
     [
-        ([], "response must be an object"),
-        ({}, "data must be a list"),
-        ({"data": {}}, "data must be a list"),
-        ({"data": [None]}, "data entries must be objects"),
+        pytest.param([], "response must be an object", id="root-list"),
+        pytest.param({}, "data must be a list", id="missing-data"),
+        pytest.param({"data": {}}, "data must be a list", id="data-not-list"),
+        pytest.param(
+            {"data": [None]}, "data entries must be objects", id="data-entry-not-object"
+        ),
     ],
-    ids=["root-list", "missing-data", "data-not-list", "data-entry-not-object"],
 )
 async def test_discovery_rejects_successful_malformed_json_responses(
     vi_client, mock_responses, endpoint, call, response, message
@@ -667,7 +717,7 @@ async def test_get_features_returns_every_device_feature_as_flat_features(
 ):
     # Arrange: Answer the device feature read with a sensor and a circuit.
     data = load_fixture_json("features_heating_sensors.json")
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
@@ -688,7 +738,7 @@ async def test_get_features_translates_duplicate_api_feature_names(
     # Arrange: Mock a response containing the same feature twice.
     data = load_fixture_json("features_heating_sensors.json")
     data["data"].append(deepcopy(data["data"][0]))
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
@@ -706,7 +756,7 @@ async def test_get_features_ignores_duplicates_outside_requested_names(
     # Arrange: Duplicate a feature that the request does not select.
     data = load_fixture_json("features_heating_sensors.json")
     data["data"].append(deepcopy(data["data"][0]))
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
@@ -733,7 +783,7 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
     not_ready_feature["isEnabled"] = True
     not_ready_feature["isReady"] = False
     data["data"].append(not_ready_feature)
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
@@ -751,30 +801,32 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
 @pytest.mark.parametrize(
     ("requested_name", "expected_names"),
     [
-        (
+        pytest.param(
             "heating.circuits.0.heating.curve",
             [
                 "heating.circuits.0.heating.curve.shift",
                 "heating.circuits.0.heating.curve.slope",
             ],
+            id="api-feature-name",
         ),
-        (
+        pytest.param(
             "heating.circuits.0.heating.curve.slope",
             ["heating.circuits.0.heating.curve.slope"],
+            id="feature-name",
         ),
-        (
+        pytest.param(
             "heating.circuits.0.name",
             ["heating.circuits.0.name", "heating.circuits.0.name.name"],
+            id="feature-and-api-feature-name",
         ),
     ],
-    ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
 )
 async def test_get_features_matches_feature_and_api_feature_names_locally(
     vi_client, mock_responses, requested_name, expected_names, load_fixture_device
 ):
     """Names select flat features by their own or their API feature's name."""
     # Arrange: Return a complete device feature response from the live API.
-    device = build_gateway_device("0")
+    device = build_device("0")
     url = _device_features_url(device)
     mock_responses.post(url, payload=load_fixture_device("Vitocal250A"))
 
@@ -792,7 +844,7 @@ async def test_get_features_returns_nothing_for_unknown_names(
 ):
     """Unknown names select no features instead of failing the request."""
     # Arrange: Return a successful device feature response.
-    device = build_gateway_device("0")
+    device = build_device("0")
     mock_responses.post(
         _device_features_url(device),
         payload=load_fixture_json("features_heating_sensors.json"),
@@ -812,7 +864,7 @@ async def test_update_device_returns_a_new_device_with_the_read_features(
 ):
     # Arrange: Answer the refresh with one feature the device does not have yet.
     data = load_fixture_json("update_device_response.json")
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
@@ -830,7 +882,7 @@ async def test_update_device_rejects_malformed_feature_responses(
     vi_client, mock_responses
 ):
     # Arrange: Return an invalid feature collection for an existing device.
-    device = build_gateway_device("0")
+    device = build_device("0")
     mock_responses.post(_device_features_url(device), payload={"data": [None]})
 
     # Act and assert: The composed refresh keeps the public response error.
@@ -849,11 +901,11 @@ async def test_get_devices_hydrates_each_device_with_its_own_features(
         _devices_url("installation-1", "gateway-1"), payload=devices_data
     )
     mock_responses.post(
-        _device_features_url(build_gateway_device("0")),
+        _device_features_url(build_device("0")),
         payload=load_fixture_json("features_heating_sensors.json"),
     )
     mock_responses.post(
-        _device_features_url(build_gateway_device("gateway")),
+        _device_features_url(build_device("gateway")),
         payload=load_fixture_json("update_device_response.json"),
     )
 
@@ -875,7 +927,7 @@ async def test_set_feature_sends_the_current_value_of_a_required_sibling(
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Read the curve whose setCurve command requires slope and shift.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
@@ -899,7 +951,7 @@ async def test_set_feature_returns_a_new_device_with_the_written_value(
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Read the curve with a slope of 0.6 and accept the write.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
@@ -931,7 +983,7 @@ async def test_execute_command_preserves_explicit_parameters(
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Read a writable feature and accept its command.
-    device = build_gateway_device("0")
+    device = build_device("0")
     parameters: dict[str, JsonValue] = {"slope": 0.7, "shift": 7.0}
 
     mock_responses.post(
@@ -956,7 +1008,7 @@ async def test_execute_command_rejects_malformed_success_response(
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Return a valid JSON value that violates the command response contract.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
@@ -976,7 +1028,7 @@ async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Read the curve and let the API reject the command.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
@@ -1003,7 +1055,7 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
     vi_client, mock_responses, load_fixture_json
 ):
     # Arrange: Read the curve with slope 0.6 and shift 4, and accept every write.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
@@ -1036,22 +1088,26 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
 @pytest.mark.parametrize(
     ("read", "expected_hint"),
     [
-        (lambda client, device: client.get_features(device), False),
-        (
+        pytest.param(
+            lambda client, device: client.get_features(device),
+            False,
+            id="get-features-default",
+        ),
+        pytest.param(
             lambda client, device: client.get_features(device, only_enabled=True),
             True,
+            id="get-features-enabled",
         ),
-        (lambda client, device: client.update_device(device), True),
-        (
+        pytest.param(
+            lambda client, device: client.update_device(device),
+            True,
+            id="update-device-default",
+        ),
+        pytest.param(
             lambda client, device: client.update_device(device, only_enabled=False),
             False,
+            id="update-device-all",
         ),
-    ],
-    ids=[
-        "get-features-default",
-        "get-features-enabled",
-        "update-device-default",
-        "update-device-all",
     ],
 )
 async def test_feature_reads_send_the_enabled_filter_hint(
@@ -1063,7 +1119,7 @@ async def test_feature_reads_send_the_enabled_filter_hint(
     asks the API to skip disabled and not-ready ones unless told otherwise.
     """
     # Arrange: Answer the device feature read with an empty collection.
-    device = build_gateway_device("0")
+    device = build_device("0")
     url = _device_features_url(device)
 
     mock_responses.post(url, payload={"data": []})
@@ -1080,13 +1136,17 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 
 
 @pytest.mark.parametrize(
-    "only_active_features", [True, False], ids=["active-only", "all-features"]
+    "only_active_features",
+    [
+        pytest.param(True, id="active-only"),
+        pytest.param(False, id="all-features"),
+    ],
 )
 async def test_get_devices_passes_the_feature_filter_to_hydration(
     vi_client, mock_responses, only_active_features: bool
 ):
     # Arrange: Discover one device and answer its feature read.
-    device = build_gateway_device("0")
+    device = build_device("0")
     devices_url = _devices_url("installation-1", "gateway-1")
     features_url = _device_features_url(device)
 
@@ -1117,7 +1177,7 @@ async def test_update_gateway_devices_fallback_reraises_non_device_errors(
 ):
     """Only device-specific errors are isolated; others abort the fallback."""
     # Arrange: The bulk read falls back, then the device read is unauthorized.
-    device = build_gateway_device("0")
+    device = build_device("0")
 
     mock_responses.post(
         _gateway_features_url(device),

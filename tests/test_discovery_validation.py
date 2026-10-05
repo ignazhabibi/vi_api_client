@@ -13,31 +13,35 @@ from vi_api_client.exceptions import ViResponseError
 @pytest.mark.parametrize(
     ("call", "endpoint", "response", "message"),
     [
-        (
+        pytest.param(
             ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {"data": [{"description": "Home"}]},
             "Installation id must be a string or integer",
+            id="installation-without-id",
         ),
-        (
+        pytest.param(
             ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {"data": [{"id": "", "description": "Home"}]},
             "Installation id must be a string or integer",
+            id="installation-empty-id",
         ),
-        (
+        pytest.param(
             ("get_gateways", ()),
             ENDPOINT_GATEWAYS,
             {"data": [{"serial": "gateway-1", "installationId": True}]},
             "Gateway installationId must be a string or integer",
+            id="gateway-boolean-installation-id",
         ),
-        (
+        pytest.param(
             ("get_devices", ("installation-1", "gateway-1")),
             f"{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
             {"data": [{"id": "device-1", "deviceType": "heating"}]},
             "Device modelId must be a non-empty string",
+            id="device-without-model-id",
         ),
-        (
+        pytest.param(
             ("get_gateways", ()),
             ENDPOINT_GATEWAYS,
             {
@@ -50,8 +54,9 @@ from vi_api_client.exceptions import ViResponseError
                 ]
             },
             "Gateway version must be a string",
+            id="gateway-numeric-version",
         ),
-        (
+        pytest.param(
             ("get_installations", ()),
             ENDPOINT_INSTALLATIONS,
             {
@@ -64,15 +69,8 @@ from vi_api_client.exceptions import ViResponseError
                 ]
             },
             "Installation address must be an object",
+            id="installation-address-not-object",
         ),
-    ],
-    ids=[
-        "installation-without-id",
-        "installation-empty-id",
-        "gateway-boolean-installation-id",
-        "device-without-model-id",
-        "gateway-numeric-version",
-        "installation-address-not-object",
     ],
 )
 async def test_discovery_rejects_missing_or_malformed_known_fields(

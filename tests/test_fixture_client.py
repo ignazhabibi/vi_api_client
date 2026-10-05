@@ -49,14 +49,6 @@ async def test_fixture_discovery_uses_each_fixture_metadata_definition(
     ]
 
 
-def test_fixture_device_catalog_lists_each_fixture_metadata_definition():
-    """Fixture enumeration should use the same catalog as fixture discovery."""
-    # Act and assert: The catalog lists exactly the expected devices, sorted.
-    assert FixtureViClient.get_available_fixture_devices() == sorted(
-        EXPECTED_DEVICE_TYPES
-    )
-
-
 async def test_fixture_update_device_returns_hydrated_copy_without_mutating_input():
     """Fixture refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.
@@ -75,23 +67,25 @@ async def test_fixture_update_device_returns_hydrated_copy_without_mutating_inpu
 @pytest.mark.parametrize(
     ("requested_name", "expected_names"),
     [
-        (
+        pytest.param(
             "heating.circuits.0.heating.curve",
             [
                 "heating.circuits.0.heating.curve.shift",
                 "heating.circuits.0.heating.curve.slope",
             ],
+            id="api-feature-name",
         ),
-        (
+        pytest.param(
             "heating.circuits.0.heating.curve.slope",
             ["heating.circuits.0.heating.curve.slope"],
+            id="feature-name",
         ),
-        (
+        pytest.param(
             "heating.circuits.0.name",
             ["heating.circuits.0.name", "heating.circuits.0.name.name"],
+            id="feature-and-api-feature-name",
         ),
     ],
-    ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
 )
 async def test_fixture_feature_names_match_feature_and_api_feature_names(
     requested_name, expected_names

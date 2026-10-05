@@ -156,10 +156,14 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
 @pytest.mark.parametrize(
     "partial_scope",
     [
-        {"installation_id": None, "gateway_serial": "GW-B"},
-        {"installation_id": "B", "gateway_serial": None},
+        pytest.param(
+            {"installation_id": None, "gateway_serial": "GW-B"},
+            id="gateway-serial-scope",
+        ),
+        pytest.param(
+            {"installation_id": "B", "gateway_serial": None}, id="installation-id-scope"
+        ),
     ],
-    ids=["gateway-serial-scope", "installation-id-scope"],
 )
 async def test_cli_context_discovery_completes_partial_scope(
     tmp_path, partial_scope: dict[str, Any]
@@ -248,10 +252,11 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
 @pytest.mark.parametrize(
     ("gateways", "devices", "message"),
     [
-        ([], [], "No gateways found."),
-        ([build_gateway("GW-A", "A")], [], "No devices found."),
+        pytest.param([], [], "No gateways found.", id="no-gateways"),
+        pytest.param(
+            [build_gateway("GW-A", "A")], [], "No devices found.", id="no-devices"
+        ),
     ],
-    ids=["no-gateways", "no-devices"],
 )
 async def test_cli_context_reports_empty_discovery_results(
     tmp_path, gateways: list[Gateway], devices: list[Device], message: str
