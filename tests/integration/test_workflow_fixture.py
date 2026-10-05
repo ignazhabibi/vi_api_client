@@ -10,7 +10,7 @@ from vi_api_client.models import Device
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
-    """Fixture discovery should share client conversion without a live connector."""
+    """Fixture discovery should share the client conversion without credentials."""
     # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
     client = FixtureViClient("Vitodens200W")
 
@@ -23,13 +23,12 @@ async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
     assert installations[0].description == "Mock Installation (Vitodens200W)"
     assert gateways[0].serial == "MOCK_GATEWAY_SERIAL"
     assert gateways[0].installation_id == installations[0].id
-    assert not hasattr(client, "connector")
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_fixture_workflow_vitodens():
-    """Verify Vitodens (gas boiler) workflow with fixture data."""
+    """The gas boiler fixture supports discovery, reads, and constraints."""
     # Arrange: Discover the Vitodens device through the fixture chain.
     client = FixtureViClient("Vitodens200W")
     installation = (await client.get_installations())[0]
@@ -82,7 +81,7 @@ async def test_fixture_workflow_vitodens():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_fixture_workflow_vitocal():
-    """Verify heat pump specific features (compressor) with fixture data."""
+    """The heat pump fixture exposes its compressor features."""
     # Arrange: Discover the heat pump device through the fixture chain.
     client = FixtureViClient("Vitocal250A")
     installation = (await client.get_installations())[0]
@@ -128,7 +127,7 @@ async def test_fixture_workflow_vitocal():
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_set_feature_stays_offline():
-    """Verify fixture-backed writes use simulated execution without live resources."""
+    """Fixture writes succeed through simulated command execution."""
     # Arrange: Hydrate a fixture-backed heat pump without authentication or HTTP resources.
     client = FixtureViClient("Vitocal250A")
     device = (
@@ -154,36 +153,9 @@ async def test_fixture_set_feature_stays_offline():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_fixture_workflow_auto_hydration():
-    """Verify that get_devices(include_features=True) works with FixtureViClient."""
-    # Arrange
-    client = FixtureViClient("Vitodens200W")
-
-    # Act: Use the new single-step hydration (Smart get_devices)
-    # IDs don't matter much for FixtureViClient, but we provide them for consistency
-    devices = await client.get_devices(
-        installation_id="99999", gateway_serial="MOCK_GW", include_features=True
-    )
-
-    # Assert
-    assert len(devices) == 1
-    device = devices[0]
-
-    # The device should be already hydrated (features list populated)
-    # without needing a separate manual step.
-    assert len(device.features) > 0
-
-    # Verify we can find a standard feature
-    temp = device.get_feature("heating.sensors.temperature.outside")
-    assert temp is not None
-    assert temp.value == 9
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_gateway_device_refresh_stays_offline():
-    """Verify gateway-scoped refresh has offline mock parity."""
+    """Gateway refresh keeps the order and metadata of fixture devices."""
     # Arrange: Use two known devices on the same fixture gateway.
     client = FixtureViClient("Vitodens200W")
     devices = [

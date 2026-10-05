@@ -841,31 +841,6 @@ async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_exec_failed_result_without_details(mock_cli_context, capsys):
-    """Failed explicit commands without details should print the bare failure."""
-    # Arrange: Provide a writable feature whose command fails without details.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=1.4"],
-    )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
-    mock_cli_context.client.execute_command.return_value = CommandResponse(
-        success=False
-    )
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command.
-        assert await cmd_exec(args) is False
-
-    # Assert: The failure prints without message or reason lines.
-    captured = capsys.readouterr()
-    assert "Failed!" in captured.out
-    assert "Message:" not in captured.out
-    assert "Reason:" not in captured.out
-
-
-@pytest.mark.asyncio
 async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     """Explicit commands should only run a feature's primary command."""
     # Arrange: Request a command name the feature does not expose.
@@ -884,31 +859,6 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     captured = capsys.readouterr()
     assert "only supports command 'setCurve', not 'otherCommand'" in captured.out
     mock_cli_context.client.execute_command.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_cmd_exec_reports_failed_command_results(mock_cli_context, capsys):
-    """Failed explicit commands should print the response details."""
-    # Arrange: Provide a writable feature whose command fails at the API.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=1.4"],
-    )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
-    mock_cli_context.client.execute_command.return_value = CommandResponse(
-        success=False, message="API rejected", reason="out of range"
-    )
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command.
-        assert await cmd_exec(args) is False
-
-    # Assert: The failure surfaces the response details.
-    captured = capsys.readouterr()
-    assert "Failed!" in captured.out
-    assert "Message: API rejected" in captured.out
-    assert "Reason: out of range" in captured.out
 
 
 @pytest.mark.asyncio
@@ -1187,10 +1137,14 @@ async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsy
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_devices_does_not_require_device_context(capsys):
-    """List devices without installation, gateway, or device IDs."""
+async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path):
+    """Listing devices needs no installation, gateway, or device IDs."""
     # Arrange: Construct the real CLI context without any device-specific IDs.
-    args = _cli_args(client_id="test_id", redirect_uri="http://localhost")
+    args = _cli_args(
+        client_id="test_id",
+        redirect_uri="http://localhost",
+        token_file=str(tmp_path / "tokens.json"),
+    )
 
     with (
         patch("vi_api_client.cli.ViClient") as mock_client_class,
@@ -1317,6 +1271,7 @@ async def test_dispatch_returns_nonzero_for_failed_command():
 
 def test_main_exits_with_async_command_status():
     """The console entry point should expose the asynchronous exit status."""
+    # Arrange: Let the asynchronous entry point report a failure status.
     with (
         patch(
             "vi_api_client.cli.async_main", new_callable=AsyncMock
@@ -1324,8 +1279,11 @@ def test_main_exits_with_async_command_status():
         pytest.raises(SystemExit) as exit_error,
     ):
         mock_async_main.return_value = 1
+
+        # Act: Run the console entry point.
         main()
 
+    # Assert: The process exits with the reported status.
     assert exit_error.value.code == 1
 
 

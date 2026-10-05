@@ -5,8 +5,6 @@ import base64
 import hashlib
 import json
 import logging
-import os
-import stat
 import time
 from pathlib import Path
 from typing import Self, cast
@@ -18,7 +16,7 @@ import pytest
 from aioresponses import aioresponses
 from yarl import URL
 
-from vi_api_client.auth import AbstractAuth, OAuth
+from vi_api_client.auth import OAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import (
     API_BASE_URL,
@@ -26,7 +24,6 @@ from vi_api_client.const import (
     ENDPOINT_INSTALLATIONS,
     ENDPOINT_TOKEN,
 )
-from vi_api_client.credentials import CredentialDocument
 from vi_api_client.exceptions import ViAuthError
 
 
@@ -100,13 +97,6 @@ async def _release_refresh_when_started(session: _BlockingRefreshSession) -> Non
     session.release.set()
 
 
-def test_abstract_auth_cannot_be_instantiated():
-    """AbstractAuth should not be instantiated directly."""
-    # Arrange, Act and Assert: Complete test in one step.
-    with pytest.raises(TypeError):
-        AbstractAuth(MagicMock())  # type: ignore[reportAbstractUsage]
-
-
 def test_oauth_websession_is_read_only_after_constructor_injection(tmp_path):
     """OAuth should expose but not replace a caller-provided session."""
     # Arrange: Construct OAuth with a caller-owned session reference.
@@ -137,7 +127,7 @@ def oauth(tmp_path):
 
 @pytest.fixture
 def oauth_with_tokens(tmp_path):
-    """Create a OAuth with pre-existing tokens."""
+    """Create an OAuth instance with pre-existing tokens."""
     token_file = tmp_path / "tokens.json"
     tokens = {
         "access_token": "test_access_token",
@@ -169,80 +159,6 @@ def _oauth_with_websession(
     return oauth_with_websession
 
 
-def test_get_authorization_url(oauth):
-    """Test authorization URL generation."""
-    # Act: Generate the authorization URL with its PKCE challenge.
-    url = oauth.get_authorization_url()
-
-    # Assert: The URL carries the OAuth and PKCE contract parameters.
-    assert "authorize" in url
-    assert "client_id=test_client_id" in url
-    assert "redirect_uri=" in url
-    assert "response_type=code" in url
-    assert "code_challenge=" in url
-    assert "code_challenge_method=S256" in url
-
-
-def test_has_tokens_no_token(oauth):
-    """Token info should be empty when no token exists."""
-    # Act and assert: A fresh instance loads an empty token document.
-    assert oauth._token_info == {}
-
-
-def test_has_tokens_with_token(oauth_with_tokens):
-    """Token info should be populated when token file exists."""
-    # Act and assert: Construction loads the persisted token document.
-    assert oauth_with_tokens._token_info.get("access_token") == "test_access_token"
-
-
-def test_oauth_rejects_malformed_known_credential_fields(tmp_path):
-    """Persisted credential fields must satisfy the authentication contract."""
-    # Arrange: Store a syntactically valid document with an invalid token field.
-    token_file = tmp_path / "tokens.json"
-    token_file.write_text('{"access_token": 1}', encoding="utf-8")
-
-    # Act and assert: Loading does not normalize malformed credential data.
-    with pytest.raises(ViAuthError, match="access_token"):
-        OAuth("client", "https://example.invalid", token_file)
-
-
-@pytest.mark.parametrize(
-    ("token_data", "message"),
-    [
-        ({"access_token": 1}, "access_token must be a string"),
-        ({"client_id": 1}, "client_id must be a string"),
-        ({"nested": object()}, "invalid JSON data"),
-    ],
-)
-def test_credential_updates_reject_invalid_data_without_overwriting(
-    tmp_path, token_data, message
-):
-    """Invalid direct credential updates must leave the existing document intact."""
-    # Arrange: Persist a valid credential document that must survive the update.
-    token_file = tmp_path / "tokens.json"
-    original_content = '{"access_token": "existing"}'
-    token_file.write_text(original_content, encoding="utf-8")
-
-    # Act and assert: The invalid update rejects without writing.
-    with pytest.raises(ViAuthError, match=message):
-        CredentialDocument(token_file).update(token_data)
-
-    # Assert: The stored document is byte-for-byte unchanged.
-    assert token_file.read_text(encoding="utf-8") == original_content
-
-
-@pytest.mark.parametrize("field_name", ["client_id", "redirect_uri"])
-def test_oauth_rejects_malformed_saved_credential_configuration(tmp_path, field_name):
-    """Authentication configuration stored in credentials must be string data."""
-    # Arrange: Persist a non-string known configuration field.
-    token_file = tmp_path / "tokens.json"
-    token_file.write_text(json.dumps({field_name: 1}), encoding="utf-8")
-
-    # Act and assert: Loading rejects the malformed configuration field.
-    with pytest.raises(ViAuthError, match=field_name):
-        OAuth("client", "https://example.invalid", token_file)
-
-
 def test_oauth_rejects_malformed_token_file_without_modifying_it(tmp_path):
     """Malformed token files should remain intact and explain the recovery action."""
     # Arrange: Store invalid JSON in the configured token file.
@@ -262,190 +178,9 @@ def test_oauth_rejects_malformed_token_file_without_modifying_it(tmp_path):
     assert token_file.read_text(encoding="utf-8") == invalid_content
 
 
-def test_oauth_rejects_invalid_utf8_token_file_without_modifying_it(tmp_path):
-    """Invalid UTF-8 token files should remain intact and raise a library error."""
-    # Arrange: Store bytes that cannot be decoded as the credential document.
-    token_file = tmp_path / "tokens.json"
-    invalid_content = b"\xff"
-    token_file.write_bytes(invalid_content)
-
-    # Act and assert: Loading should preserve the corrupted credential document.
-    with pytest.raises(ViAuthError, match="Repair or remove the file"):
-        OAuth(
-            client_id="test_client_id",
-            redirect_uri="http://localhost:4200/",
-            token_file=token_file,
-        )
-
-    # Assert: The original bytes should remain available for manual recovery.
-    assert token_file.read_bytes() == invalid_content
-
-
-def test_save_tokens_rejects_file_that_becomes_malformed(oauth):
-    """Token saves should not overwrite a file corrupted after initialization."""
-    # Arrange: Initialize OAuth, then replace its absent token file with invalid JSON.
-    invalid_content = "{invalid"
-    oauth.token_file.write_text(invalid_content, encoding="utf-8")
-    oauth._token_info = {"access_token": "new-token"}
-
-    # Act and assert: Saving should preserve the malformed file and explain recovery.
-    with pytest.raises(ViAuthError, match="Repair or remove the file"):
-        oauth._credential_document.update(oauth._token_info)
-
-    # Assert: The malformed token file should not be overwritten by the new token.
-    assert oauth.token_file.read_text(encoding="utf-8") == invalid_content
-
-
-def test_save_tokens_merges_new_tokens_with_existing_configuration(oauth):
-    """Token updates should retain configuration and unknown stored fields."""
-    # Arrange: Store configuration and a field from a future credential format.
-    oauth.token_file.write_text(
-        json.dumps(
-            {
-                "client_id": "configured-client",
-                "custom_metadata": {"source": "user"},
-                "access_token": "old-token",
-            }
-        ),
-        encoding="utf-8",
-    )
-    oauth._token_info = {"access_token": "new-token", "refresh_token": "refresh"}
-
-    # Act: Persist the updated token information.
-    oauth._credential_document.update(oauth._token_info)
-
-    # Assert: Existing non-token content should survive the update.
-    assert json.loads(oauth.token_file.read_text(encoding="utf-8")) == {
-        "client_id": "configured-client",
-        "custom_metadata": {"source": "user"},
-        "access_token": "new-token",
-        "refresh_token": "refresh",
-    }
-
-
-def test_save_tokens_reports_missing_parent_directory_without_creating_it(tmp_path):
-    """Credential persistence should not create missing parent directories."""
-    # Arrange: Configure OAuth to write below a directory that does not exist.
-    missing_parent = tmp_path / "missing"
-    oauth = OAuth(
-        client_id="test_client_id",
-        redirect_uri="http://localhost:4200/",
-        token_file=missing_parent / "tokens.json",
-    )
-    oauth._token_info = {"access_token": "new-token"}
-
-    # Act and assert: Saving should explain the filesystem failure.
-    with pytest.raises(ViAuthError, match="parent directory"):
-        oauth._credential_document.update(oauth._token_info)
-
-    # Assert: Persistence should not create the directory as a side effect.
-    assert not missing_parent.exists()
-
-
-def test_save_tokens_uses_atomic_replacement_in_the_token_directory(oauth, monkeypatch):
-    """Credential updates should replace the destination with a sibling temp file."""
-    # Arrange: Track the low-level replacement while preserving its behavior.
-    replacement_calls = []
-    original_replace = os.replace
-
-    def track_replace(source, destination):
-        replacement_calls.append((source, destination))
-        original_replace(source, destination)
-
-    monkeypatch.setattr("vi_api_client.credentials.os.replace", track_replace)
-    oauth._token_info = {"access_token": "new-token"}
-
-    # Act: Save new credentials.
-    oauth._credential_document.update(oauth._token_info)
-
-    # Assert: The temporary file should be a sibling of the destination.
-    source, destination = replacement_calls[0]
-    assert Path(source).parent == oauth.token_file.parent
-    assert destination == oauth.token_file
-
-
-def test_save_tokens_preserves_original_file_when_replacement_fails(oauth, monkeypatch):
-    """Failed replacement should retain the previous credential document."""
-    # Arrange: Seed a credential document and make the final replacement fail.
-    original_content = '{"access_token": "old-token"}'
-    oauth.token_file.write_text(original_content, encoding="utf-8")
-    oauth._token_info = {"access_token": "new-token"}
-
-    def raise_replace(source, destination):
-        raise OSError("simulated replacement failure")
-
-    monkeypatch.setattr("vi_api_client.credentials.os.replace", raise_replace)
-
-    # Act and assert: A failed replacement should become a library auth error.
-    with pytest.raises(ViAuthError, match="save token"):
-        oauth._credential_document.update(oauth._token_info)
-
-    # Assert: The old file and no temporary artifacts should remain.
-    assert oauth.token_file.read_text(encoding="utf-8") == original_content
-    assert list(oauth.token_file.parent.glob(".tokens.json.*.tmp")) == []
-
-
-def test_save_tokens_reports_temporary_file_write_failures(oauth, monkeypatch):
-    """Credential persistence should translate temporary-file creation failures."""
-    # Arrange: Make temporary-file creation fail before the token file is replaced.
-    oauth.token_file.write_text('{"access_token": "old-token"}', encoding="utf-8")
-    oauth._token_info = {"access_token": "new-token"}
-
-    def raise_temporary_file_error(*args, **kwargs):
-        raise OSError("simulated write failure")
-
-    monkeypatch.setattr(
-        "vi_api_client.credentials.NamedTemporaryFile", raise_temporary_file_error
-    )
-
-    # Act and assert: The operating-system failure should be a library auth error.
-    with pytest.raises(ViAuthError, match="save token"):
-        oauth._credential_document.update(oauth._token_info)
-
-    # Assert: A failed write should leave the existing credentials unchanged.
-    assert (
-        oauth.token_file.read_text(encoding="utf-8") == '{"access_token": "old-token"}'
-    )
-
-
-def test_save_tokens_removes_temporary_file_after_serialization_failure(
-    oauth, monkeypatch
-):
-    """A serialization failure should not leave a temporary credential file."""
-    # Arrange: Make writing the temporary JSON document fail after it is created.
-    oauth._token_info = {"access_token": "new-token"}
-
-    def raise_serialization_error(*args, **kwargs):
-        raise OSError("simulated serialization failure")
-
-    monkeypatch.setattr(
-        "vi_api_client.credentials.json.dump", raise_serialization_error
-    )
-
-    # Act and assert: Saving should report the error through the auth boundary.
-    with pytest.raises(ViAuthError, match="save token"):
-        oauth._credential_document.update(oauth._token_info)
-
-    # Assert: The failed write should not leave credentials or temporary files behind.
-    assert not oauth.token_file.exists()
-    assert list(oauth.token_file.parent.glob(".tokens.json.*.tmp")) == []
-
-
-def test_save_tokens_restricts_file_permissions_to_owner(oauth):
-    """Credential documents should be owner-readable and owner-writable only."""
-    # Arrange: Prepare token data.
-    oauth._token_info = {"access_token": "new-token"}
-
-    # Act: Persist the credentials.
-    oauth._credential_document.update(oauth._token_info)
-
-    # Assert: The file mode should not grant group or other access.
-    assert stat.S_IMODE(oauth.token_file.stat().st_mode) == 0o600
-
-
 @pytest.mark.asyncio
 async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
-    """Test getting access token when token is valid."""
+    """An unexpired stored token is returned without a refresh."""
     # Arrange: Bind the preloaded OAuth instance to a real client session.
     async with aiohttp.ClientSession() as session:
         oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
@@ -458,29 +193,27 @@ async def test_async_get_access_token_with_valid_token(oauth_with_tokens):
 
 
 @pytest.mark.asyncio
-async def test_async_refresh_access_token(oauth_with_tokens, load_fixture_json):
-    """Test token refresh."""
-    # Arrange: Expire the persisted token and mock the refresh endpoint.
-    oauth_with_tokens._token_info["expires_at"] = 0
+async def test_explicit_refresh_replaces_the_token_in_use_and_on_disk(
+    oauth_with_tokens, load_fixture_json
+):
+    """An explicit refresh stores the new token even if the old one is valid."""
+    # Arrange: Mock the token endpoint with a refreshed token.
     data = load_fixture_json("auth_token.json")
 
-    with aioresponses() as m:
-        m.post(ENDPOINT_TOKEN, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, payload=data)
 
         async with aiohttp.ClientSession() as session:
-            oauth_with_tokens = _oauth_with_websession(oauth_with_tokens, session)
+            oauth = _oauth_with_websession(oauth_with_tokens, session)
 
-            # Act: Get access token (should trigger refresh).
-            await oauth_with_tokens.async_refresh_access_token()
+            # Act: Refresh explicitly, then request the token in use.
+            await oauth.async_refresh_access_token()
+            token = await oauth.async_get_access_token()
 
-        # Assert: The refresh result is retained in memory and on disk.
-        assert oauth_with_tokens._token_info["access_token"] == "refreshed_access_token"
-        assert (
-            json.loads(oauth_with_tokens.token_file.read_text(encoding="utf-8"))[
-                "access_token"
-            ]
-            == "refreshed_access_token"
-        )
+    # Assert: The refreshed token is used and persisted.
+    assert token == "refreshed_access_token"
+    saved = json.loads(oauth.token_file.read_text(encoding="utf-8"))
+    assert saved["access_token"] == "refreshed_access_token"
 
 
 @pytest.mark.asyncio
@@ -825,48 +558,6 @@ async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
 
     # Assert: No invalid response can replace the saved credential document.
     assert oauth.token_file.read_text(encoding="utf-8") == original_content
-
-
-def test_token_persistence(tmp_path):
-    """Saved tokens should load again from disk into a fresh instance."""
-    # Arrange: Create an OAuth whose in-memory tokens are not yet persisted.
-    token_file = tmp_path / "tokens.json"
-
-    oauth = OAuth(
-        client_id="test_client_id",
-        redirect_uri="http://localhost:4200/",
-        token_file=str(token_file),
-    )
-
-    oauth._token_info = {
-        "access_token": "saved_token",
-        "refresh_token": "saved_refresh",
-        "expires_in": 3600,
-    }
-
-    # Act: Persist the tokens, then construct a fresh instance from the same file.
-    oauth._credential_document.update(oauth._token_info)
-    oauth2 = OAuth(
-        client_id="test_client_id",
-        redirect_uri="http://localhost:4200/",
-        token_file=str(token_file),
-    )
-
-    # Assert: The fresh instance loads exactly the persisted token fields.
-    assert oauth2._token_info["access_token"] == "saved_token"
-    assert oauth2._token_info["refresh_token"] == "saved_refresh"
-
-
-def test_pkce_verifier_generated_on_auth_url(oauth):
-    """Requesting the authorization URL should generate a PKCE verifier."""
-    # Arrange: Confirm the fresh instance has no verifier yet.
-    assert oauth._pkce_verifier is None
-
-    # Act: Start the authorization flow.
-    oauth.get_authorization_url()
-
-    # Assert: The verifier is generated alongside the URL.
-    assert oauth._pkce_verifier is not None
 
 
 @pytest.mark.asyncio

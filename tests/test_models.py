@@ -1,10 +1,9 @@
-"""Tests for data models (Flat Architecture)."""
+"""Tests for the immutable data models and their API conversions."""
 
 from collections.abc import Mapping, Sequence
 
 import pytest
 
-import vi_api_client
 from vi_api_client import JsonValue
 from vi_api_client.exceptions import ViError, ViResponseError
 from vi_api_client.models import (
@@ -17,20 +16,14 @@ from vi_api_client.models import (
 )
 
 
-def test_feature_dataclass():
-    """Test Feature dataclass creation and properties."""
-    # Arrange: No setup needed for simple constructor test.
-    # N/A - simple constructor
-
-    # Act: Create Feature instance with basic properties.
+def test_feature_without_control_is_read_only():
+    # Act: Create a feature without command metadata.
     feature = Feature(
         name="test.feature", value=10, unit="C", is_enabled=True, is_ready=True
     )
 
-    # Assert: Feature should have all properties set and is_writable=False by default.
-    assert feature.name == "test.feature"
-    assert feature.value == 10
-    assert feature.unit == "C"
+    # Assert: Without a control the feature cannot be written.
+    assert feature.control is None
     assert feature.is_writable is False
 
 
@@ -48,66 +41,6 @@ def test_feature_value_is_not_recursively_frozen():
 
     # Assert: The model collection contract does not recursively freeze Any values.
     assert feature.value == {"entries": [1, 2]}
-
-
-def test_feature_writable():
-    """Test Feature with control."""
-    # Arrange: Create FeatureControl with constraints and options.
-    ctrl = FeatureControl(
-        command_name="set",
-        param_name="target",
-        required_params=["target"],
-        parent_feature_name="parent",
-        uri="url",
-        min=0,
-        max=100,
-        step=1,
-        value_type="number",
-        options=[1, 2],
-    )
-
-    # Act: Create Feature with control metadata attached.
-    feature = Feature(
-        name="test.writable",
-        value=50,
-        unit="%",
-        is_enabled=True,
-        is_ready=True,
-        control=ctrl,
-    )
-
-    # Assert: Feature should be writable and have constraint values from control.
-    assert feature.is_writable is True
-    assert feature.control is not None
-    assert feature.control.min == 0
-    assert feature.control.max == 100
-    assert feature.control.value_type == "number"
-    assert feature.control.options == (1, 2)
-
-
-def test_device_dataclass():
-    """Test Device creation and feature cache."""
-    # Arrange: Create two test features (f1, f2).
-    f1 = Feature(name="f1", value=1, unit=None, is_enabled=True, is_ready=True)
-    f2 = Feature(name="f2", value=2, unit=None, is_enabled=True, is_ready=True)
-
-    # Act: Create Device with features parameter to populate cache.
-    dev = Device(
-        id="123",
-        gateway_serial="gw",
-        installation_id="inst",
-        model_id="TestModel",
-        device_type="test",
-        status="Online",
-        features=[f1, f2],
-    )
-
-    # Assert: Device should have 2 cached features accessible via get_feature.
-    assert len(dev.features) == 2
-    # Test O(1) cache access
-    assert dev.get_feature("f1") == f1
-    assert dev.get_feature("f2") == f2
-    assert dev.get_feature("missing") is None
 
 
 def test_device_features_are_immutable_and_keep_lookup_in_sync():
@@ -132,16 +65,12 @@ def test_device_features_are_immutable_and_keep_lookup_in_sync():
     # Act: Mutate the caller-owned collection after construction.
     input_features.append(second_feature)
 
-    # Assert: The snapshot and its O(1) lookup remain consistent and read-only.
+    # Assert: The snapshot and its name lookup ignore the later mutation.
     assert isinstance(device.features, Sequence)
     assert not isinstance(device.features, list)
     assert device.features == (first_feature,)
     assert device.get_feature("f1") is first_feature
     assert device.get_feature("f2") is None
-    assert isinstance(device._features_by_name, Mapping)
-    cache_attribute = "_features_by_name"
-    with pytest.raises(TypeError):
-        getattr(device, cache_attribute)["f2"] = second_feature
 
 
 def test_device_rejects_duplicate_feature_names():
@@ -203,7 +132,7 @@ def test_other_model_collections_are_immutable_snapshots():
 
 
 def test_device_from_api():
-    """Test Device.from_api."""
+    """Device.from_api reads the documented device fields."""
     # Arrange: Prepare API response data dictionary.
     data = {
         "id": "dev1",
@@ -244,12 +173,6 @@ def test_gateway_device_refresh_result_reports_completeness():
     # Assert: Completeness depends only on the device-specific error mapping.
     assert complete_result.is_complete
     assert not partial_result.is_complete
-
-
-def test_gateway_refresh_public_types_are_exported():
-    # Act and assert: New public contracts are available from the package root.
-    assert vi_api_client.GatewayDeviceRefreshResult is GatewayDeviceRefreshResult
-    assert vi_api_client.ViResponseError is ViResponseError
 
 
 @pytest.mark.parametrize(

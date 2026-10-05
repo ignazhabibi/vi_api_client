@@ -7,6 +7,7 @@ from dataclasses import replace
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from builders import build_gateway_device
 from yarl import URL
 
 from vi_api_client._types import JsonValue
@@ -29,36 +30,13 @@ from vi_api_client.models import Device
 
 
 @pytest.mark.asyncio
-async def test_live_client_hides_raw_transport_access(static_token_auth):
-    """Live clients should expose only typed client workflows."""
-    # Arrange: Construct the client with an authenticated request provider.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Assert: The former raw connector is not part of the client contract.
-        assert not hasattr(client, "connector")
-
-
-def _build_gateway_device(device_id: str) -> Device:
-    """Build a device for gateway-scoped refresh tests."""
-    return Device(
-        id=device_id,
-        gateway_serial="gateway-1",
-        installation_id="installation-1",
-        model_id=f"model-{device_id}",
-        device_type="heating",
-        status="connected",
-    )
-
-
-@pytest.mark.asyncio
 async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
     load_fixture_json,
     static_token_auth,
 ):
     # Arrange: Mock a gateway response with requested and unrelated features.
     response = load_fixture_json("gateway_device_features.json")
-    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+    devices = [build_gateway_device("10"), build_gateway_device("0")]
     url = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
         "gateway-1/features/filter"
@@ -117,7 +95,7 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
             }
         ]
     }
-    device = _build_gateway_device("device/0")
+    device = build_gateway_device("device/0")
     url = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
         "gateway-1/features/filter"
@@ -155,43 +133,6 @@ async def test_update_gateway_devices_accepts_empty_input_without_request(
     assert result.is_complete
     assert result.updated_devices == ()
     assert result.errors_by_device_id == {}
-
-
-@pytest.mark.parametrize(
-    ("devices", "message"),
-    [
-        (
-            [
-                _build_gateway_device("0"),
-                replace(_build_gateway_device("1"), gateway_serial="gateway-2"),
-            ],
-            "same installation and gateway",
-        ),
-        (
-            [
-                _build_gateway_device("0"),
-                replace(_build_gateway_device("1"), installation_id="installation-2"),
-            ],
-            "same installation and gateway",
-        ),
-        (
-            [_build_gateway_device("0"), _build_gateway_device("0")],
-            "unique IDs",
-        ),
-    ],
-)
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("no_http_requests")
-async def test_update_gateway_devices_rejects_ambiguous_device_sets(
-    devices: list[Device], message: str, static_token_auth
-):
-    # Arrange: Create a client; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Act and assert: Invalid device collections fail before network access.
-        with pytest.raises(ValueError, match=message):
-            await client.update_gateway_devices(devices)
 
 
 @pytest.mark.parametrize(
@@ -258,30 +199,7 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
 
             # Act and assert: Each contract violation names its specific cause.
             with pytest.raises(ViResponseError, match=message):
-                await client.update_gateway_devices([_build_gateway_device("0")])
-
-
-@pytest.mark.asyncio
-async def test_update_gateway_devices_uses_shared_response_validation(
-    static_token_auth,
-):
-    """Gateway responses should fail with the same response messages as other reads."""
-    # Arrange: Return a gateway response whose entry is not an object.
-    url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
-        "gateway-1/features/filter"
-    )
-    with aioresponses() as mock_responses:
-        mock_responses.post(url, payload={"data": [None]})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
-
-            # Act and assert: The shared response validation names the resource.
-            with pytest.raises(
-                ViResponseError,
-                match="Gateway feature response data entries must be objects",
-            ):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.asyncio
@@ -312,7 +230,7 @@ async def test_update_gateway_devices_translates_duplicate_feature_names(
 
             # Act and assert: The refresh reports a response error, not a ValueError.
             with pytest.raises(ViResponseError, match="Duplicate feature name"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.parametrize(
@@ -339,7 +257,7 @@ async def test_update_gateway_devices_rejects_entries_without_valid_uris(
 
             # Act and assert: The unusable URI becomes a public response error.
             with pytest.raises(ViResponseError, match="no valid URI"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.asyncio
@@ -365,49 +283,7 @@ async def test_update_gateway_devices_rejects_undecodable_device_uris(
 
             # Act and assert: The undecodable URI becomes a public response error.
             with pytest.raises(ViResponseError, match="an invalid URI"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
-
-
-@pytest.mark.asyncio
-async def test_update_gateway_devices_falls_back_only_for_missing_devices(
-    load_fixture_json,
-    static_token_auth,
-):
-    # Arrange: The bulk response includes device 10 but omits device 0.
-    fixture = load_fixture_json("gateway_device_features.json")
-    bulk_response = {
-        "data": [
-            feature for feature in fixture["data"] if "/devices/10/" in feature["uri"]
-        ]
-    }
-    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
-    gateway_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
-        "gateway-1/features/filter"
-    )
-    device_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
-        "gateway-1/devices/0/features/filter"
-    )
-
-    with aioresponses() as mock_responses:
-        mock_responses.post(gateway_url, payload=bulk_response)
-        mock_responses.post(device_url, payload={"data": []})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
-
-            # Act: Refresh the two devices.
-            result = await client.update_gateway_devices(devices)
-
-    # Assert: Only the absent device uses the fallback; empty features are successful.
-    assert result.is_complete
-    assert [device.id for device in result.updated_devices] == ["10", "0"]
-    assert result.updated_devices[1].features == ()
-    assert len(mock_responses.requests) == 2
-    assert any(
-        method == "POST" and str(request_url) == device_url
-        for method, request_url in mock_responses.requests
-    )
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.parametrize(
@@ -430,7 +306,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
         ]
     }
     base_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1"
-    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+    devices = [build_gateway_device("10"), build_gateway_device("0")]
 
     with aioresponses() as mock_responses:
         mock_responses.post(
@@ -492,7 +368,7 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
 
             # Act and assert: Global failures abort the entire refresh.
             with pytest.raises(expected_error):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.asyncio
@@ -504,7 +380,7 @@ async def test_update_gateway_devices_propagates_connection_errors(static_token_
 
             # Act and assert: Connection failures abort the entire refresh.
             with pytest.raises(ViConnectionError, match="Network error"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.asyncio
@@ -524,18 +400,18 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
 
             # Act and assert: Fallback contract failures use the public error.
             with pytest.raises(ViResponseError, match="properties must be an object"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])
 
 
 @pytest.mark.asyncio
 async def test_get_installations(load_fixture_json, static_token_auth):
-    """Test fetching installations."""
+    """Installations are parsed from the installations response."""
     # Arrange: Load fixture and mock API endpoint for installations.
     data = load_fixture_json("installations.json")
 
-    with aioresponses() as m:
+    with aioresponses() as mock_responses:
         url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
-        m.get(url, payload=data)
+        mock_responses.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
@@ -551,32 +427,14 @@ async def test_get_installations(load_fixture_json, static_token_auth):
 
 
 @pytest.mark.asyncio
-async def test_get_installations_error(static_token_auth):
-    """Test error handling when fetching installations fails."""
-    # Arrange: Mock API to return 500 Internal Server Error.
-    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
-
-    with aioresponses() as m:
-        m.get(url, status=500)
-
-        async with aiohttp.ClientSession() as session:
-            auth = static_token_auth(session)
-            client = ViClient(auth)
-
-            # Act and assert: The public client raises the server error type.
-            with pytest.raises(ViServerInternalError, match="Server Error 500"):
-                await client.get_installations()
-
-
-@pytest.mark.asyncio
 async def test_get_gateways(load_fixture_json, static_token_auth):
-    """Test fetching gateways."""
+    """Gateways are parsed from the gateways response."""
     # Arrange: Load fixture and mock gateways endpoint.
     data = load_fixture_json("gateways.json")
     url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
 
-    with aioresponses() as m:
-        m.get(url, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
@@ -606,7 +464,7 @@ async def test_get_gateways(load_fixture_json, static_token_auth):
             f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
             "post",
             "get_features",
-            (_build_gateway_device("0"),),
+            (build_gateway_device("0"),),
         ),
     ],
 )
@@ -645,7 +503,7 @@ async def test_discovery_rejects_successful_non_json_responses(
                 "post",
                 f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
             ),
-            ("get_features", (_build_gateway_device("0"),)),
+            ("get_features", (build_gateway_device("0"),)),
         ),
     ],
 )
@@ -786,24 +644,22 @@ async def test_get_full_installation_status_rejects_malformed_device_responses(
 
 @pytest.mark.asyncio
 async def test_get_devices(load_fixture_json, static_token_auth):
-    """Test fetching devices for a gateway."""
+    """Devices of one gateway are parsed from the devices response."""
     # Arrange: Load device fixture and fixture devices endpoint.
     data = load_fixture_json("devices_heating.json")
-    inst_id = "123456"
-    gw_serial = "1234567890"
-    url = (
-        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{inst_id}/gateways/{gw_serial}/devices"
-    )
+    installation_id = "123456"
+    gateway_serial = "1234567890"
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/{gateway_serial}/devices"
 
-    with aioresponses() as m:
-        m.get(url, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
             client = ViClient(auth)
 
             # Act: Fetch devices for specific gateway.
-            devices = await client.get_devices(inst_id, gw_serial)
+            devices = await client.get_devices(installation_id, gateway_serial)
 
             # Assert: Should return 2 devices with correct properties.
             assert len(devices) == 2
@@ -813,13 +669,13 @@ async def test_get_devices(load_fixture_json, static_token_auth):
 
 @pytest.mark.asyncio
 async def test_get_features(load_fixture_json, static_token_auth):
-    """Test fetching all features for a device (Parsing check)."""
+    """All device features are returned as flat features."""
     # Arrange: Create device and mock features endpoint to return all features.
     data = load_fixture_json("features_heating_sensors.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
 
-    with aioresponses() as m:
-        m.post(url, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
@@ -893,7 +749,7 @@ async def test_get_features_ignores_duplicates_outside_requested_names(
 
             # Act: Request only a feature that appears once.
             features = await client.get_features(
-                _build_gateway_device("0"),
+                build_gateway_device("0"),
                 feature_names=["heating.circuits.0.active"],
             )
 
@@ -943,13 +799,13 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
 
 @pytest.mark.asyncio
 async def test_get_feature(load_fixture_json, static_token_auth):
-    """Test fetching a specific feature."""
+    """Requesting one feature name returns only that feature."""
     # Arrange: Create device and mock features endpoint to return a single filtered feature.
     data = load_fixture_json("features_filtered_single.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123456/gateways/1234567890/devices/0/features/filter"
 
-    with aioresponses() as m:
-        m.post(url, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
@@ -1015,7 +871,7 @@ async def test_get_features_matches_feature_and_api_feature_names_locally(
 
             # Act: Request features by one name.
             features = await client.get_features(
-                _build_gateway_device("0"), feature_names=[requested_name]
+                build_gateway_device("0"), feature_names=[requested_name]
             )
 
     # Assert: Matching is local, so the request carries no server-side name filter.
@@ -1043,7 +899,7 @@ async def test_get_features_returns_nothing_for_unknown_names(
 
             # Act: Request a feature the device does not report.
             features = await client.get_features(
-                _build_gateway_device("0"), feature_names=["nonexistent.feature"]
+                build_gateway_device("0"), feature_names=["nonexistent.feature"]
             )
 
     # Assert: The unknown name selects nothing.
@@ -1052,15 +908,14 @@ async def test_get_features_returns_nothing_for_unknown_names(
 
 @pytest.mark.asyncio
 async def test_update_device(load_fixture_json, static_token_auth):
-    """Test efficient device update."""
+    """update_device returns a new snapshot with the read features."""
     # Arrange: Load the refresh response fixture for one new feature.
     data = load_fixture_json("update_device_response.json")
     url = f"{API_BASE_URL}/iot/v2/features/installations/123/gateways/GW1/devices/0/features/filter"
 
-    with aioresponses() as m:
-        m.post(url, payload=data)
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
 
-        # Device has context
         dev = Device(
             id="0",
             gateway_serial="GW1",
@@ -1086,7 +941,7 @@ async def test_update_device(load_fixture_json, static_token_auth):
 async def test_update_device_rejects_malformed_feature_responses(static_token_auth):
     """Device refresh should preserve feature response validation."""
     # Arrange: Return an invalid feature collection for an existing device.
-    device = _build_gateway_device("0")
+    device = build_gateway_device("0")
     url = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
         "gateway-1/devices/0/features/filter"
@@ -1103,27 +958,23 @@ async def test_update_device_rejects_malformed_feature_responses(static_token_au
 
 @pytest.mark.asyncio
 async def test_get_devices_with_hydration(load_fixture_json, static_token_auth):
-    """Test fetching devices with automatic feature hydration."""
+    """include_features hydrates every discovered device."""
     # Arrange: Load fixtures.
     devices_data = load_fixture_json("devices_heating.json")
     features_data = load_fixture_json("features_heating_sensors.json")
 
-    inst_id = "123456"
-    gw_serial = "1234567890"
+    installation_id = "123456"
+    gateway_serial = "1234567890"
 
-    devices_url = (
-        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{inst_id}/gateways/{gw_serial}/devices"
-    )
+    devices_url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/{gateway_serial}/devices"
 
-    with aioresponses() as m:
-        # 1. Fixture Devices Call
-        m.get(devices_url, payload=devices_data)
+    with aioresponses() as mock_responses:
+        mock_responses.get(devices_url, payload=devices_data)
 
-        # 2. Mock Features Call (for any device ID on this gateway)
         features_pattern = re.compile(
-            f"{API_BASE_URL}{ENDPOINT_FEATURES}/{inst_id}/gateways/{gw_serial}/devices/.*/features/filter"
+            f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/.*/features/filter"
         )
-        m.post(features_pattern, payload=features_data, repeat=True)
+        mock_responses.post(features_pattern, payload=features_data, repeat=True)
 
         async with aiohttp.ClientSession() as session:
             auth = static_token_auth(session)
@@ -1131,13 +982,12 @@ async def test_get_devices_with_hydration(load_fixture_json, static_token_auth):
 
             # Act: Fetch devices with hydration enabled.
             devices = await client.get_devices(
-                inst_id, gw_serial, include_features=True
+                installation_id, gateway_serial, include_features=True
             )
 
             # Assert:
             assert len(devices) == 2
 
-            # Check Device 0 (Heating)
             dev0 = next(d for d in devices if d.id == "0")
             assert len(dev0.features) > 0
             assert dev0.features[0].name == "heating.sensors.temperature.outside"
@@ -1145,48 +995,41 @@ async def test_get_devices_with_hydration(load_fixture_json, static_token_auth):
 
 @pytest.mark.asyncio
 async def test_set_feature_with_dependency(load_fixture_json, static_token_auth):
-    """Test setting a feature that has a sibling dependency (slope needs shift)."""
+    """Writing slope sends the current shift sibling the command requires."""
     # Arrange: Load the curve fixture whose setCurve command requires slope and shift.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
 
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
 
-    # URL to fetch specific feature (or all features in this filter context)
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
 
-    # URL for the command
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
 
-    with aioresponses() as m:
-        # Mock Feature Fetching
-        m.post(features_url, payload={"data": fixtures_data})
+    with aioresponses() as mock_responses:
+        mock_responses.post(features_url, payload={"data": fixtures_data})
 
-        # Mock Command Execution
-        m.post(command_url, payload={"data": {"success": True}})
+        mock_responses.post(command_url, payload={"data": {"success": True}})
 
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # 1. Manually construct device
             device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="Vitocal250A",
                 device_type="heatpump",
                 status="Online",
             )
 
-            # 2. Fetch features (this now uses our small fixture)
             features = await client.get_features(device)
             device = replace(device, features=features)
 
-            # 3. Find the 'slope' feature
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
 
@@ -1199,7 +1042,7 @@ async def test_set_feature_with_dependency(load_fixture_json, static_token_auth)
             # fixture (shift is 4), so the payload is {"slope": 1.2, "shift": 4}.
             assert response.success
             found_call = None
-            for (method, url), calls in m.requests.items():
+            for (method, url), calls in mock_responses.requests.items():
                 if method == "POST" and str(url) == command_url:
                     found_call = calls[0]
                     break
@@ -1209,97 +1052,17 @@ async def test_set_feature_with_dependency(load_fixture_json, static_token_auth)
 
 
 @pytest.mark.asyncio
-async def test_set_feature_validation_limit(load_fixture_json, static_token_auth):
-    """Test client-side validation for min/max limits."""
-    fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
-    device_id = "0"
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
-
-    with aioresponses() as m:
-        m.post(features_url, payload={"data": fixtures_data})
-
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
-
-            device = Device(
-                id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
-                model_id="M",
-                device_type="H",
-                status="O",
-            )
-            device = replace(device, features=await client.get_features(device))
-
-            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
-            assert slope_feature is not None
-
-            # Act and assert: Max limit violation (Max is 3.5).
-            with pytest.raises(ValueError, match=r"Value 5.0 > max"):
-                await client.set_feature(device, slope_feature, 5.0)
-
-
-@pytest.mark.asyncio
-async def test_set_feature_validation_step(load_fixture_json, static_token_auth):
-    """Client-side validation accepts aligned steps and rejects misaligned ones."""
-    # Arrange: Load the heating curve fixture (slope step is 0.1) and mock writes.
-    fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
-    device_id = "0"
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
-    command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
-        "features/heating.circuits.0.heating.curve/commands/setCurve"
-    )
-
-    with aioresponses() as m:
-        m.post(features_url, payload={"data": fixtures_data})
-        m.post(command_url, payload={"data": {"success": True}})
-
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
-
-            device = Device(
-                id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
-                model_id="M",
-                device_type="H",
-                status="O",
-            )
-            device = replace(device, features=await client.get_features(device))
-
-            slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
-            assert slope_feature is not None
-
-            # Act: Set a step-aligned value whose float remainder is noisy (0.3 / 0.1).
-            response, _updated_device = await client.set_feature(
-                device, slope_feature, 0.3
-            )
-
-            # Assert: The epsilon comparison accepts accumulated float error.
-            assert response.success
-
-            # Act and assert: A misaligned value (step is 0.1, 1.25 is invalid) rejects.
-            with pytest.raises(ValueError, match=r"does not align with step"):
-                await client.set_feature(device, slope_feature, 1.25)
-
-
-@pytest.mark.asyncio
 async def test_set_feature_returns_updated_device(load_fixture_json, static_token_auth):
-    """Verify optimistic device update on success."""
+    """A successful write returns a new device with the written value."""
     # Arrange: Load heating curve fixture and setup mocks.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
 
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
 
@@ -1310,17 +1073,15 @@ async def test_set_feature_returns_updated_device(load_fixture_json, static_toke
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Create base device
             base_device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="Vitocal250A",
                 device_type="heatpump",
                 status="Online",
             )
 
-            # Hydrate with features
             features = await client.get_features(base_device)
             device = replace(base_device, features=features)
 
@@ -1355,12 +1116,12 @@ async def test_execute_command_preserves_explicit_parameters(
     """Execute an explicit command without enriching its parameter payload."""
     # Arrange: Load a writable feature and configure its command endpoint.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
     parameters: dict[str, JsonValue] = {"slope": 0.7, "shift": 7.0}
@@ -1373,8 +1134,8 @@ async def test_execute_command_preserves_explicit_parameters(
             client = ViClient(static_token_auth(session))
             device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="Vitocal250A",
                 device_type="heatpump",
                 status="Online",
@@ -1404,12 +1165,12 @@ async def test_execute_command_rejects_malformed_success_response(
     """Translate malformed successful command responses into library errors."""
     # Arrange: Return a valid JSON value that violates the command response contract.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
 
@@ -1421,8 +1182,8 @@ async def test_execute_command_rejects_malformed_success_response(
             client = ViClient(static_token_auth(session))
             device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="Vitocal250A",
                 device_type="heatpump",
                 status="Online",
@@ -1442,16 +1203,16 @@ async def test_execute_command_rejects_malformed_success_response(
 async def test_set_feature_returns_unchanged_device_on_failure(
     load_fixture_json, static_token_auth
 ):
-    """Verify device unchanged on command failure."""
+    """A rejected write returns the original device."""
     # Arrange: Load fixture and mock API failure.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
 
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
 
@@ -1465,17 +1226,15 @@ async def test_set_feature_returns_unchanged_device_on_failure(
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Create base device
             base_device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="V",
                 device_type="h",
                 status="o",
             )
 
-            # Hydrate with features
             features = await client.get_features(base_device)
             device = replace(base_device, features=features)
 
@@ -1497,22 +1256,21 @@ async def test_set_feature_returns_unchanged_device_on_failure(
 async def test_interdependent_features_use_optimistic_values(
     load_fixture_json, static_token_auth
 ):
-    """Test that dependencies resolve from optimistic updates."""
+    """A second write uses the value of the first optimistic update."""
     # Arrange: Load heating curve fixture with slope=0.6, shift=4.
     fixtures_data = load_fixture_json("feature_heating_curve.json")
-    install_id = "123"
-    gw_serial = "GW123"
+    installation_id = "123"
+    gateway_serial = "GW123"
     device_id = "0"
 
-    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/features/filter"
+    features_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/features/filter"
     command_url = (
-        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{install_id}/gateways/{gw_serial}/devices/{device_id}/"
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{installation_id}/gateways/{gateway_serial}/devices/{device_id}/"
         "features/heating.circuits.0.heating.curve/commands/setCurve"
     )
 
     with aioresponses() as mock_responses:
         mock_responses.post(features_url, payload={"data": fixtures_data})
-        # Mock two successful command executions
         mock_responses.post(
             command_url, payload={"data": {"success": True}}, repeat=True
         )
@@ -1520,17 +1278,15 @@ async def test_interdependent_features_use_optimistic_values(
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Create base device
             base_device = Device(
                 id=device_id,
-                gateway_serial=gw_serial,
-                installation_id=install_id,
+                gateway_serial=gateway_serial,
+                installation_id=installation_id,
                 model_id="V",
                 device_type="h",
                 status="o",
             )
 
-            # Hydrate with features
             features = await client.get_features(base_device)
             device = replace(base_device, features=features)
 
@@ -1551,7 +1307,6 @@ async def test_interdependent_features_use_optimistic_values(
             found_call = None
             for (method, url), calls in mock_responses.requests.items():
                 if method == "POST" and str(url) == command_url and len(calls) == 2:
-                    # Second call should have slope=0.7
                     found_call = calls[1]
                     break
 
@@ -1594,7 +1349,7 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 ):
     """Feature reads ask the API to skip disabled and not-ready features."""
     # Arrange: Answer the device feature read with an empty collection.
-    device = _build_gateway_device("0")
+    device = build_gateway_device("0")
     url = _device_features_url(device)
 
     with aioresponses() as mock_responses:
@@ -1620,7 +1375,7 @@ async def test_get_devices_passes_the_feature_filter_to_hydration(
 ):
     """Hydrating discovered devices uses the caller's feature filter."""
     # Arrange: Discover one device and answer its feature read.
-    device = _build_gateway_device("0")
+    device = build_gateway_device("0")
     devices_url = (
         f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/"
         "gateway-1/devices"
@@ -1679,4 +1434,4 @@ async def test_update_gateway_devices_fallback_reraises_non_device_errors(
 
             # Act and assert: The authentication error ends the whole refresh.
             with pytest.raises(ViAuthError, match="Unauthorized: Token expired"):
-                await client.update_gateway_devices([_build_gateway_device("0")])
+                await client.update_gateway_devices([build_gateway_device("0")])

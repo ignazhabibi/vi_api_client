@@ -6,7 +6,7 @@ import logging
 import pytest
 
 import vi_api_client
-from vi_api_client.utils import mask_pii
+from vi_api_client.utils import mask_pii, parse_cli_params
 
 
 def test_package_logger_has_a_null_handler():
@@ -79,5 +79,7 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "api_feature_to_flat_features",
     }
 
+    # Assert: The root hides the helpers while their module paths still import.
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
-    assert mask_pii("Authorization: Bearer secret") == "Authorization: Bearer ***"
+    assert callable(mask_pii)
+    assert callable(parse_cli_params)

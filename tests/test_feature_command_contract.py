@@ -233,6 +233,8 @@ async def test_set_feature_accepts_declared_option_values(
     ("control_overrides", "target_value", "error"),
     [
         ({"min": 2.0}, 1, "< min"),
+        ({"max": 3.5}, 5.0, "> max"),
+        ({"min": 0.2, "step": 0.1}, 0.25, "does not align with step"),
         ({"options": ["low", "high"]}, "medium", "allowed options"),
         ({"min_length": 3}, "ab", "min_length"),
         ({"max_length": 3}, "toolong", "max_length"),
@@ -241,6 +243,8 @@ async def test_set_feature_accepts_declared_option_values(
     ],
     ids=[
         "below-min",
+        "above-max",
+        "off-step",
         "outside-options",
         "below-min-length",
         "above-max-length",

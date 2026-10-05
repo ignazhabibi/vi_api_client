@@ -1,4 +1,4 @@
-"""Tests for the public recursive JSON value contract."""
+"""Tests for the public recursive JSON value validation."""
 
 import math
 
@@ -22,14 +22,15 @@ def test_validate_json_value_preserves_nested_json_shapes():
     # Act: Validate the public JSON value.
     result = vi_api_client.validate_json_value(value)
 
-    # Assert: Validation retains the original compatible Python runtime shapes.
+    # Assert: Validation keeps the JSON shapes in a rebuilt copy.
     assert result == value
+    assert result is not value
     assert isinstance(result, dict)
     assert isinstance(result["list"], list)
 
 
 @pytest.mark.parametrize(
-    ("value", "description"),
+    ("value", "message"),
     [
         ({1: "not a string key"}, "object keys"),
         ({"nested": {"invalid": object()}}, "nested value"),
@@ -37,9 +38,9 @@ def test_validate_json_value_preserves_nested_json_shapes():
     ],
 )
 def test_validate_json_value_rejects_non_json_python_values(
-    value: object, description: str
+    value: object, message: str
 ):
     """The public boundary rejects values JSON cannot represent."""
     # Act and assert: Invalid values become library-owned response errors.
-    with pytest.raises(ViResponseError, match=description):
+    with pytest.raises(ViResponseError, match=message):
         vi_api_client.validate_json_value(value)
