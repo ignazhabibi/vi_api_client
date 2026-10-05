@@ -26,24 +26,27 @@ from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
 
+# Error types that affect one device, so a per-device refresh records them for
+# that device instead of aborting the whole gateway refresh.
+_DEVICE_SPECIFIC_ERROR_TYPES = frozenset(
+    {"DEVICE_COMMUNICATION_ERROR", "DEVICE_NOT_FOUND", "PACKAGE_NOT_PAID_FOR"}
+)
 
-def _validate_command_parameters(parameters: dict[str, JsonValue]) -> None:
-    """Reject command parameter values the JSON value contract excludes.
-
-    Args:
-        parameters: The command parameter mapping to check.
-
-    Raises:
-        ValueError: If a parameter key or value is not JSON-compatible.
-    """
-    try:
-        validate_json_value(parameters, path="Command parameters")
-    except ViResponseError as error:
-        raise ValueError(str(error)) from error
+# Float modulo can land just below the step (0.3 % 0.1 is about 0.1), so a
+# remainder this close to either end of the step counts as aligned.
+_STEP_TOLERANCE = 1e-9
 
 
 class ViClient:
-    """Client for Viessmann Climate Solutions API."""
+    """Read and control Viessmann devices through the Climate Solutions API.
+
+    Every read returns new, immutable snapshots, and a successful command
+    returns a locally updated device snapshot; nothing is changed in place.
+    The client keeps no cache and adds no retries or rate limiting, so the
+    caller owns polling cadence and retry policy (ADR 0002). Requests go
+    through ``LiveAdapter``; ``FixtureViClient`` applies the same rules to
+    bundled offline data.
+    """
 
     def __init__(self, auth: AbstractAuth) -> None:
         """Initialize the client.
@@ -56,7 +59,7 @@ class ViClient:
         self._command_adapter: CommandAdapter = live_adapter
 
     async def get_installations(self) -> list[Installation]:
-        """Get list of installations.
+        """Return the installations the account can access.
 
         Returns:
             List of Installation objects available to the user.
@@ -65,18 +68,18 @@ class ViClient:
             ViResponseError: If a successful response violates the API contract.
         """
         _LOGGER.debug("Fetching installations")
-        installations_data = await self._discovery_adapter.get_installations()
+        response = await self._discovery_adapter.get_installations()
         installations = [
             Installation.from_api(installation_data)
             for installation_data in self._response_items(
-                installations_data, resource="Installation"
+                response, resource="Installation"
             )
         ]
         _LOGGER.debug("Found %s installations", len(installations))
         return installations
 
     async def get_gateways(self) -> list[Gateway]:
-        """Get list of gateways.
+        """Return the gateways of all installations.
 
         Returns:
             List of Gateway objects found (across all installations).
@@ -85,10 +88,10 @@ class ViClient:
             ViResponseError: If a successful response violates the API contract.
         """
         _LOGGER.debug("Fetching gateways")
-        gateways_data = await self._discovery_adapter.get_gateways()
+        response = await self._discovery_adapter.get_gateways()
         gateways = [
             Gateway.from_api(gateway_data)
-            for gateway_data in self._response_items(gateways_data, resource="Gateway")
+            for gateway_data in self._response_items(response, resource="Gateway")
         ]
         _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
@@ -100,7 +103,7 @@ class ViClient:
         include_features: bool = False,
         only_active_features: bool = False,
     ) -> list[Device]:
-        """Get devices as typed objects.
+        """Return the devices behind one gateway.
 
         Args:
             installation_id: ID of the installation.
@@ -115,12 +118,12 @@ class ViClient:
         Raises:
             ViResponseError: If a successful response violates the API contract.
         """
-        devices_data = await self._discovery_adapter.get_devices(
+        response = await self._discovery_adapter.get_devices(
             installation_id, gateway_serial
         )
         devices = [
             Device.from_api(device_data, gateway_serial, installation_id)
-            for device_data in self._response_items(devices_data, resource="Device")
+            for device_data in self._response_items(response, resource="Device")
         ]
 
         if include_features:
@@ -142,7 +145,7 @@ class ViClient:
         only_enabled: bool = False,
         feature_names: list[str] | None = None,
     ) -> list[Feature]:
-        """Get features for a device as typed objects.
+        """Return a device's features.
 
         Names are matched locally after fetching the device's features, so live
         and fixture-backed clients select the same features. The API's
@@ -193,7 +196,7 @@ class ViClient:
     async def get_full_installation_status(
         self, installation_id: str, only_enabled: bool = True
     ) -> list[Device]:
-        """Fetch full status of an installation (Gateways -> Devices -> Features).
+        """Return all devices of an installation with their features.
 
         Args:
             installation_id: ID of the installation to scan.
@@ -257,7 +260,7 @@ class ViClient:
             raise ValueError("Provide exactly one of 'days' or 'cursor'")
         if days is not None and days <= 0:
             raise ValueError("'days' must be a positive lookback window")
-        if cursor is not None and not cursor:
+        if cursor == "":
             raise ValueError("'cursor' must be a non-empty string")
         if limit is not None and not 1 <= limit <= EVENT_HISTORY_MAX_LIMIT:
             raise ValueError(f"'limit' must be between 1 and {EVENT_HISTORY_MAX_LIMIT}")
@@ -277,11 +280,9 @@ class ViClient:
         response = await self._discovery_adapter.get_event_history(
             installation_id, params
         )
-        if not isinstance(response, dict):
-            raise ViResponseError("Event history response must be an object")
-        # The container shape was runtime-checked; known fields are validated
-        # by the page parser.
-        return EventHistoryPage.from_api(cast("dict[str, Any]", response))
+        return EventHistoryPage.from_api(
+            self._response_object(response, resource="Event history")
+        )
 
     async def update_device(self, device: Device, only_enabled: bool = True) -> Device:
         """Return a refreshed device snapshot from an API feature read.
@@ -326,10 +327,12 @@ class ViClient:
             "skipDisabled": True,
             "skipNotReady": True,
         }
-        scope = devices[0]
+        # All devices share one installation and gateway (validated above).
+        installation_id = devices[0].installation_id
+        gateway_serial = devices[0].gateway_serial
         try:
             response = await self._discovery_adapter.get_gateway_features(
-                scope.installation_id, scope.gateway_serial, payload
+                installation_id, gateway_serial, payload
             )
         except ViValidationError as error:
             if error.error_type == "DEVICE_COMMUNICATION_ERROR":
@@ -346,19 +349,17 @@ class ViClient:
             response, requested_device_ids
         )
 
+        missing_devices: list[Device] = []
         updated_devices_by_id: dict[str, Device] = {}
         for device in devices:
-            if device.id not in api_features_by_device_id:
+            api_features = api_features_by_device_id.get(device.id)
+            if api_features is None:
+                missing_devices.append(device)
                 continue
-            features = self._api_features_to_flat_features(
-                api_features_by_device_id[device.id]
-            )
+            features = self._api_features_to_flat_features(api_features)
             self._reject_duplicate_feature_names(features)
             updated_devices_by_id[device.id] = replace(device, features=features)
 
-        missing_devices = [
-            device for device in devices if device.id not in api_features_by_device_id
-        ]
         if missing_devices:
             _LOGGER.debug(
                 "Gateway feature response omitted %s requested device(s); "
@@ -367,8 +368,10 @@ class ViClient:
             )
         fallback_result = await self._refresh_devices_individually(missing_devices)
         updated_devices_by_id.update(
-            {device.id: device for device in fallback_result.updated_devices}
+            (device.id, device) for device in fallback_result.updated_devices
         )
+
+        # Keep the caller's device order across both refresh paths.
         updated_devices = [
             updated_devices_by_id[device.id]
             for device in devices
@@ -406,30 +409,30 @@ class ViClient:
             ViResponseError: If the command URI is outside the Vi API or the
                 successful command response violates the API contract.
         """
-        canonical_feature = device.get_feature(feature.name)
-        if canonical_feature is None:
+        current_feature = device.get_feature(feature.name)
+        if current_feature is None:
             raise ValueError(f"Feature '{feature.name}' is not present on the device.")
 
-        control = self._get_writable_command_control(canonical_feature)
+        control = self._require_command_control(current_feature)
         _LOGGER.debug(
             "Setting %s to %s via %s",
-            canonical_feature.name,
+            current_feature.name,
             target_value,
             control.command_name,
         )
 
         payload = self._resolve_command_payload(device, control, target_value)
-        _validate_command_parameters(payload)
+        self._reject_non_json_parameters(payload)
         self._validate_constraints(control, target_value)
 
-        response = await self._execute_command(control, payload)
+        response = await self._send_command(control, payload)
 
         if response.success:
             # Preserve all other feature values from the input snapshot.
-            updated_feature = replace(canonical_feature, value=target_value)
+            updated_feature = replace(current_feature, value=target_value)
             updated_features = [
                 updated_feature
-                if existing_feature.name == canonical_feature.name
+                if existing_feature.name == current_feature.name
                 else existing_feature
                 for existing_feature in device.features
             ]
@@ -438,7 +441,7 @@ class ViClient:
 
         _LOGGER.warning(
             "Setting %s via %s failed (reason: %s)",
-            canonical_feature.name,
+            current_feature.name,
             control.command_name,
             response.reason,
         )
@@ -464,53 +467,33 @@ class ViClient:
             ViResponseError: If the command URI is outside the Vi API or the
                 successful command response violates the API contract.
         """
-        control = self._get_writable_command_control(feature)
-        self._validate_explicit_command_payload(control, parameters)
-        _validate_command_parameters(parameters)
+        control = self._require_command_control(feature)
+        self._reject_missing_parameters(control, parameters)
+        self._reject_non_json_parameters(parameters)
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
-        return await self._execute_command(control, parameters)
+        return await self._send_command(control, parameters)
+
+    # Reads: unpack API responses and parse API features into flat features.
 
     @staticmethod
-    def _get_writable_command_control(feature: Feature) -> FeatureControl:
-        """Validate a feature's command availability and return its control.
+    def _response_object(response: object, *, resource: str) -> dict[str, Any]:
+        """Return an API response that must be a JSON object.
+
+        ``resource`` names the response in error messages only.
 
         Raises:
-            ValueError: If the feature cannot currently execute a command.
+            ViResponseError: If the response is not an object.
         """
-        if not feature.is_writable:
-            raise ValueError(f"Feature '{feature.name}' is read-only.")
-        if not feature.is_enabled:
-            raise ValueError(f"Feature '{feature.name}' is disabled.")
-        if not feature.is_ready:
-            raise ValueError(f"Feature '{feature.name}' is not ready.")
+        if not isinstance(response, dict):
+            raise ViResponseError(f"{resource} response must be an object")
+        # Runtime-checked container from the transport boundary; known fields
+        # are re-validated field by field by the parsers.
+        return cast("dict[str, Any]", response)
 
-        control = feature.control
-        assert control is not None
-        return control
-
-    @staticmethod
-    def _validate_explicit_command_payload(
-        control: FeatureControl, parameters: dict[str, JsonValue]
-    ) -> None:
-        """Validate the caller-supplied explicit command payload.
-
-        Raises:
-            ValueError: If a target or required parameter is absent.
-        """
-        if control.param_name not in parameters:
-            raise ValueError(
-                f"Command '{control.command_name}' is missing target parameter "
-                f"'{control.param_name}'."
-            )
-        for parameter in control.required_params:
-            if parameter not in parameters:
-                raise ValueError(
-                    f"Command '{control.command_name}' is missing required parameter "
-                    f"'{parameter}'."
-                )
-
-    @staticmethod
-    def _response_items(response: object, *, resource: str) -> list[dict[str, Any]]:
+    @classmethod
+    def _response_items(
+        cls, response: object, *, resource: str
+    ) -> list[dict[str, Any]]:
         """Return the entries of an API response's ``{"data": [...]}`` envelope.
 
         ``resource`` names the response in error messages only.
@@ -519,12 +502,7 @@ class ViClient:
             ViResponseError: If the response is not an object, its ``data`` is
                 not a list, or an entry is not an object.
         """
-        if not isinstance(response, dict):
-            raise ViResponseError(f"{resource} response must be an object")
-        # Runtime-checked containers from the transport boundary; every entry
-        # is re-validated field by field by the parsers.
-        body = cast("dict[str, Any]", response)
-        data = body.get("data")
+        data = cls._response_object(response, resource=resource).get("data")
         if not isinstance(data, list):
             raise ViResponseError(f"{resource} response data must be a list")
         items = cast("list[object]", data)
@@ -564,36 +542,15 @@ class ViClient:
         Raises:
             ViResponseError: If two features share a name.
         """
-        feature_names_seen: set[str] = set()
+        seen_names: set[str] = set()
         for feature in features:
-            if feature.name in feature_names_seen:
+            if feature.name in seen_names:
                 raise ViResponseError(
                     f"Duplicate feature name in API response: {feature.name}"
                 )
-            feature_names_seen.add(feature.name)
+            seen_names.add(feature.name)
 
-    async def _execute_command(
-        self, control: FeatureControl, payload: dict[str, JsonValue]
-    ) -> CommandResponse:
-        """Execute a feature command through the configured command adapter.
-
-        Args:
-            control: The feature control describing the command endpoint.
-            payload: The validated command parameters to send.
-
-        Returns:
-            The parsed command response.
-
-        Raises:
-            ViResponseError: If the command response violates the API contract.
-        """
-        response_data = await self._command_adapter.execute_command(control, payload)
-        if not isinstance(response_data, dict):
-            raise ViResponseError("Command response must be an object")
-        # The container shape was runtime-checked; known fields are validated
-        # by the response parser.
-        command_response = cast("dict[str, Any]", response_data)
-        return CommandResponse.from_api(command_response)
+    # Gateway-scoped device refresh.
 
     @staticmethod
     def _validate_gateway_devices(devices: list[Device]) -> None:
@@ -614,21 +571,24 @@ class ViClient:
         Only requested devices with at least one API feature appear as keys;
         gateway-owned API features and other devices are dropped.
         """
-        grouped_api_features: dict[str, list[dict[str, Any]]] = {}
-        for entry in self._response_items(response, resource="Gateway feature"):
-            device_id = self._device_id_from_feature_uri(entry.get("uri"))
-            validate_feature_entry(entry)
+        api_features_by_device_id: dict[str, list[dict[str, Any]]] = {}
+        for api_feature in self._response_items(response, resource="Gateway feature"):
+            device_id = self._device_id_from_feature_uri(api_feature.get("uri"))
+            validate_feature_entry(api_feature)
             if device_id in requested_device_ids:
-                grouped_api_features.setdefault(device_id, []).append(entry)
-        return grouped_api_features
+                api_features_by_device_id.setdefault(device_id, []).append(api_feature)
+        return api_features_by_device_id
 
-    def _device_id_from_feature_uri(self, uri: object) -> str | None:
+    @staticmethod
+    def _device_id_from_feature_uri(uri: object) -> str | None:
         """Return the decoded device ID from a device feature URI."""
         if not isinstance(uri, str) or not uri:
             raise ViResponseError("Gateway feature entry has no valid URI")
 
         try:
             raw_path_segments = urlsplit(uri).path.split("/")
+            # unquote keeps malformed escapes such as "%ZZ" instead of failing,
+            # so they are rejected explicitly.
             if any(
                 re.search(r"%(?![0-9A-Fa-f]{2})", segment)
                 for segment in raw_path_segments
@@ -642,21 +602,25 @@ class ViClient:
         except ValueError as error:
             raise ViResponseError("Gateway feature entry has an invalid URI") from error
 
-        device_indexes = [
-            index for index, segment in enumerate(path_segments) if segment == "devices"
+        devices_segment_positions = [
+            position
+            for position, segment in enumerate(path_segments)
+            if segment == "devices"
         ]
-        if not device_indexes:
+        if not devices_segment_positions:
             return None
-        if len(device_indexes) != 1:
+        if len(devices_segment_positions) != 1:
             raise ViResponseError("Gateway feature URI has ambiguous device ownership")
 
-        devices_index = device_indexes[0]
-        if (
-            devices_index + 1 >= len(path_segments)
-            or not path_segments[devices_index + 1]
-        ):
+        device_id_position = devices_segment_positions[0] + 1
+        device_id = (
+            path_segments[device_id_position]
+            if device_id_position < len(path_segments)
+            else ""
+        )
+        if not device_id:
             raise ViResponseError("Gateway feature URI has no device ID")
-        return path_segments[devices_index + 1]
+        return device_id
 
     async def _refresh_devices_individually(
         self, devices: list[Device]
@@ -664,17 +628,12 @@ class ViClient:
         """Refresh devices individually and isolate known device failures."""
         updated_devices: list[Device] = []
         errors_by_device_id: dict[str, ViError] = {}
-        device_error_types = {
-            "DEVICE_COMMUNICATION_ERROR",
-            "DEVICE_NOT_FOUND",
-            "PACKAGE_NOT_PAID_FOR",
-        }
 
         for device in devices:
             try:
                 updated_device = await self.update_device(device, only_enabled=True)
             except ViError as error:
-                if error.error_type not in device_error_types:
+                if error.error_type not in _DEVICE_SPECIFIC_ERROR_TYPES:
                     raise
                 errors_by_device_id[device.id] = error
                 _LOGGER.debug(
@@ -685,8 +644,51 @@ class ViClient:
 
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
+    # Feature commands: check availability, build and validate the payload, send it.
+
+    @staticmethod
+    def _require_command_control(feature: Feature) -> FeatureControl:
+        """Validate a feature's command availability and return its control.
+
+        Raises:
+            ValueError: If the feature cannot currently execute a command.
+        """
+        if not feature.is_writable:
+            raise ValueError(f"Feature '{feature.name}' is read-only.")
+        if not feature.is_enabled:
+            raise ValueError(f"Feature '{feature.name}' is disabled.")
+        if not feature.is_ready:
+            raise ValueError(f"Feature '{feature.name}' is not ready.")
+
+        control = feature.control
+        # is_writable means a control exists; the assert only narrows the type.
+        assert control is not None
+        return control
+
+    @staticmethod
+    def _reject_missing_parameters(
+        control: FeatureControl, parameters: dict[str, JsonValue]
+    ) -> None:
+        """Reject an explicit command payload that lacks a required parameter.
+
+        Raises:
+            ValueError: If the target or a required parameter is absent.
+        """
+        if control.param_name not in parameters:
+            raise ValueError(
+                f"Command '{control.command_name}' is missing target parameter "
+                f"'{control.param_name}'."
+            )
+        for parameter in control.required_params:
+            if parameter not in parameters:
+                raise ValueError(
+                    f"Command '{control.command_name}' is missing required parameter "
+                    f"'{parameter}'."
+                )
+
+    @staticmethod
     def _resolve_command_payload(
-        self, device: Device, control: FeatureControl, target_value: FeatureValue
+        device: Device, control: FeatureControl, target_value: FeatureValue
     ) -> dict[str, JsonValue]:
         """Resolve all parameters required for a command.
 
@@ -699,45 +701,55 @@ class ViClient:
 
         Returns:
             Dictionary of JSON command parameters to be sent as payload.
+
+        Raises:
+            ValueError: If a required sibling feature is absent, disabled, not
+                ready, or has no value.
         """
         payload = {control.param_name: target_value}
 
-        for param_key in control.required_params:
-            if param_key == control.param_name:
+        for parameter in control.required_params:
+            if parameter == control.param_name:
                 continue
 
             # Other required parameters come from sibling features, e.g. the
             # current 'shift' when setting a heating curve's 'slope'.
-            sibling_name = f"{control.parent_feature_name}.{param_key}"
+            sibling_name = f"{control.parent_feature_name}.{parameter}"
             sibling = device.get_feature(sibling_name)
-
+            dependency_label = (
+                f"Required dependency '{sibling_name}' for command "
+                f"'{control.command_name}'"
+            )
             if sibling is None:
-                raise ValueError(
-                    f"Required dependency '{sibling_name}' for command "
-                    f"'{control.command_name}' is not present on the device."
-                )
+                raise ValueError(f"{dependency_label} is not present on the device.")
             if not sibling.is_enabled:
-                raise ValueError(
-                    f"Required dependency '{sibling_name}' for command "
-                    f"'{control.command_name}' is disabled."
-                )
+                raise ValueError(f"{dependency_label} is disabled.")
             if not sibling.is_ready:
-                raise ValueError(
-                    f"Required dependency '{sibling_name}' for command "
-                    f"'{control.command_name}' is not ready."
-                )
+                raise ValueError(f"{dependency_label} is not ready.")
             if sibling.value is None:
-                raise ValueError(
-                    f"Required dependency '{sibling_name}' for command "
-                    f"'{control.command_name}' has no value."
-                )
-            payload[param_key] = sibling.value
+                raise ValueError(f"{dependency_label} has no value.")
+
+            payload[parameter] = sibling.value
             _LOGGER.debug(
-                "Resolved dependency '%s' with value %s",
-                param_key,
-                sibling.value,
+                "Resolved dependency '%s' with value %s", parameter, sibling.value
             )
         return payload
+
+    @staticmethod
+    def _reject_non_json_parameters(parameters: dict[str, JsonValue]) -> None:
+        """Reject command parameter values the JSON value contract excludes.
+
+        The parameters come from the caller, so a violation is a ValueError
+        rather than the ViResponseError the shared validator raises for API
+        data.
+
+        Raises:
+            ValueError: If a parameter key or value is not JSON-compatible.
+        """
+        try:
+            validate_json_value(parameters, path="Command parameters")
+        except ViResponseError as error:
+            raise ValueError(str(error)) from error
 
     def _validate_constraints(
         self, control: FeatureControl, value: FeatureValue
@@ -751,16 +763,19 @@ class ViClient:
         Raises:
             ValueError: If value violates any constraints.
         """
-        if control.options:
-            self._validate_enum_constraints(control, value)
+        if control.options and value not in control.options:
+            raise ValueError(
+                f"Value {value} is not in allowed options: {control.options}"
+            )
 
         if isinstance(value, int | float):
             self._validate_numeric_constraints(control, value)
         elif isinstance(value, str):
             self._validate_string_constraints(control, value)
 
+    @staticmethod
     def _validate_numeric_constraints(
-        self, control: FeatureControl, value: int | float
+        control: FeatureControl, value: int | float
     ) -> None:
         """Validate numeric bounds and step."""
         if control.min is not None and value < control.min:
@@ -770,28 +785,21 @@ class ViClient:
 
         if control.step is not None and control.step > 0:
             base = control.min if control.min is not None else 0
-            diff = value - base
-            remainder = diff % control.step
-            # Float modulo can land just below the step (0.3 % 0.1 is about
-            # 0.1), so remainders near either end count as aligned.
-            is_valid = remainder < 1e-9 or abs(remainder - control.step) < 1e-9
+            offset = value - base
+            remainder = offset % control.step
+            is_aligned = (
+                remainder < _STEP_TOLERANCE
+                or abs(remainder - control.step) < _STEP_TOLERANCE
+            )
 
-            if not is_valid:
+            if not is_aligned:
                 raise ValueError(
                     f"Value {value} does not align with step {control.step} "
                     f"(starting from {base})"
                 )
 
-    def _validate_enum_constraints(
-        self, control: FeatureControl, value: FeatureValue
-    ) -> None:
-        """Validate enum options."""
-        if control.options is not None and value not in control.options:
-            raise ValueError(
-                f"Value {value} is not in allowed options: {control.options}"
-            )
-
-    def _validate_string_constraints(self, control: FeatureControl, value: str) -> None:
+    @staticmethod
+    def _validate_string_constraints(control: FeatureControl, value: str) -> None:
         """Validate string length and pattern."""
         if control.min_length is not None and len(value) < control.min_length:
             raise ValueError(
@@ -805,3 +813,23 @@ class ViClient:
             raise ValueError(
                 f"Value '{value}' does not match pattern '{control.pattern}'"
             )
+
+    async def _send_command(
+        self, control: FeatureControl, payload: dict[str, JsonValue]
+    ) -> CommandResponse:
+        """Send a prepared command payload and parse the command response.
+
+        Args:
+            control: The feature control describing the command endpoint.
+            payload: The validated command parameters to send.
+
+        Returns:
+            The parsed command response.
+
+        Raises:
+            ViResponseError: If the command response violates the API contract.
+        """
+        response = await self._command_adapter.execute_command(control, payload)
+        return CommandResponse.from_api(
+            self._response_object(response, resource="Command")
+        )
