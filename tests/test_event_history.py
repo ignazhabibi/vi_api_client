@@ -194,7 +194,7 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
         "cursor-next-not-string",
     ],
 )
-async def test_get_event_history_rejects_malformed_envelopes(
+async def test_get_event_history_rejects_malformed_responses(
     payload: dict, static_token_auth
 ):
     """Contract violations in successful responses should raise publicly."""
@@ -233,9 +233,9 @@ async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
 
 
 @pytest.mark.asyncio
-async def test_get_event_history_rejects_non_object_envelopes(static_token_auth):
+async def test_get_event_history_rejects_non_object_responses(static_token_auth):
     """A successful event history response must be a JSON object."""
-    # Arrange: Return a JSON array instead of the page envelope.
+    # Arrange: Return a JSON array instead of the page response.
     url = _page_url("lastNDays=7")
 
     with aioresponses() as mock_responses:
@@ -243,7 +243,7 @@ async def test_get_event_history_rejects_non_object_envelopes(static_token_auth)
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Act and assert: The envelope check raises the public error.
+            # Act and assert: The response check raises the public error.
             with pytest.raises(ViResponseError, match="must be an object"):
                 await client.get_event_history(INSTALLATION_ID, days=7)
 

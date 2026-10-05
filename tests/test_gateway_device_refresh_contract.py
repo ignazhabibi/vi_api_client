@@ -33,17 +33,17 @@ class _ScriptedGatewayDiscoveryAdapter:
         self.command_payloads: list[dict[str, Any]] = []
 
     async def get_installations(self) -> dict[str, Any]:
-        """Return an unused empty installation envelope."""
+        """Return an unused empty installation response."""
         return self.installations_response
 
     async def get_gateways(self) -> dict[str, Any]:
-        """Return an unused empty gateway envelope."""
+        """Return an unused empty gateway response."""
         return self.gateways_response
 
     async def get_devices(
         self, installation_id: str, gateway_serial: str
     ) -> dict[str, Any]:
-        """Return an unused empty device envelope."""
+        """Return an unused empty device response."""
         return self.devices_response
 
     async def get_gateway_features(
@@ -67,13 +67,13 @@ class _ScriptedGatewayDiscoveryAdapter:
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
     ) -> dict[str, Any]:
-        """Return an unused empty event history envelope."""
+        """Return an unused empty event history response."""
         return {"data": []}
 
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, Any]
     ) -> dict[str, Any]:
-        """Return a scripted explicit command envelope."""
+        """Return a scripted explicit command response."""
         self.command_payloads.append(parameters)
         return self.command_response
 
@@ -317,7 +317,7 @@ async def test_shared_client_workflows_preserve_typed_public_contracts(
     create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
 ):
     """Both adapters should share discovery, refresh, filtering, and write behavior."""
-    # Arrange: Script API-shaped envelopes for the public client methods.
+    # Arrange: Script API-shaped responses for the public client methods.
     adapter = _ScriptedGatewayDiscoveryAdapter({"data": []}, {})
     adapter.installations_response = {"data": [{"id": "installation-1"}]}
     adapter.gateways_response = {
@@ -352,7 +352,7 @@ async def test_shared_client_workflows_preserve_typed_public_contracts(
     filtered = await client.get_features(device, feature_names=["heating.status"])
     refreshed = await client.update_device(device)
 
-    # Assert: Both clients convert the same envelopes and retain immutable updates.
+    # Assert: Both clients convert the same responses and retain immutable updates.
     assert installations[0].id == "installation-1"
     assert gateways[0].serial == "gateway-1"
     assert [feature.name for feature in filtered] == ["heating.status"]
@@ -374,7 +374,7 @@ async def test_shared_client_workflows_preserve_typed_public_contracts(
     response, updated = await client.set_feature(writable_device, writable, "away")
     explicit_response = await client.execute_command(writable, {"status": "ready"})
 
-    # Assert: Writes use adapter envelopes without mutating the original device.
+    # Assert: Writes use adapter responses without mutating the original device.
     assert response.success and explicit_response.success
     original_status = writable_device.get_feature("heating.status")
     updated_status = updated.get_feature("heating.status")

@@ -333,7 +333,7 @@ sequenceDiagram
 ```
 
 The adapter validates transport status and basic JSON. The core validates the
-domain envelope. The parser constructs models. This assigns each failure to the
+domain response shape. The parser constructs models. This assigns each failure to the
 boundary that can describe it correctly.
 
 Discovery proceeds through installations, gateways, devices, and features.
@@ -353,7 +353,7 @@ This prevents a provider contract failure from appearing as an empty account.
 
 The installation event history is a separate installation-scoped read with
 the same seam: `get_event_history()` requests one page through the discovery
-adapter, and `EventHistoryPage.from_api()` validates the envelope and its
+adapter, and `EventHistoryPage.from_api()` validates the response and its
 events at the model boundary. The provider reports the final page with an
 empty `cursor.next` string, which the page model exposes as no continuation
 cursor. Traversing further pages with the cursor stays with consumers; the
@@ -649,7 +649,7 @@ The package ships as a strictly typed PEP 561 package:
   and requires a complete public type contract through
   `pyright --verifytypes vi_api_client --ignoreexternal`.
 - Remaining `Any` annotations and casts exist only at documented dynamic
-  boundaries: raw API envelopes and entries use `dict[str, Any]` and are
+  boundaries: raw API responses and entries use `dict[str, Any]` and are
   validated field by field per ADR 0003; casts re-narrow containers that a
   runtime shape check has already validated at the transport boundary;
   aiohttp request keyword arguments stay `Any`; and bundled fixture files
@@ -683,7 +683,7 @@ behavior.
 
 `src/vi_api_client/fixtures/` contains complete device responses for the
 public `FixtureViClient`. They are bundled product assets and represent real or
-realistic anonymized devices. The directory also carries non-device envelopes
+realistic anonymized devices. The directory also carries non-device responses
 the fixture client serves for other reads, such as `event_history.json` for
 the installation event history page; the device catalog in `discovery.json`
 enumerates only the selectable device fixtures.

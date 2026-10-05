@@ -15,7 +15,7 @@ from vi_api_client.exceptions import ViResponseError
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("operation", "endpoint", "envelope", "message"),
+    ("operation", "endpoint", "response", "message"),
     [
         (
             "installations",
@@ -75,13 +75,13 @@ async def test_discovery_rejects_missing_or_malformed_known_fields(
     static_token_auth,
     operation: str,
     endpoint: str,
-    envelope: dict[str, object],
+    response: dict[str, object],
     message: str,
 ) -> None:
     """Public discovery methods reject invalid known snapshot fields."""
-    # Arrange: Return the invalid envelope through the live client HTTP boundary.
+    # Arrange: Return the invalid response through the live client HTTP boundary.
     with aioresponses() as mock_responses:
-        mock_responses.get(f"{API_BASE_URL}{endpoint}", payload=envelope)
+        mock_responses.get(f"{API_BASE_URL}{endpoint}", payload=response)
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 

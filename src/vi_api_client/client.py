@@ -494,7 +494,7 @@ class ViClient:
     def _response_items(
         cls, response: object, *, resource: str
     ) -> list[dict[str, Any]]:
-        """Return the entries of an API response's ``{"data": [...]}`` envelope.
+        """Return the entries of an API response shaped as ``{"data": [...]}``.
 
         ``resource`` names the response in error messages only.
 

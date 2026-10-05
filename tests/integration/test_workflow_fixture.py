@@ -17,7 +17,7 @@ async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
     installations = await client.get_installations()
     gateways = await client.get_gateways()
 
-    # Assert: Fixture envelopes are converted by the shared client implementation.
+    # Assert: Fixture responses are converted by the shared client implementation.
     assert installations[0].id == "99999"
     assert installations[0].description == "Mock Installation (Vitodens200W)"
     assert gateways[0].serial == "MOCK_GATEWAY_SERIAL"

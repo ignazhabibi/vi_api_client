@@ -232,11 +232,11 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
 
 
 @pytest.mark.asyncio
-async def test_update_gateway_devices_uses_shared_envelope_validation(
+async def test_update_gateway_devices_uses_shared_response_validation(
     static_token_auth,
 ):
-    """Gateway responses should fail with the same envelope messages as other reads."""
-    # Arrange: Return a gateway envelope whose entry is not an object.
+    """Gateway responses should fail with the same response messages as other reads."""
+    # Arrange: Return a gateway response whose entry is not an object.
     url = (
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/"
         "gateway-1/features/filter"
@@ -246,7 +246,7 @@ async def test_update_gateway_devices_uses_shared_envelope_validation(
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Act and assert: The shared envelope validation names the resource.
+            # Act and assert: The shared response validation names the resource.
             with pytest.raises(
                 ViResponseError,
                 match="Gateway feature response data entries must be objects",
@@ -626,11 +626,11 @@ async def test_discovery_rejects_successful_non_json_responses(
     [[], {}, {"data": {}}, {"data": [None]}],
     ids=["root-list", "missing-data", "data-not-list", "data-entry-not-object"],
 )
-async def test_discovery_rejects_successful_malformed_json_envelopes(
+async def test_discovery_rejects_successful_malformed_json_responses(
     endpoint, operation, arguments, response, static_token_auth
 ):
-    """Discovery should reject successful JSON that violates its envelope contract."""
-    # Arrange: Return JSON that violates a collection envelope requirement.
+    """Discovery should reject successful JSON that violates its response contract."""
+    # Arrange: Return JSON that violates a collection response requirement.
     with aioresponses() as mock_responses:
         request_method, url = endpoint
         getattr(mock_responses, request_method)(url, payload=response)
@@ -647,7 +647,7 @@ async def test_discovery_keeps_a_caller_managed_session_open(
     load_fixture_json, static_token_auth
 ):
     """Discovery must not close a session supplied through authentication."""
-    # Arrange: Provide a caller-owned session and successful installation envelope.
+    # Arrange: Provide a caller-owned session and successful installation response.
     url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
     with aioresponses() as mock_responses:
         mock_responses.get(url, payload=load_fixture_json("installations.json"))
@@ -718,7 +718,7 @@ async def test_get_full_installation_status_uses_matching_gateways_only(
 async def test_get_full_installation_status_rejects_malformed_device_responses(
     static_token_auth,
 ):
-    """Full status should preserve discovery envelope validation."""
+    """Full status should preserve discovery response validation."""
     # Arrange: Return a matching gateway followed by invalid device collection entries.
     installation_id = "installation-1"
     gateway_serial = "gateway-1"
@@ -1050,7 +1050,7 @@ async def test_update_device(load_fixture_json, static_token_auth):
 
 @pytest.mark.asyncio
 async def test_update_device_rejects_malformed_feature_responses(static_token_auth):
-    """Device refresh should preserve feature envelope validation."""
+    """Device refresh should preserve feature response validation."""
     # Arrange: Return an invalid feature collection for an existing device.
     device = _build_gateway_device("0")
     url = (
