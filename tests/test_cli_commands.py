@@ -29,7 +29,6 @@ from vi_api_client import (
 )
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
-    DEFAULT_EVENT_HISTORY_MAX_PAGES,
     CLIContext,
     EventHistoryWindow,
     _dispatch_command,
@@ -57,24 +56,9 @@ from vi_api_client.exceptions import (
 from vi_api_client.models import Device, Feature, FeatureControl
 
 
-def _cli_args(**overrides: Any) -> Namespace:
-    """Build a CLI argument namespace with optional overrides."""
-    arguments: dict[str, Any] = {
-        "token_file": "tokens.json",
-        "client_id": None,
-        "redirect_uri": None,
-        "insecure": False,
-        "fixture_device": None,
-        "installation_id": None,
-        "gateway_serial": None,
-        "device_id": None,
-        "json": False,
-        "params": [],
-        "limit": None,
-        "max_pages": DEFAULT_EVENT_HISTORY_MAX_PAGES,
-    }
-    arguments.update(overrides)
-    return Namespace(**arguments)
+def _cli_args(*argv: str) -> Namespace:
+    """Parse a command line through the real CLI parser."""
+    return build_parser().parse_args(argv)
 
 
 def _control(**overrides: Any) -> FeatureControl:
@@ -107,7 +91,7 @@ def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
 async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     """Successful writes should confirm the command, param, and result."""
     # Arrange: Provide a writable numeric feature and a successful write.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
@@ -137,7 +121,7 @@ async def test_cmd_set_converts_typed_command_values(
 ):
     """CLI writes should convert values to the target command parameter type."""
     # Arrange: Provide a writable feature of the parameter's declared type.
-    args = _cli_args(feature_name="heating.curve.slope", value=raw_value)
+    args = _cli_args("set", "heating.curve.slope", raw_value)
     feature = build_feature(control=_control(value_type=value_type))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
@@ -163,7 +147,7 @@ async def test_cmd_set_rejects_malformed_typed_values(
 ):
     """Malformed typed values should explain the failure without a write."""
     # Arrange: Provide a writable feature whose declared type rejects the value.
-    args = _cli_args(feature_name="heating.curve.slope", value=raw_value)
+    args = _cli_args("set", "heating.curve.slope", raw_value)
     feature = build_feature(control=_control(value_type=value_type))
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -180,7 +164,7 @@ async def test_cmd_set_rejects_malformed_typed_values(
 async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     """Legacy features without metadata should infer their write type."""
     # Arrange: Provide a valueless-type control whose value hints the type.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(value=1.0, control=_control(value_type=None))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
@@ -195,7 +179,7 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
 async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     """Failed API writes should print the response message and reason."""
     # Arrange: Make the write succeed at the boundary but fail at the API.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
@@ -216,7 +200,7 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
 async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, capsys):
     """Absent response details must not print empty Message or Reason lines."""
     # Arrange: Make the write fail without a message or reason.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
@@ -237,7 +221,7 @@ async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, 
 async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
     """Writes without a device context should fail gracefully."""
     # Arrange: Strip the device identifier from the CLI context.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     mock_cli_context.device_id = None
 
     # Act: Attempt the write without a device context.
@@ -251,58 +235,45 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
 
 
 @pytest.mark.parametrize(
-    ("command", "arguments", "failure"),
+    ("argv", "failure"),
     [
         pytest.param(
-            cmd_set,
-            {"feature_name": "heating.curve.slope", "value": "1.4"},
+            ["set", "heating.curve.slope", "1.4"],
             ("set_feature", "setting feature"),
             id="set",
         ),
         pytest.param(
-            cmd_get_feature,
-            {"feature_name": "heating.curve.slope"},
+            ["get-feature", "heating.curve.slope"],
             ("get_features", "fetching feature"),
             id="get-feature",
         ),
         pytest.param(
-            cmd_exec,
-            {
-                "feature_name": "heating.curve.slope",
-                "command_name": "setCurve",
-                "params": ["slope=1.4"],
-            },
+            ["exec", "heating.curve.slope", "setCurve", "slope=1.4"],
             ("execute_command", "executing command"),
             id="exec",
         ),
         pytest.param(
-            cmd_list_features,
-            {"enabled": False, "values": False},
-            ("get_features", "listing features"),
-            id="list-features",
+            ["list-features"], ("get_features", "listing features"), id="list-features"
         ),
         pytest.param(
-            cmd_list_devices,
-            {},
+            ["list-devices"],
             ("get_installations", "listing devices"),
             id="list-devices",
         ),
         pytest.param(
-            cmd_list_writable,
-            {},
+            ["list-writable"],
             ("get_features", "listing writable features"),
             id="list-writable",
         ),
         pytest.param(
-            cmd_list_events,
-            {"days": 7},
+            ["list-events", "--days", "7"],
             ("get_event_history", "listing events"),
             id="list-events",
         ),
     ],
 )
 async def test_commands_log_unexpected_client_errors_and_fail(
-    command, arguments, failure: tuple[str, str], mock_cli_context, caplog
+    argv: list[str], failure: tuple[str, str], mock_cli_context, caplog
 ):
     """Unexpected client errors should fail the command with a logged reason."""
     # Arrange: Offer one writable feature and make one client call fail.
@@ -313,7 +284,8 @@ async def test_commands_log_unexpected_client_errors_and_fail(
     getattr(mock_cli_context.client, failing_method).side_effect = RuntimeError("boom")
 
     # Act: Run the command against the failing client.
-    result = await command(_cli_args(**arguments))
+    args = _cli_args(*argv)
+    result = await args.handler(args)
 
     # Assert: The command fails and logs which action failed and why.
     assert result is False
@@ -323,7 +295,7 @@ async def test_commands_log_unexpected_client_errors_and_fail(
 async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject CLI writes before any request."""
     # Arrange: Provide a feature without command metadata.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Attempt to set the read-only feature.
@@ -337,7 +309,7 @@ async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
 async def test_cmd_set_reports_missing_features(mock_cli_context, capsys):
     """Unknown feature names should reject CLI writes before any request."""
     # Arrange: Return no features for the requested name.
-    args = _cli_args(feature_name="missing.feature", value="1.4")
+    args = _cli_args("set", "missing.feature", "1.4")
     mock_cli_context.client.get_features.return_value = []
 
     # Act: Attempt to set an absent feature.
@@ -351,7 +323,7 @@ async def test_cmd_set_reports_missing_features(mock_cli_context, capsys):
 async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found write failures should surface the API message."""
     # Arrange: Make the write fail with a not-found API error.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.side_effect = ViNotFoundError("device gone")
@@ -393,7 +365,7 @@ async def test_cmd_get_feature_prints_value_and_control_details(
 ):
     """A writable feature should print its value, command, and constraints."""
     # Arrange: Return one constrained writable feature for the requested name.
-    args = _cli_args(feature_name="heating.curve.slope", json=False)
+    args = _cli_args("get-feature", "heating.curve.slope")
     feature = build_feature(
         "heating.curve.slope",
         1.4,
@@ -417,7 +389,7 @@ async def test_cmd_get_feature_prints_value_and_control_details(
 async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys):
     """A read-only feature should print its value without control details."""
     # Arrange: Return one read-only feature for the requested name.
-    args = _cli_args(feature_name="heating.status", json=False)
+    args = _cli_args("get-feature", "heating.status")
     feature = build_feature("heating.status", "ready")
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -442,7 +414,7 @@ async def test_cmd_get_feature_prints_only_present_control_details(
 ):
     """Control details should print only the constraints and options that exist."""
     # Arrange: Return a writable feature with only one kind of control detail.
-    args = _cli_args(feature_name="heating.curve.slope", json=False)
+    args = _cli_args("get-feature", "heating.curve.slope")
     feature = build_feature(
         "heating.curve.slope", 1.4, _control(**control_overrides), unit="celsius"
     )
@@ -462,7 +434,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
 ):
     """The JSON flag should print the feature and its control as JSON."""
     # Arrange: Return one writable feature with a unit for the requested name.
-    args = _cli_args(feature_name="heating.curve.slope", json=True)
+    args = _cli_args("get-feature", "heating.curve.slope", "--json")
     feature = build_feature("heating.curve.slope", 1.4, _control(), unit="celsius")
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -491,7 +463,7 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
 ):
     """Read-only features have no command metadata in the JSON document."""
     # Arrange: Return one read-only feature.
-    args = _cli_args(feature_name="heating.curve.slope", json=True)
+    args = _cli_args("get-feature", "heating.curve.slope", "--json")
     mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Read the feature in JSON mode.
@@ -507,7 +479,7 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
 ):
     """An API feature name should print every feature parsed from it."""
     # Arrange: Return both features of the requested API feature.
-    args = _cli_args(feature_name="heating.curve", json=False)
+    args = _cli_args("get-feature", "heating.curve")
     mock_cli_context.client.get_features.return_value = _curve_features()
 
     # Act: Read the API feature through the CLI.
@@ -524,7 +496,7 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 ):
     """Several JSON matches should print one JSON array document."""
     # Arrange: Return both features of the requested API feature.
-    args = _cli_args(feature_name="heating.curve", json=True)
+    args = _cli_args("get-feature", "heating.curve", "--json")
     mock_cli_context.client.get_features.return_value = _curve_features()
 
     # Act: Read the API feature in JSON mode.
@@ -541,7 +513,7 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
     """An unknown name fails the read rather than printing an empty result."""
     # Arrange: Return no features for the requested name.
-    args = _cli_args(feature_name="missing.feature", json=False)
+    args = _cli_args("get-feature", "missing.feature")
     mock_cli_context.client.get_features.return_value = []
 
     # Act: Read the absent feature.
@@ -561,7 +533,7 @@ async def test_cmd_login_uses_environment_config_and_persists_it(
         '{"access_token": "existing-token", "future_field": "preserve-me"}',
         encoding="utf-8",
     )
-    args = _cli_args(token_file=str(token_file))
+    args = _cli_args("login", "--token-file", str(token_file))
     monkeypatch.setenv("VIESSMANN_CLIENT_ID", "environment-client-id")
     monkeypatch.setenv("VIESSMANN_REDIRECT_URI", "http://localhost:8123/auth")
     mock_auth = MagicMock()
@@ -604,7 +576,7 @@ async def test_cmd_login_requires_a_client_id(monkeypatch, tmp_path):
     """Login without any configured client ID should fail with guidance."""
     # Arrange: Provide neither an argument, environment, nor stored client ID.
     token_file = tmp_path / "tokens.json"
-    args = _cli_args(token_file=str(token_file))
+    args = _cli_args("login", "--token-file", str(token_file))
     monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
     monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
 
@@ -624,7 +596,7 @@ def test_get_client_config_prefers_arguments_then_environment_then_document(
         encoding="utf-8",
     )
     args = _cli_args(
-        client_id="argument-client", token_file=token_file, redirect_uri=None
+        "login", "--client-id", "argument-client", "--token-file", str(token_file)
     )
     monkeypatch.setenv("VIESSMANN_CLIENT_ID", "environment-client")
     monkeypatch.setenv("VIESSMANN_REDIRECT_URI", "http://environment")
@@ -641,7 +613,7 @@ def test_get_client_config_uses_document_then_default_redirect(monkeypatch, tmp_
     # Arrange: Store only a saved client ID with no higher-priority settings.
     token_file = tmp_path / "tokens.json"
     token_file.write_text('{"client_id": "saved-client"}', encoding="utf-8")
-    args = _cli_args(token_file=token_file)
+    args = _cli_args("login", "--token-file", str(token_file))
     monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
     monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
 
@@ -660,7 +632,7 @@ def test_get_client_config_uses_saved_redirect_uri(monkeypatch, tmp_path):
         '{"client_id": "saved-client", "redirect_uri": "http://saved"}',
         encoding="utf-8",
     )
-    args = _cli_args(token_file=token_file)
+    args = _cli_args("login", "--token-file", str(token_file))
     monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
     monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
 
@@ -689,11 +661,7 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
 async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
     """CLI executes every explicitly supplied advanced command parameter."""
     # Arrange: Provide a writable feature and an explicit parameter set.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=1.4", "shift=0"],
-    )
+    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=1.4", "shift=0")
     feature = build_feature(control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.execute_command.return_value = CommandResponse(
@@ -714,11 +682,7 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
 async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, capsys):
     """Unparseable parameter arguments should reject before any request."""
     # Arrange: Supply one parameter without the key=value shape.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["not-key-value"],
-    )
+    args = _cli_args("exec", "heating.curve.slope", "setCurve", "not-key-value")
 
     # Act: Attempt the explicit command.
     assert await cmd_exec(args) is False
@@ -731,7 +695,7 @@ async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, 
 async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject explicit commands."""
     # Arrange: Provide a feature without command metadata and no params argument.
-    args = _cli_args(feature_name="heating.curve.slope", command_name="setCurve")
+    args = _cli_args("exec", "heating.curve.slope", "setCurve")
     mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Attempt the explicit command.
@@ -745,7 +709,7 @@ async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
 async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
     """Unknown feature names should reject explicit commands."""
     # Arrange: Return no features for the requested name.
-    args = _cli_args(feature_name="missing.feature", command_name="setCurve", params=[])
+    args = _cli_args("exec", "missing.feature", "setCurve")
     mock_cli_context.client.get_features.return_value = []
 
     # Act: Attempt the explicit command.
@@ -759,11 +723,7 @@ async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
 async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     """Explicit commands should only run a feature's primary command."""
     # Arrange: Request a command name the feature does not expose.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="otherCommand",
-        params=["slope=1.4"],
-    )
+    args = _cli_args("exec", "heating.curve.slope", "otherCommand", "slope=1.4")
     mock_cli_context.client.get_features.return_value = [
         build_feature(control=_control())
     ]
@@ -780,11 +740,7 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
 async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found explicit commands should surface the API message."""
     # Arrange: Make the explicit command fail with a not-found API error.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=1.4"],
-    )
+    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=1.4")
     mock_cli_context.client.get_features.return_value = [
         build_feature(control=_control())
     ]
@@ -800,11 +756,7 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
 async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
     """Validation errors from explicit commands should print their message."""
     # Arrange: Make the explicit command fail with a validation error.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=invalid"],
-    )
+    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=invalid")
     mock_cli_context.client.get_features.return_value = [
         build_feature(control=_control())
     ]
@@ -822,7 +774,7 @@ async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
 async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     """CLI writes should provide sibling values required by a command."""
     # Arrange: Provide heating-curve features that share the setCurve command.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
+    args = _cli_args("set", "heating.curve.slope", "1.4")
     control = _control(required_params=["shift", "slope"])
     slope = build_feature(control=control)
     shift = build_feature(name="heating.curve.shift", value=4.0, control=control)
@@ -842,7 +794,7 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
 async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, capsys):
     """Names-only JSON is a bare array without the text header."""
     # Arrange: Provide two features and request JSON output.
-    args = _cli_args(enabled=False, values=False, json=True)
+    args = _cli_args("list-features", "--json")
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="f1", value=1),
         build_feature(name="f2", value=2),
@@ -860,7 +812,7 @@ async def test_cmd_list_features_json_values_print_value_documents(
 ):
     """Value JSON carries the raw value, unit, formatted text, and writability."""
     # Arrange: Provide one writable feature and request JSON value output.
-    args = _cli_args(enabled=False, values=True, json=True)
+    args = _cli_args("list-features", "--values", "--json")
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="f1", value=1.4, control=_control())
     ]
@@ -886,7 +838,7 @@ async def test_cmd_list_features_enabled_requests_only_enabled_features(
 ):
     """--enabled delegates the filter to the client read for the context device."""
     # Arrange: Provide one feature and request the enabled filter.
-    args = _cli_args(enabled=True, values=False, json=True)
+    args = _cli_args("list-features", "--enabled", "--json")
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="f_enabled", value=1)
     ]
@@ -905,7 +857,7 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
 ):
     """Value rows mark writable features and truncate long values to fit."""
     # Arrange: Provide a writable feature and a long read-only value.
-    args = _cli_args(enabled=False, values=True, json=False)
+    args = _cli_args("list-features", "--values")
     long_value = "x" * 90
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="writable.feature", value=1.4, control=_control()),
@@ -928,7 +880,7 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
 async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, capsys):
     """Without flags the listing is a device-scoped header plus one bullet per name."""
     # Arrange: Provide one feature and request no flags.
-    args = _cli_args(enabled=False, values=False, json=False)
+    args = _cli_args("list-features")
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="f1", value=1)
     ]
@@ -966,7 +918,7 @@ async def test_async_main_json_setup_error_keeps_stdout_empty(
 async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsys):
     """Listing devices should print installations, gateways, and devices."""
     # Arrange: Script one installation with one gateway and device.
-    args = _cli_args()
+    args = _cli_args("list-devices")
     mock_cli_context.client.get_installations.return_value = [build_installation("123")]
     mock_cli_context.client.get_gateways.return_value = [build_gateway("GW1", "123")]
     mock_cli_context.client.get_devices.return_value = [build_device("0", "123", "GW1")]
@@ -988,9 +940,13 @@ async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path
     """Listing devices needs no installation, gateway, or device IDs."""
     # Arrange: Construct the real CLI context without any device-specific IDs.
     args = _cli_args(
-        client_id="test_id",
-        redirect_uri="http://localhost",
-        token_file=str(tmp_path / "tokens.json"),
+        "list-devices",
+        "--client-id",
+        "test_id",
+        "--redirect-uri",
+        "http://localhost",
+        "--token-file",
+        str(tmp_path / "tokens.json"),
     )
 
     # The spec rejects calls to methods the real client does not offer.
@@ -1020,7 +976,7 @@ async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path
 async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     """Listing writable features should print command and constraint details."""
     # Arrange: Provide one writable feature with numeric constraints.
-    args = _cli_args()
+    args = _cli_args("list-writable")
     feature = build_feature(
         name="heating.circuits.0.heating.curve.slope",
         control=_control(min=0.2, max=3.5, step=0.1),
@@ -1042,7 +998,7 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
 ):
     """String and enum command constraints should print beside numeric ones."""
     # Arrange: Provide a writable feature with every constraint kind.
-    args = _cli_args()
+    args = _cli_args("list-writable")
     feature = build_feature(
         name="heating.program",
         control=_control(
@@ -1068,7 +1024,7 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
 async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, capsys):
     """Writable features without constraints should print without the line."""
     # Arrange: Provide a writable feature whose control declares no constraints.
-    args = _cli_args()
+    args = _cli_args("list-writable")
     feature = build_feature(name="heating.program", control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -1085,7 +1041,7 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
 async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
     """Listing fixture devices should print the real offline catalog."""
     # Arrange: Read the shipped catalog the command is expected to list.
-    args = _cli_args()
+    args = _cli_args("list-fixture-devices")
     expected_devices = FixtureViClient.get_available_fixture_devices()
 
     # Act: List the fixture devices without mocking the catalog.
@@ -1219,7 +1175,7 @@ async def test_cmd_list_events_auto_selects_first_installation(
 ):
     """Without an installation ID the first account installation is used."""
     # Arrange: Leave the installation scope unresolved in the context.
-    args = _cli_args(days=7)
+    args = _cli_args("list-events", "--days", "7")
     mock_cli_context.installation_id = None
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
@@ -1240,7 +1196,7 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
 ):
     """The auto-selected installation must not contaminate the JSON document."""
     # Arrange: Omit the installation ID and request JSON output.
-    args = _cli_args(days=7, json=True)
+    args = _cli_args("list-events", "--days", "7", "--json")
     mock_cli_context.installation_id = None
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
@@ -1259,7 +1215,7 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
 async def test_cmd_list_events_fails_without_installations(mock_cli_context, caplog):
     """An account without installations has no event history to list."""
     # Arrange: Omit the installation ID and return no installations.
-    args = _cli_args(days=7)
+    args = _cli_args("list-events", "--days", "7")
     mock_cli_context.installation_id = None
     mock_cli_context.client.get_installations.return_value = []
 
@@ -1358,7 +1314,7 @@ def _empty_event_page() -> EventHistoryPage:
 async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, capsys):
     """An empty window completes and prints no event timestamps."""
     # Arrange: The provider returns no events for a one-year window.
-    args = _cli_args(days=365)
+    args = _cli_args("list-events", "--days", "365")
     mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
     # Act: List the empty window as readable text.
@@ -1374,7 +1330,7 @@ async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, caps
 async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, capsys):
     """An empty window is one complete JSON document with null timestamps."""
     # Arrange: The provider returns no events for a one-year window.
-    args = _cli_args(days=365, json=True)
+    args = _cli_args("list-events", "--days", "365", "--json")
     mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
     # Act: List the empty window as JSON.

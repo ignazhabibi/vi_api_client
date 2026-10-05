@@ -4,32 +4,35 @@ from argparse import Namespace
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from builders import build_device, build_gateway
 
 from vi_api_client import ViClient
-from vi_api_client.cli import CLIContext, create_session, setup_client_context
+from vi_api_client.cli import (
+    CLIContext,
+    build_parser,
+    create_session,
+    setup_client_context,
+)
 from vi_api_client.models import Device, Gateway
 
 
-def _context_args(tmp_path: Path, **overrides: Any) -> Namespace:
-    """Build a live-mode CLI argument namespace with optional overrides."""
-    arguments: dict[str, Any] = {
-        "fixture_device": None,
-        "client_id": "test_id",
-        "redirect_uri": "http://localhost",
-        "token_file": tmp_path / "tokens.json",
-        "insecure": False,
-        "installation_id": None,
-        "gateway_serial": None,
-        "device_id": None,
-        "json": False,
-    }
-    arguments.update(overrides)
-    return Namespace(**arguments)
+def _context_args(tmp_path: Path, *argv: str) -> Namespace:
+    """Parse a live-mode device command with test credentials."""
+    return build_parser().parse_args(
+        [
+            "list-features",
+            "--client-id",
+            "test_id",
+            "--redirect-uri",
+            "http://localhost",
+            "--token-file",
+            str(tmp_path / "tokens.json"),
+            *argv,
+        ]
+    )
 
 
 @contextmanager
@@ -54,7 +57,9 @@ async def test_cli_context_fixture_mode_does_not_create_oauth_or_session(tmp_pat
     # Arrange: Point fixture mode at malformed tokens and fail if live setup is used.
     token_file = tmp_path / "tokens.json"
     token_file.write_text("{invalid", encoding="utf-8")
-    args = _context_args(tmp_path, fixture_device="Vitodens200W", token_file=token_file)
+    args = _context_args(
+        tmp_path, "--fixture-device", "Vitodens200W", "--token-file", str(token_file)
+    )
 
     with (
         patch("vi_api_client.cli.OAuth") as mock_oauth,
@@ -83,7 +88,7 @@ async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
 ):
     """Fixture diagnostics must not contaminate requested JSON output."""
     # Arrange: Request JSON output for a fixture device and patch live boundaries.
-    args = _context_args(tmp_path, fixture_device="Vitodens200W", json=True)
+    args = _context_args(tmp_path, "--fixture-device", "Vitodens200W", "--json")
 
     with (
         patch("vi_api_client.cli.OAuth") as mock_oauth,
@@ -106,9 +111,12 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
     # Arrange: Supply every identifier and script the discovery boundary.
     args = _context_args(
         tmp_path,
-        installation_id="123",
-        gateway_serial="serial",
-        device_id="dev1",
+        "--installation-id",
+        "123",
+        "--gateway-serial",
+        "serial",
+        "--device-id",
+        "dev1",
     )
 
     with _scripted_discovery_client([build_gateway("GW-A", "A")], []) as client:
@@ -129,7 +137,7 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
 ):
     """Auto-discovery should work offline and route diagnostics for JSON output."""
     # Arrange: Script one gateway and one device for full auto-discovery.
-    args = _context_args(tmp_path, json=True)
+    args = _context_args(tmp_path, "--json")
 
     with _scripted_discovery_client(
         [build_gateway("GW123", "100")],
@@ -156,21 +164,16 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
 @pytest.mark.parametrize(
     "partial_scope",
     [
-        pytest.param(
-            {"installation_id": None, "gateway_serial": "GW-B"},
-            id="gateway-serial-scope",
-        ),
-        pytest.param(
-            {"installation_id": "B", "gateway_serial": None}, id="installation-id-scope"
-        ),
+        pytest.param(["--gateway-serial", "GW-B"], id="gateway-serial-scope"),
+        pytest.param(["--installation-id", "B"], id="installation-id-scope"),
     ],
 )
 async def test_cli_context_discovery_completes_partial_scope(
-    tmp_path, partial_scope: dict[str, Any]
+    tmp_path, partial_scope: list[str]
 ):
     """A supplied gateway or installation scope should discover its missing IDs."""
     # Arrange: Script two gateways and one device on the second gateway.
-    args = _context_args(tmp_path, **partial_scope)
+    args = _context_args(tmp_path, *partial_scope)
 
     with _scripted_discovery_client(
         [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
@@ -191,7 +194,7 @@ async def test_cli_context_discovery_completes_partial_scope(
 async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tmp_path):
     """A known device ID only needs the gateway scope resolved."""
     # Arrange: Provide the gateway scope and the device ID up front.
-    args = _context_args(tmp_path, gateway_serial="GW-B", device_id="7")
+    args = _context_args(tmp_path, "--gateway-serial", "GW-B", "--device-id", "7")
 
     with _scripted_discovery_client(
         [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
@@ -213,7 +216,7 @@ async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tm
 async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
     """An empty installation argument should stay absent during discovery."""
     # Arrange: Provide an empty installation ID that must not scope discovery.
-    args = _context_args(tmp_path, installation_id="")
+    args = _context_args(tmp_path, "--installation-id", "")
 
     with _scripted_discovery_client(
         [build_gateway("GW-A", "A")],
@@ -232,7 +235,7 @@ async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
 async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     """Partially specified IDs must not be combined across installations."""
     # Arrange: Supply a gateway serial that belongs to another installation.
-    args = _context_args(tmp_path, installation_id="A", gateway_serial="GW-B")
+    args = _context_args(tmp_path, "--installation-id", "A", "--gateway-serial", "GW-B")
 
     with _scripted_discovery_client(
         [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
@@ -277,7 +280,7 @@ async def test_cli_context_reports_empty_discovery_results(
 async def test_cli_context_reports_unknown_gateway_scope(tmp_path):
     """An unknown gateway serial should name the missing gateway."""
     # Arrange: Request a gateway that discovery does not return.
-    args = _context_args(tmp_path, gateway_serial="GW-X")
+    args = _context_args(tmp_path, "--gateway-serial", "GW-X")
 
     # Act and assert: The unknown serial rejects with a specific message.
     with (
@@ -291,7 +294,7 @@ async def test_cli_context_reports_unknown_gateway_scope(tmp_path):
 async def test_cli_context_reports_gatewayless_installation_scope(tmp_path):
     """An installation without gateways should name the installation."""
     # Arrange: Scope discovery to an installation that owns no gateway.
-    args = _context_args(tmp_path, installation_id="B")
+    args = _context_args(tmp_path, "--installation-id", "B")
 
     # Act and assert: The gatewayless installation rejects by name.
     with (
