@@ -5,10 +5,11 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from math import isfinite
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Self, TypeIs
 from urllib.parse import urlencode
 
 import aiohttp
@@ -21,6 +22,9 @@ from .exceptions import ViAuthError, ViConnectionError, ViResponseError
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
+
+# Renew tokens this long before they expire so they cannot expire mid-request.
+_TOKEN_EXPIRY_MARGIN_SECONDS = 60
 
 
 class AbstractAuth(ABC):
@@ -124,23 +128,16 @@ class OAuth(AbstractAuth):
         self.token_file: Path = Path(token_file)
         self._credential_document = CredentialDocument(self.token_file)
         self.scope = scope
-        self._token_info: dict[str, JsonValue] = {}
+        self._token_info: dict[str, JsonValue] = self._credential_document.read()
         self._pkce_verifier: str | None = None
         self._refresh_task: asyncio.Task[None] | None = None
 
-        # Load existing tokens if available.
-        self._load_tokens()
-
-    def _load_tokens(self) -> None:
-        """Load tokens from file."""
-        self._token_info = self._credential_document.read()
-
-    def _save_tokens(self) -> None:
-        """Save tokens to file, preserving existing content."""
-        self._credential_document.update(self._token_info)
-
     def get_authorization_url(self) -> str:
-        """Generate authorization URL and PKCE challenge."""
+        """Return the login URL and remember its PKCE verifier.
+
+        The verifier is required by `async_exchange_code_for_tokens`, so call
+        both methods on the same instance.
+        """
         self._pkce_verifier, code_challenge = pkce.generate_pkce_pair()
 
         params = {
@@ -159,35 +156,42 @@ class OAuth(AbstractAuth):
         validated_token_data = _validate_token_response(token_data)
         self._token_info.update(validated_token_data)
 
-        # Calculate absolute expiration time if 'expires_in' is present
         expires_in = validated_token_data.get("expires_in")
-        if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool):
+        if _is_number(expires_in):
             self._token_info["expires_at"] = time.time() + expires_in
 
-        self._save_tokens()
+        self._credential_document.update(self._token_info)
 
-    async def async_fetch_details_from_code(self, code: str) -> None:
-        """Exchange code for tokens."""
+    async def _async_request_tokens(
+        self, form_data: Mapping[str, JsonValue], action: str
+    ) -> None:
+        """Post a token request and store the returned tokens."""
+        websession = await self._async_get_websession()
+        async with websession.post(ENDPOINT_TOKEN, data=form_data) as response:
+            if response.status != 200:
+                raise ViAuthError(f"Failed to {action}: {await response.text()}")
+            self._update_tokens(await _read_token_response(response))
+
+    async def async_exchange_code_for_tokens(self, code: str) -> None:
+        """Exchange an authorization code for tokens and store them.
+
+        Raises:
+            ViAuthError: If `get_authorization_url` was not called first or the
+                token endpoint rejects the code.
+        """
         if not self._pkce_verifier:
             raise ViAuthError(
                 "PKCE Verifier missing. Did you call get_authorization_url()?"
             )
 
-        data = {
+        form_data = {
             "client_id": self.client_id,
             "grant_type": "authorization_code",
             "redirect_uri": self.redirect_uri,
             "code": code,
             "code_verifier": self._pkce_verifier,
         }
-
-        websession = await self._async_get_websession()
-        async with websession.post(ENDPOINT_TOKEN, data=data) as resp:
-            if resp.status != 200:
-                text = await resp.text()
-                raise ViAuthError(f"Failed to fetch token: {text}")
-
-            self._update_tokens(await _read_token_response(resp))
+        await self._async_request_tokens(form_data, "fetch token")
         _LOGGER.debug("Exchanged authorization code for tokens")
 
     async def _async_refresh_access_token(self) -> None:
@@ -196,21 +200,13 @@ class OAuth(AbstractAuth):
         if not refresh_token:
             raise ViAuthError("No refresh token available.")
 
-        data = {
+        form_data = {
             "client_id": self.client_id,
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
         _LOGGER.debug("Refreshing access token")
-
-        websession = await self._async_get_websession()
-        async with websession.post(ENDPOINT_TOKEN, data=data) as resp:
-            if resp.status != 200:
-                text = await resp.text()
-                # If refresh fails, we might need to re-auth, but here we just raise
-                raise ViAuthError(f"Failed to refresh token: {text}")
-
-            self._update_tokens(await _read_token_response(resp))
+        await self._async_request_tokens(form_data, "refresh token")
         _LOGGER.debug(
             "Access token refreshed (expires_in=%s)", self._token_info.get("expires_in")
         )
@@ -253,27 +249,26 @@ class OAuth(AbstractAuth):
         await super().async_close()
 
     async def async_get_access_token(self) -> str:
-        """Return valid access token, refreshing if necessary."""
+        """Return a valid access token, refreshing it shortly before expiry.
+
+        Raises:
+            ViAuthError: If no usable token is stored or the refresh fails.
+        """
         if not self._token_info:
             raise ViAuthError("No tokens loaded. Please authenticate first.")
 
-        # Check existing expiration (buffer of 60 seconds)
-        now = time.time()
         expires_at = self._token_info.get("expires_at")
-
         if (
-            isinstance(expires_at, (int, float))
-            and not isinstance(expires_at, bool)
-            and now < expires_at - 60
+            _is_number(expires_at)
+            and time.time() < expires_at - _TOKEN_EXPIRY_MARGIN_SECONDS
         ):
             return self._access_token_value()
 
-        # If expired or unknown: try refresh
         if "refresh_token" in self._token_info:
             await self.async_refresh_access_token()
             return self._access_token_value()
 
-        # Fallback: return what we have (e.g. if offline_access scope was missing)
+        # Without the offline_access scope there is no refresh token to renew with.
         _LOGGER.warning(
             "No refresh token available; using possibly expired access token"
         )
@@ -285,6 +280,11 @@ class OAuth(AbstractAuth):
         if not isinstance(access_token, str) or not access_token:
             raise ViAuthError("No valid access token available.")
         return access_token
+
+
+def _is_number(value: object) -> TypeIs[int | float]:
+    """Return whether a JSON value is a number; bool counts as int in Python."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _validate_token_response(token_data: object) -> dict[str, JsonValue]:
@@ -305,10 +305,7 @@ def _validate_token_response(token_data: object) -> dict[str, JsonValue]:
             raise ViAuthError(f"Token response {field_name} must be a string")
     expires_in = validated_token_data.get("expires_in")
     if expires_in is not None and (
-        isinstance(expires_in, bool)
-        or not isinstance(expires_in, (int, float))
-        or not isfinite(expires_in)
-        or expires_in < 0
+        not _is_number(expires_in) or not isfinite(expires_in) or expires_in < 0
     ):
         raise ViAuthError(
             "Token response expires_in must be a non-negative finite number"
