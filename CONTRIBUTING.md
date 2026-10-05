@@ -17,7 +17,7 @@
 
 ## Tests
 
-- Use pytest functions, not `unittest.TestCase` classes. Mark async tests with `@pytest.mark.asyncio` and mirror the source layout where practical.
+- Use pytest functions, not `unittest.TestCase` classes. Write async tests as plain `async def` functions; `pytest.ini` sets `asyncio_mode = auto`, so they need no marker. Mirror the source layout where practical.
 - Structure each non-trivial test with Arrange-Act-Assert. Add explicit, test-specific `# Arrange:`, `# Act:`, and `# Assert:` comments when phases are not immediately clear, the test has multiple phases or state changes, or fixture and mock setup is substantial. Exception-focused tests may use `# Act and assert:`.
 - Prefer native `assert` for values and state, mock assertion helpers for interactions, and `pytest.raises` for expected exceptions.
 - Store substantial API payloads in `tests/fixtures/` and load them through shared helpers. Put pytest fixtures shared across modules in `tests/conftest.py`, and plain model builders needed at collection time, such as in `parametrize` arguments, in `tests/builders.py`. Keep fixtures aligned with the real API contract and the bundled product fixtures; inspect `tests/test_fixture_data_integrity.py` when changing fixture assumptions.

@@ -10,7 +10,6 @@ from vi_api_client.const import API_BASE_URL, ENDPOINT_FEATURES
 from vi_api_client.exceptions import ViResponseError
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("feature", "message"),
     [

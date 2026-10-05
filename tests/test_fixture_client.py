@@ -28,7 +28,6 @@ def test_fixture_client_rejects_unknown_device_with_available_names():
         FixtureViClient("Nope")
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("fixture_name", "device_type"),
     EXPECTED_DEVICE_TYPES.items(),
@@ -58,7 +57,6 @@ def test_fixture_device_catalog_lists_each_fixture_metadata_definition():
     )
 
 
-@pytest.mark.asyncio
 async def test_fixture_update_device_returns_hydrated_copy_without_mutating_input():
     """Fixture refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.
@@ -95,7 +93,6 @@ async def test_fixture_update_device_returns_hydrated_copy_without_mutating_inpu
     ],
     ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
 )
-@pytest.mark.asyncio
 async def test_fixture_feature_names_match_feature_and_api_feature_names(
     requested_name, expected_names
 ):
@@ -111,7 +108,6 @@ async def test_fixture_feature_names_match_feature_and_api_feature_names(
     assert sorted(feature.name for feature in features) == expected_names
 
 
-@pytest.mark.asyncio
 async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics():
     """Fixture filtering should retain only requested enabled and ready features."""
     # Arrange: Select a fixture that includes disabled features.
@@ -132,7 +128,6 @@ async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics()
     assert [feature.name for feature in features] == ["device.serial"]
 
 
-@pytest.mark.asyncio
 async def test_fixture_client_rejects_malformed_fixture_feature_responses(
     monkeypatch,
 ):
@@ -149,7 +144,6 @@ async def test_fixture_client_rejects_malformed_fixture_feature_responses(
         await client.get_features(device)
 
 
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     """Fixture command execution should not alter the loaded fixture features."""

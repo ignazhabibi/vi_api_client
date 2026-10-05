@@ -165,7 +165,6 @@ def test_oauth_rejects_malformed_token_file_without_modifying_it(token_file):
     [(30, "refreshed-access", 1), (120, "stored-access", 0)],
     ids=["inside-margin-refreshes", "outside-margin-reuses"],
 )
-@pytest.mark.asyncio
 async def test_access_token_is_renewed_shortly_before_it_expires(
     token_file, seconds_left, expected_token, expected_refreshes
 ):
@@ -189,7 +188,6 @@ async def test_access_token_is_renewed_shortly_before_it_expires(
     assert len(token_requests) == expected_refreshes
 
 
-@pytest.mark.asyncio
 async def test_explicit_refresh_replaces_the_token_in_use_and_on_disk(
     token_file, load_fixture_json
 ):
@@ -214,7 +212,6 @@ async def test_explicit_refresh_replaces_the_token_in_use_and_on_disk(
     assert saved["access_token"] == "refreshed_access_token"
 
 
-@pytest.mark.asyncio
 async def test_refresh_sends_the_stored_refresh_token_and_keeps_it(token_file):
     """A refresh response without a new refresh token keeps the stored one."""
     # Arrange: Store an expired token and answer without a refresh token.
@@ -243,7 +240,6 @@ async def test_refresh_sends_the_stored_refresh_token_and_keeps_it(token_file):
     assert saved["access_token"] == "refreshed-access"
 
 
-@pytest.mark.asyncio
 async def test_overlapping_access_token_refreshes_share_one_request(
     token_file,
 ) -> None:
@@ -268,7 +264,6 @@ async def test_overlapping_access_token_refreshes_share_one_request(
     assert session.calls == 1
 
 
-@pytest.mark.asyncio
 async def test_overlapping_explicit_and_automatic_refreshes_share_one_request(
     token_file,
 ) -> None:
@@ -290,7 +285,6 @@ async def test_overlapping_explicit_and_automatic_refreshes_share_one_request(
     assert session.calls == 1
 
 
-@pytest.mark.asyncio
 async def test_overlapping_explicit_refreshes_share_one_request(token_file) -> None:
     """Overlapping explicit refreshes should share one token request."""
     # Arrange: Store a valid token and delay the first explicit refresh.
@@ -311,7 +305,6 @@ async def test_overlapping_explicit_refreshes_share_one_request(token_file) -> N
     assert session.calls == 1
 
 
-@pytest.mark.asyncio
 async def test_later_explicit_refresh_starts_a_new_request(token_file) -> None:
     """A completed explicit refresh should not suppress a later forced refresh."""
     # Arrange: Allow token responses to complete immediately.
@@ -328,7 +321,6 @@ async def test_later_explicit_refresh_starts_a_new_request(token_file) -> None:
     assert session.calls == 2
 
 
-@pytest.mark.asyncio
 async def test_cancelling_one_refresh_waiter_keeps_the_shared_refresh_running(
     token_file,
 ) -> None:
@@ -357,7 +349,6 @@ async def test_cancelling_one_refresh_waiter_keeps_the_shared_refresh_running(
     assert session.calls == 1
 
 
-@pytest.mark.asyncio
 async def test_failed_shared_refresh_is_visible_to_waiters_and_can_retry(
     token_file,
 ) -> None:
@@ -389,7 +380,6 @@ async def test_failed_shared_refresh_is_visible_to_waiters_and_can_retry(
     assert session.calls == 2
 
 
-@pytest.mark.asyncio
 async def test_close_waits_for_refresh_then_closes_an_owned_session(
     token_file, monkeypatch
 ) -> None:
@@ -413,7 +403,6 @@ async def test_close_waits_for_refresh_then_closes_an_owned_session(
     assert oauth.websession is None
 
 
-@pytest.mark.asyncio
 async def test_close_keeps_an_external_session_open_while_refreshing(
     token_file,
 ) -> None:
@@ -434,7 +423,6 @@ async def test_close_keeps_an_external_session_open_while_refreshing(
     assert session.closed is False
 
 
-@pytest.mark.asyncio
 async def test_close_logs_and_cleans_up_a_cancelled_callers_refresh_failure(
     token_file, monkeypatch, caplog
 ) -> None:
@@ -467,7 +455,6 @@ async def test_close_logs_and_cleans_up_a_cancelled_callers_refresh_failure(
     )
 
 
-@pytest.mark.asyncio
 async def test_close_cleans_up_a_cancelled_callers_transport_failure(
     token_file, monkeypatch, caplog
 ) -> None:
@@ -496,7 +483,6 @@ async def test_close_cleans_up_a_cancelled_callers_transport_failure(
     )
 
 
-@pytest.mark.asyncio
 async def test_code_exchange_persists_tokens_and_unknown_fields(
     token_file, load_fixture_json
 ):
@@ -524,7 +510,6 @@ async def test_code_exchange_persists_tokens_and_unknown_fields(
     assert isinstance(saved_tokens["expires_at"], float)
 
 
-@pytest.mark.asyncio
 async def test_code_exchange_without_expires_in_skips_computed_expiry(token_file):
     """Token responses without expires_in should not compute an absolute expiry."""
     # Arrange: Mock a minimal valid token response.
@@ -543,7 +528,6 @@ async def test_code_exchange_without_expires_in_skips_computed_expiry(token_file
     assert saved == {"access_token": "t"}
 
 
-@pytest.mark.asyncio
 async def test_code_exchange_sends_the_verifier_matching_the_login_challenge(
     token_file,
 ):
@@ -576,7 +560,6 @@ async def test_code_exchange_sends_the_verifier_matching_the_login_challenge(
     assert form["redirect_uri"] == "https://example.invalid/cb"
 
 
-@pytest.mark.asyncio
 async def test_code_exchange_failure_does_not_write_tokens(token_file):
     """Rejected authorization codes should not create token storage."""
     # Arrange: Mock a rejected token exchange.
@@ -622,7 +605,6 @@ async def test_code_exchange_failure_does_not_write_tokens(token_file):
         "expires-in-boolean",
     ],
 )
-@pytest.mark.asyncio
 async def test_code_exchange_rejects_invalid_token_response_without_overwriting(
     token_file, token_body: str, message: str
 ):
@@ -646,7 +628,6 @@ async def test_code_exchange_rejects_invalid_token_response_without_overwriting(
     assert token_file.read_text(encoding="utf-8") == original_content
 
 
-@pytest.mark.asyncio
 async def test_code_exchange_before_creating_the_login_url_is_rejected(token_file):
     """Exchanging a code before generating the authorization URL should reject."""
     # Arrange: Create OAuth without starting a login, so no PKCE verifier exists.
@@ -657,7 +638,6 @@ async def test_code_exchange_before_creating_the_login_url_is_rejected(token_fil
         await oauth.async_exchange_code_for_tokens("accepted-code")
 
 
-@pytest.mark.asyncio
 async def test_access_token_request_before_authentication_is_rejected(token_file):
     """Requesting a token before authentication should explain the requirement."""
     # Arrange: Point OAuth at a token file that was never written.
@@ -668,7 +648,6 @@ async def test_access_token_request_before_authentication_is_rejected(token_file
         await oauth.async_get_access_token()
 
 
-@pytest.mark.asyncio
 async def test_expired_tokens_without_refresh_token_fall_back_with_warning(
     token_file, caplog
 ):
@@ -693,7 +672,6 @@ async def test_expired_tokens_without_refresh_token_fall_back_with_warning(
     )
 
 
-@pytest.mark.asyncio
 async def test_stored_tokens_without_access_token_are_rejected(token_file):
     """Token state without a usable access token should reject the request."""
     # Arrange: Store an unexpired token document that lacks the access token.
@@ -707,7 +685,6 @@ async def test_stored_tokens_without_access_token_are_rejected(token_file):
         await oauth.async_get_access_token()
 
 
-@pytest.mark.asyncio
 async def test_refresh_without_refresh_token_is_rejected(token_file):
     """Refreshing without a stored refresh token should reject the request."""
     # Arrange: Store a valid access token without a refresh token.
@@ -721,7 +698,6 @@ async def test_refresh_without_refresh_token_is_rejected(token_file):
         await oauth.async_refresh_access_token()
 
 
-@pytest.mark.asyncio
 async def test_authenticated_requests_add_a_bearer_header_without_mutating_input(
     token_file,
 ):
@@ -750,7 +726,6 @@ async def test_authenticated_requests_add_a_bearer_header_without_mutating_input
     assert caller_headers == {"Accept": "application/json"}
 
 
-@pytest.mark.asyncio
 async def test_oauth_creates_and_closes_internal_websession(token_file):
     """OAuth should manage a session when the caller does not supply one."""
     # Arrange: Store a valid token and mock the installations endpoint.
@@ -772,7 +747,6 @@ async def test_oauth_creates_and_closes_internal_websession(token_file):
     assert oauth.websession is None
 
 
-@pytest.mark.asyncio
 async def test_oauth_recreates_an_internal_websession_after_closing(token_file):
     """OAuth should create a new owned session for a request after closing."""
     # Arrange: Store a valid token and mock repeated installation requests.
@@ -799,7 +773,6 @@ async def test_oauth_recreates_an_internal_websession_after_closing(token_file):
     assert oauth.websession is None
 
 
-@pytest.mark.asyncio
 async def test_oauth_keeps_external_websession_open(token_file):
     """OAuth should not close a session supplied by the caller."""
     # Arrange: Create an external session and an OAuth provider that uses it.
@@ -817,7 +790,6 @@ async def test_oauth_keeps_external_websession_open(token_file):
         assert oauth.websession is external_websession
 
 
-@pytest.mark.asyncio
 async def test_close_tolerates_an_already_closed_owned_session(token_file):
     """Closing should stay safe when the owned session was already closed."""
     # Arrange: Create an owned session through one request, then close it directly.

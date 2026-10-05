@@ -13,7 +13,6 @@ from vi_api_client.const import (
 from vi_api_client.exceptions import ViResponseError
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("call", "endpoint", "response", "message"),
     [
@@ -99,7 +98,6 @@ async def test_discovery_rejects_missing_or_malformed_known_fields(
                 await getattr(client, operation)(*arguments)
 
 
-@pytest.mark.asyncio
 async def test_discovery_tolerates_unknown_installation_fields_and_json_address(
     static_token_auth,
 ) -> None:

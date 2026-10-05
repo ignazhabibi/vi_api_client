@@ -18,7 +18,6 @@ def _page_url(query: str) -> str:
     return f"{EVENTS_URL}?{query}"
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_returns_first_page_by_days(
     load_fixture_device, static_token_auth
 ):
@@ -62,7 +61,6 @@ async def test_get_event_history_returns_first_page_by_days(
     assert request.kwargs["params"] == {"lastNDays": 7, "limit": 50}
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_follows_cursor_without_window(static_token_auth):
     """A cursor page should not repeat the lookback window."""
     # Arrange: Register the continuation URL and a final page. The mock
@@ -89,7 +87,6 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
     assert request.kwargs["params"] == {"cursor": cursor}
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("days", "cursor", "limit", "message"),
     [
@@ -131,7 +128,6 @@ async def test_get_event_history_rejects_invalid_windows(
             )
 
 
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_empty_installation_ids(static_token_auth):
     """An event history read requires a usable installation scope."""
@@ -144,7 +140,6 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
             await client.get_event_history("", days=7)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -238,7 +233,6 @@ async def test_get_event_history_rejects_malformed_responses(
                 await client.get_event_history(INSTALLATION_ID, days=7)
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
     static_token_auth,
 ):
@@ -259,7 +253,6 @@ async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
     assert page.next_cursor is None
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_rejects_successful_non_json_responses(
     static_token_auth,
 ):

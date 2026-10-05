@@ -58,7 +58,6 @@ def _command_control(uri: str) -> FeatureControl:
     )
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_preserves_external_oauth_error() -> None:
     # Arrange: Configure auth to raise a response-shaped external OAuth error.
     oauth_error = _ExternalOAuthError(
@@ -78,7 +77,6 @@ async def test_live_adapter_preserves_external_oauth_error() -> None:
     assert raised_error.value is oauth_error
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_wraps_aiohttp_connection_error(static_token_auth) -> None:
     # Arrange: Make the installations request fail while opening the connection.
     connection_error = aiohttp.ClientConnectionError("Network unavailable")
@@ -119,7 +117,6 @@ async def test_live_adapter_wraps_aiohttp_connection_error(static_token_auth) ->
         "server-error",
     ],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_preserves_viessmann_error_type(
     status: int, expected_error: type[ViError], static_token_auth
 ) -> None:
@@ -146,7 +143,6 @@ async def test_live_adapter_preserves_viessmann_error_type(
     assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_exposes_validated_validation_details(
     static_token_auth,
 ) -> None:
@@ -186,7 +182,6 @@ async def test_live_adapter_exposes_validated_validation_details(
     ["not-a-list", 42, [{"message": "ok"}, "entry"], ["entry", 42]],
     ids=["string", "number", "mixed-entries", "no-object-entries"],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_drops_unusable_validation_details(
     validation_errors: JsonValue,
     static_token_auth,
@@ -213,7 +208,6 @@ async def test_live_adapter_drops_unusable_validation_details(
     assert raised_error.value.validation_errors == []
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_drops_non_json_validation_details(
     static_token_auth,
 ) -> None:
@@ -239,7 +233,6 @@ async def test_live_adapter_drops_non_json_validation_details(
     assert raised_error.value.validation_errors == []
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_drops_malformed_structured_error_fields(
     static_token_auth,
 ) -> None:
@@ -291,7 +284,6 @@ async def test_live_adapter_drops_malformed_structured_error_fields(
         "missing-header",
     ],
 )
-@pytest.mark.asyncio
 async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying(
     retry_after_header: str | None,
     expected_retry_after: float | None,
@@ -329,7 +321,6 @@ async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying
     ],
     ids=["future-date", "past-date"],
 )
-@pytest.mark.asyncio
 async def test_client_normalizes_http_date_retry_after_without_retrying(
     retry_after_header: Callable[[], str],
     max_retry_after: float,
@@ -366,7 +357,6 @@ async def test_client_normalizes_http_date_retry_after_without_retrying(
     ],
     ids=["absolute-uri", "rooted-uri"],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_sends_commands_to_vi_api_uris(
     command_uri: str, static_token_auth
 ) -> None:
@@ -396,7 +386,6 @@ async def test_live_adapter_sends_commands_to_vi_api_uris(
     ],
     ids=["foreign-host", "lookalike-host", "scheme-relative", "empty"],
 )
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_live_adapter_refuses_command_uris_outside_vi_api(
     command_uri: str,
@@ -414,7 +403,6 @@ async def test_live_adapter_refuses_command_uris_outside_vi_api(
             )
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_maps_non_json_error_bodies(static_token_auth) -> None:
     # Arrange: Return an HTML error page with a server error status.
     with aioresponses() as mock_responses:
@@ -445,7 +433,6 @@ async def test_live_adapter_maps_non_json_error_bodies(static_token_auth) -> Non
     ],
     ids=["unauthorized", "forbidden", "not-found", "unmapped-status"],
 )
-@pytest.mark.asyncio
 async def test_client_errors_name_the_http_status_in_their_message(
     status: int,
     expected_error: type[ViError],

@@ -76,7 +76,6 @@ def _control(
     )
 
 
-@pytest.mark.asyncio
 async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot():
     """The current device feature controls validation, payload, and local update."""
     # Arrange: The supplied stale feature is read-only, while the snapshot is writable.
@@ -146,7 +145,6 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
         "required-sibling-missing",
     ],
 )
-@pytest.mark.asyncio
 async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
     feature: Feature,
     device_features: list[Feature],
@@ -173,7 +171,6 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
     ],
     ids=["sibling-disabled", "sibling-not-ready", "sibling-without-value"],
 )
-@pytest.mark.asyncio
 async def test_set_feature_rejects_unavailable_required_dependencies_before_constraints(
     sibling: Feature,
     error: str,
@@ -192,7 +189,6 @@ async def test_set_feature_rejects_unavailable_required_dependencies_before_cons
     assert adapter.calls == []
 
 
-@pytest.mark.asyncio
 async def test_set_feature_uses_canonical_constraints_before_adapter_io():
     """Target constraints come from the current device feature before adapter I/O."""
     # Arrange: The caller supplies stale permissive metadata for a constrained target.
@@ -216,7 +212,6 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io():
     ],
     ids=["string-options", "numeric-options"],
 )
-@pytest.mark.asyncio
 async def test_set_feature_accepts_declared_option_values(
     initial_value: Any,
     written_value: Any,
@@ -264,7 +259,6 @@ async def test_set_feature_accepts_declared_option_values(
         "pattern-trailing-newline",
     ],
 )
-@pytest.mark.asyncio
 async def test_set_feature_rejects_values_outside_canonical_constraints(
     control_overrides: dict[str, Any],
     target_value: Any,
@@ -283,7 +277,6 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     assert adapter.calls == []
 
 
-@pytest.mark.asyncio
 async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device():
     """Only required dependencies are sent and API rejection retains the snapshot."""
     # Arrange: The optional sibling is available but must not be sent automatically.
@@ -302,7 +295,6 @@ async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device
     assert returned_device is device
 
 
-@pytest.mark.asyncio
 async def test_execute_command_requires_complete_available_command_without_mutation():
     """Explicit commands require complete payloads but preserve additional parameters."""
     # Arrange: The complete payload includes an allowed extra parameter.
@@ -321,7 +313,6 @@ async def test_execute_command_requires_complete_available_command_without_mutat
     assert parameters == {"target": "new", "dependency": None, "extra": "kept"}
 
 
-@pytest.mark.asyncio
 async def test_set_feature_accepts_json_object_target_value():
     """Target values may use any JSON value shape, including nested objects."""
     # Arrange: The unconstrained target accepts a structured JSON value.
@@ -342,7 +333,6 @@ async def test_set_feature_accepts_json_object_target_value():
     assert updated == replace(target, value=target_value)
 
 
-@pytest.mark.asyncio
 async def test_set_feature_rejects_non_finite_target_value_without_adapter_io():
     """Target values outside the JSON value contract reject before adapter I/O."""
     # Arrange: A non-finite number is outside the JSON value contract.
@@ -357,7 +347,6 @@ async def test_set_feature_rejects_non_finite_target_value_without_adapter_io():
     assert adapter.calls == []
 
 
-@pytest.mark.asyncio
 async def test_set_feature_rejects_non_json_target_value_without_adapter_io():
     """Target values JSON cannot represent reject before adapter I/O."""
     # Arrange: The target value is a Python object JSON cannot represent.
@@ -372,7 +361,6 @@ async def test_set_feature_rejects_non_json_target_value_without_adapter_io():
     assert adapter.calls == []
 
 
-@pytest.mark.asyncio
 async def test_set_feature_rejects_non_json_required_dependency_value_without_adapter_io():
     """Resolved dependency values outside the JSON contract reject before I/O."""
     # Arrange: The required sibling reports a value JSON cannot represent.
@@ -389,7 +377,6 @@ async def test_set_feature_rejects_non_json_required_dependency_value_without_ad
     assert adapter.calls == []
 
 
-@pytest.mark.asyncio
 async def test_execute_command_rejects_non_json_parameter_values_without_adapter_io():
     """Parameter values outside the JSON value contract reject before I/O."""
     # Arrange: One explicit parameter value is outside the JSON value contract.
@@ -433,7 +420,6 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
         "missing-required-parameter",
     ],
 )
-@pytest.mark.asyncio
 async def test_execute_command_rejects_invalid_local_contract_without_adapter_io(
     feature: Feature,
     parameters: dict[str, Any],

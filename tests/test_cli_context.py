@@ -49,7 +49,6 @@ def _scripted_discovery_client(
         yield client
 
 
-@pytest.mark.asyncio
 async def test_cli_context_fixture_mode_does_not_create_oauth_or_session(tmp_path):
     """Fixture mode should stay offline without credentials or token access."""
     # Arrange: Point fixture mode at malformed tokens and fail if live setup is used.
@@ -79,7 +78,6 @@ async def test_cli_context_fixture_mode_does_not_create_oauth_or_session(tmp_pat
     mock_create_session.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
     tmp_path, capsys
 ):
@@ -103,7 +101,6 @@ async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
     mock_create_session.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
     """Fully specified IDs are used as given without any account lookup."""
     # Arrange: Supply every identifier and script the discovery boundary.
@@ -127,7 +124,6 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
     client.get_devices.assert_not_awaited()
 
 
-@pytest.mark.asyncio
 async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
     tmp_path, capsys
 ):
@@ -165,7 +161,6 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
     ],
     ids=["gateway-serial-scope", "installation-id-scope"],
 )
-@pytest.mark.asyncio
 async def test_cli_context_discovery_completes_partial_scope(
     tmp_path, partial_scope: dict[str, Any]
 ):
@@ -189,7 +184,6 @@ async def test_cli_context_discovery_completes_partial_scope(
         client.get_devices.assert_awaited_once_with("B", "GW-B")
 
 
-@pytest.mark.asyncio
 async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tmp_path):
     """A known device ID only needs the gateway scope resolved."""
     # Arrange: Provide the gateway scope and the device ID up front.
@@ -212,7 +206,6 @@ async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tm
         client.get_devices.assert_not_awaited()
 
 
-@pytest.mark.asyncio
 async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
     """An empty installation argument should stay absent during discovery."""
     # Arrange: Provide an empty installation ID that must not scope discovery.
@@ -232,7 +225,6 @@ async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
             )
 
 
-@pytest.mark.asyncio
 async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     """Partially specified IDs must not be combined across installations."""
     # Arrange: Supply a gateway serial that belongs to another installation.
@@ -261,7 +253,6 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     ],
     ids=["no-gateways", "no-devices"],
 )
-@pytest.mark.asyncio
 async def test_cli_context_reports_empty_discovery_results(
     tmp_path, gateways: list[Gateway], devices: list[Device], message: str
 ):
@@ -278,7 +269,6 @@ async def test_cli_context_reports_empty_discovery_results(
             pass
 
 
-@pytest.mark.asyncio
 async def test_cli_context_reports_unknown_gateway_scope(tmp_path):
     """An unknown gateway serial should name the missing gateway."""
     # Arrange: Request a gateway that discovery does not return.
@@ -293,7 +283,6 @@ async def test_cli_context_reports_unknown_gateway_scope(tmp_path):
             pass
 
 
-@pytest.mark.asyncio
 async def test_cli_context_reports_gatewayless_installation_scope(tmp_path):
     """An installation without gateways should name the installation."""
     # Arrange: Scope discovery to an installation that owns no gateway.
@@ -308,7 +297,6 @@ async def test_cli_context_reports_gatewayless_installation_scope(tmp_path):
             pass
 
 
-@pytest.mark.asyncio
 async def test_cli_context_falls_back_to_first_device_without_id_zero(tmp_path):
     """Discovery should prefer device '0' but accept the first alternative."""
     # Arrange: Script a gateway whose only device has a non-zero ID.
@@ -328,7 +316,6 @@ async def test_cli_context_falls_back_to_first_device_without_id_zero(tmp_path):
             )
 
 
-@pytest.mark.asyncio
 async def test_cli_context_without_discovery_leaves_ids_absent(tmp_path):
     """Disabled discovery should yield a usable context with optional IDs absent."""
     # Arrange: Omit every identifier while disabling auto-discovery.
@@ -347,7 +334,6 @@ async def test_cli_context_without_discovery_leaves_ids_absent(tmp_path):
         client.get_devices.assert_not_awaited()
 
 
-@pytest.mark.asyncio
 async def test_create_session_routes_insecure_warning_to_stderr_for_json(capsys):
     """Insecure TLS warnings must not contaminate requested JSON output."""
     # Arrange: Request JSON output while disabling TLS verification.
@@ -363,7 +349,6 @@ async def test_create_session_routes_insecure_warning_to_stderr_for_json(capsys)
     assert "WARNING: SSL verification disabled via --insecure" in captured.err
 
 
-@pytest.mark.asyncio
 async def test_create_session_disables_certificate_checks_when_insecure(capsys):
     """--insecure disables TLS verification and warns on stdout for text output."""
     # Arrange: Request an insecure session without JSON output.
@@ -379,7 +364,6 @@ async def test_create_session_disables_certificate_checks_when_insecure(capsys):
     assert "WARNING: SSL verification disabled" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_create_session_verifies_certificates_by_default(capsys):
     """Without --insecure the default verifying session is used."""
     # Arrange: Request a normal session.

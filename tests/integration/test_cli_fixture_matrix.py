@@ -13,7 +13,7 @@ from vi_api_client.models import Feature
 
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
-pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("no_http_requests")]
+pytestmark = pytest.mark.usefixtures("no_http_requests")
 
 _for_every_fixture_device = pytest.mark.parametrize(
     "fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES
@@ -94,7 +94,6 @@ def run_cli(monkeypatch, capsys, caplog):
         ),
     ],
 )
-@pytest.mark.asyncio
 async def test_text_commands_print_their_result_for_every_fixture(
     run_cli, fixture_device: str, command: list[str], result_marker: str
 ):
@@ -155,7 +154,6 @@ def _document_keys(document: dict) -> tuple[str, ...]:
         ),
     ],
 )
-@pytest.mark.asyncio
 async def test_json_commands_print_exactly_one_document_for_every_fixture(
     run_cli,
     fixture_device: str,
@@ -175,7 +173,6 @@ async def test_json_commands_print_exactly_one_document_for_every_fixture(
 
 
 @_for_every_fixture_device
-@pytest.mark.asyncio
 async def test_get_feature_json_serializes_writable_and_structured_features(
     run_cli, fixture_device: str
 ):
@@ -216,7 +213,6 @@ def _cli_text(value: object) -> str:
 @pytest.mark.parametrize(
     ("fixture_device", "feature"), _writable_feature_cases(empty_value=False)
 )
-@pytest.mark.asyncio
 async def test_set_accepts_the_current_value_of_a_writable_feature(
     run_cli, fixture_device: str, feature: Feature
 ):
@@ -238,7 +234,6 @@ async def test_set_accepts_the_current_value_of_a_writable_feature(
 @pytest.mark.parametrize(
     ("fixture_device", "feature"), _writable_feature_cases(empty_value=True)
 )
-@pytest.mark.asyncio
 async def test_set_rejects_an_empty_current_value_by_its_constraint(
     run_cli, fixture_device: str, feature: Feature
 ):
@@ -266,7 +261,6 @@ async def test_set_rejects_an_empty_current_value_by_its_constraint(
 _CURVE_SLOPE = "heating.circuits.0.heating.curve.slope"
 
 
-@pytest.mark.asyncio
 async def test_exec_succeeds_with_every_required_parameter(run_cli):
     """A command executes when every required parameter is supplied."""
     # Act: Execute the two-parameter curve command with both parameters.
@@ -284,7 +278,6 @@ async def test_exec_succeeds_with_every_required_parameter(run_cli):
     assert "Success!" in out
 
 
-@pytest.mark.asyncio
 async def test_exec_names_a_missing_required_parameter(run_cli):
     """exec does not fill parameters from sibling features."""
     # Act: Execute the curve command without its 'shift' parameter.

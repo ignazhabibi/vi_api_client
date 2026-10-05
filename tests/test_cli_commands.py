@@ -120,7 +120,6 @@ def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
     return CommandResponse(success=True), MagicMock(spec=Device)
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     """Successful writes should confirm the command, param, and result."""
     # Arrange: Provide a writable numeric feature and a successful write.
@@ -151,7 +150,6 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     ],
     ids=["string", "boolean-true", "boolean-false", "integer"],
 )
-@pytest.mark.asyncio
 async def test_cmd_set_converts_typed_command_values(
     mock_cli_context, value_type: str, raw_value: str, expected_value: Any
 ):
@@ -180,7 +178,6 @@ async def test_cmd_set_converts_typed_command_values(
     ],
     ids=["number-text", "number-infinite", "boolean-text", "integer-fraction"],
 )
-@pytest.mark.asyncio
 async def test_cmd_set_rejects_malformed_typed_values(
     mock_cli_context, capsys, value_type: str, raw_value: str, message: str
 ):
@@ -201,7 +198,6 @@ async def test_cmd_set_rejects_malformed_typed_values(
     mock_cli_context.client.set_feature.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     """Legacy features without metadata should infer their write type."""
     # Arrange: Provide a valueless-type control whose value hints the type.
@@ -218,7 +214,6 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     assert mock_cli_context.client.set_feature.call_args.args[2] == 1.4
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     """Failed API writes should print the response message and reason."""
     # Arrange: Make the write succeed at the boundary but fail at the API.
@@ -241,7 +236,6 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     assert "Reason: out of range" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, capsys):
     """Absent response details must not print empty Message or Reason lines."""
     # Arrange: Make the write fail without a message or reason.
@@ -264,7 +258,6 @@ async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, 
     assert "Reason:" not in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
     """Writes without a device context should fail gracefully."""
     # Arrange: Strip the device identifier from the CLI context.
@@ -323,7 +316,6 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
         "list-events",
     ],
 )
-@pytest.mark.asyncio
 async def test_commands_log_unexpected_client_errors_and_fail(
     command, arguments, failure: tuple[str, str], mock_cli_context, caplog
 ):
@@ -344,7 +336,6 @@ async def test_commands_log_unexpected_client_errors_and_fail(
     assert f"Error {action}: boom" in caplog.text
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject CLI writes before any request."""
     # Arrange: Provide a feature without command metadata.
@@ -360,7 +351,6 @@ async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
     mock_cli_context.client.set_feature.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_reports_missing_features(mock_cli_context, capsys):
     """Unknown feature names should reject CLI writes before any request."""
     # Arrange: Return no features for the requested name.
@@ -376,7 +366,6 @@ async def test_cmd_set_reports_missing_features(mock_cli_context, capsys):
     mock_cli_context.client.set_feature.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found write failures should surface the API message."""
     # Arrange: Make the write fail with a not-found API error.
@@ -425,7 +414,6 @@ def test_infer_feature_value_type_uses_value_shape_and_constraints(
     assert _infer_feature_value_type(feature) == expected_type
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_prints_value_and_control_details(
     mock_cli_context, capsys
 ):
@@ -455,7 +443,6 @@ async def test_cmd_get_feature_prints_value_and_control_details(
     assert "Options: ('low', 'high')" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys):
     """A read-only feature should print its value without control details."""
     # Arrange: Return one read-only feature for the requested name.
@@ -488,7 +475,6 @@ async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys)
     ],
     ids=["options-only", "min-only"],
 )
-@pytest.mark.asyncio
 async def test_cmd_get_feature_prints_only_present_control_details(
     mock_cli_context, capsys, control_overrides: dict, expect_constraints: bool
 ):
@@ -515,7 +501,6 @@ async def test_cmd_get_feature_prints_only_present_control_details(
     assert ("Options:" in captured.out) is not expect_constraints
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_json_prints_machine_readable_document(
     mock_cli_context, capsys
 ):
@@ -560,7 +545,6 @@ def _curve_features() -> list[Feature]:
     ]
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
     mock_cli_context, capsys
 ):
@@ -578,7 +562,6 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
     assert document["control"] is None
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     mock_cli_context, capsys
 ):
@@ -597,7 +580,6 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     assert "- heating.curve.slope: 1.4" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     mock_cli_context, capsys
 ):
@@ -618,7 +600,6 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     ]
 
 
-@pytest.mark.asyncio
 async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
     """An unknown name fails the read rather than printing an empty result."""
     # Arrange: Return no features for the requested name.
@@ -633,7 +614,6 @@ async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, c
     assert "Feature 'missing.feature' not found." in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_cmd_login_uses_environment_config_and_persists_it(
     monkeypatch, tmp_path, capsys
 ):
@@ -683,7 +663,6 @@ async def test_cmd_login_uses_environment_config_and_persists_it(
     }
 
 
-@pytest.mark.asyncio
 async def test_cmd_login_requires_a_client_id(monkeypatch, tmp_path):
     """Login without any configured client ID should fail with guidance."""
     # Arrange: Provide neither an argument, environment, nor stored client ID.
@@ -755,7 +734,6 @@ def test_get_client_config_uses_saved_redirect_uri(monkeypatch, tmp_path):
     assert (client_id, redirect_uri) == ("saved-client", "http://saved")
 
 
-@pytest.mark.asyncio
 async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp_path):
     """Malformed credentials should produce a failing CLI status without rewrites."""
     # Arrange: Point an initial login command at malformed credential data.
@@ -774,7 +752,6 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
     assert token_file.read_text(encoding="utf-8") == invalid_content
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
     """CLI executes every explicitly supplied advanced command parameter."""
     # Arrange: Provide a writable feature and an explicit parameter set.
@@ -801,7 +778,6 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
     assert "Success!" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, capsys):
     """Unparseable parameter arguments should reject before any request."""
     # Arrange: Supply one parameter without the key=value shape.
@@ -820,7 +796,6 @@ async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, 
     mock_cli_context.client.get_features.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject explicit commands."""
     # Arrange: Provide a feature without command metadata and no params argument.
@@ -836,7 +811,6 @@ async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
     mock_cli_context.client.execute_command.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
     """Unknown feature names should reject explicit commands."""
     # Arrange: Return no features for the requested name.
@@ -852,7 +826,6 @@ async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
     mock_cli_context.client.execute_command.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     """Explicit commands should only run a feature's primary command."""
     # Arrange: Request a command name the feature does not expose.
@@ -873,7 +846,6 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     mock_cli_context.client.execute_command.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found explicit commands should surface the API message."""
     # Arrange: Make the explicit command fail with a not-found API error.
@@ -893,7 +865,6 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
     assert "Not found: device gone" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
     """Validation errors from explicit commands should print their message."""
     # Arrange: Make the explicit command fail with a validation error.
@@ -915,7 +886,6 @@ async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
     assert "Validation failed: Simulated Validation Error" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     """CLI writes should provide sibling values required by a command."""
     # Arrange: Provide heating-curve features that share the setCurve command.
@@ -937,7 +907,6 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     assert mock_cli_context.client.get_features.call_args.kwargs == {}
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, capsys):
     """Names-only JSON is a bare array without the text header."""
     # Arrange: Provide two features and request JSON output.
@@ -955,7 +924,6 @@ async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, cap
     assert json.loads(capsys.readouterr().out) == ["f1", "f2"]
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_features_json_values_print_value_documents(
     mock_cli_context, capsys
 ):
@@ -983,7 +951,6 @@ async def test_cmd_list_features_json_values_print_value_documents(
     ]
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_features_enabled_requests_only_enabled_features(
     mock_cli_context,
 ):
@@ -1004,7 +971,6 @@ async def test_cmd_list_features_enabled_requests_only_enabled_features(
     assert call_args.kwargs["only_enabled"] is True
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_features_values_prints_table_with_writable_marks(
     mock_cli_context, capsys
 ):
@@ -1031,7 +997,6 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
     assert "(* = writable)" in lines
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, capsys):
     """Without flags the listing is a device-scoped header plus one bullet per name."""
     # Arrange: Provide one feature and request no flags.
@@ -1049,7 +1014,6 @@ async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, caps
 
 
 @pytest.mark.usefixtures("no_http_requests")
-@pytest.mark.asyncio
 async def test_async_main_json_setup_error_keeps_stdout_empty(
     monkeypatch, capsys, caplog, tmp_path
 ):
@@ -1078,7 +1042,6 @@ async def test_async_main_json_setup_error_keeps_stdout_empty(
     assert "Client ID not found." in caplog.text
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsys):
     """Listing devices should print installations, gateways, and devices."""
     # Arrange: Script one installation with one gateway and device.
@@ -1101,7 +1064,6 @@ async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsy
     assert "ID: 0" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path):
     """Listing devices needs no installation, gateway, or device IDs."""
     # Arrange: Construct the real CLI context without any device-specific IDs.
@@ -1135,7 +1097,6 @@ async def test_cmd_list_devices_does_not_require_device_context(capsys, tmp_path
     assert "Found 1 installations" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     """Listing writable features should print command and constraint details."""
     # Arrange: Provide one writable feature with numeric constraints.
@@ -1157,7 +1118,6 @@ async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     assert "min: 0.2" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_writable_prints_string_and_enum_constraints(
     mock_cli_context, capsys
 ):
@@ -1187,7 +1147,6 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
     assert "pattern: ^[a-z]+$" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, capsys):
     """Writable features without constraints should print without the line."""
     # Arrange: Provide a writable feature whose control declares no constraints.
@@ -1206,7 +1165,6 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     assert "Constraints:" not in captured.out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
     """Listing fixture devices should print the real offline catalog."""
     # Arrange: Read the shipped catalog the command is expected to list.
@@ -1224,7 +1182,6 @@ async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
     assert "- Vitodens200W" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_dispatch_command_maps_handler_failure_to_status_one():
     """A handler's False result becomes the process failure status."""
     # Arrange: Dispatch a command whose handler reports failure.
@@ -1254,7 +1211,6 @@ def test_main_exits_with_async_command_status():
     assert exit_error.value.code == 1
 
 
-@pytest.mark.asyncio
 async def test_async_main_without_command_prints_help(monkeypatch, capsys):
     """Invoking the CLI without a command should print help and exit zero."""
     # Arrange: Parse an argument list without a command.
@@ -1268,7 +1224,6 @@ async def test_async_main_without_command_prints_help(monkeypatch, capsys):
     assert "usage:" in capsys.readouterr().out
 
 
-@pytest.mark.asyncio
 async def test_async_main_maps_keyboard_interrupt_to_130(monkeypatch):
     """Ctrl+C ends the CLI with the shell's conventional SIGINT status."""
     # Arrange: Interrupt the dispatcher while it runs a command.
@@ -1286,7 +1241,6 @@ async def test_async_main_maps_keyboard_interrupt_to_130(monkeypatch):
     assert exit_status == 130
 
 
-@pytest.mark.asyncio
 async def test_async_main_maps_unexpected_errors_to_one(monkeypatch):
     """Errors escaping the dispatcher end with the generic failure status."""
     # Arrange: Fail the dispatcher with an unexpected error.
@@ -1312,7 +1266,6 @@ async def test_async_main_maps_unexpected_errors_to_one(monkeypatch):
     ],
     ids=["default", "verbose"],
 )
-@pytest.mark.asyncio
 async def test_async_main_configures_logging_after_parsing(
     monkeypatch, extra_argv, expected_level
 ):
@@ -1394,7 +1347,6 @@ def _event_page() -> EventHistoryPage:
     return EventHistoryPage(events=[feature_changed, gateway_online], next_cursor=None)
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys):
     """The readable summary should group events by UTC date without loss."""
     # Arrange: Provide one fixture event page for a seven day window.
@@ -1434,7 +1386,6 @@ async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys)
     )
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys):
     """JSON output should keep complete events and pagination metadata."""
     # Arrange: Request the machine-readable form with a page limit.
@@ -1482,7 +1433,6 @@ async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys)
     )
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_auto_selects_first_installation(
     mock_cli_context, capsys
 ):
@@ -1505,7 +1455,6 @@ async def test_cmd_list_events_auto_selects_first_installation(
     )
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     mock_cli_context, capsys
 ):
@@ -1528,7 +1477,6 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     assert "Auto-selected installation: 12345" in captured.err
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_fails_without_installations(mock_cli_context, caplog):
     """An account without installations has no event history to list."""
     # Arrange: Omit the installation ID and return no installations.
@@ -1602,7 +1550,6 @@ def test_parser_keeps_installation_ids_as_text():
     assert args.installation_id == "123"
 
 
-@pytest.mark.asyncio
 async def test_async_main_list_events_fixture_json_is_machine_readable(
     monkeypatch, capsys
 ):
@@ -1646,7 +1593,6 @@ async def test_async_main_list_events_fixture_json_is_machine_readable(
     assert "Using Fixture Device: Vitodens200W" in captured.err
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_follows_cursors_across_pages(mock_cli_context, capsys):
     """The traversal should continue with the cursor, not the window."""
     # Arrange: Serve one continuation page followed by a final page.
@@ -1673,7 +1619,6 @@ async def test_cmd_list_events_follows_cursors_across_pages(mock_cli_context, ca
     assert awaited_calls[1].kwargs == {"cursor": "cursor-token", "limit": None}
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_stops_at_the_safety_limit(mock_cli_context, capsys):
     """A remaining cursor at the safety limit should mark the result incomplete."""
     # Arrange: Every served page reports a further cursor.
@@ -1698,7 +1643,6 @@ async def test_cmd_list_events_stops_at_the_safety_limit(mock_cli_context, capsy
     assert mock_cli_context.client.get_event_history.await_count == 2
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_json_marks_incomplete_traversals(
     mock_cli_context, capsys
 ):
@@ -1725,7 +1669,6 @@ def _empty_event_page() -> EventHistoryPage:
     return EventHistoryPage(events=[], next_cursor=None)
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, capsys):
     """An empty window completes and prints no event timestamps."""
     # Arrange: The provider returns no events for a one-year window.
@@ -1743,7 +1686,6 @@ async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, caps
     assert "Pagination completed after 1 page(s)" in out
 
 
-@pytest.mark.asyncio
 async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, capsys):
     """An empty window is one complete JSON document with null timestamps."""
     # Arrange: The provider returns no events for a one-year window.
@@ -1767,7 +1709,6 @@ async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, 
     }
 
 
-@pytest.mark.asyncio
 async def test_async_main_list_events_fixture_stops_at_one_page(monkeypatch, capsys):
     """The offline fixture traversal should honor the page safety limit."""
     # Arrange: Use the bundled fixture with a one page safety limit.
@@ -1799,7 +1740,6 @@ async def test_async_main_list_events_fixture_stops_at_one_page(monkeypatch, cap
     assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
 
 
-@pytest.mark.asyncio
 async def test_async_main_list_events_fixture_prints_readable_summary(
     monkeypatch, capsys
 ):
@@ -1842,7 +1782,6 @@ async def test_async_main_list_events_fixture_prints_readable_summary(
     assert "Using Fixture Device: Vitodens200W" in captured.out
 
 
-@pytest.mark.asyncio
 async def test_async_main_list_events_fixture_readable_marks_safety_limit(
     monkeypatch, capsys
 ):

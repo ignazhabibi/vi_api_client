@@ -59,7 +59,6 @@ def _gateway_features_url(device: Device) -> str:
     )
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
     load_fixture_json,
     static_token_auth,
@@ -105,7 +104,6 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     }
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_input_order(
     static_token_auth,
 ):
@@ -149,7 +147,6 @@ async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_inp
     assert result.updated_devices[1].features == ()
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device_features(
     static_token_auth,
 ):
@@ -210,7 +207,6 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
     ],
     ids=["duplicate-device-ids", "different-gateways"],
 )
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_rejects_ambiguous_device_sets_before_any_request(
     devices: list[Device], message: str, static_token_auth
@@ -225,7 +221,6 @@ async def test_update_gateway_devices_rejects_ambiguous_device_sets_before_any_r
             await client.update_gateway_devices(devices)
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_decodes_complete_device_uri_segments(
     static_token_auth,
 ):
@@ -260,7 +255,6 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
     assert heating_status.value == "ready"
 
 
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_accepts_empty_input_without_request(
     static_token_auth,
@@ -363,7 +357,6 @@ _DUPLICATED_GATEWAY_FEATURE = {
         "undecodable-uri",
     ],
 )
-@pytest.mark.asyncio
 async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     response, message, static_token_auth
 ):
@@ -390,7 +383,6 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     ],
     ids=["device-communication-error", "device-not-found", "package-not-paid-for"],
 )
-@pytest.mark.asyncio
 async def test_update_gateway_devices_captures_device_specific_fallback_errors(
     status: int, error_type: str, load_fixture_json, static_token_auth
 ):
@@ -443,7 +435,6 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
     ],
     ids=["unauthorized", "rate-limited", "server-error", "non-fallback-validation"],
 )
-@pytest.mark.asyncio
 async def test_update_gateway_devices_propagates_global_gateway_errors(
     status: int,
     error_type: str,
@@ -468,7 +459,6 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
                 await client.update_gateway_devices([device])
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_propagates_connection_errors(static_token_auth):
     # Arrange: Do not register the bulk endpoint, causing a network failure.
     with aioresponses():
@@ -480,7 +470,6 @@ async def test_update_gateway_devices_propagates_connection_errors(static_token_
                 await client.update_gateway_devices([build_gateway_device("0")])
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_translates_malformed_fallback_response(
     static_token_auth,
 ):
@@ -501,7 +490,6 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
                 await client.update_gateway_devices([device])
 
 
-@pytest.mark.asyncio
 async def test_get_installations_returns_every_listed_installation(
     load_fixture_json, static_token_auth
 ):
@@ -523,7 +511,6 @@ async def test_get_installations_returns_every_listed_installation(
     ]
 
 
-@pytest.mark.asyncio
 async def test_get_gateways_returns_the_listed_gateway(
     load_fixture_json, static_token_auth
 ):
@@ -542,7 +529,6 @@ async def test_get_gateways_returns_the_listed_gateway(
     assert [gateway.serial for gateway in gateways] == ["1234567890"]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("url", "request_method", "operation", "arguments"),
     [
@@ -579,7 +565,6 @@ async def test_discovery_rejects_successful_non_json_responses(
                 await getattr(client, operation)(*arguments)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("endpoint", "call"),
     [
@@ -622,7 +607,6 @@ async def test_discovery_rejects_successful_malformed_json_responses(
                 await getattr(client, operation)(*arguments)
 
 
-@pytest.mark.asyncio
 async def test_discovery_keeps_a_caller_managed_session_open(
     load_fixture_json, static_token_auth
 ):
@@ -644,7 +628,6 @@ async def test_discovery_keeps_a_caller_managed_session_open(
             await session.close()
 
 
-@pytest.mark.asyncio
 async def test_get_full_installation_status_uses_matching_gateways_only(
     static_token_auth,
 ):
@@ -691,7 +674,6 @@ async def test_get_full_installation_status_uses_matching_gateways_only(
     assert other_gateway not in "".join(requested_urls)
 
 
-@pytest.mark.asyncio
 async def test_get_full_installation_status_rejects_malformed_device_responses(
     static_token_auth,
 ):
@@ -724,7 +706,6 @@ async def test_get_full_installation_status_rejects_malformed_device_responses(
                 await client.get_full_installation_status(installation_id)
 
 
-@pytest.mark.asyncio
 async def test_get_devices_returns_the_devices_of_one_gateway(
     load_fixture_json, static_token_auth
 ):
@@ -746,7 +727,6 @@ async def test_get_devices_returns_the_devices_of_one_gateway(
     assert devices[0].gateway_serial == "gateway-1"
 
 
-@pytest.mark.asyncio
 async def test_get_features_returns_every_device_feature_as_flat_features(
     load_fixture_json, static_token_auth
 ):
@@ -770,7 +750,6 @@ async def test_get_features_returns_every_device_feature_as_flat_features(
     assert features[0].value == 5.5
 
 
-@pytest.mark.asyncio
 async def test_get_features_translates_duplicate_api_feature_names(
     load_fixture_json, static_token_auth
 ):
@@ -791,7 +770,6 @@ async def test_get_features_translates_duplicate_api_feature_names(
                 )
 
 
-@pytest.mark.asyncio
 async def test_get_features_ignores_duplicates_outside_requested_names(
     load_fixture_json, static_token_auth
 ):
@@ -815,7 +793,6 @@ async def test_get_features_ignores_duplicates_outside_requested_names(
     assert [feature.name for feature in features] == ["heating.circuits.0.active"]
 
 
-@pytest.mark.asyncio
 async def test_get_features_applies_enabled_ready_and_name_filters_after_response(
     load_fixture_json,
     static_token_auth,
@@ -868,7 +845,6 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
     ],
     ids=["api-feature-name", "feature-name", "feature-and-api-feature-name"],
 )
-@pytest.mark.asyncio
 async def test_get_features_matches_feature_and_api_feature_names_locally(
     requested_name, expected_names, load_fixture_device, static_token_auth
 ):
@@ -890,7 +866,6 @@ async def test_get_features_matches_feature_and_api_feature_names_locally(
     assert "filter" not in request.kwargs["json"]
 
 
-@pytest.mark.asyncio
 async def test_get_features_returns_nothing_for_unknown_names(
     load_fixture_json, static_token_auth
 ):
@@ -914,7 +889,6 @@ async def test_get_features_returns_nothing_for_unknown_names(
     assert features == []
 
 
-@pytest.mark.asyncio
 async def test_update_device_returns_a_new_device_with_the_read_features(
     load_fixture_json, static_token_auth
 ):
@@ -937,7 +911,6 @@ async def test_update_device_returns_a_new_device_with_the_read_features(
     assert device.features == ()
 
 
-@pytest.mark.asyncio
 async def test_update_device_rejects_malformed_feature_responses(static_token_auth):
     # Arrange: Return an invalid feature collection for an existing device.
     device = build_gateway_device("0")
@@ -951,7 +924,6 @@ async def test_update_device_rejects_malformed_feature_responses(static_token_au
                 await client.update_device(device)
 
 
-@pytest.mark.asyncio
 async def test_get_devices_hydrates_each_device_with_its_own_features(
     load_fixture_json, static_token_auth
 ):
@@ -988,7 +960,6 @@ async def test_get_devices_hydrates_each_device_with_its_own_features(
     }
 
 
-@pytest.mark.asyncio
 async def test_set_feature_sends_the_current_value_of_a_required_sibling(
     load_fixture_json, static_token_auth
 ):
@@ -1018,7 +989,6 @@ async def test_set_feature_sends_the_current_value_of_a_required_sibling(
     assert request.kwargs["json"] == {"slope": 1.2, "shift": 4}
 
 
-@pytest.mark.asyncio
 async def test_set_feature_returns_a_new_device_with_the_written_value(
     load_fixture_json, static_token_auth
 ):
@@ -1056,7 +1026,6 @@ async def test_set_feature_returns_a_new_device_with_the_written_value(
     assert input_slope_feature.value == 0.6
 
 
-@pytest.mark.asyncio
 async def test_execute_command_preserves_explicit_parameters(
     load_fixture_json, static_token_auth
 ):
@@ -1085,7 +1054,6 @@ async def test_execute_command_preserves_explicit_parameters(
     assert request.kwargs["json"] == parameters
 
 
-@pytest.mark.asyncio
 async def test_execute_command_rejects_malformed_success_response(
     load_fixture_json, static_token_auth
 ):
@@ -1111,7 +1079,6 @@ async def test_execute_command_rejects_malformed_success_response(
                 await client.execute_command(slope_feature, {"slope": 0.7, "shift": 4})
 
 
-@pytest.mark.asyncio
 async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_write(
     load_fixture_json, static_token_auth
 ):
@@ -1144,7 +1111,6 @@ async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_
     assert updated_device is device
 
 
-@pytest.mark.asyncio
 async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
     load_fixture_json, static_token_auth
 ):
@@ -1207,7 +1173,6 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
         "update-device-all",
     ],
 )
-@pytest.mark.asyncio
 async def test_feature_reads_send_the_enabled_filter_hint(
     read, expected_hint: bool, static_token_auth
 ):
@@ -1239,7 +1204,6 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 @pytest.mark.parametrize(
     "only_active_features", [True, False], ids=["active-only", "all-features"]
 )
-@pytest.mark.asyncio
 async def test_get_devices_passes_the_feature_filter_to_hydration(
     only_active_features: bool, static_token_auth
 ):
@@ -1273,7 +1237,6 @@ async def test_get_devices_passes_the_feature_filter_to_hydration(
     }
 
 
-@pytest.mark.asyncio
 async def test_update_gateway_devices_fallback_reraises_non_device_errors(
     static_token_auth,
 ):

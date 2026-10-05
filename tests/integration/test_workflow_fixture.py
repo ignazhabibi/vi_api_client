@@ -8,8 +8,6 @@ from vi_api_client.models import Device, Feature
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
     """Fixture discovery should share the client conversion without credentials."""
@@ -35,8 +33,6 @@ async def _enabled_features_by_name(fixture_device: str) -> dict[str, Feature]:
     return {feature.name: feature for feature in features}
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_gas_boiler_fixture_exposes_writable_curve_and_outside_temperature():
     """The gas boiler fixture carries a bounded curve slope and an outside sensor."""
@@ -54,8 +50,6 @@ async def test_gas_boiler_fixture_exposes_writable_curve_and_outside_temperature
     assert outside_temperature.unit == "celsius"
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_heat_pump_fixture_exposes_compressor_sensor_and_writable_mode():
     """The heat pump fixture carries compressor data and a writable circuit mode."""
@@ -69,8 +63,6 @@ async def test_heat_pump_fixture_exposes_compressor_sensor_and_writable_mode():
     assert features["heating.circuits.0.operating.modes.active"].is_writable is True
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_set_feature_stays_offline():
     """Fixture writes succeed through simulated command execution."""
@@ -97,8 +89,6 @@ async def test_fixture_set_feature_stays_offline():
     assert slope.value != updated_slope.value
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_gateway_device_refresh_stays_offline():
     """Gateway refresh keeps the order and metadata of fixture devices."""
@@ -129,8 +119,6 @@ async def test_fixture_gateway_device_refresh_stays_offline():
     assert all(device.features for device in result.updated_devices)
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 @pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
 async def test_every_catalog_device_supports_the_standard_workflow(fixture_device):
@@ -182,8 +170,6 @@ async def test_every_catalog_device_supports_the_standard_workflow(fixture_devic
     assert updated.value == writable.value
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_event_history_returns_one_page_with_cursor():
     """Fixture clients should serve the event history page without network."""
@@ -210,8 +196,6 @@ async def test_fixture_event_history_returns_one_page_with_cursor():
     assert page.next_cursor == "b3BhcXVlLWN1cnNvci10b2tlbg=="
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_event_history_serves_final_page_for_cursor_requests():
     """Fixture cursor requests should serve the observed final page shape."""
