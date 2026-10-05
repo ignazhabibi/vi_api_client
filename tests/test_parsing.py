@@ -508,3 +508,25 @@ def test_schedule_features_are_written_as_one_object_without_scalar_limits():
         None,
         None,
     )
+
+
+def test_non_executable_schedule_commands_do_not_make_schedules_writable():
+    """Schedules follow the same executable rule as scalar features."""
+    # Arrange: The only schedule command is marked not executable.
+    raw_feature = {
+        "feature": "heating.circuits.0.heating.schedule",
+        "properties": {"entries": {"type": "Schedule", "value": {"mon": []}}},
+        "commands": {
+            "setSchedule": {
+                "uri": "/commands/setSchedule",
+                "isExecutable": False,
+                "params": {"newSchedule": {"type": "Schedule"}},
+            }
+        },
+    }
+
+    # Act: Parse the API feature.
+    feature = api_feature_to_flat_features(raw_feature)[0]
+
+    # Assert: The schedule stays read-only.
+    assert feature.control is None
