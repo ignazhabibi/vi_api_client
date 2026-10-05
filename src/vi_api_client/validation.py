@@ -1,10 +1,15 @@
 """Validation helpers for JSON values crossing client trust boundaries."""
 
 from math import isfinite
-from typing import cast
+from typing import TypeIs, cast
 
 from ._types import JsonValue
 from .exceptions import ViResponseError
+
+
+def is_json_number(value: object) -> TypeIs[int | float]:
+    """Return whether a value is a JSON number; bool counts as int in Python."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def validate_json_value(value: object, *, path: str = "value") -> JsonValue:
@@ -15,7 +20,8 @@ def validate_json_value(value: object, *, path: str = "value") -> JsonValue:
         path: Human-readable location used in validation errors.
 
     Returns:
-        The original value with its normal JSON-compatible Python shapes intact.
+        A validated copy: lists and dicts are rebuilt, other values are
+        returned as is.
 
     Raises:
         ViResponseError: If the value cannot be represented by JSON.

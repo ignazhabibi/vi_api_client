@@ -9,7 +9,17 @@ from tempfile import NamedTemporaryFile
 
 from ._types import JsonValue
 from .exceptions import ViAuthError, ViResponseError
-from .validation import validate_json_value
+from .validation import is_json_number, validate_json_value
+
+_TEXT_FIELDS = (
+    "access_token",
+    "refresh_token",
+    "token_type",
+    "client_id",
+    "redirect_uri",
+)
+_NUMBER_FIELDS = ("expires_in", "expires_at")
+_RECOVERY_HINT = "Repair or remove the file before authenticating again."
 
 
 class CredentialDocument:
@@ -38,7 +48,7 @@ class CredentialDocument:
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise ViAuthError(
                 f"Token file '{self.path}' contains invalid JSON and was not "
-                "modified. Repair or remove the file before authenticating again."
+                f"modified. {_RECOVERY_HINT}"
             ) from error
         except OSError as error:
             raise ViAuthError(
@@ -54,33 +64,33 @@ class CredentialDocument:
         if not isinstance(data, dict):
             raise ViAuthError(
                 f"Token file '{self.path}' must contain a JSON object and was not "
-                "modified. Repair or remove the file before authenticating again."
+                f"modified. {_RECOVERY_HINT}"
             )
         _validate_credential_fields(data)
         return data
 
-    def update(self, token_data: object) -> None:
-        """Merge token data and atomically replace the credential document.
+    def update(self, credential_fields: object) -> None:
+        """Merge credential fields and atomically replace the credential document.
 
         Args:
-            token_data: JSON credential fields that should replace matching saved
-                fields.
+            credential_fields: JSON credential fields, such as tokens or client
+                configuration, that should replace matching saved fields.
 
         Raises:
             ViAuthError: If supplied or existing credential data is invalid, the
                 parent directory is unavailable, or the document cannot be saved.
         """
         try:
-            validated_token_data = validate_json_value(
-                token_data, path="Credential update"
+            validated_fields = validate_json_value(
+                credential_fields, path="Credential update"
             )
         except ViResponseError as error:
             raise ViAuthError("Credential update contains invalid JSON data") from error
-        if not isinstance(validated_token_data, dict):
+        if not isinstance(validated_fields, dict):
             raise ViAuthError("Credential update must be a JSON object")
 
         current_data = self.read()
-        current_data.update(validated_token_data)
+        current_data.update(validated_fields)
         _validate_credential_fields(current_data)
         self._replace(current_data)
 
@@ -116,21 +126,11 @@ class CredentialDocument:
 
 def _validate_credential_fields(data: dict[str, JsonValue]) -> None:
     """Validate known authentication fields while allowing other JSON fields."""
-    for field_name in (
-        "access_token",
-        "refresh_token",
-        "token_type",
-        "client_id",
-        "redirect_uri",
-    ):
+    for field_name in _TEXT_FIELDS:
         value = data.get(field_name)
         if value is not None and not isinstance(value, str):
             raise ViAuthError(f"Credential field {field_name} must be a string")
-    for field_name in ("expires_in", "expires_at"):
+    for field_name in _NUMBER_FIELDS:
         value = data.get(field_name)
-        if value is not None and (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not isfinite(value)
-        ):
+        if value is not None and (not is_json_number(value) or not isfinite(value)):
             raise ViAuthError(f"Credential field {field_name} must be a finite number")

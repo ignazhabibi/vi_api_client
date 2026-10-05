@@ -1,14 +1,15 @@
 """Constants for Viessmann API Client."""
 
-API_BASE_URL: str = "https://api.viessmann-climatesolutions.com"
+# Authentication endpoints (absolute URLs)
 AUTH_BASE_URL: str = "https://iam.viessmann-climatesolutions.com/idp/v3"
-
-# Endpoints
 ENDPOINT_AUTHORIZE: str = f"{AUTH_BASE_URL}/authorize"
+ENDPOINT_TOKEN: str = f"{AUTH_BASE_URL}/token"
+
+# API endpoints (paths relative to API_BASE_URL)
+API_BASE_URL: str = "https://api.viessmann-climatesolutions.com"
 ENDPOINT_FEATURES: str = "/iot/v2/features/installations"
 ENDPOINT_GATEWAYS: str = "/iot/v2/equipment/gateways"
 ENDPOINT_INSTALLATIONS: str = "/iot/v2/equipment/installations"
-ENDPOINT_TOKEN: str = f"{AUTH_BASE_URL}/token"
 ENDPOINT_EVENT_HISTORY: str = "/iot/v2/events-history/installations"
 
 EVENT_HISTORY_MAX_LIMIT: int = 1000

@@ -120,6 +120,19 @@ def test_mask_pii_redacts_gateway_serials_in_urls():
     assert "gateways/****************" in masked_text
 
 
+def test_mask_pii_redacts_gateway_serials_in_compact_json():
+    """Serials in JSON without a space after the colon should be redacted."""
+    # Arrange: Build compact JSON as produced by json.dumps(separators=...).
+    text = '{"serial":"1234567890123456"}'
+
+    # Act: Mask the compact JSON text.
+    masked_text = mask_pii(text)
+
+    # Assert: The serial is redacted while the key remains readable.
+    assert "1234567890123456" not in masked_text
+    assert 'serial":"****************' in masked_text
+
+
 def test_mask_pii_redacts_installation_ids_in_contexts():
     """Installation IDs should be redacted in paths and labeled contexts."""
     # Arrange: Build log lines with installation IDs in two known contexts.

@@ -1,4 +1,4 @@
-"""Utility functions for Viessmann API Client."""
+"""Helpers for CLI parameters, feature display, and log masking."""
 
 from __future__ import annotations
 
@@ -11,6 +11,23 @@ from ._types import JsonValue
 
 if TYPE_CHECKING:
     from .models import Feature
+
+_DAY_ABBREVIATIONS = {
+    "mon": "Mo",
+    "tue": "Tu",
+    "wed": "We",
+    "thu": "Th",
+    "fri": "Fr",
+    "sat": "Sa",
+    "sun": "Su",
+}
+_BEARER_TOKEN_PATTERN = re.compile(r"Bearer\s+[a-zA-Z0-9\-_.]+", re.IGNORECASE)
+# Sixteen-digit gateway serials in URL paths, JSON, and CLI output.
+_GATEWAY_SERIAL_PATTERN = re.compile(r'(gateways/|serial":\s?"?|Serial: )([0-9]{16})')
+# Installation IDs in URL paths, JSON, and CLI output.
+_INSTALLATION_ID_PATTERN = re.compile(
+    r'(installations/|installationId":\s?|ID: )([0-9]{4,10})'
+)
 
 
 def parse_cli_params(params_list: list[str]) -> dict[str, JsonValue]:
@@ -34,20 +51,18 @@ def parse_cli_params(params_list: list[str]) -> dict[str, JsonValue]:
     if not params_list:
         return {}
 
-    # Case 1: Single argument that looks like JSON
     if len(params_list) == 1 and params_list[0].strip().startswith("{"):
         try:
             parsed: JsonValue = json.loads(params_list[0])
         except json.JSONDecodeError:
             raise ValueError(
-                "Example appears to be JSON but could not be parsed."
+                "Parameters appear to be JSON but could not be parsed."
             ) from None
         # Defensive: JSON starting with "{" parses to an object or fails.
         if not isinstance(parsed, dict):  # pragma: no cover
             raise ValueError("JSON parameters must form a string-keyed object.")
         return parsed
 
-    # Case 2: Key=Value pairs
     params: dict[str, JsonValue] = {}
 
     for item in params_list:
@@ -74,8 +89,7 @@ def _parse_cli_value(value_string: str) -> JsonValue:
         return float(value_string)
     except ValueError:
         pass
-    # Try parsing as JSON (e.g. for nested objects or lists)
-    if value_string.startswith("[") or value_string.startswith("{"):
+    if value_string.startswith(("[", "{")):
         with suppress(json.JSONDecodeError):
             parsed: JsonValue = json.loads(value_string)
             return parsed
@@ -93,21 +107,19 @@ def format_feature(feature: Feature) -> str:
         A formatted string representation of the value and unit.
     """
     value = feature.value
-    unit = feature.unit
-
     if value is None:
         return "-"
 
-    # Check if value is a schedule dict (has day keys like 'mon', 'tue', etc.)
+    # Schedules map weekday keys to time slots.
     if isinstance(value, dict) and {"mon", "tue", "wed"}.issubset(value.keys()):
         return _format_schedule(value)
 
-    # Formatting for Lists (History Data)
-    if isinstance(value, list):
-        content = str(value) if len(value) <= 10 else f"List[{len(value)} items]"
-        return f"{content} {unit}".strip() if unit else content
-
-    return f"{value} {unit}".strip() if unit else str(value)
+    # Long lists, such as history data, are summarized to stay readable.
+    if isinstance(value, list) and len(value) > 10:
+        content = f"List[{len(value)} items]"
+    else:
+        content = str(value)
+    return f"{content} {feature.unit}".strip() if feature.unit else content
 
 
 def _format_schedule(schedule: dict[str, JsonValue]) -> str:
@@ -119,17 +131,8 @@ def _format_schedule(schedule: dict[str, JsonValue]) -> str:
     Returns:
         A concise string representation of the schedule.
     """
-    day_abbr = {
-        "mon": "Mo",
-        "tue": "Tu",
-        "wed": "We",
-        "thu": "Th",
-        "fri": "Fr",
-        "sat": "Sa",
-        "sun": "Su",
-    }
     parts: list[str] = []
-    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+    for day, abbreviation in _DAY_ABBREVIATIONS.items():
         slots = schedule.get(day, [])
         if not isinstance(slots, list) or not slots:
             continue
@@ -139,7 +142,7 @@ def _format_schedule(schedule: dict[str, JsonValue]) -> str:
             if isinstance(slot, dict)
         ]
         if slot_strs:
-            parts.append(f"{day_abbr[day]}[{', '.join(slot_strs)}]")
+            parts.append(f"{abbreviation}[{', '.join(slot_strs)}]")
     return " ".join(parts) if parts else "(empty)"
 
 
@@ -155,19 +158,6 @@ def mask_pii(text: str) -> str:
     if not text:
         return text
 
-    # Mask Tokens (Bearer eyJ...)
-    text = re.sub(r"Bearer\s+[a-zA-Z0-9\-_.]+", "Bearer ***", text, flags=re.IGNORECASE)
-
-    # Mask Gateways in URLs or JSON (16 digit serials)
-    # Pattern: gateway_serial, serial, or inside URL path
-    text = re.sub(
-        r'(gateways/|serial":\s"?|Serial: )([0-9]{16})', r"\1****************", text
-    )
-
-    # Mask Installation IDs (numeric, usually 5-8 digits)
-    # Context: installations/12345/ or installation_id": 12345
-    text = re.sub(
-        r'(installations/|installationId":\s?|ID: )([0-9]{4,10})', r"\1****", text
-    )
-
-    return text
+    text = _BEARER_TOKEN_PATTERN.sub("Bearer ***", text)
+    text = _GATEWAY_SERIAL_PATTERN.sub(r"\1****************", text)
+    return _INSTALLATION_ID_PATTERN.sub(r"\1****", text)
