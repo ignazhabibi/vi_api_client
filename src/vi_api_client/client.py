@@ -160,8 +160,8 @@ class ViClient:
             List of Feature objects (flattened).
 
         Raises:
-            ViResponseError: If the API response is malformed or contains
-                duplicate feature names.
+            ViResponseError: If the API response is malformed or the returned
+                features contain duplicate names.
         """
         payload = {
             "skipDisabled": only_enabled,
@@ -177,6 +177,7 @@ class ViClient:
         api_features = self._response_items(response, resource="Feature")
 
         features = self._api_features_to_flat_features(api_features, feature_names)
+        self._reject_duplicate_feature_names(features)
         if only_enabled:
             features = [
                 feature
@@ -352,6 +353,7 @@ class ViClient:
             features = self._api_features_to_flat_features(
                 api_features_by_device_id[device.id]
             )
+            self._reject_duplicate_feature_names(features)
             updated_devices_by_id[device.id] = replace(device, features=features)
 
         missing_devices = [
@@ -537,32 +539,38 @@ class ViClient:
         """Parse one device's API features into flat features.
 
         A name selects a feature by its own name or by the name of the API
-        feature it was parsed from; without names every feature is kept. A
-        device snapshot requires unique feature names, so duplicates are
-        checked across all parsed features, requested or not.
+        feature it was parsed from; without names every feature is kept.
 
         Raises:
-            ViResponseError: If an API feature is malformed or two parsed
-                features share a name.
+            ViResponseError: If an API feature is malformed.
         """
         requested_names = set(feature_names or ())
         selected_features: list[Feature] = []
-        feature_names_seen: set[str] = set()
         for api_feature in api_features:
             features = parse_feature_flat(api_feature)
             # parse_feature_flat validated the entry's API feature name.
-            is_api_feature_requested = (
-                not requested_names or api_feature["feature"] in requested_names
-            )
-            for feature in features:
-                if feature.name in feature_names_seen:
-                    raise ViResponseError(
-                        f"Duplicate feature name in API response: {feature.name}"
-                    )
-                feature_names_seen.add(feature.name)
-                if is_api_feature_requested or feature.name in requested_names:
-                    selected_features.append(feature)
+            if not requested_names or api_feature["feature"] in requested_names:
+                selected_features.extend(features)
+            else:
+                selected_features.extend(
+                    feature for feature in features if feature.name in requested_names
+                )
         return selected_features
+
+    @staticmethod
+    def _reject_duplicate_feature_names(features: list[Feature]) -> None:
+        """Reject API features that would give a device two features of one name.
+
+        Raises:
+            ViResponseError: If two features share a name.
+        """
+        feature_names_seen: set[str] = set()
+        for feature in features:
+            if feature.name in feature_names_seen:
+                raise ViResponseError(
+                    f"Duplicate feature name in API response: {feature.name}"
+                )
+            feature_names_seen.add(feature.name)
 
     async def _execute_command(
         self, control: FeatureControl, payload: dict[str, JsonValue]

@@ -835,8 +835,36 @@ async def test_get_features_translates_duplicate_api_feature_names(
             # Act and assert: The client translates an invalid API response.
             with pytest.raises(ViResponseError, match="Duplicate feature name"):
                 await client.get_features(
-                    device, feature_names=["heating.circuits.0.active"]
+                    device, feature_names=["heating.sensors.temperature.outside"]
                 )
+
+
+@pytest.mark.asyncio
+async def test_get_features_ignores_duplicates_outside_requested_names(
+    load_fixture_json, static_token_auth
+):
+    """Duplicates only matter for features the client returns."""
+    # Arrange: Duplicate a feature that the request does not select.
+    data = load_fixture_json("features_heating_sensors.json")
+    data["data"].append(deepcopy(data["data"][0]))
+    url = (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/"
+        "devices/0/features/filter"
+    )
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload=data)
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act: Request only a feature that appears once.
+            features = await client.get_features(
+                _build_gateway_device("0"),
+                feature_names=["heating.circuits.0.active"],
+            )
+
+    # Assert: The requested feature is returned without a duplicate error.
+    assert [feature.name for feature in features] == ["heating.circuits.0.active"]
 
 
 @pytest.mark.asyncio
