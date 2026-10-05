@@ -14,14 +14,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from vi_api_client import (
+    CommandResponse,
     EventHistoryPage,
     FeatureValue,
     FixtureViClient,
     InstallationEvent,
+    ViClient,
 )
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     DEFAULT_EVENT_HISTORY_MAX_PAGES,
+    CLIContext,
     EventHistoryWindow,
     _dispatch_command,
     _event_detail_lines,
@@ -43,7 +46,6 @@ from vi_api_client.cli import (
 )
 from vi_api_client.exceptions import (
     ViNotFoundError,
-    ViResponseError,
     ViValidationError,
 )
 from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
@@ -99,28 +101,22 @@ def _feature(
 
 
 @pytest.fixture
-def mock_cli_context():
-    """Provide a mocked CLI context with an async client boundary."""
-    fixture_client = AsyncMock()
-    mock_ctx = MagicMock()
-    mock_ctx.client = fixture_client
-    mock_ctx.installation_id = "99"
-    mock_ctx.gateway_serial = "GW1"
-    mock_ctx.device_id = "DEV1"
-    return mock_ctx
+def mock_cli_context() -> CLIContext:
+    """Provide a CLI context whose client only offers real ViClient methods."""
+    return CLIContext(None, AsyncMock(spec=ViClient), "99", "GW1", "DEV1")
 
 
 @contextmanager
-def _patched_cli_context(mock_cli_context) -> Iterator[MagicMock]:
+def _patched_cli_context(mock_cli_context: CLIContext) -> Iterator[MagicMock]:
     """Patch the CLI context setup boundary and yield the setup mock."""
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
         mock_setup.return_value.__aenter__.return_value = mock_cli_context
         yield mock_setup
 
 
-def _successful_set_result() -> tuple[MagicMock, MagicMock]:
+def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
     """Return a mocked successful set_feature result pair."""
-    return MagicMock(success=True, message=None, reason=None), MagicMock()
+    return CommandResponse(success=True), MagicMock(spec=Device)
 
 
 @pytest.mark.asyncio
@@ -227,8 +223,8 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     feature = _feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
-        MagicMock(success=False, message="API rejected", reason="out of range"),
-        MagicMock(),
+        CommandResponse(success=False, message="API rejected", reason="out of range"),
+        MagicMock(spec=Device),
     )
 
     with _patched_cli_context(mock_cli_context):
@@ -250,8 +246,8 @@ async def test_cmd_set_failed_result_without_details(mock_cli_context, capsys):
     feature = _feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
-        MagicMock(success=False, message=None, reason=None),
-        MagicMock(),
+        CommandResponse(success=False),
+        MagicMock(spec=Device),
     )
 
     with _patched_cli_context(mock_cli_context):
@@ -266,21 +262,83 @@ async def test_cmd_set_failed_result_without_details(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_set_reports_missing_device_context(mock_cli_context):
+async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
     """Writes without a device context should fail gracefully."""
     # Arrange: Strip the device identifier from the CLI context.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
     mock_cli_context.device_id = None
-    mock_cli_context.client.get_features.return_value = [
-        _feature(control=_control(value_type="number"))
-    ]
 
     with _patched_cli_context(mock_cli_context):
         # Act: Attempt the write without a device context.
-        assert await cmd_set(args) is False
+        result = await cmd_set(args)
 
-    # Assert: No write is sent without the device context.
+    # Assert: The command names the missing context and sends nothing.
+    assert result is False
+    assert "A device context is required" in caplog.text
+    mock_cli_context.client.get_features.assert_not_called()
     mock_cli_context.client.set_feature.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "failure"),
+    [
+        (
+            cmd_set,
+            {"feature_name": "heating.curve.slope", "value": "1.4"},
+            ("set_feature", "setting feature"),
+        ),
+        (
+            cmd_get_feature,
+            {"feature_name": "heating.curve.slope"},
+            ("get_features", "fetching feature"),
+        ),
+        (
+            cmd_exec,
+            {
+                "feature_name": "heating.curve.slope",
+                "command_name": "setCurve",
+                "params": ["slope=1.4"],
+            },
+            ("execute_command", "executing command"),
+        ),
+        (
+            cmd_list_features,
+            {"enabled": False, "values": False},
+            ("get_features", "listing features"),
+        ),
+        (cmd_list_devices, {}, ("get_installations", "listing devices")),
+        (cmd_list_writable, {}, ("get_features", "listing writable features")),
+        (cmd_list_events, {"days": 7}, ("get_event_history", "listing events")),
+    ],
+    ids=[
+        "set",
+        "get-feature",
+        "exec",
+        "list-features",
+        "list-devices",
+        "list-writable",
+        "list-events",
+    ],
+)
+@pytest.mark.asyncio
+async def test_commands_log_unexpected_client_errors_and_fail(
+    command, arguments, failure: tuple[str, str], mock_cli_context, caplog
+):
+    """Unexpected client errors should fail the command with a logged reason."""
+    # Arrange: Offer one writable feature and make one client call fail.
+    failing_method, action = failure
+    mock_cli_context.client.get_features.return_value = [
+        _feature(control=_control(value_type="number"))
+    ]
+    getattr(mock_cli_context.client, failing_method).side_effect = RuntimeError("boom")
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Run the command against the failing client.
+        result = await command(_cli_args(**arguments))
+
+    # Assert: The command fails and logs which action failed and why.
+    assert result is False
+    assert f"Error {action}: boom" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -330,23 +388,6 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
 
     # Assert: The CLI reports the not-found failure.
     assert "Not found: device gone" in capsys.readouterr().out
-
-
-@pytest.mark.asyncio
-async def test_cmd_set_reports_unexpected_errors(mock_cli_context, capsys):
-    """Unexpected write failures should fail the command without a traceback."""
-    # Arrange: Make the write fail with an unexpected error.
-    args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(control=_control(value_type="number"))
-    mock_cli_context.client.get_features.return_value = [feature]
-    mock_cli_context.client.set_feature.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the write.
-        assert await cmd_set(args) is False
-
-    # Assert: The command fails cleanly with an empty success output.
-    assert "Success!" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -565,18 +606,6 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_get_feature_reports_unexpected_errors(mock_cli_context):
-    """Unexpected read failures should fail the command without a traceback."""
-    # Arrange: Make the feature read fail with an unexpected error.
-    args = _cli_args(feature_name="heating.curve.slope", json=False)
-    mock_cli_context.client.get_features.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature.
-        assert await cmd_get_feature(args) is False
-
-
-@pytest.mark.asyncio
 async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tmp_path):
     """Login should reuse environment credentials and save them for later commands."""
     # Arrange: Seed a token file and provide client settings through the environment.
@@ -721,7 +750,7 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
     )
     feature = _feature(control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
-    mock_cli_context.client.execute_command.return_value = MagicMock(
+    mock_cli_context.client.execute_command.return_value = CommandResponse(
         success=True, message="OK", reason=None
     )
 
@@ -796,8 +825,8 @@ async def test_cmd_exec_failed_result_without_details(mock_cli_context, capsys):
         params=["slope=1.4"],
     )
     mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
-    mock_cli_context.client.execute_command.return_value = MagicMock(
-        success=False, message=None, reason=None
+    mock_cli_context.client.execute_command.return_value = CommandResponse(
+        success=False
     )
 
     with _patched_cli_context(mock_cli_context):
@@ -842,7 +871,7 @@ async def test_cmd_exec_reports_failed_command_results(mock_cli_context, capsys)
         params=["slope=1.4"],
     )
     mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
-    mock_cli_context.client.execute_command.return_value = MagicMock(
+    mock_cli_context.client.execute_command.return_value = CommandResponse(
         success=False, message="API rejected", reason="out of range"
     )
 
@@ -875,23 +904,6 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
 
     # Assert: The CLI reports the not-found failure.
     assert "Not found: device gone" in capsys.readouterr().out
-
-
-@pytest.mark.asyncio
-async def test_cmd_exec_reports_unexpected_errors(mock_cli_context):
-    """Unexpected explicit-command failures should fail without a traceback."""
-    # Arrange: Make the explicit command fail with an unexpected error.
-    args = _cli_args(
-        feature_name="heating.curve.slope",
-        command_name="setCurve",
-        params=["slope=1.4"],
-    )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
-    mock_cli_context.client.execute_command.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command.
-        assert await cmd_exec(args) is False
 
 
 @pytest.mark.asyncio
@@ -1041,18 +1053,6 @@ async def test_cmd_list_features_simple_list(mock_cli_context, capsys):
     assert "- f1" in captured.out
 
 
-@pytest.mark.asyncio
-async def test_cmd_list_features_reports_unexpected_errors(mock_cli_context):
-    """Unexpected listing failures should fail the command without a traceback."""
-    # Arrange: Make the feature listing fail with an unexpected error.
-    args = _cli_args(enabled=False, values=False, json=False)
-    mock_cli_context.client.get_features.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the features.
-        assert await cmd_list_features(args) is False
-
-
 @pytest.mark.parametrize(
     "output_flags",
     [["--json"], ["--values", "--json"]],
@@ -1162,18 +1162,6 @@ async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsy
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_devices_reports_unexpected_errors(mock_cli_context):
-    """Unexpected listing failures should fail the command without a traceback."""
-    # Arrange: Make the installation listing fail with an unexpected error.
-    args = _cli_args()
-    mock_cli_context.client.get_installations.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the account hierarchy.
-        assert await cmd_list_devices(args) is False
-
-
-@pytest.mark.asyncio
 async def test_cmd_list_devices_does_not_require_device_context(capsys):
     """List devices without installation, gateway, or device IDs."""
     # Arrange: Construct the real CLI context without any device-specific IDs.
@@ -1270,18 +1258,6 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     assert "heating.program" in captured.out
     assert "setCurve" in captured.out
     assert "Constraints:" not in captured.out
-
-
-@pytest.mark.asyncio
-async def test_cmd_list_writable_reports_unexpected_errors(mock_cli_context):
-    """Unexpected listing failures should fail the command without a traceback."""
-    # Arrange: Make the feature listing fail with an unexpected error.
-    args = _cli_args()
-    mock_cli_context.client.get_features.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the writable features.
-        assert await cmd_list_writable(args) is False
 
 
 @pytest.mark.asyncio
@@ -1633,18 +1609,6 @@ def test_parser_keeps_installation_ids_as_text():
 
 
 @pytest.mark.asyncio
-async def test_cmd_list_events_reports_unexpected_errors(mock_cli_context):
-    """Event history failures should surface as a failed command."""
-    # Arrange: Let the client boundary raise an unexpected error.
-    args = _cli_args(days=7)
-    mock_cli_context.client.get_event_history.side_effect = RuntimeError("boom")
-
-    with _patched_cli_context(mock_cli_context):
-        # Act and assert: The command reports failure instead of raising.
-        assert await cmd_list_events(args) is False
-
-
-@pytest.mark.asyncio
 async def test_async_main_list_events_fixture_json_is_machine_readable(
     monkeypatch, capsys
 ):
@@ -1686,20 +1650,6 @@ async def test_async_main_list_events_fixture_json_is_machine_readable(
     assert document["earliestEventTimestamp"] == "2026-09-18T08:02:10.500Z"
     assert document["latestEventTimestamp"] == "2026-09-20T10:15:30.000Z"
     assert "Using Fixture Device: Vitodens200W" in captured.err
-
-
-@pytest.mark.asyncio
-async def test_cmd_list_events_reports_malformed_pages(mock_cli_context):
-    """Malformed event history pages should surface as a failed command."""
-    # Arrange: Let the client boundary raise the response contract error.
-    args = _cli_args(days=7)
-    mock_cli_context.client.get_event_history.side_effect = ViResponseError(
-        "Event history response data must be a list"
-    )
-
-    with _patched_cli_context(mock_cli_context):
-        # Act and assert: The command reports failure instead of raising.
-        assert await cmd_list_events(args) is False
 
 
 @pytest.mark.asyncio

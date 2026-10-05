@@ -1,6 +1,5 @@
 """Shared gateway-scoped device refresh contract tests."""
 
-from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
@@ -8,7 +7,6 @@ import pytest
 
 from vi_api_client.client import ViClient
 from vi_api_client.exceptions import ViResponseError, ViValidationError
-from vi_api_client.fixture_client import FixtureViClient
 from vi_api_client.models import Device, Feature, FeatureControl
 
 
@@ -90,7 +88,7 @@ def _build_gateway_device(device_id: str) -> Device:
     )
 
 
-def _create_live_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> ViClient:
+def _create_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> ViClient:
     """Create a live client whose raw discovery boundary is scripted."""
     client = ViClient.__new__(ViClient)
     client._discovery_adapter = adapter
@@ -98,22 +96,9 @@ def _create_live_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> ViClient:
     return client
 
 
-def _create_fixture_client(
-    adapter: _ScriptedGatewayDiscoveryAdapter,
-) -> FixtureViClient:
-    """Create a fixture client whose raw discovery boundary is scripted."""
-    client = FixtureViClient.__new__(FixtureViClient)
-    client._discovery_adapter = adapter
-    client._command_adapter = adapter
-    return client
-
-
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_order(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both clients should share omission fallback and input-order behavior."""
+async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_order():
+    """Gateway refresh should fall back for omitted devices and keep input order."""
     # Arrange: The bulk response supplies only device 10; device 0 needs fallback.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={
@@ -130,13 +115,13 @@ async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_orde
         },
         device_responses={"0": {"data": []}},
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
     devices = [_build_gateway_device("10"), _build_gateway_device("0")]
 
     # Act: Refresh from either raw-response adapter.
     result = await client.update_gateway_devices(devices)
 
-    # Assert: Both use one bulk call, fall back only for the omission, and retain order.
+    # Assert: One bulk call, a fallback only for the omission, and the input order.
     assert adapter.calls == ["gateway", "device:0"]
     assert [device.id for device in result.updated_devices] == ["10", "0"]
     assert result.updated_devices[0].model_id == "model-10"
@@ -144,12 +129,9 @@ async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_orde
     assert result.is_complete
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_gateway_refresh_groups_only_requested_device_features(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both clients should ignore gateway-owned and unrelated device features."""
+async def test_gateway_refresh_groups_only_requested_device_features():
+    """Gateway refresh should ignore gateway-owned and unrelated device features."""
     # Arrange: A complete bulk response includes requested, gateway, and unrelated data.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={
@@ -173,7 +155,7 @@ async def test_gateway_refresh_groups_only_requested_device_features(
         },
         device_responses={},
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act: Refresh the only requested device from either raw-response adapter.
     result = await client.update_gateway_devices([_build_gateway_device("0")])
@@ -185,12 +167,9 @@ async def test_gateway_refresh_groups_only_requested_device_features(
     ]
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_gateway_refresh_returns_device_specific_fallback_errors(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both clients should retain successful devices beside fallback failures."""
+async def test_gateway_refresh_returns_device_specific_fallback_errors():
+    """Gateway refresh should keep successful devices beside fallback failures."""
     # Arrange: Gateway failure triggers individual refresh; device 0 has a known error.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={"data": []},
@@ -212,7 +191,7 @@ async def test_gateway_refresh_returns_device_specific_fallback_errors(
     adapter.device_errors["0"] = ViValidationError(
         "Device unavailable", error_type="DEVICE_NOT_FOUND"
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act: Refresh through the public gateway operation.
     result = await client.update_gateway_devices(
@@ -225,18 +204,15 @@ async def test_gateway_refresh_returns_device_specific_fallback_errors(
     assert result.errors_by_device_id["0"].error_type == "DEVICE_NOT_FOUND"
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_gateway_refresh_rejects_invalid_bulk_responses(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both clients should expose malformed shared responses as public errors."""
+async def test_gateway_refresh_rejects_invalid_bulk_responses():
+    """Gateway refresh should expose malformed responses as public errors."""
     # Arrange: Return a malformed successful gateway response.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={"data": [{"uri": "/devices/0/features/heating"}]},
         device_responses={},
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act and assert: Invalid raw data aborts the shared refresh consistently.
     with pytest.raises(ViResponseError, match="valid feature name"):
@@ -264,19 +240,17 @@ async def test_gateway_refresh_rejects_invalid_bulk_responses(
         ),
     ],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_gateway_refresh_rejects_ambiguous_device_sets_before_adapter_calls(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
     devices: list[Device],
     error_message: str,
 ):
-    """Both clients should reject ambiguous device sets before fetching features."""
-    # Arrange: Give both clients a scripted adapter that must not receive a request.
+    """Gateway refresh should reject ambiguous device sets before fetching."""
+    # Arrange: Give the client a scripted adapter that must not receive a request.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={"data": []}, device_responses={}
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act and assert: Conflicting scope or duplicate IDs are rejected before I/O.
     with pytest.raises(ValueError, match=error_message):
@@ -284,12 +258,9 @@ async def test_gateway_refresh_rejects_ambiguous_device_sets_before_adapter_call
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_gateway_refresh_rejects_ambiguous_feature_ownership(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both clients should reject feature URIs with multiple device owners."""
+async def test_gateway_refresh_rejects_ambiguous_feature_ownership():
+    """Gateway refresh should reject feature URIs with multiple device owners."""
     # Arrange: Return a feature URI that names two device path segments.
     adapter = _ScriptedGatewayDiscoveryAdapter(
         gateway_response={
@@ -303,7 +274,7 @@ async def test_gateway_refresh_rejects_ambiguous_feature_ownership(
         },
         device_responses={},
     )
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act and assert: Ambiguous ownership is a shared response-contract failure.
     with pytest.raises(ViResponseError, match="ambiguous device ownership"):
@@ -311,12 +282,9 @@ async def test_gateway_refresh_rejects_ambiguous_feature_ownership(
     assert adapter.calls == ["gateway"]
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_shared_client_workflows_preserve_typed_public_contracts(
-    create_client: Callable[[_ScriptedGatewayDiscoveryAdapter], ViClient],
-):
-    """Both adapters should share discovery, refresh, filtering, and write behavior."""
+async def test_shared_client_workflows_preserve_typed_public_contracts():
+    """The client should keep typed discovery, refresh, filtering, and writes."""
     # Arrange: Script API-shaped responses for the public client methods.
     adapter = _ScriptedGatewayDiscoveryAdapter({"data": []}, {})
     adapter.installations_response = {"data": [{"id": "installation-1"}]}
@@ -341,7 +309,7 @@ async def test_shared_client_workflows_preserve_typed_public_contracts(
             }
         ]
     }
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act: Exercise the shared public discovery, hydration, filtering, and refresh paths.
     installations = await client.get_installations()
@@ -352,7 +320,7 @@ async def test_shared_client_workflows_preserve_typed_public_contracts(
     filtered = await client.get_features(device, feature_names=["heating.status"])
     refreshed = await client.update_device(device)
 
-    # Assert: Both clients convert the same responses and retain immutable updates.
+    # Assert: The client converts the responses and returns immutable updates.
     assert installations[0].id == "installation-1"
     assert gateways[0].serial == "gateway-1"
     assert [feature.name for feature in filtered] == ["heating.status"]

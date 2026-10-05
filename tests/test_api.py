@@ -139,10 +139,11 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_accepts_empty_input_without_request(
     static_token_auth,
 ):
-    # Arrange: Create a client without registering any HTTP response.
+    # Arrange: Create a client; any HTTP request would fail the test.
     async with aiohttp.ClientSession() as session:
         client = ViClient(static_token_auth(session))
 
@@ -179,10 +180,11 @@ async def test_update_gateway_devices_accepts_empty_input_without_request(
     ],
 )
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_rejects_ambiguous_device_sets(
     devices: list[Device], message: str, static_token_auth
 ):
-    # Arrange: Create a client without registering any HTTP response.
+    # Arrange: Create a client; any HTTP request would fail the test.
     async with aiohttp.ClientSession() as session:
         client = ViClient(static_token_auth(session))
 
@@ -192,28 +194,55 @@ async def test_update_gateway_devices_rejects_ambiguous_device_sets(
 
 
 @pytest.mark.parametrize(
-    "response",
+    ("response", "message"),
     [
-        [],
-        {"data": {}},
-        {"data": ["not-an-object"]},
-        {"data": [{"uri": "/iot/v2/features/devices"}]},
-        {"data": [{"uri": "/iot/v2/features/devices/%ZZ/features/heating"}]},
-        {"data": [{"uri": "/iot/v2/features/devices/0/features/missing.feature"}]},
-        {"data": [{"uri": ("/iot/v2/features/devices/0/features/devices/10/heating")}]},
-        {
-            "data": [
-                {
-                    "uri": "/iot/v2/features/devices/0/features/heating",
-                    "properties": [],
-                }
-            ]
-        },
+        ([], "response must be an object"),
+        ({"data": {}}, "data must be a list"),
+        ({"data": ["not-an-object"]}, "entries must be objects"),
+        ({"data": [{"uri": "/iot/v2/features/devices"}]}, "URI has no device ID"),
+        (
+            {"data": [{"uri": "/iot/v2/features/devices/%ZZ/features/heating"}]},
+            "invalid encoded URI",
+        ),
+        (
+            {"data": [{"uri": "/iot/v2/features/devices/0/features/missing.feature"}]},
+            "Feature name must be a non-empty string",
+        ),
+        (
+            {
+                "data": [
+                    {"uri": "/iot/v2/features/devices/0/features/devices/10/heating"}
+                ]
+            },
+            "ambiguous device ownership",
+        ),
+        (
+            {
+                "data": [
+                    {
+                        "feature": "heating",
+                        "uri": "/iot/v2/features/devices/0/features/heating",
+                        "properties": [],
+                    }
+                ]
+            },
+            "Feature properties must be an object",
+        ),
+    ],
+    ids=[
+        "not-an-object",
+        "data-not-a-list",
+        "entry-not-an-object",
+        "uri-without-device",
+        "invalid-encoded-uri",
+        "missing-feature-name",
+        "ambiguous-ownership",
+        "properties-not-an-object",
     ],
 )
 @pytest.mark.asyncio
 async def test_update_gateway_devices_rejects_invalid_bulk_responses(
-    response, static_token_auth
+    response, message, static_token_auth
 ):
     # Arrange: Return a malformed successful response from the gateway endpoint.
     url = (
@@ -226,8 +255,8 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Act and assert: Invalid response ownership is a public response error.
-            with pytest.raises(ViResponseError):
+            # Act and assert: Each contract violation names its specific cause.
+            with pytest.raises(ViResponseError, match=message):
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
@@ -473,7 +502,7 @@ async def test_update_gateway_devices_propagates_connection_errors(static_token_
             client = ViClient(static_token_auth(session))
 
             # Act and assert: Connection failures abort the entire refresh.
-            with pytest.raises(ViConnectionError):
+            with pytest.raises(ViConnectionError, match="Network error"):
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
@@ -493,7 +522,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
             client = ViClient(static_token_auth(session))
 
             # Act and assert: Fallback contract failures use the public error.
-            with pytest.raises(ViResponseError):
+            with pytest.raises(ViResponseError, match="properties must be an object"):
                 await client.update_gateway_devices([_build_gateway_device("0")])
 
 
@@ -534,7 +563,7 @@ async def test_get_installations_error(static_token_auth):
             client = ViClient(auth)
 
             # Act and assert: The public client raises the server error type.
-            with pytest.raises(ViServerInternalError):
+            with pytest.raises(ViServerInternalError, match="Server Error 500"):
                 await client.get_installations()
 
 
@@ -593,44 +622,48 @@ async def test_discovery_rejects_successful_non_json_responses(
             client = ViClient(static_token_auth(session))
 
             # Act and assert: The public response error communicates the contract failure.
-            with pytest.raises(ViResponseError):
+            with pytest.raises(ViResponseError, match="not valid JSON"):
                 await getattr(client, operation)(*arguments)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("endpoint", "operation", "arguments"),
+    ("endpoint", "call"),
     [
-        (("get", f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"), "get_installations", ()),
-        (("get", f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"), "get_gateways", ()),
+        (("get", f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"), ("get_installations", ())),
+        (("get", f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"), ("get_gateways", ())),
         (
             (
                 "get",
                 f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/gateway-1/devices",
             ),
-            "get_devices",
-            ("installation-1", "gateway-1"),
+            ("get_devices", ("installation-1", "gateway-1")),
         ),
         (
             (
                 "post",
                 f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/devices/0/features/filter",
             ),
-            "get_features",
-            (_build_gateway_device("0"),),
+            ("get_features", (_build_gateway_device("0"),)),
         ),
     ],
 )
 @pytest.mark.parametrize(
-    "response",
-    [[], {}, {"data": {}}, {"data": [None]}],
+    ("response", "message"),
+    [
+        ([], "response must be an object"),
+        ({}, "data must be a list"),
+        ({"data": {}}, "data must be a list"),
+        ({"data": [None]}, "data entries must be objects"),
+    ],
     ids=["root-list", "missing-data", "data-not-list", "data-entry-not-object"],
 )
 async def test_discovery_rejects_successful_malformed_json_responses(
-    endpoint, operation, arguments, response, static_token_auth
+    endpoint, call, response, message, static_token_auth
 ):
     """Discovery should reject successful JSON that violates its response contract."""
     # Arrange: Return JSON that violates a collection response requirement.
+    operation, arguments = call
     with aioresponses() as mock_responses:
         request_method, url = endpoint
         getattr(mock_responses, request_method)(url, payload=response)
@@ -638,7 +671,7 @@ async def test_discovery_rejects_successful_malformed_json_responses(
             client = ViClient(static_token_auth(session))
 
             # Act and assert: The public response error communicates the contract failure.
-            with pytest.raises(ViResponseError):
+            with pytest.raises(ViResponseError, match=message):
                 await getattr(client, operation)(*arguments)
 
 
@@ -1292,7 +1325,6 @@ async def test_set_feature_returns_updated_device(load_fixture_json, static_toke
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
-            original_slope = slope_feature.value  # Should be 0.6 from fixture
 
             # Act: Set slope to new value.
             response, updated_device = await client.set_feature(
@@ -1306,7 +1338,13 @@ async def test_set_feature_returns_updated_device(load_fixture_json, static_toke
             )
             assert updated_slope_feature is not None
             assert updated_slope_feature.value == 0.7
-            assert original_slope == 0.6  # Original unchanged
+            # The input snapshot keeps its value; the update is a new device.
+            assert updated_device is not device
+            input_slope_feature = device.get_feature(
+                "heating.circuits.0.heating.curve.slope"
+            )
+            assert input_slope_feature is not None
+            assert input_slope_feature.value == 0.6
 
 
 @pytest.mark.asyncio
@@ -1442,7 +1480,6 @@ async def test_set_feature_returns_unchanged_device_on_failure(
 
             slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
             assert slope_feature is not None
-            original_slope = slope_feature.value
 
             # Act: Try to set value but command fails.
             response, updated_device = await client.set_feature(
@@ -1452,11 +1489,7 @@ async def test_set_feature_returns_unchanged_device_on_failure(
             # Assert: Response indicates failure and device unchanged.
             assert not response.success
             assert response.reason == "Device unavailable"
-            returned_slope_feature = updated_device.get_feature(
-                "heating.circuits.0.heating.curve.slope"
-            )
-            assert returned_slope_feature is not None
-            assert returned_slope_feature.value == original_slope
+            assert updated_device is device
 
 
 @pytest.mark.asyncio

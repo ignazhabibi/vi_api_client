@@ -1,9 +1,11 @@
 """Shared fixtures and test doubles for the vi_api_client test suite."""
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from aioresponses import aioresponses
 
 from vi_api_client.auth import AbstractAuth
 
@@ -67,3 +69,12 @@ def load_fixture_json():
             return json.load(file)
 
     return _load
+
+
+@pytest.fixture
+def no_http_requests() -> Iterator[aioresponses]:
+    """Fail the test if code under test attempts any aiohttp request."""
+    with aioresponses() as mock_responses:
+        # No response is registered, so any request raises a connection error.
+        yield mock_responses
+    assert mock_responses.requests == {}

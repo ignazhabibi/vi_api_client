@@ -198,11 +198,15 @@ def test_oauth_rejects_malformed_known_credential_fields(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "token_data",
-    [{"access_token": 1}, {"client_id": 1}, {"nested": object()}],
+    ("token_data", "message"),
+    [
+        ({"access_token": 1}, "access_token must be a string"),
+        ({"client_id": 1}, "client_id must be a string"),
+        ({"nested": object()}, "invalid JSON data"),
+    ],
 )
 def test_credential_updates_reject_invalid_data_without_overwriting(
-    tmp_path, token_data
+    tmp_path, token_data, message
 ):
     """Invalid direct credential updates must leave the existing document intact."""
     # Arrange: Persist a valid credential document that must survive the update.
@@ -211,7 +215,7 @@ def test_credential_updates_reject_invalid_data_without_overwriting(
     token_file.write_text(original_content, encoding="utf-8")
 
     # Act and assert: The invalid update rejects without writing.
-    with pytest.raises(ViAuthError):
+    with pytest.raises(ViAuthError, match=message):
         CredentialDocument(token_file).update(token_data)
 
     # Assert: The stored document is byte-for-byte unchanged.
@@ -785,10 +789,15 @@ async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "token_data", [{"access_token": 1}, {"refresh_token": "new"}, []]
+    ("token_data", "message"),
+    [
+        ({"access_token": 1}, "access_token must be a non-empty string"),
+        ({"refresh_token": "new"}, "access_token must be a non-empty string"),
+        ([], "must be a JSON object"),
+    ],
 )
 async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
-    oauth, token_data
+    oauth, token_data, message
 ):
     """Invalid successful token data must preserve stored credentials."""
     # Arrange: Persist a valid token before receiving an invalid success response.
@@ -802,7 +811,7 @@ async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
             oauth = _oauth_with_websession(oauth, session)
 
             # Act and assert: The public code exchange rejects malformed token data.
-            with pytest.raises(ViAuthError):
+            with pytest.raises(ViAuthError, match=message):
                 await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: No invalid response can replace the saved credential document.
