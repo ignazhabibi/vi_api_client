@@ -10,7 +10,7 @@ import sys
 import textwrap
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -33,13 +33,14 @@ from .models import (
     Device,
     Feature,
     FeatureControl,
+    Gateway,
     InstallationEvent,
 )
 from .utils import format_feature, parse_cli_params
 
-# Default file to store tokens and config
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
-TOKEN_FILE = "tokens.json"
+# Tokens and the OAuth client configuration are stored together in this file.
+DEFAULT_TOKEN_FILE = "tokens.json"
 # Default safety limit on pages fetched for one event history window.
 DEFAULT_EVENT_HISTORY_MAX_PAGES = 50
 
@@ -94,19 +95,24 @@ def _print_diagnostic(args: argparse.Namespace, message: str) -> None:
     print(message, file=sys.stderr if args.json else sys.stdout)
 
 
+def _print_json(document: object) -> None:
+    """Print one compact JSON document as the command's only standard output."""
+    print(json.dumps(document))
+
+
 @dataclass
 class CLIContext:
     """Context for CLI commands."""
 
     session: aiohttp.ClientSession | None
     client: ViClient | FixtureViClient
-    # Found IDs (either from args or auto-discovery)
-    inst_id: str | None
-    gw_serial: str | None
-    dev_id: str | None
+    # Target IDs from arguments or auto-discovery; None when not resolved.
+    installation_id: str | None
+    gateway_serial: str | None
+    device_id: str | None
 
 
-async def create_session(args: argparse.Namespace) -> aiohttp.ClientSession:
+def create_session(args: argparse.Namespace) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL.
 
     Args:
@@ -133,7 +139,7 @@ async def cmd_login(args: argparse.Namespace) -> bool:
     client_id, redirect_uri = get_client_config(args)
     token_file = args.token_file
 
-    async with await create_session(args) as session:
+    async with create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, token_file, websession=session)
         url = auth.get_authorization_url()
 
@@ -151,7 +157,11 @@ async def cmd_login(args: argparse.Namespace) -> bool:
 
 
 def get_client_config(args: argparse.Namespace) -> tuple[str, str]:
-    """Get client_id and redirect_uri from args or file."""
+    """Return the client ID and redirect URI from arguments, environment, or file.
+
+    Raises:
+        ValueError: If no client ID is configured anywhere.
+    """
     config = CredentialDocument(Path(args.token_file)).read()
 
     configured_client_id = config.get("client_id")
@@ -165,13 +175,10 @@ def get_client_config(args: argparse.Namespace) -> tuple[str, str]:
     redirect_uri = redirect_uri or DEFAULT_REDIRECT_URI
 
     if not client_id:
-        _print_diagnostic(
-            args,
-            "Error: Client ID not found. Provide via --client-id or "
-            "VIESSMANN_CLIENT_ID env var.",
+        raise ValueError(
+            "Client ID not found. Provide it via --client-id or the "
+            "VIESSMANN_CLIENT_ID environment variable, or run 'login' first."
         )
-        _print_diagnostic(args, "Please run 'login' first or provide --client-id.")
-        sys.exit(1)
 
     return client_id, redirect_uri
 
@@ -180,81 +187,104 @@ def get_client_config(args: argparse.Namespace) -> tuple[str, str]:
 async def setup_client_context(
     args: argparse.Namespace, discover: bool = True
 ) -> AsyncGenerator[CLIContext]:
-    """Creates Session, Auth, Client AND performs Auto-Discovery if needed."""
-    fixture_device = args.fixture_device
-    if fixture_device:
-        client = FixtureViClient(fixture_device)
-        inst_id = args.installation_id or "99999"
-        gw_serial = args.gateway_serial or "MOCK_GATEWAY"
-        dev_id = args.device_id or "0"
-        _print_diagnostic(args, f"Using Fixture Device: {fixture_device}")
-        yield CLIContext(None, client, inst_id, gw_serial, dev_id)
+    """Yield a client and the target IDs, discovering missing IDs if requested.
+
+    Fixture devices use fixed placeholder IDs. With ``discover``, a live
+    client fills missing IDs from the account's gateways and devices.
+    """
+    if args.fixture_device:
+        client = FixtureViClient(args.fixture_device)
+        _print_diagnostic(args, f"Using Fixture Device: {args.fixture_device}")
+        yield CLIContext(
+            None,
+            client,
+            args.installation_id or "99999",
+            args.gateway_serial or "MOCK_GATEWAY",
+            args.device_id or "0",
+        )
         return
 
     client_id, redirect_uri = get_client_config(args)
 
-    async with await create_session(args) as session:
+    async with create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
-
         client = ViClient(auth)
-        inst_id = args.installation_id
-        gw_serial = args.gateway_serial
-        dev_id = args.device_id
+        installation_id = args.installation_id
+        gateway_serial = args.gateway_serial
+        device_id = args.device_id
 
-        # Perform Auto-Discovery if IDs are missing.
-        if discover and not (inst_id and gw_serial and dev_id):
-            gateways = await client.get_gateways()
-            if not gateways:
-                _print_diagnostic(args, "No gateways found.")
-                raise ValueError("No gateways found.")
-
-            if gw_serial:
-                gateway = next(
-                    (gateway for gateway in gateways if gateway.serial == gw_serial),
-                    None,
+        if discover and not (installation_id and gateway_serial and device_id):
+            gateway = _select_gateway(
+                await client.get_gateways(), installation_id, gateway_serial
+            )
+            installation_id = gateway.installation_id
+            gateway_serial = gateway.serial
+            if not device_id:
+                device_id = _select_device_id(
+                    await client.get_devices(installation_id, gateway_serial)
                 )
-                if not gateway:
-                    raise ValueError(f"Gateway '{gw_serial}' not found.")
-                if inst_id and gateway.installation_id != inst_id:
-                    raise ValueError(
-                        f"Gateway '{gw_serial}' does not belong to installation "
-                        f"'{inst_id}'."
-                    )
-            elif inst_id:
-                gateway = next(
-                    (
-                        gateway
-                        for gateway in gateways
-                        if gateway.installation_id == inst_id
-                    ),
-                    None,
-                )
-                if not gateway:
-                    raise ValueError(f"No gateway found for installation '{inst_id}'.")
-            else:
-                gateway = gateways[0]
-
-            inst_id = gateway.installation_id
-            gw_serial = gateway.serial
-
-            if not dev_id:
-                devices = await client.get_devices(inst_id, gw_serial)
-                if not devices:
-                    raise ValueError("No devices found.")
-
-                # Prefer device "0" (heating system).
-                target_dev = next(
-                    (device for device in devices if device.id == "0"),
-                    devices[0],
-                )
-                dev_id = target_dev.id
                 _print_diagnostic(
                     args,
-                    f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, "
-                    f"Dev={dev_id}",
+                    f"Auto-selected Context: Inst={installation_id}, "
+                    f"GW={gateway_serial}, Dev={device_id}",
                 )
 
-        yield CLIContext(session, client, inst_id, gw_serial, dev_id)
+        yield CLIContext(session, client, installation_id, gateway_serial, device_id)
+
+
+def _select_gateway(
+    gateways: Sequence[Gateway],
+    installation_id: str | None,
+    gateway_serial: str | None,
+) -> Gateway:
+    """Return the requested gateway, or the first gateway when none is requested.
+
+    Raises:
+        ValueError: If no gateway matches or the requested gateway belongs to
+            another installation.
+    """
+    if not gateways:
+        raise ValueError("No gateways found.")
+
+    if gateway_serial:
+        gateway = next(
+            (candidate for candidate in gateways if candidate.serial == gateway_serial),
+            None,
+        )
+        if gateway is None:
+            raise ValueError(f"Gateway '{gateway_serial}' not found.")
+        if installation_id and gateway.installation_id != installation_id:
+            raise ValueError(
+                f"Gateway '{gateway_serial}' does not belong to installation "
+                f"'{installation_id}'."
+            )
+        return gateway
+
+    if installation_id:
+        gateway = next(
+            (
+                candidate
+                for candidate in gateways
+                if candidate.installation_id == installation_id
+            ),
+            None,
+        )
+        if gateway is None:
+            raise ValueError(f"No gateway found for installation '{installation_id}'.")
+        return gateway
+
+    return gateways[0]
+
+
+def _select_device_id(devices: Sequence[Device]) -> str:
+    """Return device "0", usually the heating system, or else the first device.
+
+    Raises:
+        ValueError: If the gateway has no devices.
+    """
+    if not devices:
+        raise ValueError("No devices found.")
+    return next((device.id for device in devices if device.id == "0"), devices[0].id)
 
 
 @_reports_errors("listing devices")
@@ -266,9 +296,9 @@ async def cmd_list_devices(args: argparse.Namespace) -> bool:
     Args:
         args: Parsed command line arguments.
     """
-    # Does not use full context discovery, just client
-    async with setup_client_context(args, discover=False) as ctx:
-        installations = await ctx.client.get_installations()
+    # Lists every installation, gateway, and device, so no target is needed.
+    async with setup_client_context(args, discover=False) as context:
+        installations = await context.client.get_installations()
         print(f"Found {len(installations)} installations:")
         for installation in installations:
             print(
@@ -277,7 +307,7 @@ async def cmd_list_devices(args: argparse.Namespace) -> bool:
                 f"Alias: {installation.alias}"
             )
 
-        gateways = await ctx.client.get_gateways()
+        gateways = await context.client.get_gateways()
         print(f"\nFound {len(gateways)} gateways:")
         for gateway in gateways:
             print(
@@ -286,7 +316,7 @@ async def cmd_list_devices(args: argparse.Namespace) -> bool:
                 f"Version: {gateway.version}, Status: {gateway.status}"
             )
 
-            devices = await ctx.client.get_devices(
+            devices = await context.client.get_devices(
                 gateway.installation_id, gateway.serial
             )
             print(f"Found {len(devices)} devices:")
@@ -309,52 +339,40 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     Args:
         args: Parsed command line arguments including enabled, values, json flags.
     """
-    async with setup_client_context(args) as ctx:
-        # Transient Device for API call
-        device = _transient_device(ctx)
+    async with setup_client_context(args) as context:
+        device = _transient_device(context)
+        features = await context.client.get_features(device, only_enabled=args.enabled)
 
-        # NOTE: get_features now returns FLATTENED features directly.
-        features = await ctx.client.get_features(device, only_enabled=args.enabled)
-
-        if args.values:
-            if args.json:
-                # Output clean JSON list of objects
-                out_data = [
-                    {
-                        "name": item.name,
-                        "value": item.value,
-                        "unit": item.unit,
-                        "formatted": format_feature(item),
-                        "writable": item.is_writable,
-                    }
-                    for item in features
-                ]
-                print(json.dumps(out_data))
-            else:
-                print(f"Found {len(features)} Features for device {ctx.dev_id}:")
-
-                for item in features:
-                    val = format_feature(item)
-                    if len(val) > 80:
-                        val = val[:77] + "..."
-                    writable_mark = "*" if item.is_writable else " "
-                    print(f"{writable_mark} {item.name:<75}: {val}")
-                print("(* = writable)")
-
-        # Simple Listing
-        elif args.json:
-            print(json.dumps([f.name for f in features]))
-        else:
-            _print_simple_feature_list(features, device.id)
+    if args.json and args.values:
+        _print_json(
+            [
+                {
+                    "name": feature.name,
+                    "value": feature.value,
+                    "unit": feature.unit,
+                    "formatted": format_feature(feature),
+                    "writable": feature.is_writable,
+                }
+                for feature in features
+            ]
+        )
+    elif args.json:
+        _print_json([feature.name for feature in features])
+    elif args.values:
+        print(f"Found {len(features)} Features for device {device.id}:")
+        for feature in features:
+            formatted_value = format_feature(feature)
+            if len(formatted_value) > 80:
+                formatted_value = formatted_value[:77] + "..."
+            writable_mark = "*" if feature.is_writable else " "
+            print(f"{writable_mark} {feature.name:<75}: {formatted_value}")
+        print("(* = writable)")
+    else:
+        print(f"Found {len(features)} Features for device {device.id}:")
+        for feature in features:
+            print(f"- {feature.name}")
 
     return True
-
-
-def _print_simple_feature_list(features: Sequence[Feature], dev_id: str) -> None:
-    """Print a simple list of feature names."""
-    print(f"Found {len(features)} Features for device {dev_id}:")
-    for feature in features:
-        print(f"- {feature.name}")
 
 
 @_reports_errors("fetching feature")
@@ -365,50 +383,47 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     feature name; an API feature name can match several features.
 
     Args:
-        args: Parsed command line arguments including feature_name and raw flag.
+        args: Parsed command line arguments including feature_name and json flag.
     """
     feature_name: str = args.feature_name
-    async with setup_client_context(args) as ctx:
-        device = _transient_device(ctx)
-        features = await ctx.client.get_features(device, feature_names=[feature_name])
-        if not features:
-            print(f"Feature '{feature_name}' not found.")
-            return False
+    async with setup_client_context(args) as context:
+        device = _transient_device(context)
+        features = await context.client.get_features(
+            device, feature_names=[feature_name]
+        )
+    if not features:
+        print(f"Feature '{feature_name}' not found.")
+        return False
 
-        if args.raw:
-            documents = [
-                {
-                    "name": feature.name,
-                    "value": feature.value,
-                    "unit": feature.unit,
-                    "control": str(feature.control) if feature.control else None,
-                }
-                for feature in features
-            ]
-            # One match keeps the single-object document; several matches
-            # print one JSON array so the output stays one JSON document.
+    if args.json:
+        documents = [
+            {
+                "name": feature.name,
+                "value": feature.value,
+                "unit": feature.unit,
+                "control": asdict(feature.control) if feature.control else None,
+            }
+            for feature in features
+        ]
+        # One match keeps the single-object document; several matches
+        # print one JSON array so the output stays one JSON document.
+        _print_json(documents[0] if len(documents) == 1 else documents)
+        return True
+
+    for feature in features:
+        print(f"- {feature.name}: {format_feature(feature)}")
+        control = feature.control
+        if control is None:
+            continue
+        print(f"  Writable via command: {control.command_name}")
+        print(f"  Target param: {control.param_name}")
+        if control.min is not None:
             print(
-                json.dumps(
-                    documents[0] if len(documents) == 1 else documents,
-                    indent=2,
-                    default=str,
-                )
+                f"  Constraints: min={control.min}, max={control.max}, "
+                f"step={control.step}"
             )
-            return True
-
-        for feature in features:
-            print(f"- {feature.name}: {format_feature(feature)}")
-            if feature.control:
-                ctrl = feature.control
-                print(f"  Writable via command: {ctrl.command_name}")
-                print(f"  Target param: {ctrl.param_name}")
-                if ctrl.min is not None:
-                    print(
-                        f"  Constraints: min={ctrl.min}, max={ctrl.max}, "
-                        f"step={ctrl.step}"
-                    )
-                if ctrl.options:
-                    print(f"  Options: {ctrl.options}")
+        if control.options:
+            print(f"  Options: {control.options}")
 
     return True
 
@@ -424,38 +439,32 @@ async def cmd_set(args: argparse.Namespace) -> bool:
     """
     feature_name: str = args.feature_name
     raw_value: str = args.value
-    async with setup_client_context(args) as ctx:
-        target = await _fetch_target_feature(ctx, feature_name)
+    async with setup_client_context(args) as context:
+        target = await _fetch_writable_feature(context, feature_name)
         if target is None:
             return False
-        device, feature = target
-
-        if not feature.control:
-            print(f"Error: Feature '{feature.name}' is read-only (no control).")
-            return False
+        device, feature, control = target
 
         print(f"Setting '{feature.name}' to '{raw_value}'...")
-        # We show this for transparency but it's not needed by user
-        print(
-            f"  (Command: {feature.control.command_name}, "
-            f"Param: {feature.control.param_name})"
+        print(f"  (Command: {control.command_name}, Param: {control.param_name})")
+
+        value = _parse_set_value(raw_value, feature, control)
+        result, _updated_device = await context.client.set_feature(
+            device, feature, value
         )
 
-        target_val = _parse_set_value(raw_value, feature)
-
-        result, _updated_device = await ctx.client.set_feature(
-            device, feature, target_val
-        )
-
-        return _print_command_result(result)
+    return _print_command_result(result)
 
 
-def _parse_set_value(raw_value: str, feature: Feature) -> bool | float | int | str:
+def _parse_set_value(
+    raw_value: str, feature: Feature, control: FeatureControl
+) -> bool | float | int | str:
     """Convert a CLI value according to the target command parameter type.
 
     Args:
         raw_value: Value provided after the CLI ``set`` command.
-        feature: Writable feature that supplies the command metadata.
+        feature: Writable feature, named in validation errors.
+        control: Command metadata of the feature.
 
     Returns:
         The value in the type expected by the target command.
@@ -463,11 +472,7 @@ def _parse_set_value(raw_value: str, feature: Feature) -> bool | float | int | s
     Raises:
         ViValidationError: If a numeric or boolean command value is malformed.
     """
-    # Defensive: cmd_set rejects read-only features before parsing values.
-    if feature.control is None:  # pragma: no cover
-        return raw_value
-
-    value_type = feature.control.value_type
+    value_type = control.value_type
     if value_type is None:
         value_type = _infer_feature_value_type(feature)
 
@@ -535,68 +540,65 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
     """
     feature_name: str = args.feature_name
     command_name: str = args.command_name
-    params: list[str] = args.params
 
-    # 1. Parse params
     try:
-        params_dict = parse_cli_params(params) if params else {}
-    except ValueError as e:
-        print(f"Error parsing parameters: {e}")
+        parameters = parse_cli_params(args.params)
+    except ValueError as error:
+        print(f"Error parsing parameters: {error}")
         return False
 
-    async with setup_client_context(args) as ctx:
-        # 2. Find Feature
-        target = await _fetch_target_feature(ctx, feature_name)
+    async with setup_client_context(args) as context:
+        target = await _fetch_writable_feature(context, feature_name)
         if target is None:
             return False
-        _device, feature = target
+        _device, feature, control = target
 
-        control = feature.control
-        if control is None:
-            print(f"Error: Feature '{feature.name}' is read-only (no control).")
-            return False
-
-        # 3. Validate Command Name
+        # Features expose only their primary control command.
         if control.command_name != command_name:
             print(
-                f"Warning: Feature expects command '{control.command_name}'"
-                f", but you specified '{command_name}'."
+                f"Error: Feature '{feature.name}' only supports command "
+                f"'{control.command_name}', not '{command_name}'."
             )
-            print("Error: Features only expose their primary control command.")
             return False
 
         print(f"Executing '{command_name}' on {feature.name}...")
+        # The explicitly supplied parameter set is sent unchanged.
+        print(f"Using execute_command with params: {parameters}")
+        result = await context.client.execute_command(feature, parameters)
 
-        # 4. Execute the explicitly supplied parameter set unchanged.
-        print(f"Using execute_command with params: {params_dict}")
-        result = await ctx.client.execute_command(feature, params_dict)
-
-        return _print_command_result(result)
+    return _print_command_result(result)
 
 
-async def _fetch_target_feature(
-    ctx: CLIContext, name: str
-) -> tuple[Device, Feature] | None:
-    """Fetch a target feature together with its complete device context."""
-    device = _transient_device(ctx)
-    features = await ctx.client.get_features(device)
+async def _fetch_writable_feature(
+    context: CLIContext, name: str
+) -> tuple[Device, Feature, FeatureControl] | None:
+    """Fetch a writable feature together with its complete device snapshot.
+
+    Prints the reason and returns None when the feature is missing or
+    read-only.
+    """
+    device = _transient_device(context)
+    features = await context.client.get_features(device)
     device_snapshot = replace(device, features=features)
     feature = device_snapshot.get_feature(name)
     if feature is None:
         print(f"Error: Feature '{name}' not found.")
         return None
-    return device_snapshot, feature
+    if feature.control is None:
+        print(f"Error: Feature '{feature.name}' is read-only (no control).")
+        return None
+    return device_snapshot, feature, feature.control
 
 
-def _transient_device(ctx: CLIContext) -> Device:
-    """Create a transient device object from context."""
-    if not (ctx.inst_id and ctx.gw_serial and ctx.dev_id):
+def _transient_device(context: CLIContext) -> Device:
+    """Return a placeholder device carrying only the target IDs for API reads."""
+    if not (context.installation_id and context.gateway_serial and context.device_id):
         raise ValueError("A device context is required for this command.")
 
     return Device(
-        id=ctx.dev_id,
-        gateway_serial=ctx.gw_serial,
-        installation_id=ctx.inst_id,
+        id=context.device_id,
+        gateway_serial=context.gateway_serial,
+        installation_id=context.installation_id,
         model_id="transient",
         device_type="unknown",
         status="online",
@@ -627,52 +629,42 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     Args:
         args: Parsed command line arguments.
     """
-    async with setup_client_context(args) as ctx:
-        # Fetch all features to introspect commands
+    async with setup_client_context(args) as context:
+        device = _transient_device(context)
+        features = await context.client.get_features(device)
 
-        device = _transient_device(ctx)
-        features = await ctx.client.get_features(device)
-
-        writable_features = [feature for feature in features if feature.is_writable]
-
-        print(f"\nFound {len(writable_features)} writable features:\n")
-
-        for feature in writable_features:
-            ctrl = feature.control
-            # Defensive: is_writable implies a control is present.
-            if ctrl is None:  # pragma: no cover
-                continue
-            print(f"- {feature.name}")
-            print(f"    Param:   {ctrl.param_name} (via {ctrl.command_name})")
-            _print_feature_constraints(ctrl)
-            print("")
+    writable_features = [
+        (feature, feature.control)
+        for feature in features
+        if feature.control is not None
+    ]
+    print(f"\nFound {len(writable_features)} writable features:\n")
+    for feature, control in writable_features:
+        print(f"- {feature.name}")
+        print(f"    Param:   {control.param_name} (via {control.command_name})")
+        _print_feature_constraints(control)
+        print("")
 
     return True
 
 
-def _print_feature_constraints(ctrl: FeatureControl) -> None:
-    """Helper to print constraints for a feature control.
-
-    Args:
-        ctrl: The FeatureControl command metadata containing constraints.
-    """
+def _print_feature_constraints(control: FeatureControl) -> None:
+    """Print the numeric, option, and text constraints of a feature control."""
     constraints: list[str] = []
-    if ctrl.min is not None:
-        constraints.append(f"min: {ctrl.min}")
-    if ctrl.max is not None:
-        constraints.append(f"max: {ctrl.max}")
-    if ctrl.step is not None:
-        constraints.append(f"step: {ctrl.step}")
-    if ctrl.options:
-        constraints.append(f"options: {ctrl.options}")
-
-    # String Constraints
-    if ctrl.min_length is not None:
-        constraints.append(f"min_length: {ctrl.min_length}")
-    if ctrl.max_length is not None:
-        constraints.append(f"max_length: {ctrl.max_length}")
-    if ctrl.pattern is not None:
-        constraints.append(f"pattern: {ctrl.pattern}")
+    if control.min is not None:
+        constraints.append(f"min: {control.min}")
+    if control.max is not None:
+        constraints.append(f"max: {control.max}")
+    if control.step is not None:
+        constraints.append(f"step: {control.step}")
+    if control.options:
+        constraints.append(f"options: {control.options}")
+    if control.min_length is not None:
+        constraints.append(f"min_length: {control.min_length}")
+    if control.max_length is not None:
+        constraints.append(f"max_length: {control.max_length}")
+    if control.pattern is not None:
+        constraints.append(f"pattern: {control.pattern}")
 
     if constraints:
         print(f"    Constraints: {', '.join(constraints)}")
@@ -696,36 +688,34 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
     limit: int | None = args.limit
     max_pages: int = args.max_pages
 
-    async with setup_client_context(args, discover=False) as ctx:
-        installation_id = ctx.inst_id
+    async with setup_client_context(args, discover=False) as context:
+        installation_id = context.installation_id
         if installation_id is None:
-            installations = await ctx.client.get_installations()
+            installations = await context.client.get_installations()
             if not installations:
                 raise ValueError("No installations found.")
             installation_id = installations[0].id
             _print_diagnostic(args, f"Auto-selected installation: {installation_id}")
 
         window = await _collect_event_history(
-            ctx.client, installation_id, days, limit, max_pages
+            context.client, installation_id, days, limit, max_pages
         )
 
-        if args.json:
-            print(
-                json.dumps(
-                    {
-                        "installationId": installation_id,
-                        "events": [dict(event.fields) for event in window.events],
-                        "eventCount": len(window.events),
-                        "earliestEventTimestamp": window.earliest_timestamp,
-                        "latestEventTimestamp": window.latest_timestamp,
-                        "pagesFetched": window.pages_fetched,
-                        "paginationComplete": window.next_cursor is None,
-                        "nextCursor": window.next_cursor,
-                    }
-                )
-            )
-        else:
-            _print_event_summary(window, installation_id, days, max_pages)
+    if args.json:
+        _print_json(
+            {
+                "installationId": installation_id,
+                "events": [dict(event.fields) for event in window.events],
+                "eventCount": len(window.events),
+                "earliestEventTimestamp": window.earliest_timestamp,
+                "latestEventTimestamp": window.latest_timestamp,
+                "pagesFetched": window.pages_fetched,
+                "paginationComplete": window.next_cursor is None,
+                "nextCursor": window.next_cursor,
+            }
+        )
+    else:
+        _print_event_summary(window, installation_id, days, max_pages)
 
     return True
 
@@ -1061,7 +1051,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     common_parser.add_argument("--redirect-uri", help="OAuth Redirect URI")
     common_parser.add_argument(
-        "--token-file", default=TOKEN_FILE, help="Path to save/load tokens"
+        "--token-file", default=DEFAULT_TOKEN_FILE, help="Path to save/load tokens"
     )
     common_parser.add_argument(
         "--insecure", action="store_true", help="Disable SSL verification"
@@ -1135,14 +1125,14 @@ def build_parser() -> argparse.ArgumentParser:
         "feature_name", help="Feature Name (e.g. heating.circuits.0)"
     )
     parser_feature.add_argument(
-        "--raw", action="store_true", help="Show raw JSON response"
+        "--json", action="store_true", help="Print the matching features as JSON"
     )
     parser_feature.set_defaults(handler=cmd_get_feature)
 
     # List Installation Events
     parser_events = subparsers.add_parser(
         "list-events",
-        help="List one page of the installation event history",
+        help="List the installation event history for a lookback window",
         parents=[common_parser, installation_parser],
     )
     parser_events.add_argument(
@@ -1231,8 +1221,8 @@ async def async_main() -> int:
         return await _dispatch_command(args)
     except KeyboardInterrupt:
         return 130
-    except Exception as e:
-        _LOGGER.error("Error executing command: %s", e)
+    except Exception as error:
+        _LOGGER.error("Error executing command: %s", error)
         return 1
 
 
