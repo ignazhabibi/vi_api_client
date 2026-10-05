@@ -277,7 +277,7 @@ def test_save_tokens_rejects_file_that_becomes_malformed(oauth):
 
     # Act and assert: Saving should preserve the malformed file and explain recovery.
     with pytest.raises(ViAuthError, match="Repair or remove the file"):
-        oauth._save_tokens()
+        oauth._credential_document.update(oauth._token_info)
 
     # Assert: The malformed token file should not be overwritten by the new token.
     assert oauth.token_file.read_text(encoding="utf-8") == invalid_content
@@ -299,7 +299,7 @@ def test_save_tokens_merges_new_tokens_with_existing_configuration(oauth):
     oauth._token_info = {"access_token": "new-token", "refresh_token": "refresh"}
 
     # Act: Persist the updated token information.
-    oauth._save_tokens()
+    oauth._credential_document.update(oauth._token_info)
 
     # Assert: Existing non-token content should survive the update.
     assert json.loads(oauth.token_file.read_text(encoding="utf-8")) == {
@@ -323,7 +323,7 @@ def test_save_tokens_reports_missing_parent_directory_without_creating_it(tmp_pa
 
     # Act and assert: Saving should explain the filesystem failure.
     with pytest.raises(ViAuthError, match="parent directory"):
-        oauth._save_tokens()
+        oauth._credential_document.update(oauth._token_info)
 
     # Assert: Persistence should not create the directory as a side effect.
     assert not missing_parent.exists()
@@ -343,7 +343,7 @@ def test_save_tokens_uses_atomic_replacement_in_the_token_directory(oauth, monke
     oauth._token_info = {"access_token": "new-token"}
 
     # Act: Save new credentials.
-    oauth._save_tokens()
+    oauth._credential_document.update(oauth._token_info)
 
     # Assert: The temporary file should be a sibling of the destination.
     source, destination = replacement_calls[0]
@@ -365,7 +365,7 @@ def test_save_tokens_preserves_original_file_when_replacement_fails(oauth, monke
 
     # Act and assert: A failed replacement should become a library auth error.
     with pytest.raises(ViAuthError, match="save token"):
-        oauth._save_tokens()
+        oauth._credential_document.update(oauth._token_info)
 
     # Assert: The old file and no temporary artifacts should remain.
     assert oauth.token_file.read_text(encoding="utf-8") == original_content
@@ -387,7 +387,7 @@ def test_save_tokens_reports_temporary_file_write_failures(oauth, monkeypatch):
 
     # Act and assert: The operating-system failure should be a library auth error.
     with pytest.raises(ViAuthError, match="save token"):
-        oauth._save_tokens()
+        oauth._credential_document.update(oauth._token_info)
 
     # Assert: A failed write should leave the existing credentials unchanged.
     assert (
@@ -411,7 +411,7 @@ def test_save_tokens_removes_temporary_file_after_serialization_failure(
 
     # Act and assert: Saving should report the error through the auth boundary.
     with pytest.raises(ViAuthError, match="save token"):
-        oauth._save_tokens()
+        oauth._credential_document.update(oauth._token_info)
 
     # Assert: The failed write should not leave credentials or temporary files behind.
     assert not oauth.token_file.exists()
@@ -424,7 +424,7 @@ def test_save_tokens_restricts_file_permissions_to_owner(oauth):
     oauth._token_info = {"access_token": "new-token"}
 
     # Act: Persist the credentials.
-    oauth._save_tokens()
+    oauth._credential_document.update(oauth._token_info)
 
     # Assert: The file mode should not grant group or other access.
     assert stat.S_IMODE(oauth.token_file.stat().st_mode) == 0o600
@@ -732,7 +732,7 @@ async def test_code_exchange_persists_token_json(oauth, load_fixture_json):
             oauth = _oauth_with_websession(oauth, session)
 
             # Act: Exchange the authorization code for tokens.
-            await oauth.async_fetch_details_from_code("accepted-code")
+            await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: The persisted document should contain the existing token fields.
     saved_tokens = json.loads(oauth.token_file.read_text(encoding="utf-8"))
@@ -758,7 +758,7 @@ async def test_code_exchange_failure_does_not_write_tokens(oauth):
 
             # Act and assert: A rejected token exchange should raise a library error.
             with pytest.raises(ViAuthError, match="Failed to fetch token"):
-                await oauth.async_fetch_details_from_code("rejected-code")
+                await oauth.async_exchange_code_for_tokens("rejected-code")
 
     # Assert: Failed authentication should not create a token file.
     assert not oauth.token_file.exists()
@@ -777,7 +777,7 @@ async def test_code_exchange_rejects_malformed_successful_token_json(oauth):
 
             # Act and assert: The malformed success body rejects as a library error.
             with pytest.raises(ViAuthError, match="invalid JSON"):
-                await oauth.async_fetch_details_from_code("accepted-code")
+                await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: No credential document is created from the failed exchange.
     assert not oauth.token_file.exists()
@@ -803,7 +803,7 @@ async def test_code_exchange_rejects_invalid_token_data_without_overwriting(
 
             # Act and assert: The public code exchange rejects malformed token data.
             with pytest.raises(ViAuthError):
-                await oauth.async_fetch_details_from_code("accepted-code")
+                await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: No invalid response can replace the saved credential document.
     assert oauth.token_file.read_text(encoding="utf-8") == original_content
@@ -827,7 +827,7 @@ def test_token_persistence(tmp_path):
     }
 
     # Act: Persist the tokens, then construct a fresh instance from the same file.
-    oauth._save_tokens()
+    oauth._credential_document.update(oauth._token_info)
     oauth2 = OAuth(
         client_id="test_client_id",
         redirect_uri="http://localhost:4200/",
@@ -993,7 +993,7 @@ async def test_code_exchange_without_pkce_verifier_raises(oauth):
     """Exchanging a code before generating the authorization URL should reject."""
     # Act and assert: The exchange explains the missing verifier.
     with pytest.raises(ViAuthError, match="PKCE Verifier missing"):
-        await oauth.async_fetch_details_from_code("accepted-code")
+        await oauth.async_exchange_code_for_tokens("accepted-code")
 
 
 @pytest.mark.asyncio
@@ -1032,7 +1032,7 @@ async def test_code_exchange_rejects_malformed_token_fields(
 
             # Act and assert: The exchange rejects the malformed field.
             with pytest.raises(ViAuthError, match=message):
-                await oauth.async_fetch_details_from_code("accepted-code")
+                await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: No credential document is created from the failed exchange.
     assert not oauth.token_file.exists()
@@ -1050,7 +1050,7 @@ async def test_code_exchange_without_expires_in_skips_computed_expiry(oauth):
             oauth = _oauth_with_websession(oauth, session)
 
             # Act: Exchange the code for the minimal token.
-            await oauth.async_fetch_details_from_code("accepted-code")
+            await oauth.async_exchange_code_for_tokens("accepted-code")
 
     # Assert: The token persists without a computed absolute expiry.
     saved = json.loads(oauth.token_file.read_text(encoding="utf-8"))

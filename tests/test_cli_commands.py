@@ -589,7 +589,7 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
     monkeypatch.setenv("VIESSMANN_REDIRECT_URI", "http://localhost:8123/auth")
     mock_auth = MagicMock()
     mock_auth.get_authorization_url.return_value = "https://example.invalid/authorize"
-    mock_auth.async_fetch_details_from_code = AsyncMock()
+    mock_auth.async_exchange_code_for_tokens = AsyncMock()
 
     with (
         patch("builtins.input", return_value="authorization-code"),

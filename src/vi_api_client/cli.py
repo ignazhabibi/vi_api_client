@@ -141,7 +141,7 @@ async def cmd_login(args: argparse.Namespace) -> bool:
         print(f"After verifying, you will be redirected to {redirect_uri}?code=...")
         code = input("Paste the 'code' parameter from the URL here: ").strip()
 
-        await auth.async_fetch_details_from_code(code)
+        await auth.async_exchange_code_for_tokens(code)
 
     CredentialDocument(Path(token_file)).update(
         {"client_id": client_id, "redirect_uri": redirect_uri}
