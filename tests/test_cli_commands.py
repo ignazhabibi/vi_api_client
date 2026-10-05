@@ -11,7 +11,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from builders import build_device, build_gateway, build_installation
+from builders import (
+    build_device,
+    build_gateway,
+    build_installation,
+    load_fixture_device,
+)
 
 from vi_api_client import (
     CommandResponse,
@@ -1357,9 +1362,7 @@ def test_parser_keeps_installation_ids_as_text():
     assert args.installation_id == "123"
 
 
-async def test_list_events_json_emits_complete_events_across_pages(
-    run_cli, load_fixture_device
-):
+async def test_list_events_json_emits_complete_events_across_pages(run_cli):
     """JSON output is one document with every event and the pagination state."""
     # Act: List the two-page fixture history as JSON.
     exit_status, out, err = await run_cli(

@@ -1,6 +1,7 @@
 """Tests for the installation event history read path."""
 
 import pytest
+from builders import load_fixture_device
 
 from vi_api_client.const import API_BASE_URL, ENDPOINT_EVENT_HISTORY
 from vi_api_client.exceptions import ViResponseError
@@ -15,9 +16,7 @@ def _page_url(query: str) -> str:
     return f"{EVENTS_URL}?{query}"
 
 
-async def test_get_event_history_returns_first_page_by_days(
-    vi_client, mock_responses, load_fixture_device
-):
+async def test_get_event_history_returns_first_page_by_days(vi_client, mock_responses):
     """A days window should request one page and preserve provider details."""
     # Arrange: Load the bundled page and mock the verified GET route.
     payload = load_fixture_device("event_history")

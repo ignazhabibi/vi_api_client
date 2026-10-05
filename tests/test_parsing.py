@@ -1,6 +1,7 @@
 """Tests for parsing API features into flat features and their controls."""
 
 import pytest
+from builders import load_fixture_json
 
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.parsing import api_feature_to_flat_features
@@ -27,9 +28,7 @@ def test_command_mappings_with_non_string_keys_are_rejected():
         pytest.param("parsing/feature_level_unit.json", id="unit-on-feature"),
     ],
 )
-def test_value_property_becomes_the_base_feature_with_its_unit(
-    load_fixture_json, fixture_name: str
-):
+def test_value_property_becomes_the_base_feature_with_its_unit(fixture_name: str):
     """The value property keeps the API feature name and the declared unit."""
     # Arrange: The unit is declared either on the value or for the whole feature.
     data = load_fixture_json(fixture_name)
@@ -73,7 +72,7 @@ def test_control_requires_parameters_unless_marked_optional():
     assert feature.control.required_params == ("requiredSibling", "unspecifiedSibling")
 
 
-def test_status_property_becomes_a_suffixed_feature(load_fixture_json):
+def test_status_property_becomes_a_suffixed_feature():
     """A status property is exposed under a .status feature name."""
     # Arrange: Load a circulation pump feature with only a status property.
     data = load_fixture_json("parsing/status_feature.json")
@@ -88,7 +87,7 @@ def test_status_property_becomes_a_suffixed_feature(load_fixture_json):
     assert feature.value == "off"
 
 
-def test_scalar_properties_become_separate_features(load_fixture_json):
+def test_scalar_properties_become_separate_features():
     """Several scalar properties become separate flat features."""
     # Arrange: Load a feature with two scalar properties, one with a unit.
     data = load_fixture_json("parsing/nested_expansion.json")
@@ -107,7 +106,7 @@ def test_scalar_properties_become_separate_features(load_fixture_json):
     assert feature_b.unit == "C"
 
 
-def test_active_property_becomes_a_boolean_feature(load_fixture_json):
+def test_active_property_becomes_a_boolean_feature():
     """An 'active' property keeps its JSON boolean instead of becoming text."""
     # Arrange: Load a feature whose only property is a boolean 'active' flag.
     data = load_fixture_json("parsing/active_feature.json")
@@ -122,7 +121,7 @@ def test_active_property_becomes_a_boolean_feature(load_fixture_json):
     assert feature.value is True
 
 
-def test_history_series_stay_one_feature_with_their_whole_value(load_fixture_json):
+def test_history_series_stay_one_feature_with_their_whole_value():
     """History arrays stay one feature with their whole value."""
     # Arrange: Load a consumption feature with a daily history series.
     data = load_fixture_json("parsing/history_array.json")
@@ -168,7 +167,7 @@ def test_history_series_stay_one_feature_with_their_whole_value(load_fixture_jso
     ],
 )
 def test_consumption_series_expose_a_current_year_alias(
-    load_fixture_json, fixture_name: str, base_name: str
+    fixture_name: str, base_name: str
 ):
     """Consumption series expose the first year value as a currentYear feature."""
     # Arrange: Load the consumption fixture with day, month, and year arrays.
@@ -197,9 +196,7 @@ def test_consumption_series_expose_a_current_year_alias(
     )
 
 
-def test_value_property_keeps_the_base_name_beside_a_suffixed_status(
-    load_fixture_json,
-):
+def test_value_property_keeps_the_base_name_beside_a_suffixed_status():
     """The value property keeps the base name; status gets a suffix."""
     # Arrange: Load a feature with both 'value' and 'status' properties.
     data = load_fixture_json("parsing/mixed_feature.json")
@@ -214,7 +211,7 @@ def test_value_property_keeps_the_base_name_beside_a_suffixed_status(
     }
 
 
-def test_commands_become_controls_of_the_properties_they_write(load_fixture_json):
+def test_commands_become_controls_of_the_properties_they_write():
     """Commands become controls of the properties they write."""
     # Arrange: Load a curve feature whose one command writes slope and shift.
     data = load_fixture_json("parsing/feature_with_commands.json")
@@ -243,7 +240,7 @@ def test_commands_become_controls_of_the_properties_they_write(load_fixture_json
     assert feature_shift.control.param_name == "shift"
 
 
-def test_hysteresis_commands_create_writable_switch_point_features(load_fixture_json):
+def test_hysteresis_commands_create_writable_switch_point_features():
     """Hysteresis value and switch points become separate writable features."""
     # Arrange: Load the fixture with hysteresis value and switch point commands.
     raw_feature = load_fixture_json("parsing/hysteresis_raw.json")

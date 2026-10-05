@@ -1,10 +1,9 @@
 """Run every CLI command against every bundled fixture device."""
 
-import asyncio
 import json
-from collections.abc import Callable
 
 import pytest
+from builders import load_fixture_features
 
 from vi_api_client import FixtureViClient
 from vi_api_client.models import Feature
@@ -18,35 +17,24 @@ _for_every_fixture_device = pytest.mark.parametrize(
 )
 
 
-async def _features_of(fixture_device: str) -> list[Feature]:
-    """Return every feature of a fixture device through the public client."""
-    client = FixtureViClient(fixture_device)
-    device = (await client.get_devices("99999", "MOCK_GATEWAY"))[0]
-    return await client.get_features(device)
-
-
-async def _writable_features() -> list[tuple[str, Feature]]:
-    """Return every writable feature of every fixture device."""
-    return [
-        (fixture_device, feature)
-        for fixture_device in FIXTURE_DEVICES
-        for feature in await _features_of(fixture_device)
-        if feature.is_writable
-    ]
-
-
-# Parametrization needs the features at collection time, before any test
-# event loop exists, so the bundled fixtures are read once synchronously.
-_WRITABLE_FEATURES = asyncio.run(_writable_features())
-
-
-def _writable_feature_cases(*, empty_value: bool) -> list:
-    """Return one parameter set per writable feature with or without a value."""
-    return [
-        pytest.param(fixture_device, feature, id=f"{fixture_device}:{feature.name}")
-        for fixture_device, feature in _WRITABLE_FEATURES
-        if (feature.value == "") is empty_value
-    ]
+# Every writable feature of every fixture device, split by whether its
+# current value is empty, so set can try writing the value back.
+_WRITABLE_FEATURES = [
+    (fixture_device, feature)
+    for fixture_device in FIXTURE_DEVICES
+    for feature in load_fixture_features(fixture_device)
+    if feature.is_writable
+]
+_FILLED_WRITABLE_FEATURES = [
+    pytest.param(fixture_device, feature, id=f"{fixture_device}:{feature.name}")
+    for fixture_device, feature in _WRITABLE_FEATURES
+    if feature.value != ""
+]
+_EMPTY_WRITABLE_FEATURES = [
+    pytest.param(fixture_device, feature, id=f"{fixture_device}:{feature.name}")
+    for fixture_device, feature in _WRITABLE_FEATURES
+    if feature.value == ""
+]
 
 
 @_for_every_fixture_device
@@ -85,70 +73,58 @@ async def test_text_commands_print_their_result_for_every_fixture(
     assert result_marker in out
 
 
-def _element_types(document: list) -> set[str]:
-    """Return the type names of a JSON array's elements."""
-    return {type(element).__name__ for element in document}
+@_for_every_fixture_device
+async def test_list_features_json_prints_feature_names(run_cli, fixture_device: str):
+    """The JSON feature list is one array of names; diagnostics go to stderr."""
+    # Act: List the feature names as JSON.
+    exit_status, out, err = await run_cli(
+        "list-features", "--json", "--fixture-device", fixture_device
+    )
 
-
-def _element_keys(document: list[dict]) -> set[tuple[str, ...]]:
-    """Return the distinct sorted key sets of a JSON array of objects."""
-    return {tuple(sorted(element)) for element in document}
-
-
-def _document_keys(document: dict) -> tuple[str, ...]:
-    """Return the sorted top-level keys of a JSON object."""
-    return tuple(sorted(document))
+    # Assert: stdout holds only the array of names.
+    assert exit_status == 0
+    names = json.loads(out)
+    assert names
+    assert all(isinstance(name, str) for name in names)
+    assert f"Using Fixture Device: {fixture_device}" in err
 
 
 @_for_every_fixture_device
-@pytest.mark.parametrize(
-    ("command", "shape", "expected_shape"),
-    [
-        pytest.param(
-            ["list-features", "--json"],
-            _element_types,
-            {"str"},
-            id="list-features --json",
-        ),
-        pytest.param(
-            ["list-features", "--values", "--json"],
-            _element_keys,
-            {("formatted", "name", "unit", "value", "writable")},
-            id="list-features --values --json",
-        ),
-        pytest.param(
-            ["list-events", "--days", "7", "--json"],
-            _document_keys,
-            (
-                "earliestEventTimestamp",
-                "eventCount",
-                "events",
-                "installationId",
-                "latestEventTimestamp",
-                "nextCursor",
-                "pagesFetched",
-                "paginationComplete",
-            ),
-            id="list-events --days 7 --json",
-        ),
-    ],
-)
-async def test_json_commands_print_exactly_one_document_for_every_fixture(
-    run_cli,
-    fixture_device: str,
-    command: list[str],
-    shape: Callable[[object], object],
-    expected_shape: object,
+async def test_list_features_values_json_prints_value_documents(
+    run_cli, fixture_device: str
 ):
-    """JSON commands print one document of their shape and keep stdout clean."""
-    # Act: Run the JSON command against the fixture device.
-    exit_status, out, err = await run_cli(*command, "--fixture-device", fixture_device)
+    """The JSON value list holds one value document per feature."""
+    # Act: List the feature values as JSON.
+    exit_status, out, _ = await run_cli(
+        "list-features", "--values", "--json", "--fixture-device", fixture_device
+    )
 
-    # Assert: stdout is one JSON document of the command's shape and
-    # diagnostics stay on stderr.
+    # Assert: Every element has exactly the value document fields.
     assert exit_status == 0
-    assert shape(json.loads(out)) == expected_shape
-    assert f"Using Fixture Device: {fixture_device}" in err
+    for document in json.loads(out):
+        assert set(document) == {"formatted", "name", "unit", "value", "writable"}
+
+
+@_for_every_fixture_device
+async def test_list_events_json_prints_one_document(run_cli, fixture_device: str):
+    """The JSON event list is one document with the pagination fields."""
+    # Act: List the event history as JSON.
+    exit_status, out, _ = await run_cli(
+        "list-events", "--days", "7", "--json", "--fixture-device", fixture_device
+    )
+
+    # Assert: stdout is exactly one event history document.
+    assert exit_status == 0
+    assert set(json.loads(out)) == {
+        "earliestEventTimestamp",
+        "eventCount",
+        "events",
+        "installationId",
+        "latestEventTimestamp",
+        "nextCursor",
+        "pagesFetched",
+        "paginationComplete",
+    }
 
 
 @_for_every_fixture_device
@@ -159,7 +135,7 @@ async def test_get_feature_json_serializes_writable_and_structured_features(
     # Arrange: Select the features whose JSON output is not a plain scalar.
     features = [
         feature
-        for feature in await _features_of(fixture_device)
+        for feature in load_fixture_features(fixture_device)
         if feature.is_writable or isinstance(feature.value, (dict, list))
     ]
     assert features
@@ -189,9 +165,7 @@ def _cli_text(value: object) -> str:
     return str(value)
 
 
-@pytest.mark.parametrize(
-    ("fixture_device", "feature"), _writable_feature_cases(empty_value=False)
-)
+@pytest.mark.parametrize(("fixture_device", "feature"), _FILLED_WRITABLE_FEATURES)
 async def test_set_accepts_the_current_value_of_a_writable_feature(
     run_cli, fixture_device: str, feature: Feature
 ):
@@ -210,9 +184,7 @@ async def test_set_accepts_the_current_value_of_a_writable_feature(
     assert "Success!" in out
 
 
-@pytest.mark.parametrize(
-    ("fixture_device", "feature"), _writable_feature_cases(empty_value=True)
-)
+@pytest.mark.parametrize(("fixture_device", "feature"), _EMPTY_WRITABLE_FEATURES)
 async def test_set_rejects_an_empty_current_value_by_its_constraint(
     run_cli, fixture_device: str, feature: Feature
 ):

@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
-from builders import build_device
+from builders import build_device, load_fixture_device, load_fixture_json
 from yarl import URL
 
 from vi_api_client._types import JsonValue
@@ -59,7 +59,6 @@ def _gateway_features_url(device: Device) -> str:
 async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
     vi_client,
     mock_responses,
-    load_fixture_json,
 ):
     # Arrange: Mock a gateway response with requested and unrelated features.
     response = load_fixture_json("gateway_device_features.json")
@@ -361,7 +360,7 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     ],
 )
 async def test_update_gateway_devices_captures_device_specific_fallback_errors(
-    vi_client, mock_responses, status: int, error_type: str, load_fixture_json
+    vi_client, mock_responses, status: int, error_type: str
 ):
     # Arrange: Gateway communication fails and device 0 then fails specifically.
     fixture = load_fixture_json("gateway_device_features.json")
@@ -478,7 +477,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
 
 
 async def test_get_installations_returns_every_listed_installation(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Answer the installation list with two installations.
     data = load_fixture_json("installations.json")
@@ -495,9 +494,7 @@ async def test_get_installations_returns_every_listed_installation(
     ]
 
 
-async def test_get_gateways_returns_the_listed_gateway(
-    vi_client, mock_responses, load_fixture_json
-):
+async def test_get_gateways_returns_the_listed_gateway(vi_client, mock_responses):
     # Arrange: Answer the gateway list with one gateway.
     data = load_fixture_json("gateways.json")
 
@@ -606,7 +603,7 @@ async def test_discovery_rejects_successful_malformed_json_responses(
 
 
 async def test_discovery_keeps_a_caller_managed_session_open(
-    vi_client, static_token_auth, mock_responses, load_fixture_json
+    vi_client, static_token_auth, mock_responses
 ):
     """Discovery must not close a session supplied through authentication."""
     # Arrange: The auth carries a caller-owned session.
@@ -695,7 +692,7 @@ async def test_get_full_installation_status_rejects_malformed_device_responses(
 
 
 async def test_get_devices_returns_the_devices_of_one_gateway(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Answer the device list of one gateway with two devices.
     data = load_fixture_json("devices_heating.json")
@@ -713,7 +710,7 @@ async def test_get_devices_returns_the_devices_of_one_gateway(
 
 
 async def test_get_features_returns_every_device_feature_as_flat_features(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Answer the device feature read with a sensor and a circuit.
     data = load_fixture_json("features_heating_sensors.json")
@@ -733,7 +730,7 @@ async def test_get_features_returns_every_device_feature_as_flat_features(
 
 
 async def test_get_features_translates_duplicate_api_feature_names(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Mock a response containing the same feature twice.
     data = load_fixture_json("features_heating_sensors.json")
@@ -750,7 +747,7 @@ async def test_get_features_translates_duplicate_api_feature_names(
 
 
 async def test_get_features_ignores_duplicates_outside_requested_names(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     """Duplicates only matter for features the client returns."""
     # Arrange: Duplicate a feature that the request does not select.
@@ -772,7 +769,6 @@ async def test_get_features_ignores_duplicates_outside_requested_names(
 async def test_get_features_applies_enabled_ready_and_name_filters_after_response(
     vi_client,
     mock_responses,
-    load_fixture_json,
 ):
     """Live feature filtering should not rely only on server-side filter hints."""
     # Arrange: Return requested, disabled, and not-ready features despite filter hints.
@@ -822,7 +818,7 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
     ],
 )
 async def test_get_features_matches_feature_and_api_feature_names_locally(
-    vi_client, mock_responses, requested_name, expected_names, load_fixture_device
+    vi_client, mock_responses, requested_name, expected_names
 ):
     """Names select flat features by their own or their API feature's name."""
     # Arrange: Return a complete device feature response from the live API.
@@ -840,7 +836,7 @@ async def test_get_features_matches_feature_and_api_feature_names_locally(
 
 
 async def test_get_features_returns_nothing_for_unknown_names(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     """Unknown names select no features instead of failing the request."""
     # Arrange: Return a successful device feature response.
@@ -860,7 +856,7 @@ async def test_get_features_returns_nothing_for_unknown_names(
 
 
 async def test_update_device_returns_a_new_device_with_the_read_features(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Answer the refresh with one feature the device does not have yet.
     data = load_fixture_json("update_device_response.json")
@@ -891,7 +887,7 @@ async def test_update_device_rejects_malformed_feature_responses(
 
 
 async def test_get_devices_hydrates_each_device_with_its_own_features(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Discover two devices and give each its own feature response, so
     # a device hydrated from the other's read would be detected.
@@ -924,7 +920,7 @@ async def test_get_devices_hydrates_each_device_with_its_own_features(
 
 
 async def test_set_feature_sends_the_current_value_of_a_required_sibling(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Read the curve whose setCurve command requires slope and shift.
     device = build_device("0")
@@ -948,7 +944,7 @@ async def test_set_feature_sends_the_current_value_of_a_required_sibling(
 
 
 async def test_set_feature_returns_a_new_device_with_the_written_value(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Read the curve with a slope of 0.6 and accept the write.
     device = build_device("0")
@@ -979,9 +975,7 @@ async def test_set_feature_returns_a_new_device_with_the_written_value(
     assert input_slope_feature.value == 0.6
 
 
-async def test_execute_command_preserves_explicit_parameters(
-    vi_client, mock_responses, load_fixture_json
-):
+async def test_execute_command_preserves_explicit_parameters(vi_client, mock_responses):
     # Arrange: Read a writable feature and accept its command.
     device = build_device("0")
     parameters: dict[str, JsonValue] = {"slope": 0.7, "shift": 7.0}
@@ -1005,7 +999,7 @@ async def test_execute_command_preserves_explicit_parameters(
 
 
 async def test_execute_command_rejects_malformed_success_response(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Return a valid JSON value that violates the command response contract.
     device = build_device("0")
@@ -1025,7 +1019,7 @@ async def test_execute_command_rejects_malformed_success_response(
 
 
 async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_write(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Read the curve and let the API reject the command.
     device = build_device("0")
@@ -1052,7 +1046,7 @@ async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_
 
 
 async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
-    vi_client, mock_responses, load_fixture_json
+    vi_client, mock_responses
 ):
     # Arrange: Read the curve with slope 0.6 and shift 4, and accept every write.
     device = build_device("0")
