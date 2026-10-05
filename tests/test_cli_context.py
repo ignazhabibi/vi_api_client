@@ -74,9 +74,7 @@ async def test_cli_context_fixture_mode_does_not_create_oauth_or_session(tmp_pat
 
     with (
         patch("vi_api_client.cli.OAuth") as mock_oauth,
-        patch(
-            "vi_api_client.cli.create_session", new_callable=AsyncMock
-        ) as mock_create_session,
+        patch("vi_api_client.cli.create_session") as mock_create_session,
     ):
         mock_create_session.side_effect = AssertionError(
             "Fixture mode must not create an HTTP session"
@@ -87,9 +85,9 @@ async def test_cli_context_fixture_mode_does_not_create_oauth_or_session(tmp_pat
             # Assert: The fixture context uses deterministic offline defaults.
             assert isinstance(ctx, CLIContext)
             assert ctx.session is None
-            assert ctx.inst_id == "99999"
-            assert ctx.gw_serial == "MOCK_GATEWAY"
-            assert ctx.dev_id == "0"
+            assert ctx.installation_id == "99999"
+            assert ctx.gateway_serial == "MOCK_GATEWAY"
+            assert ctx.device_id == "0"
 
     # Assert: No live authentication or HTTP session should be initialized.
     mock_oauth.assert_not_called()
@@ -106,9 +104,7 @@ async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
 
     with (
         patch("vi_api_client.cli.OAuth") as mock_oauth,
-        patch(
-            "vi_api_client.cli.create_session", new_callable=AsyncMock
-        ) as mock_create_session,
+        patch("vi_api_client.cli.create_session") as mock_create_session,
     ):
         # Act: Build the fixture context for JSON-driven commands.
         async with setup_client_context(args):
@@ -135,9 +131,7 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
 
     with (
         patch("vi_api_client.cli.OAuth"),
-        patch(
-            "vi_api_client.cli.create_session", new_callable=AsyncMock
-        ) as mock_create_session,
+        patch("vi_api_client.cli.create_session") as mock_create_session,
     ):
         mock_session = MagicMock()
         mock_create_session.return_value.__aenter__.return_value = mock_session
@@ -145,9 +139,9 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
         # Act: Build a context from explicit identifiers.
         async with setup_client_context(args) as ctx:
             # Assert: The context exposes exactly the supplied identifiers.
-            assert ctx.inst_id == "123"
-            assert ctx.gw_serial == "serial"
-            assert ctx.dev_id == "dev1"
+            assert ctx.installation_id == "123"
+            assert ctx.gateway_serial == "serial"
+            assert ctx.device_id == "dev1"
 
 
 @pytest.mark.asyncio
@@ -165,7 +159,11 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
         # Act: Discover installation, gateway, and device from scratch.
         async with setup_client_context(args) as ctx:
             # Assert: The discovered context matches the scripted discovery data.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("100", "GW123", "0")
+            assert (ctx.installation_id, ctx.gateway_serial, ctx.device_id) == (
+                "100",
+                "GW123",
+                "0",
+            )
 
         client.get_gateways.assert_called_once()
         client.get_devices.assert_called_once_with("100", "GW123")
@@ -199,7 +197,11 @@ async def test_cli_context_discovery_completes_partial_scope(
         # Act: Complete the partial scope through discovery.
         async with setup_client_context(args) as ctx:
             # Assert: The context resolves to the scoped gateway and its device.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "0")
+            assert (ctx.installation_id, ctx.gateway_serial, ctx.device_id) == (
+                "B",
+                "GW-B",
+                "0",
+            )
 
         client.get_devices.assert_called_once_with("B", "GW-B")
 
@@ -217,7 +219,11 @@ async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tm
         # Act: Complete the gateway scope through discovery.
         async with setup_client_context(args) as ctx:
             # Assert: The supplied device ID completes the context.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("B", "GW-B", "7")
+            assert (ctx.installation_id, ctx.gateway_serial, ctx.device_id) == (
+                "B",
+                "GW-B",
+                "7",
+            )
 
         # Assert: No device discovery request is needed.
         client.get_devices.assert_not_called()
@@ -236,7 +242,11 @@ async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
         # Act: Discover without a usable installation scope.
         async with setup_client_context(args) as ctx:
             # Assert: Auto-discovery selects the first gateway and its device.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("A", "GW-A", "0")
+            assert (ctx.installation_id, ctx.gateway_serial, ctx.device_id) == (
+                "A",
+                "GW-A",
+                "0",
+            )
 
 
 @pytest.mark.asyncio
@@ -328,7 +338,11 @@ async def test_cli_context_falls_back_to_first_device_without_id_zero(tmp_path):
         # Act: Discover the device for the gateway.
         async with setup_client_context(args) as ctx:
             # Assert: The first device is selected when '0' is absent.
-            assert (ctx.inst_id, ctx.gw_serial, ctx.dev_id) == ("A", "GW-A", "7")
+            assert (ctx.installation_id, ctx.gateway_serial, ctx.device_id) == (
+                "A",
+                "GW-A",
+                "7",
+            )
 
 
 @pytest.mark.asyncio
@@ -341,9 +355,9 @@ async def test_cli_context_without_discovery_leaves_ids_absent(tmp_path):
         # Act: Build a context without discovery.
         async with setup_client_context(args, discover=False) as ctx:
             # Assert: The context carries no identifiers.
-            assert ctx.inst_id is None
-            assert ctx.gw_serial is None
-            assert ctx.dev_id is None
+            assert ctx.installation_id is None
+            assert ctx.gateway_serial is None
+            assert ctx.device_id is None
 
         # Assert: No discovery request was made for the context.
         client.get_gateways.assert_not_called()
@@ -357,7 +371,7 @@ async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
     args = Namespace(insecure=True, json=True)
 
     # Act: Create and close the session without making a network request.
-    session = await create_session(args)
+    session = create_session(args)
     await session.close()
 
     # Assert: The warning remains a visible stderr diagnostic.

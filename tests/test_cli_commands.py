@@ -104,9 +104,9 @@ def mock_cli_context():
     fixture_client = AsyncMock()
     mock_ctx = MagicMock()
     mock_ctx.client = fixture_client
-    mock_ctx.inst_id = "99"
-    mock_ctx.gw_serial = "GW1"
-    mock_ctx.dev_id = "DEV1"
+    mock_ctx.installation_id = "99"
+    mock_ctx.gateway_serial = "GW1"
+    mock_ctx.device_id = "DEV1"
     return mock_ctx
 
 
@@ -270,7 +270,7 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context):
     """Writes without a device context should fail gracefully."""
     # Arrange: Strip the device identifier from the CLI context.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    mock_cli_context.dev_id = None
+    mock_cli_context.device_id = None
     mock_cli_context.client.get_features.return_value = [
         _feature(control=_control(value_type="number"))
     ]
@@ -380,7 +380,7 @@ async def test_cmd_get_feature_prints_value_and_control_details(
 ):
     """A writable feature should print its value, command, and constraints."""
     # Arrange: Return one constrained writable feature for the requested name.
-    args = _cli_args(feature_name="heating.curve.slope", raw=False)
+    args = _cli_args(feature_name="heating.curve.slope", json=False)
     feature = Feature(
         name="heating.curve.slope",
         value=1.4,
@@ -408,7 +408,7 @@ async def test_cmd_get_feature_prints_value_and_control_details(
 async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys):
     """A read-only feature should print its value without control details."""
     # Arrange: Return one read-only feature for the requested name.
-    args = _cli_args(feature_name="heating.status", raw=False)
+    args = _cli_args(feature_name="heating.status", json=False)
     feature = Feature(
         name="heating.status",
         value="ready",
@@ -443,7 +443,7 @@ async def test_cmd_get_feature_prints_only_present_control_details(
 ):
     """Control details should print only the constraints and options that exist."""
     # Arrange: Return a writable feature with only one kind of control detail.
-    args = _cli_args(feature_name="heating.curve.slope", raw=False)
+    args = _cli_args(feature_name="heating.curve.slope", json=False)
     feature = Feature(
         name="heating.curve.slope",
         value=1.4,
@@ -465,12 +465,12 @@ async def test_cmd_get_feature_prints_only_present_control_details(
 
 
 @pytest.mark.asyncio
-async def test_cmd_get_feature_raw_prints_machine_readable_document(
+async def test_cmd_get_feature_json_prints_machine_readable_document(
     mock_cli_context, capsys
 ):
-    """The raw flag should print the feature as an indented JSON document."""
+    """The JSON flag should print the feature and its control as JSON."""
     # Arrange: Return one writable feature with a unit for the requested name.
-    args = _cli_args(feature_name="heating.curve.slope", raw=True)
+    args = _cli_args(feature_name="heating.curve.slope", json=True)
     feature = Feature(
         name="heating.curve.slope",
         value=1.4,
@@ -482,15 +482,16 @@ async def test_cmd_get_feature_raw_prints_machine_readable_document(
     mock_cli_context.client.get_features.return_value = [feature]
 
     with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature in raw mode.
+        # Act: Read the feature in JSON mode.
         assert await cmd_get_feature(args) is True
 
-    # Assert: The document carries the feature fields and control text.
+    # Assert: The document carries the feature fields and control object.
     document = json.loads(capsys.readouterr().out)
     assert document["name"] == "heating.curve.slope"
     assert document["value"] == 1.4
     assert document["unit"] == "celsius"
-    assert "setCurve" in document["control"]
+    assert document["control"]["command_name"] == "setCurve"
+    assert document["control"]["param_name"] == "slope"
 
 
 def _curve_features() -> list[Feature]:
@@ -514,7 +515,7 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
 ):
     """An API feature name should print every feature parsed from it."""
     # Arrange: Return both features of the requested API feature.
-    args = _cli_args(feature_name="heating.curve", raw=False)
+    args = _cli_args(feature_name="heating.curve", json=False)
     mock_cli_context.client.get_features.return_value = _curve_features()
 
     with _patched_cli_context(mock_cli_context):
@@ -528,16 +529,16 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
 
 
 @pytest.mark.asyncio
-async def test_cmd_get_feature_raw_prints_one_array_for_several_features(
+async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     mock_cli_context, capsys
 ):
-    """Several raw matches should print one JSON array document."""
+    """Several JSON matches should print one JSON array document."""
     # Arrange: Return both features of the requested API feature.
-    args = _cli_args(feature_name="heating.curve", raw=True)
+    args = _cli_args(feature_name="heating.curve", json=True)
     mock_cli_context.client.get_features.return_value = _curve_features()
 
     with _patched_cli_context(mock_cli_context):
-        # Act: Read the API feature in raw mode.
+        # Act: Read the API feature in JSON mode.
         assert await cmd_get_feature(args) is True
 
     # Assert: The output is one JSON array with one document per feature.
@@ -552,7 +553,7 @@ async def test_cmd_get_feature_raw_prints_one_array_for_several_features(
 async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
     """Unknown feature names should print a not-found notice."""
     # Arrange: Return no features for the requested name.
-    args = _cli_args(feature_name="missing.feature", raw=False)
+    args = _cli_args(feature_name="missing.feature", json=False)
     mock_cli_context.client.get_features.return_value = []
 
     with _patched_cli_context(mock_cli_context):
@@ -567,7 +568,7 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
 async def test_cmd_get_feature_reports_unexpected_errors(mock_cli_context):
     """Unexpected read failures should fail the command without a traceback."""
     # Arrange: Make the feature read fail with an unexpected error.
-    args = _cli_args(feature_name="heating.curve.slope", raw=False)
+    args = _cli_args(feature_name="heating.curve.slope", json=False)
     mock_cli_context.client.get_features.side_effect = RuntimeError("boom")
 
     with _patched_cli_context(mock_cli_context):
@@ -594,9 +595,7 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
     with (
         patch("builtins.input", return_value="authorization-code"),
         patch("vi_api_client.cli.OAuth", return_value=mock_auth) as mock_oauth,
-        patch(
-            "vi_api_client.cli.create_session", new_callable=AsyncMock
-        ) as mock_create_session,
+        patch("vi_api_client.cli.create_session") as mock_create_session,
     ):
         mock_session = MagicMock()
         mock_create_session.return_value.__aenter__.return_value = mock_session
@@ -621,19 +620,17 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
 
 
 @pytest.mark.asyncio
-async def test_cmd_login_requires_a_client_id(monkeypatch, tmp_path, capsys):
-    """Login without any configured client ID should exit with guidance."""
+async def test_cmd_login_requires_a_client_id(monkeypatch, tmp_path):
+    """Login without any configured client ID should fail with guidance."""
     # Arrange: Provide neither an argument, environment, nor stored client ID.
     token_file = tmp_path / "tokens.json"
     args = _cli_args(token_file=str(token_file))
     monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
     monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
 
-    # Act and assert: The login command exits with status one and a hint.
-    with pytest.raises(SystemExit) as exit_error:
+    # Act and assert: The login command fails with a configuration hint.
+    with pytest.raises(ValueError, match=r"Client ID not found\..*run 'login'"):
         await cmd_login(args)
-    assert exit_error.value.code == 1
-    assert "Client ID not found" in capsys.readouterr().out
 
 
 def test_get_client_config_prefers_arguments_then_environment_then_document(
@@ -831,7 +828,7 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
 
     # Assert: The CLI names the expected command without executing.
     captured = capsys.readouterr()
-    assert "expects command 'setCurve'" in captured.out
+    assert "only supports command 'setCurve', not 'otherCommand'" in captured.out
     mock_cli_context.client.execute_command.assert_not_called()
 
 
@@ -1094,8 +1091,8 @@ async def test_async_main_fixture_device_json_output_is_machine_readable(
 
 
 @pytest.mark.asyncio
-async def test_async_main_json_setup_error_is_written_to_stderr(
-    monkeypatch, capsys, tmp_path
+async def test_async_main_json_setup_error_keeps_stdout_empty(
+    monkeypatch, capsys, caplog, tmp_path
 ):
     """A JSON-mode setup error must preserve stdout for a payload document."""
     # Arrange: Request live JSON output without saved or explicit credentials.
@@ -1111,14 +1108,12 @@ async def test_async_main_json_setup_error_is_written_to_stderr(
     )
 
     # Act: Invoke the CLI entry path.
-    with pytest.raises(SystemExit) as error:
-        await async_main()
+    exit_status = await async_main()
 
-    # Assert: The failed setup leaves stdout empty and preserves the diagnostic.
-    captured = capsys.readouterr()
-    assert error.value.code == 1
-    assert captured.out == ""
-    assert "Error: Client ID not found." in captured.err
+    # Assert: The failed setup leaves stdout empty and logs the diagnostic.
+    assert exit_status == 1
+    assert capsys.readouterr().out == ""
+    assert "Client ID not found." in caplog.text
 
 
 def _installation() -> Installation:
@@ -1187,9 +1182,7 @@ async def test_cmd_list_devices_does_not_require_device_context(capsys):
     with (
         patch("vi_api_client.cli.ViClient") as mock_client_class,
         patch("vi_api_client.cli.OAuth"),
-        patch(
-            "vi_api_client.cli.create_session", new_callable=AsyncMock
-        ) as mock_session,
+        patch("vi_api_client.cli.create_session") as mock_session,
     ):
         mock_session.return_value.__aenter__.return_value = MagicMock()
         client = mock_client_class.return_value
@@ -1569,7 +1562,7 @@ async def test_cmd_list_events_auto_selects_first_installation(
     """Without an installation ID the first account installation is used."""
     # Arrange: Leave the installation scope unresolved in the context.
     args = _cli_args(days=7)
-    mock_cli_context.inst_id = None
+    mock_cli_context.installation_id = None
     installation = Installation(
         id="12345", description="Home", alias="home", address={}
     )

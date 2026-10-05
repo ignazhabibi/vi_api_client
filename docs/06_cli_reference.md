@@ -66,8 +66,9 @@ vi-client get-feature "heating.sensors.temperature.outside"
 # An API feature name prints both heating curve features (shift and slope)
 vi-client get-feature "heating.circuits.0.heating.curve"
 
-# Show the parsed feature as JSON; several matches print one JSON array
-vi-client get-feature "heating.sensors.temperature.outside" --raw
+# Print the feature and its command metadata as JSON; several matches print
+# one JSON array, and setup messages go to standard error
+vi-client get-feature "heating.sensors.temperature.outside" --json
 ```
 
 ## 5. List Installation Events
