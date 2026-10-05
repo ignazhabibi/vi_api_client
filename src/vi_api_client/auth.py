@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from math import isfinite
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self, TypeIs
+from typing import Any, Self
 from urllib.parse import urlencode
 
 import aiohttp
@@ -19,7 +19,7 @@ from ._types import JsonValue
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
 from .credentials import CredentialDocument
 from .exceptions import ViAuthError, ViConnectionError, ViResponseError
-from .validation import validate_json_value
+from .validation import is_json_number, validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class OAuth(AbstractAuth):
         self._token_info.update(validated_token_data)
 
         expires_in = validated_token_data.get("expires_in")
-        if _is_number(expires_in):
+        if is_json_number(expires_in):
             self._token_info["expires_at"] = time.time() + expires_in
 
         self._credential_document.update(self._token_info)
@@ -259,7 +259,7 @@ class OAuth(AbstractAuth):
 
         expires_at = self._token_info.get("expires_at")
         if (
-            _is_number(expires_at)
+            is_json_number(expires_at)
             and time.time() < expires_at - _TOKEN_EXPIRY_MARGIN_SECONDS
         ):
             return self._access_token_value()
@@ -282,11 +282,6 @@ class OAuth(AbstractAuth):
         return access_token
 
 
-def _is_number(value: object) -> TypeIs[int | float]:
-    """Return whether a JSON value is a number; bool counts as int in Python."""
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
-
-
 def _validate_token_response(token_data: object) -> dict[str, JsonValue]:
     """Validate a successful OAuth token response before updating state."""
     try:
@@ -305,7 +300,7 @@ def _validate_token_response(token_data: object) -> dict[str, JsonValue]:
             raise ViAuthError(f"Token response {field_name} must be a string")
     expires_in = validated_token_data.get("expires_in")
     if expires_in is not None and (
-        not _is_number(expires_in) or not isfinite(expires_in) or expires_in < 0
+        not is_json_number(expires_in) or not isfinite(expires_in) or expires_in < 0
     ):
         raise ViAuthError(
             "Token response expires_in must be a non-negative finite number"
