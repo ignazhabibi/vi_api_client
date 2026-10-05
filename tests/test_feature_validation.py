@@ -223,7 +223,6 @@ from vi_api_client.parsing import api_feature_to_flat_features
 )
 def test_feature_parsing_rejects_malformed_known_fields(feature, message):
     """Malformed known fields fail before a feature is flattened."""
-    # Act and assert: Parsing rejects the contract violation by name.
     with pytest.raises(ViResponseError, match=message):
         api_feature_to_flat_features(feature)
 

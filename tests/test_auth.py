@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from builders import load_fixture_json
 from yarl import URL
 
 from vi_api_client.auth import OAuth
@@ -188,7 +189,7 @@ async def test_access_token_is_renewed_shortly_before_it_expires(
 
 
 async def test_explicit_refresh_replaces_the_token_in_use_and_on_disk(
-    mock_responses, token_file, load_fixture_json
+    mock_responses, token_file
 ):
     """An explicit refresh stores the new token even if the old one is valid."""
     # Arrange: Store a valid token and mock the token endpoint with a new one.
@@ -483,7 +484,7 @@ async def test_close_cleans_up_a_cancelled_callers_transport_failure(
 
 
 async def test_code_exchange_persists_tokens_and_unknown_fields(
-    mock_responses, token_file, load_fixture_json
+    mock_responses, token_file
 ):
     """Successful code exchange should store the token response fields."""
     # Arrange: Mock a token response that also carries a field from a newer API.
@@ -642,20 +643,16 @@ async def test_code_exchange_rejects_invalid_token_response_without_overwriting(
 
 async def test_code_exchange_before_creating_the_login_url_is_rejected(token_file):
     """Exchanging a code before generating the authorization URL should reject."""
-    # Arrange: Create OAuth without starting a login, so no PKCE verifier exists.
     oauth = OAuth("client", "https://example.invalid", token_file)
 
-    # Act and assert: The exchange explains the missing verifier.
     with pytest.raises(ViAuthError, match="PKCE Verifier missing"):
         await oauth.async_exchange_code_for_tokens("accepted-code")
 
 
 async def test_access_token_request_before_authentication_is_rejected(token_file):
     """Requesting a token before authentication should explain the requirement."""
-    # Arrange: Point OAuth at a token file that was never written.
     oauth = OAuth("client", "https://example.invalid", token_file)
 
-    # Act and assert: The token request raises with actionable guidance.
     with pytest.raises(ViAuthError, match="No tokens loaded"):
         await oauth.async_get_access_token()
 

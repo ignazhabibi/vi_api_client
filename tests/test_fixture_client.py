@@ -21,7 +21,6 @@ EXPECTED_DEVICE_TYPES = {
 
 def test_fixture_client_rejects_unknown_device_with_available_names():
     """Unknown fixture names should explain which fixture devices exist."""
-    # Act and assert: The error names the unknown device and the catalog entries.
     with pytest.raises(
         ValueError, match=r"Unknown fixture device 'Nope'\. Available: .*Vitodens200W"
     ):
@@ -91,14 +90,11 @@ async def test_fixture_feature_names_match_feature_and_api_feature_names(
     requested_name, expected_names
 ):
     """Fixture filtering should select the same features as the live client."""
-    # Arrange: Discover a fixture device with multi-property API features.
     client = FixtureViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
-    # Act: Request features by one name.
     features = await client.get_features(device, feature_names=[requested_name])
 
-    # Assert: Feature names and API feature names both select features.
     assert sorted(feature.name for feature in features) == expected_names
 
 

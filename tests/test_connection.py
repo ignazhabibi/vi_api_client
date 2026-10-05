@@ -363,9 +363,7 @@ async def test_live_adapter_refuses_command_uris_outside_vi_api(
     command_uri: str,
 ) -> None:
     """Command URIs from API responses must not receive the bearer token."""
-    # Arrange: Create an adapter; any HTTP request would fail the test.
 
-    # Act and assert: The adapter refuses the URI before any request.
     with pytest.raises(ViResponseError, match="outside the Vi API"):
         await live_adapter.execute_command(
             _command_control(command_uri), {"mode": "dhw"}

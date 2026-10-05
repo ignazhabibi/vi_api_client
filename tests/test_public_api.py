@@ -8,7 +8,6 @@ import vi_api_client
 
 def test_package_logger_has_a_null_handler():
     """The package logger should not require consumer logging configuration."""
-    # Assert: Importing the package installs a NullHandler on its logger.
     package_handlers = logging.getLogger("vi_api_client").handlers
     assert any(isinstance(handler, logging.NullHandler) for handler in package_handlers)
 

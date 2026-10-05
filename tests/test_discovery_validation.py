@@ -82,11 +82,9 @@ async def test_discovery_rejects_missing_or_malformed_known_fields(
     message: str,
 ) -> None:
     """Public discovery methods reject invalid known snapshot fields."""
-    # Arrange: Return the invalid response through the live client HTTP boundary.
     operation, arguments = call
     mock_responses.get(f"{API_BASE_URL}{endpoint}", payload=response)
 
-    # Act and assert: Known violations become library-owned response errors.
     with pytest.raises(ViResponseError, match=message):
         await getattr(vi_client, operation)(*arguments)
 

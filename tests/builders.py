@@ -1,6 +1,48 @@
-"""Model builders shared by several test modules."""
+"""Model builders and fixture loaders shared by several test modules."""
 
-from vi_api_client.models import Device, Gateway, Installation
+import json
+from pathlib import Path
+from typing import Any
+
+from vi_api_client import FeatureValue
+from vi_api_client.auth import AbstractAuth
+from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
+from vi_api_client.parsing import api_feature_to_flat_features
+
+TEST_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+# The bundled product fixtures double as the offline test catalog.
+BUNDLED_FIXTURES_DIR = (
+    Path(__file__).resolve().parents[1] / "src" / "vi_api_client" / "fixtures"
+)
+
+
+class StaticTokenAuth(AbstractAuth):
+    """Provide a static token for live client request-flow tests."""
+
+    async def async_get_access_token(self) -> str:
+        """Return the access token used by mocked HTTP requests."""
+        return "access-token"
+
+
+def load_fixture_json(path: str) -> Any:
+    """Load a JSON payload from ``tests/fixtures``."""
+    return json.loads((TEST_FIXTURES_DIR / path).read_text(encoding="utf-8"))
+
+
+def load_fixture_device(name: str) -> Any:
+    """Load a bundled product fixture, such as a device response, by name."""
+    return json.loads(
+        (BUNDLED_FIXTURES_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+
+
+def load_fixture_features(name: str) -> list[Feature]:
+    """Parse every feature of a bundled fixture device, as the client does."""
+    return [
+        feature
+        for api_feature in load_fixture_device(name)["data"]
+        for feature in api_feature_to_flat_features(api_feature)
+    ]
 
 
 def build_installation(installation_id: str) -> Installation:
@@ -33,4 +75,24 @@ def build_device(
         model_id=f"model-{device_id}",
         device_type="heating",
         status="connected",
+    )
+
+
+def build_feature(
+    name: str = "heating.curve.slope",
+    value: FeatureValue = 1.4,
+    control: FeatureControl | None = None,
+    *,
+    unit: str | None = None,
+    is_enabled: bool = True,
+    is_ready: bool = True,
+) -> Feature:
+    """Build one feature snapshot, enabled and ready unless stated otherwise."""
+    return Feature(
+        name=name,
+        value=value,
+        unit=unit,
+        is_enabled=is_enabled,
+        is_ready=is_ready,
+        control=control,
     )
