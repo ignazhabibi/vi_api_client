@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from vi_api_client.models import Device, Feature, Gateway, Installation
+from vi_api_client import FeatureValue
+from vi_api_client.auth import AbstractAuth
+from vi_api_client.models import Device, Feature, FeatureControl, Gateway, Installation
 from vi_api_client.parsing import api_feature_to_flat_features
 
 TEST_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -12,6 +14,14 @@ TEST_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 BUNDLED_FIXTURES_DIR = (
     Path(__file__).resolve().parents[1] / "src" / "vi_api_client" / "fixtures"
 )
+
+
+class StaticTokenAuth(AbstractAuth):
+    """Provide a static token for live client request-flow tests."""
+
+    async def async_get_access_token(self) -> str:
+        """Return the access token used by mocked HTTP requests."""
+        return "access-token"
 
 
 def load_fixture_json(path: str) -> Any:
@@ -65,4 +75,24 @@ def build_device(
         model_id=f"model-{device_id}",
         device_type="heating",
         status="connected",
+    )
+
+
+def build_feature(
+    name: str = "heating.curve.slope",
+    value: FeatureValue = 1.4,
+    control: FeatureControl | None = None,
+    *,
+    unit: str | None = None,
+    is_enabled: bool = True,
+    is_ready: bool = True,
+) -> Feature:
+    """Build one feature snapshot, enabled and ready unless stated otherwise."""
+    return Feature(
+        name=name,
+        value=value,
+        unit=unit,
+        is_enabled=is_enabled,
+        is_ready=is_ready,
+        control=control,
     )

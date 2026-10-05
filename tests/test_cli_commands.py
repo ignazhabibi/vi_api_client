@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from builders import (
     build_device,
+    build_feature,
     build_gateway,
     build_installation,
     load_fixture_device,
@@ -89,22 +90,6 @@ def _control(**overrides: Any) -> FeatureControl:
     return FeatureControl(**fields)
 
 
-def _feature(
-    name: str = "heating.curve.slope",
-    value: FeatureValue = 1.4,
-    control: FeatureControl | None = None,
-) -> Feature:
-    """Build one enabled, ready feature snapshot."""
-    return Feature(
-        name=name,
-        value=value,
-        unit=None,
-        is_enabled=True,
-        is_ready=True,
-        control=control,
-    )
-
-
 @pytest.fixture
 def mock_cli_context() -> Iterator[CLIContext]:
     """Make commands use a context whose client offers real ViClient methods."""
@@ -123,7 +108,7 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     """Successful writes should confirm the command, param, and result."""
     # Arrange: Provide a writable numeric feature and a successful write.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(control=_control(value_type="number"))
+    feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
@@ -153,7 +138,7 @@ async def test_cmd_set_converts_typed_command_values(
     """CLI writes should convert values to the target command parameter type."""
     # Arrange: Provide a writable feature of the parameter's declared type.
     args = _cli_args(feature_name="heating.curve.slope", value=raw_value)
-    feature = _feature(control=_control(value_type=value_type))
+    feature = build_feature(control=_control(value_type=value_type))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
@@ -179,7 +164,7 @@ async def test_cmd_set_rejects_malformed_typed_values(
     """Malformed typed values should explain the failure without a write."""
     # Arrange: Provide a writable feature whose declared type rejects the value.
     args = _cli_args(feature_name="heating.curve.slope", value=raw_value)
-    feature = _feature(control=_control(value_type=value_type))
+    feature = build_feature(control=_control(value_type=value_type))
     mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: Submit the malformed command line value.
@@ -196,7 +181,7 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     """Legacy features without metadata should infer their write type."""
     # Arrange: Provide a valueless-type control whose value hints the type.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(value=1.0, control=_control(value_type=None))
+    feature = build_feature(value=1.0, control=_control(value_type=None))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
@@ -211,7 +196,7 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     """Failed API writes should print the response message and reason."""
     # Arrange: Make the write succeed at the boundary but fail at the API.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(control=_control(value_type="number"))
+    feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
         CommandResponse(success=False, message="API rejected", reason="out of range"),
@@ -232,7 +217,7 @@ async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, 
     """Absent response details must not print empty Message or Reason lines."""
     # Arrange: Make the write fail without a message or reason.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(control=_control(value_type="number"))
+    feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = (
         CommandResponse(success=False),
@@ -323,7 +308,7 @@ async def test_commands_log_unexpected_client_errors_and_fail(
     # Arrange: Offer one writable feature and make one client call fail.
     failing_method, action = failure
     mock_cli_context.client.get_features.return_value = [
-        _feature(control=_control(value_type="number"))
+        build_feature(control=_control(value_type="number"))
     ]
     getattr(mock_cli_context.client, failing_method).side_effect = RuntimeError("boom")
 
@@ -339,7 +324,7 @@ async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject CLI writes before any request."""
     # Arrange: Provide a feature without command metadata.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    mock_cli_context.client.get_features.return_value = [_feature(control=None)]
+    mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Attempt to set the read-only feature.
     assert await cmd_set(args) is False
@@ -367,7 +352,7 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found write failures should surface the API message."""
     # Arrange: Make the write fail with a not-found API error.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
-    feature = _feature(control=_control(value_type="number"))
+    feature = build_feature(control=_control(value_type="number"))
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.side_effect = ViNotFoundError("device gone")
 
@@ -396,7 +381,7 @@ def test_infer_feature_value_type_uses_value_shape_and_constraints(
     control = _control(value_type=None)
     if numeric_constraints:
         control = _control(value_type=None, min=0.2, max=3.5, step=0.1)
-    feature = _feature(value=feature_value, control=control)
+    feature = build_feature(value=feature_value, control=control)
 
     # Act and assert: The value shape and constraints determine the type
     # inferred for a command without metadata.
@@ -409,13 +394,11 @@ async def test_cmd_get_feature_prints_value_and_control_details(
     """A writable feature should print its value, command, and constraints."""
     # Arrange: Return one constrained writable feature for the requested name.
     args = _cli_args(feature_name="heating.curve.slope", json=False)
-    feature = Feature(
-        name="heating.curve.slope",
-        value=1.4,
+    feature = build_feature(
+        "heating.curve.slope",
+        1.4,
+        _control(min=0.2, max=3.5, step=0.1, options=["low", "high"]),
         unit="celsius",
-        is_enabled=True,
-        is_ready=True,
-        control=_control(min=0.2, max=3.5, step=0.1, options=["low", "high"]),
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -435,14 +418,7 @@ async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys)
     """A read-only feature should print its value without control details."""
     # Arrange: Return one read-only feature for the requested name.
     args = _cli_args(feature_name="heating.status", json=False)
-    feature = Feature(
-        name="heating.status",
-        value="ready",
-        unit=None,
-        is_enabled=True,
-        is_ready=True,
-        control=None,
-    )
+    feature = build_feature("heating.status", "ready")
     mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: Read the feature through the CLI.
@@ -467,13 +443,8 @@ async def test_cmd_get_feature_prints_only_present_control_details(
     """Control details should print only the constraints and options that exist."""
     # Arrange: Return a writable feature with only one kind of control detail.
     args = _cli_args(feature_name="heating.curve.slope", json=False)
-    feature = Feature(
-        name="heating.curve.slope",
-        value=1.4,
-        unit="celsius",
-        is_enabled=True,
-        is_ready=True,
-        control=_control(**control_overrides),
+    feature = build_feature(
+        "heating.curve.slope", 1.4, _control(**control_overrides), unit="celsius"
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
@@ -492,14 +463,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     """The JSON flag should print the feature and its control as JSON."""
     # Arrange: Return one writable feature with a unit for the requested name.
     args = _cli_args(feature_name="heating.curve.slope", json=True)
-    feature = Feature(
-        name="heating.curve.slope",
-        value=1.4,
-        unit="celsius",
-        is_enabled=True,
-        is_ready=True,
-        control=_control(),
-    )
+    feature = build_feature("heating.curve.slope", 1.4, _control(), unit="celsius")
     mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: Read the feature in JSON mode.
@@ -517,14 +481,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
 def _curve_features() -> list[Feature]:
     """Return the two features parsed from one heating curve API feature."""
     return [
-        Feature(
-            name=f"heating.curve.{name}",
-            value=value,
-            unit=None,
-            is_enabled=True,
-            is_ready=True,
-            control=None,
-        )
+        build_feature(f"heating.curve.{name}", value)
         for name, value in (("shift", 0), ("slope", 1.4))
     ]
 
@@ -535,7 +492,7 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
     """Read-only features have no command metadata in the JSON document."""
     # Arrange: Return one read-only feature.
     args = _cli_args(feature_name="heating.curve.slope", json=True)
-    mock_cli_context.client.get_features.return_value = [_feature(control=None)]
+    mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Read the feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -737,7 +694,7 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
         command_name="setCurve",
         params=["slope=1.4", "shift=0"],
     )
-    feature = _feature(control=_control())
+    feature = build_feature(control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.execute_command.return_value = CommandResponse(
         success=True, message="OK", reason=None
@@ -775,7 +732,7 @@ async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
     """Read-only features should reject explicit commands."""
     # Arrange: Provide a feature without command metadata and no params argument.
     args = _cli_args(feature_name="heating.curve.slope", command_name="setCurve")
-    mock_cli_context.client.get_features.return_value = [_feature(control=None)]
+    mock_cli_context.client.get_features.return_value = [build_feature(control=None)]
 
     # Act: Attempt the explicit command.
     assert await cmd_exec(args) is False
@@ -807,7 +764,9 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
         command_name="otherCommand",
         params=["slope=1.4"],
     )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
+    mock_cli_context.client.get_features.return_value = [
+        build_feature(control=_control())
+    ]
 
     # Act: Attempt the foreign command.
     assert await cmd_exec(args) is False
@@ -826,7 +785,9 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
         command_name="setCurve",
         params=["slope=1.4"],
     )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
+    mock_cli_context.client.get_features.return_value = [
+        build_feature(control=_control())
+    ]
     mock_cli_context.client.execute_command.side_effect = ViNotFoundError("device gone")
 
     # Act: Execute the explicit command.
@@ -844,7 +805,9 @@ async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
         command_name="setCurve",
         params=["slope=invalid"],
     )
-    mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
+    mock_cli_context.client.get_features.return_value = [
+        build_feature(control=_control())
+    ]
     mock_cli_context.client.execute_command.side_effect = ViValidationError(
         "Simulated Validation Error"
     )
@@ -861,8 +824,8 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     # Arrange: Provide heating-curve features that share the setCurve command.
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
     control = _control(required_params=["shift", "slope"])
-    slope = _feature(control=control)
-    shift = _feature(name="heating.curve.shift", value=4.0, control=control)
+    slope = build_feature(control=control)
+    shift = build_feature(name="heating.curve.shift", value=4.0, control=control)
     mock_cli_context.client.get_features.return_value = [slope, shift]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
@@ -881,8 +844,8 @@ async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, cap
     # Arrange: Provide two features and request JSON output.
     args = _cli_args(enabled=False, values=False, json=True)
     mock_cli_context.client.get_features.return_value = [
-        _feature(name="f1", value=1),
-        _feature(name="f2", value=2),
+        build_feature(name="f1", value=1),
+        build_feature(name="f2", value=2),
     ]
 
     # Act: List the features with JSON output.
@@ -899,7 +862,7 @@ async def test_cmd_list_features_json_values_print_value_documents(
     # Arrange: Provide one writable feature and request JSON value output.
     args = _cli_args(enabled=False, values=True, json=True)
     mock_cli_context.client.get_features.return_value = [
-        _feature(name="f1", value=1.4, control=_control())
+        build_feature(name="f1", value=1.4, control=_control())
     ]
 
     # Act: List the feature values with JSON output.
@@ -925,7 +888,7 @@ async def test_cmd_list_features_enabled_requests_only_enabled_features(
     # Arrange: Provide one feature and request the enabled filter.
     args = _cli_args(enabled=True, values=False, json=True)
     mock_cli_context.client.get_features.return_value = [
-        _feature(name="f_enabled", value=1)
+        build_feature(name="f_enabled", value=1)
     ]
 
     # Act: List only enabled features.
@@ -945,8 +908,8 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
     args = _cli_args(enabled=False, values=True, json=False)
     long_value = "x" * 90
     mock_cli_context.client.get_features.return_value = [
-        _feature(name="writable.feature", value=1.4, control=_control()),
-        _feature(name="long.feature", value=long_value),
+        build_feature(name="writable.feature", value=1.4, control=_control()),
+        build_feature(name="long.feature", value=long_value),
     ]
 
     # Act: List the feature values as a table.
@@ -966,7 +929,9 @@ async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, caps
     """Without flags the listing is a device-scoped header plus one bullet per name."""
     # Arrange: Provide one feature and request no flags.
     args = _cli_args(enabled=False, values=False, json=False)
-    mock_cli_context.client.get_features.return_value = [_feature(name="f1", value=1)]
+    mock_cli_context.client.get_features.return_value = [
+        build_feature(name="f1", value=1)
+    ]
 
     # Act: List the features without flags.
     assert await cmd_list_features(args) is True
@@ -1056,7 +1021,7 @@ async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     """Listing writable features should print command and constraint details."""
     # Arrange: Provide one writable feature with numeric constraints.
     args = _cli_args()
-    feature = _feature(
+    feature = build_feature(
         name="heating.circuits.0.heating.curve.slope",
         control=_control(min=0.2, max=3.5, step=0.1),
     )
@@ -1078,7 +1043,7 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
     """String and enum command constraints should print beside numeric ones."""
     # Arrange: Provide a writable feature with every constraint kind.
     args = _cli_args()
-    feature = _feature(
+    feature = build_feature(
         name="heating.program",
         control=_control(
             options=["auto", "manual"],
@@ -1104,7 +1069,7 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     """Writable features without constraints should print without the line."""
     # Arrange: Provide a writable feature whose control declares no constraints.
     args = _cli_args()
-    feature = _feature(name="heating.program", control=_control())
+    feature = build_feature(name="heating.program", control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: List the writable features.

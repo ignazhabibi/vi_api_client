@@ -1,21 +1,10 @@
 """Unit tests for the CLI parameter parser and the display and PII helpers."""
 
 import pytest
+from builders import build_feature
 
-from vi_api_client.models import Feature
+from vi_api_client import FeatureValue
 from vi_api_client.utils import format_feature, mask_pii, parse_cli_params
-
-
-def _feature(value, unit=None) -> Feature:
-    """Build one display-ready feature snapshot."""
-    return Feature(
-        name="heating.display",
-        value=value,
-        unit=unit,
-        is_enabled=True,
-        is_ready=True,
-        control=None,
-    )
 
 
 def test_parse_cli_params_accepts_one_json_object_argument():
@@ -151,7 +140,7 @@ def test_mask_pii_redacts_installation_ids_in_paths_and_labels():
 def test_format_feature_renders_missing_values_as_dash():
     """Missing feature values should render as a visible dash."""
     # Act: Format the feature without a value.
-    formatted = format_feature(_feature(None))
+    formatted = format_feature(build_feature(value=None))
 
     # Assert: The placeholder keeps the display column occupied.
     assert formatted == "-"
@@ -171,7 +160,7 @@ def test_format_feature_renders_missing_values_as_dash():
 def test_format_feature_renders_values_and_lists(value, unit, expected):
     """Scalar and list values should render with their unit when present."""
     # Act: Format the feature value in its given shape.
-    formatted = format_feature(_feature(value, unit))
+    formatted = format_feature(build_feature(value=value, unit=unit))
 
     # Assert: The rendered text matches the documented display form.
     assert formatted == expected
@@ -189,7 +178,7 @@ def test_format_feature_renders_daily_schedules_compactly():
     }
 
     # Act: Format the schedule feature.
-    formatted = format_feature(_feature(schedule))
+    formatted = format_feature(build_feature(value=schedule))
 
     # Assert: Active days render as compact slot ranges and junk is skipped.
     assert formatted == "Mo[06:00-22:00] Tu[06:00-22:00] Fr[?-22:00]"
@@ -198,10 +187,10 @@ def test_format_feature_renders_daily_schedules_compactly():
 def test_format_feature_renders_slotless_schedules_as_empty():
     """Schedules without usable slots should render the empty marker."""
     # Arrange: Build a schedule whose days carry no usable slots.
-    schedule = {"mon": [], "tue": [], "wed": []}
+    schedule: FeatureValue = {"mon": [], "tue": [], "wed": []}
 
     # Act: Format the slotless schedule feature.
-    formatted = format_feature(_feature(schedule))
+    formatted = format_feature(build_feature(value=schedule))
 
     # Assert: The empty marker communicates the absence of slots.
     assert formatted == "(empty)"

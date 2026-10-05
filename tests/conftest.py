@@ -7,18 +7,10 @@ from pathlib import Path
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from builders import StaticTokenAuth
 
-from vi_api_client.auth import AbstractAuth
 from vi_api_client.cli import async_main
 from vi_api_client.client import ViClient
-
-
-class StaticTokenAuth(AbstractAuth):
-    """Provide a static token for live client request-flow tests."""
-
-    async def async_get_access_token(self) -> str:
-        """Return the access token used by mocked HTTP requests."""
-        return "access-token"
 
 
 @pytest.fixture

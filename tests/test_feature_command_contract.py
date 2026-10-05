@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any, cast
 
 import pytest
+from builders import StaticTokenAuth, build_feature
 
 from vi_api_client import FeatureValue, JsonValue
 from vi_api_client.client import ViClient
@@ -27,27 +28,10 @@ class _RecordingCommandAdapter:
 
 
 def _create_client(adapter: _RecordingCommandAdapter) -> ViClient:
-    """Create a client whose only collaborator is the recording command adapter.
-
-    ``__init__`` is skipped because it builds live adapters around an auth
-    provider; these tests need no authentication or discovery, only the
-    command adapter that ``set_feature`` and ``execute_command`` call.
-    """
-    client = ViClient.__new__(ViClient)
+    """Create a client whose commands go to the recording adapter."""
+    client = ViClient(StaticTokenAuth())
     client._command_adapter = adapter
     return client
-
-
-def _feature(
-    name: str,
-    value: Any,
-    control: FeatureControl | None = None,
-    *,
-    is_enabled: bool = True,
-    is_ready: bool = True,
-) -> Feature:
-    """Build a feature for feature-command contract tests."""
-    return Feature(name, value, None, is_enabled, is_ready, control)
 
 
 def _device(features: list[Feature]) -> Device:
@@ -84,16 +68,16 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
     canonical_control = _control(
         required_params=["target", "enabled", "count", "label"]
     )
-    canonical = _feature("heating.mode.target", "old", canonical_control)
+    canonical = build_feature("heating.mode.target", "old", canonical_control)
     device = _device(
         [
             canonical,
-            _feature("heating.mode.enabled", False),
-            _feature("heating.mode.count", 0),
-            _feature("heating.mode.label", ""),
+            build_feature("heating.mode.enabled", False),
+            build_feature("heating.mode.count", 0),
+            build_feature("heating.mode.label", ""),
         ]
     )
-    stale = _feature("heating.mode.target", "stale")
+    stale = build_feature("heating.mode.target", "stale")
 
     # Act: Set through the stale object using its canonical name.
     response, updated_device = await client.set_feature(device, stale, "new")
@@ -116,27 +100,27 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
     ("feature", "device_features", "error"),
     [
         pytest.param(
-            _feature("absent", "value", _control()),
+            build_feature("absent", "value", _control()),
             [],
             "not present",
             id="feature-not-on-device",
         ),
         pytest.param(
-            _feature("heating.mode.target", "old"),
-            [_feature("heating.mode.target", "old", _control(), is_enabled=False)],
+            build_feature("heating.mode.target", "old"),
+            [build_feature("heating.mode.target", "old", _control(), is_enabled=False)],
             "disabled",
             id="current-feature-disabled",
         ),
         pytest.param(
-            _feature("heating.mode.target", "old"),
-            [_feature("heating.mode.target", "old", _control(), is_ready=False)],
+            build_feature("heating.mode.target", "old"),
+            [build_feature("heating.mode.target", "old", _control(), is_ready=False)],
             "not ready",
             id="current-feature-not-ready",
         ),
         pytest.param(
-            _feature("heating.mode.target", "old"),
+            build_feature("heating.mode.target", "old"),
             [
-                _feature(
+                build_feature(
                     "heating.mode.target",
                     "old",
                     _control(required_params=["target", "other"]),
@@ -168,17 +152,17 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
     ("sibling", "error"),
     [
         pytest.param(
-            _feature("heating.mode.other", "value", is_enabled=False),
+            build_feature("heating.mode.other", "value", is_enabled=False),
             "disabled",
             id="sibling-disabled",
         ),
         pytest.param(
-            _feature("heating.mode.other", "value", is_ready=False),
+            build_feature("heating.mode.other", "value", is_ready=False),
             "not ready",
             id="sibling-not-ready",
         ),
         pytest.param(
-            _feature("heating.mode.other", None),
+            build_feature("heating.mode.other", None),
             "has no value",
             id="sibling-without-value",
         ),
@@ -193,7 +177,7 @@ async def test_set_feature_rejects_unavailable_required_dependencies_before_cons
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = replace(_control(required_params=["target", "other"]), max=10)
-    target = _feature("heating.mode.target", "old", control)
+    target = build_feature("heating.mode.target", "old", control)
     device = _device([target, sibling])
 
     # Act and assert: The dependency error takes precedence over the target constraint.
@@ -207,8 +191,8 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io():
     # Arrange: The caller supplies stale permissive metadata for a constrained target.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    canonical = _feature("heating.mode.target", 5, replace(_control(), max=10))
-    stale = _feature("heating.mode.target", 5, _control())
+    canonical = build_feature("heating.mode.target", 5, replace(_control(), max=10))
+    stale = build_feature("heating.mode.target", 5, _control())
     device = _device([canonical])
 
     # Act and assert: The canonical maximum rejects before either adapter can run.
@@ -234,7 +218,7 @@ async def test_set_feature_accepts_declared_option_values(
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = replace(_control(), options=options)
-    target = _feature("heating.mode.target", initial_value, control)
+    target = build_feature("heating.mode.target", initial_value, control)
     device = _device([target])
 
     # Act: Write one of the declared option values.
@@ -287,7 +271,7 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = replace(_control(), **control_overrides)
-    target = _feature("heating.mode.target", "old", control)
+    target = build_feature("heating.mode.target", "old", control)
     device = _device([target])
 
     # Act and assert: The constraint violation rejects before I/O.
@@ -302,8 +286,8 @@ async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device
     adapter = _RecordingCommandAdapter(success=False)
     client = _create_client(adapter)
     control = _control(required_params=[])
-    canonical = _feature("heating.mode.target", "old", control)
-    device = _device([canonical, _feature("heating.mode.optional", "present")])
+    canonical = build_feature("heating.mode.target", "old", control)
+    device = _device([canonical, build_feature("heating.mode.optional", "present")])
 
     # Act: The command adapter rejects the generated command.
     response, returned_device = await client.set_feature(device, canonical, "new")
@@ -320,7 +304,7 @@ async def test_execute_command_requires_complete_available_command_without_mutat
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = _control(required_params=["target", "dependency"])
-    feature = _feature("heating.mode.target", "old", control)
+    feature = build_feature("heating.mode.target", "old", control)
     parameters = {"target": "new", "dependency": None, "extra": "kept"}
 
     # Act: Submit the explicit payload without high-level augmentation.
@@ -338,7 +322,7 @@ async def test_set_feature_accepts_json_object_target_value():
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = _control()
-    target = _feature("heating.mode.target", "old", control)
+    target = build_feature("heating.mode.target", "old", control)
     device = _device([target])
     target_value: FeatureValue = {"entries": [1, "two", None]}
 
@@ -357,7 +341,7 @@ async def test_set_feature_rejects_non_finite_target_value_without_adapter_io():
     # Arrange: A non-finite number is outside the JSON value contract.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    target = _feature("heating.mode.target", "old", _control())
+    target = build_feature("heating.mode.target", "old", _control())
     device = _device([target])
 
     # Act and assert: The invalid target never reaches the adapter.
@@ -371,7 +355,7 @@ async def test_set_feature_rejects_non_json_target_value_without_adapter_io():
     # Arrange: The target value is a Python object JSON cannot represent.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    target = _feature("heating.mode.target", "old", _control())
+    target = build_feature("heating.mode.target", "old", _control())
     device = _device([target])
 
     # Act and assert: The invalid target never reaches the adapter.
@@ -386,8 +370,8 @@ async def test_set_feature_rejects_non_json_required_dependency_value_without_ad
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     control = _control(required_params=["target", "other"])
-    target = _feature("heating.mode.target", "old", control)
-    sibling = _feature("heating.mode.other", cast(FeatureValue, object()))
+    target = build_feature("heating.mode.target", "old", control)
+    sibling = build_feature("heating.mode.other", cast(FeatureValue, object()))
     device = _device([target, sibling])
 
     # Act and assert: The invalid dependency never reaches the adapter.
@@ -401,7 +385,7 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
     # Arrange: One explicit parameter value is outside the JSON value contract.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    feature = _feature("heating.mode.target", "old", _control())
+    feature = build_feature("heating.mode.target", "old", _control())
     parameters: dict[str, JsonValue] = {"target": float("nan")}
 
     # Act and assert: The invalid parameter never reaches the adapter.
@@ -414,31 +398,33 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
     ("feature", "parameters", "error"),
     [
         pytest.param(
-            _feature("target", "old"),
+            build_feature("target", "old"),
             {"target": "new"},
             "read-only",
             id="read-only-feature",
         ),
         pytest.param(
-            _feature("target", "old", _control(), is_enabled=False),
+            build_feature("target", "old", _control(), is_enabled=False),
             {"target": "new"},
             "disabled",
             id="disabled-feature",
         ),
         pytest.param(
-            _feature("target", "old", _control(), is_ready=False),
+            build_feature("target", "old", _control(), is_ready=False),
             {"target": "new"},
             "not ready",
             id="not-ready-feature",
         ),
         pytest.param(
-            _feature("target", "old", _control()),
+            build_feature("target", "old", _control()),
             {},
             "target parameter",
             id="missing-target-parameter",
         ),
         pytest.param(
-            _feature("target", "old", _control(required_params=["target", "other"])),
+            build_feature(
+                "target", "old", _control(required_params=["target", "other"])
+            ),
             {"target": "new"},
             "required parameter",
             id="missing-required-parameter",
