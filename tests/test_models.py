@@ -385,19 +385,19 @@ def test_command_response_rejects_malformed_optional_text_fields(
         CommandResponse.from_api(data)
 
 
-def test_command_response_accepts_root_and_envelope_payloads():
+def test_command_response_accepts_root_and_data_wrapped_payloads():
     """Command responses may arrive as the root object or inside data."""
     # Arrange: The same success flag arrives in both documented shapes.
     root_payload: dict[str, JsonValue] = {"success": "true"}
-    envelope_payload: dict[str, JsonValue] = {"data": {"success": "true"}}
+    wrapped_payload: dict[str, JsonValue] = {"data": {"success": "true"}}
 
     # Act: Parse both command responses.
     root_response = CommandResponse.from_api(root_payload)
-    envelope_response = CommandResponse.from_api(envelope_payload)
+    wrapped_response = CommandResponse.from_api(wrapped_payload)
 
     # Assert: Both shapes expose the same normalized result.
     assert root_response.success
-    assert envelope_response.success
+    assert wrapped_response.success
 
 
 def test_command_response_allows_unknown_fields():
@@ -416,9 +416,9 @@ def test_command_response_allows_unknown_fields():
 
 def test_command_response_rejects_non_object_data():
     """A non-object data field fails the response contract."""
-    # Arrange: The response envelope wraps a non-object data field.
+    # Arrange: The response wraps a non-object data field.
     data: dict[str, JsonValue] = {"data": "unexpected"}
 
-    # Act and assert: The malformed envelope raises a response error.
+    # Act and assert: The malformed response raises a response error.
     with pytest.raises(ViResponseError, match="object"):
         CommandResponse.from_api(data)

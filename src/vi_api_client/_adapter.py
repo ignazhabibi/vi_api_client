@@ -36,7 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DiscoveryAdapter(Protocol):
-    """Retrieve API envelopes without constructing domain objects.
+    """Return raw API responses; `ViClient` turns them into models.
 
     Kept separate from `CommandAdapter` so fixture adapters and test doubles
     implement only the role they exercise; `LiveAdapter` fulfills both.
@@ -76,22 +76,22 @@ class CommandAdapter(Protocol):
 
 
 class LiveAdapter:
-    """Retrieve live API envelopes through an authenticated request provider."""
+    """Return raw live API responses through an authenticated request provider."""
 
     def __init__(self, auth: AbstractAuth) -> None:
         """Initialize the adapter with the request provider."""
         self._auth = auth
 
     async def get_installations(self) -> object:
-        """Return the installations API envelope."""
+        """Return the raw installations API response."""
         return await self._request("GET", ENDPOINT_INSTALLATIONS)
 
     async def get_gateways(self) -> object:
-        """Return the gateways API envelope."""
+        """Return the raw gateways API response."""
         return await self._request("GET", ENDPOINT_GATEWAYS)
 
     async def get_devices(self, installation_id: str, gateway_serial: str) -> object:
-        """Return the devices API envelope."""
+        """Return the raw devices API response."""
         return await self._request(
             "GET",
             f"{ENDPOINT_INSTALLATIONS}/{installation_id}/gateways/"
@@ -99,7 +99,7 @@ class LiveAdapter:
         )
 
     async def get_features(self, device: Device, payload: dict[str, bool]) -> object:
-        """Return the feature API envelope for one device."""
+        """Return the raw feature API response for one device."""
         return await self._request(
             "POST",
             f"{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
@@ -110,7 +110,7 @@ class LiveAdapter:
     async def get_gateway_features(
         self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> object:
-        """Return the gateway-scoped feature API envelope."""
+        """Return the raw gateway-scoped feature API response."""
         return await self._request(
             "POST",
             f"{ENDPOINT_FEATURES}/{installation_id}/gateways/"
@@ -121,7 +121,7 @@ class LiveAdapter:
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]
     ) -> object:
-        """Return one event history API envelope."""
+        """Return one raw event history API response."""
         return await self._request(
             "GET",
             f"{ENDPOINT_EVENT_HISTORY}/{installation_id}/events",
@@ -131,7 +131,7 @@ class LiveAdapter:
     async def execute_command(
         self, control: FeatureControl, parameters: dict[str, JsonValue]
     ) -> object:
-        """Return the command API envelope."""
+        """Return the raw command API response."""
         return await self._request("POST", control.uri, json=parameters)
 
     async def _request(
@@ -212,9 +212,9 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         # The untyped aiohttp JSON boundary yields an unknown container shape;
         # each known error field is re-narrowed and validated below.
         error_body = cast("dict[str, Any]", data)
-        vi_error_id = _structured_error_text(error_body.get("viErrorId"))
-        error_type = _structured_error_text(error_body.get("errorType"))
-        message = _structured_error_text(error_body.get("message"))
+        vi_error_id = _text_or_none(error_body.get("viErrorId"))
+        error_type = _text_or_none(error_body.get("errorType"))
+        message = _text_or_none(error_body.get("message"))
         if message is not None:
             error_message = message
         validation_details = _parse_validation_details(
@@ -256,8 +256,8 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id, error_type)
 
 
-def _structured_error_text(value: object) -> str | None:
-    """Return a structured API error text field, or None when unusable."""
+def _text_or_none(value: object) -> str | None:
+    """Return the value if it is text, otherwise None."""
     return value if isinstance(value, str) else None
 
 

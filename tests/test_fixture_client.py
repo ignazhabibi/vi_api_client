@@ -180,10 +180,10 @@ async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics()
 
 
 @pytest.mark.asyncio
-async def test_fixture_client_rejects_malformed_fixture_feature_envelopes(
+async def test_fixture_client_rejects_malformed_fixture_feature_responses(
     monkeypatch,
 ):
-    """Fixture feature responses should use the same envelope validation as live ones."""
+    """Fixture feature responses should use the same response validation as live ones."""
     # Arrange: Serve the fixture feature response with an invalid collection entry.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]

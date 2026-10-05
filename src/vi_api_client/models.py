@@ -298,7 +298,7 @@ class CommandResponse:
 
         Args:
             data: The JSON response dictionary from the API, either as the
-                root object or wrapped in a ``data`` envelope.
+                root object or wrapped in a ``data`` object.
 
         Returns:
             A CommandResponse instance indicating success/failure.
@@ -484,7 +484,7 @@ class EventHistoryPage:
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> EventHistoryPage:
-        """Create EventHistoryPage from the event history API envelope.
+        """Create EventHistoryPage from the event history API response.
 
         Args:
             data: The JSON dictionary returned by the event history endpoint,
@@ -494,7 +494,7 @@ class EventHistoryPage:
             A new EventHistoryPage instance.
 
         Raises:
-            ViResponseError: If the envelope, an event, or the cursor violates
+            ViResponseError: If the response, an event, or the cursor violates
                 the API contract.
         """
         events_data = data.get("data")

@@ -159,7 +159,7 @@ otherwise malformed `success`, or a supplied `message` or `reason` that is
 neither a string nor JSON `null`, raises `ViResponseError`; absent and
 explicitly null optional text fields become `None`. Unknown additional fields
 remain allowed. Responses may arrive as the root object or wrapped in a `data`
-envelope.
+object.
 
 **Usage**:
 ```python
@@ -217,7 +217,7 @@ A successful response must carry a `data` list of event objects; an optional
 `cursor` object may carry a `next` string. The provider reports the final
 page with an empty `next` string, which this library exposes as a `None`
 `next_cursor`; a non-string `next` raises `ViResponseError`, as does any
-other malformed envelope, event, or cursor. How far back the provider retains
+other malformed response, event, or cursor. How far back the provider retains
 events is not verified by this library; callers should treat an exhausted or
 empty page as the end of the available window.
 
