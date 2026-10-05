@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from math import isfinite
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from ._types import JsonValue
 from .exceptions import ViResponseError
@@ -38,6 +38,27 @@ CONSUMPTION_ALIAS_MAPPING = {
     "currentYear": "year",
 }
 
+# Property keys that describe a feature's value instead of being a value
+# themselves, so they never become flat features of their own.
+_METADATA_PROPERTY_KEYS = frozenset({"unit", "type", "components", "displayValue"})
+
+# "min" and "max" are metadata when scalar (bounds of the value) but feature
+# properties when they hold their own value object.
+_BOUND_PROPERTY_KEYS = frozenset({"min", "max"})
+
+# Parameter names through which commands write a whole schedule object.
+_SCHEDULE_PARAMETER_NAMES = frozenset({"schedule", "entries", "newSchedule"})
+
+
+class ValidatedApiFeature(NamedTuple):
+    """The known fields of one API feature after validation."""
+
+    name: str
+    properties: dict[str, JsonValue]
+    commands: dict[str, Any]
+    is_enabled: bool
+    is_ready: bool
+
 
 def parse_api_feature(api_feature: dict[str, Any]) -> list[Feature]:
     """Parse one API feature into its flat features.
@@ -56,19 +77,18 @@ def parse_api_feature(api_feature: dict[str, Any]) -> list[Feature]:
     Raises:
         ViResponseError: If a known feature response field violates the API contract.
     """
-    api_feature_name, properties, commands, is_enabled, is_ready = (
-        validate_feature_entry(api_feature)
-    )
+    entry = validate_feature_entry(api_feature)
+    api_feature_name, properties = entry.name, entry.properties
 
     if not set(properties).isdisjoint(COMPLEX_DATA_INDICATORS):
-        control = _find_control_for_complex_feature(api_feature_name, commands)
+        control = _find_control_for_complex_feature(api_feature_name, entry.commands)
         features = [
             Feature(
                 name=api_feature_name,
                 value=properties,
                 unit=None,
-                is_enabled=is_enabled,
-                is_ready=is_ready,
+                is_enabled=entry.is_enabled,
+                is_ready=entry.is_ready,
                 control=control,
             )
         ]
@@ -76,46 +96,32 @@ def parse_api_feature(api_feature: dict[str, Any]) -> list[Feature]:
             _build_consumption_alias_features(
                 api_feature_name=api_feature_name,
                 properties=properties,
-                is_enabled=is_enabled,
-                is_ready=is_ready,
+                is_enabled=entry.is_enabled,
+                is_ready=entry.is_ready,
             )
         )
         return features
-
-    ignore_keys = {"unit", "type", "components", "displayValue"}
-
-    # "min" and "max" should only be ignored if they are metadata (scalars),
-    # not if they are actual feature properties (nested dicts/values).
-    data_keys: list[str] = []
-    for key in properties:
-        if key in ignore_keys:
-            continue
-        if key in ["min", "max"]:
-            value = properties[key]
-            if not isinstance(value, dict):
-                continue
-        data_keys.append(key)
 
     default_unit = properties.get("unit")
     if not isinstance(default_unit, str):
         default_unit = None
 
     features: list[Feature] = []
-    for key in data_keys:
+    for key in _feature_property_keys(properties):
         property_data = properties[key]
         # The "value" property carries the API feature's own value.
         feature_name = (
             api_feature_name if key == "value" else f"{api_feature_name}.{key}"
         )
         value, unit = _extract_value_and_unit(property_data, default_unit)
-        control = _find_control(key, commands, api_feature_name, property_data)
+        control = _find_control(key, entry.commands, api_feature_name, property_data)
         features.append(
             Feature(
                 name=feature_name,
                 value=value,
                 unit=unit,
-                is_enabled=is_enabled,
-                is_ready=is_ready,
+                is_enabled=entry.is_enabled,
+                is_ready=entry.is_ready,
                 control=control,
             )
         )
@@ -123,9 +129,17 @@ def parse_api_feature(api_feature: dict[str, Any]) -> list[Feature]:
     return features
 
 
-def validate_feature_entry(
-    api_feature: dict[str, Any],
-) -> tuple[str, dict[str, JsonValue], dict[str, Any], bool, bool]:
+def _feature_property_keys(properties: dict[str, JsonValue]) -> list[str]:
+    """Return the property keys that become flat features of their own."""
+    return [
+        key
+        for key, property_data in properties.items()
+        if key not in _METADATA_PROPERTY_KEYS
+        and (key not in _BOUND_PROPERTY_KEYS or isinstance(property_data, dict))
+    ]
+
+
+def validate_feature_entry(api_feature: dict[str, Any]) -> ValidatedApiFeature:
     """Validate the known API fields needed to parse one API feature.
 
     Raises:
@@ -161,7 +175,9 @@ def validate_feature_entry(
     unit = properties.get("unit")
     if unit is not None and not isinstance(unit, str):
         raise ViResponseError("Feature unit must be a string")
-    return api_feature_name, properties, commands, is_enabled, is_ready
+    return ValidatedApiFeature(
+        api_feature_name, properties, commands, is_enabled, is_ready
+    )
 
 
 def _validate_commands(commands: dict[str, Any]) -> None:
@@ -467,12 +483,15 @@ def _find_control_for_complex_feature(
     Returns:
         FeatureControl if a likely command is found.
     """
-    allowed = {"schedule", "entries", "newSchedule"}
     for command_name, command in commands.items():
         params = command.get("params", {})
         # Pick the first schedule-like parameter found.
         target_param = next(
-            (parameter_name for parameter_name in params if parameter_name in allowed),
+            (
+                parameter_name
+                for parameter_name in params
+                if parameter_name in _SCHEDULE_PARAMETER_NAMES
+            ),
             None,
         )
         if target_param:
@@ -483,6 +502,7 @@ def _find_control_for_complex_feature(
                 parent_feature_name=api_feature_name,
                 uri=command.get("uri", ""),
                 value_type=params[target_param].get("type"),
-                # Complex controls rarely have simple min/max
+                # A schedule is written as one object, so the scalar
+                # constraints (min, max, step, options) do not apply.
             )
     return None
