@@ -9,7 +9,7 @@ import re
 
 import pytest
 
-from vi_api_client.parsing import parse_feature_flat
+from vi_api_client.parsing import parse_api_feature
 
 # The catalog file shares the fixture directory but is not a device fixture.
 CATALOG_FILE_NAME = "discovery.json"
@@ -59,7 +59,7 @@ def test_fixture_data_parses_and_keeps_constraint_quality(
         # Act: Parse all raw features using the flat architecture parser.
         all_features: list = []
         for raw_feature in raw_features:
-            all_features.extend(parse_feature_flat(raw_feature))
+            all_features.extend(parse_api_feature(raw_feature))
 
         # Assert: Every fixture yields features with usable write constraints.
         assert all_features, f"Fixture data {device_name} resulted in 0 features"

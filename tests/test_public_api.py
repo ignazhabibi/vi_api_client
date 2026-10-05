@@ -76,7 +76,7 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "SCOPE_OFFLINE_ACCESS",
         "mask_pii",
         "parse_cli_params",
-        "parse_feature_flat",
+        "parse_api_feature",
     }
 
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
