@@ -1,6 +1,8 @@
 """Tests for the OAuth authentication and credential workflows."""
 
 import asyncio
+import base64
+import hashlib
 import json
 import logging
 import os
@@ -9,14 +11,21 @@ import time
 from pathlib import Path
 from typing import Self, cast
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlsplit
 
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from yarl import URL
 
 from vi_api_client.auth import AbstractAuth, OAuth
 from vi_api_client.client import ViClient
-from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_TOKEN
+from vi_api_client.const import (
+    API_BASE_URL,
+    DEFAULT_SCOPES,
+    ENDPOINT_INSTALLATIONS,
+    ENDPOINT_TOKEN,
+)
 from vi_api_client.credentials import CredentialDocument
 from vi_api_client.exceptions import ViAuthError
 
@@ -1093,3 +1102,138 @@ async def test_async_close_tolerates_an_externally_closed_owned_session(tmp_path
 
     # Assert: The close completes and clears the session reference.
     assert oauth.websession is None
+
+
+def _write_token_document(token_file: Path, **fields: object) -> None:
+    """Persist a token document with a refresh token and the given fields."""
+    document = {
+        "access_token": "stored-access",
+        "refresh_token": "stored-refresh",
+        **fields,
+    }
+    token_file.write_text(json.dumps(document), encoding="utf-8")
+
+
+def _token_request_form(mock_responses: aioresponses) -> dict[str, str]:
+    """Return the form data of the single request sent to the token endpoint."""
+    (request,) = mock_responses.requests[("POST", URL(ENDPOINT_TOKEN))]
+    return request.kwargs["data"]
+
+
+@pytest.mark.parametrize(
+    ("seconds_left", "expected_token"),
+    [(30, "refreshed-access"), (120, "stored-access")],
+    ids=["inside-margin-refreshes", "outside-margin-reuses"],
+)
+@pytest.mark.asyncio
+async def test_access_token_is_renewed_shortly_before_it_expires(
+    tmp_path, seconds_left, expected_token
+):
+    """Tokens expiring within the 60-second margin are refreshed before use."""
+    # Arrange: Store a token that expires in the given number of seconds.
+    token_file = tmp_path / "tokens.json"
+    _write_token_document(token_file, expires_at=time.time() + seconds_left)
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            ENDPOINT_TOKEN, payload={"access_token": "refreshed-access"}
+        )
+        async with aiohttp.ClientSession() as session:
+            oauth = OAuth("client", "https://example.invalid", token_file, session)
+
+            # Act: Request a token for the next API call.
+            token = await oauth.async_get_access_token()
+
+    # Assert: Only the token inside the margin was refreshed.
+    assert token == expected_token
+
+
+@pytest.mark.asyncio
+async def test_refresh_sends_the_stored_refresh_token_and_keeps_it(tmp_path):
+    """A refresh response without a new refresh token keeps the stored one."""
+    # Arrange: Store an expired token and answer without a refresh token.
+    token_file = tmp_path / "tokens.json"
+    _write_token_document(token_file, expires_at=0)
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            ENDPOINT_TOKEN,
+            payload={"access_token": "refreshed-access", "expires_in": 3600},
+        )
+        async with aiohttp.ClientSession() as session:
+            oauth = OAuth("client", "https://example.invalid", token_file, session)
+
+            # Act: Request a token, which refreshes the expired one.
+            token = await oauth.async_get_access_token()
+
+        # Assert: The refresh grant carries the stored token, which is kept.
+        assert _token_request_form(mock_responses) == {
+            "client_id": "client",
+            "grant_type": "refresh_token",
+            "refresh_token": "stored-refresh",
+        }
+    assert token == "refreshed-access"
+    saved = json.loads(token_file.read_text(encoding="utf-8"))
+    assert saved["refresh_token"] == "stored-refresh"
+    assert saved["access_token"] == "refreshed-access"
+
+
+@pytest.mark.asyncio
+async def test_code_exchange_sends_the_verifier_matching_the_login_challenge(
+    tmp_path,
+):
+    """The code exchange must send the PKCE verifier behind the login URL."""
+    # Arrange: Create the login URL and read its PKCE challenge.
+    token_file = tmp_path / "tokens.json"
+    with aioresponses() as mock_responses:
+        mock_responses.post(ENDPOINT_TOKEN, payload={"access_token": "new-access"})
+        async with aiohttp.ClientSession() as session:
+            oauth = OAuth("client", "https://example.invalid/cb", token_file, session)
+            query = parse_qs(urlsplit(oauth.get_authorization_url()).query)
+
+            # Act: Exchange the authorization code for tokens.
+            await oauth.async_exchange_code_for_tokens("auth-code")
+
+        # Assert: The login URL and the exchange form belong to one PKCE pair.
+        form = _token_request_form(mock_responses)
+    verifier_digest = hashlib.sha256(form["code_verifier"].encode()).digest()
+    expected_challenge = base64.urlsafe_b64encode(verifier_digest).rstrip(b"=")
+    assert query["code_challenge"] == [expected_challenge.decode()]
+    assert query["code_challenge_method"] == ["S256"]
+    assert query["client_id"] == ["client"]
+    assert query["redirect_uri"] == ["https://example.invalid/cb"]
+    assert query["scope"] == [DEFAULT_SCOPES]
+    assert query["response_type"] == ["code"]
+    assert {key: form[key] for key in ("client_id", "grant_type", "code")} == {
+        "client_id": "client",
+        "grant_type": "authorization_code",
+        "code": "auth-code",
+    }
+    assert form["redirect_uri"] == "https://example.invalid/cb"
+
+
+@pytest.mark.asyncio
+async def test_authenticated_requests_add_a_bearer_header_without_mutating_input(
+    oauth_with_tokens,
+):
+    """Requests carry the access token while caller headers stay untouched."""
+    # Arrange: Provide caller headers that must not be modified.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+    caller_headers = {"Accept": "application/json"}
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(url, payload={"data": []})
+        async with aiohttp.ClientSession() as session:
+            oauth = _oauth_with_websession(oauth_with_tokens, session)
+
+            # Act: Send one authenticated request.
+            async with await oauth.request("GET", url, headers=caller_headers):
+                pass
+
+        # Assert: The sent request has both headers; the caller's dict is unchanged.
+        (request,) = mock_responses.requests[("GET", URL(url))]
+    assert request.kwargs["headers"] == {
+        "Accept": "application/json",
+        "Authorization": "Bearer test_access_token",
+    }
+    assert caller_headers == {"Accept": "application/json"}

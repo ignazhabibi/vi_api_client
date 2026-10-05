@@ -389,3 +389,38 @@ async def test_live_adapter_maps_non_json_error_bodies(static_token_auth) -> Non
             with pytest.raises(ViServerInternalError) as raised_error:
                 await adapter.get_installations()
     assert str(raised_error.value) == "Server Error 502: HTTP 502"
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_error", "expected_message"),
+    [
+        (401, ViAuthError, "Unauthorized: Device communication failed"),
+        (403, ViAuthError, "Forbidden: Device communication failed"),
+        (404, ViNotFoundError, "Not Found: Device communication failed"),
+        (418, ViError, "Unknown Error 418: Device communication failed"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_client_errors_name_the_http_status_in_their_message(
+    status: int,
+    expected_error: type[ViError],
+    expected_message: str,
+    static_token_auth,
+) -> None:
+    """Error messages say which HTTP failure occurred before the API message."""
+    # Arrange: Return a structured Viessmann error for the installation read.
+    url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(
+            url, status=status, payload={"message": "Device communication failed"}
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act and assert: The public error message starts with the status meaning.
+            with pytest.raises(expected_error) as raised_error:
+                await client.get_installations()
+
+    # Assert: The full message is stable for callers that display it.
+    assert str(raised_error.value) == expected_message

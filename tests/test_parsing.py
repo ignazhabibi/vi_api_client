@@ -390,3 +390,121 @@ def test_command_enum_maps_to_control_options():
     control = features[0].control
     assert control is not None
     assert list(control.options or []) == ["auto", "eco"]
+
+
+def _curve_feature(command: dict, slope_property: dict | None = None) -> dict:
+    """Build one heating curve API feature with a single slope command."""
+    return {
+        "feature": "heating.curve",
+        "properties": {
+            "slope": slope_property or {"type": "number", "value": 1.4},
+        },
+        "commands": {"setCurve": {"uri": "/commands/setCurve", **command}},
+    }
+
+
+def test_non_executable_commands_do_not_make_features_writable():
+    """A command the API marks as not executable must not create a control."""
+    # Arrange: The only command writing the slope is marked not executable.
+    raw_feature = _curve_feature(
+        {"isExecutable": False, "params": {"slope": {"type": "number"}}}
+    )
+
+    # Act: Parse the API feature.
+    feature = api_feature_to_flat_features(raw_feature)[0]
+
+    # Assert: The feature stays read-only.
+    assert feature.control is None
+    assert feature.is_writable is False
+
+
+def test_command_parameter_constraints_win_over_property_metadata():
+    """The command parameter is validated on write, so its constraints win."""
+    # Arrange: Parameter and property disagree on every numeric constraint.
+    raw_feature = _curve_feature(
+        {
+            "params": {
+                "slope": {
+                    "type": "number",
+                    "constraints": {"min": 0.2, "max": 3.5, "stepping": 0.1},
+                }
+            }
+        },
+        slope_property={
+            "type": "number",
+            "value": 1.4,
+            "constraints": {"min": 0, "max": 10, "step": 1},
+        },
+    )
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: The parameter constraints win, including the 'stepping' alias.
+    assert control is not None
+    assert (control.min, control.max, control.step) == (0.2, 3.5, 0.1)
+
+
+def test_property_metadata_fills_missing_parameter_constraints():
+    """Property metadata supplies constraints the command parameter omits."""
+    # Arrange: Only the property carries text constraints, under the regEx alias.
+    raw_feature = {
+        "feature": "heating.circuits.0.name",
+        "properties": {
+            "name": {
+                "type": "string",
+                "value": "Circuit",
+                "constraints": {"minLength": 1, "maxLength": 20, "regEx": "^[A-Z]"},
+            }
+        },
+        "commands": {
+            "setName": {"uri": "/commands/setName", "params": {"name": {}}},
+        },
+    }
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: The gaps are filled from the property, resolving the alias.
+    assert control is not None
+    assert (control.min_length, control.max_length) == (1, 20)
+    assert control.pattern == "^[A-Z]"
+
+
+def test_schedule_features_are_written_as_one_object_without_scalar_limits():
+    """A schedule is one writable feature whose command takes the whole object."""
+    # Arrange: A schedule feature with a command writing the 'newSchedule' parameter.
+    raw_feature = {
+        "feature": "heating.circuits.0.heating.schedule",
+        "properties": {
+            "entries": {"type": "Schedule", "value": {"mon": []}},
+        },
+        "commands": {
+            "setSchedule": {
+                "uri": "/commands/setSchedule",
+                "params": {
+                    "newSchedule": {
+                        "type": "Schedule",
+                        "constraints": {"maxEntries": 4, "min": 0},
+                    }
+                },
+            }
+        },
+    }
+
+    # Act: Parse the API feature.
+    features = api_feature_to_flat_features(raw_feature)
+
+    # Assert: One feature keeps the whole value and writes the schedule parameter.
+    assert len(features) == 1
+    control = features[0].control
+    assert control is not None
+    assert control.command_name == "setSchedule"
+    assert control.param_name == "newSchedule"
+    assert control.value_type == "Schedule"
+    assert (control.min, control.max, control.step, control.options) == (
+        None,
+        None,
+        None,
+        None,
+    )

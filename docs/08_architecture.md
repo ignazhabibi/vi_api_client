@@ -704,7 +704,7 @@ flowchart TB
 ```
 
 HTTP and OAuth tests use controlled responses. Offline workflows exercise the
-public API. Model, contract, public-API, and build tests protect invariants and
+public API, and every CLI command runs against every bundled fixture device. Model, contract, public-API, and build tests protect invariants and
 ensure product fixtures are shipped.
 
 ## 20. Why this is not over-engineered
