@@ -21,7 +21,7 @@ from .models import (
     GatewayDeviceRefreshResult,
     Installation,
 )
-from .parsing import parse_feature_flat, validate_feature_entry
+from .parsing import api_feature_to_flat_features, validate_feature_entry
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -525,8 +525,8 @@ class ViClient:
         requested_names = set(feature_names or ())
         selected_features: list[Feature] = []
         for api_feature in api_features:
-            features = parse_feature_flat(api_feature)
-            # parse_feature_flat validated the entry's API feature name.
+            features = api_feature_to_flat_features(api_feature)
+            # api_feature_to_flat_features validated the entry's API feature name.
             if not requested_names or api_feature["feature"] in requested_names:
                 selected_features.extend(features)
             else:

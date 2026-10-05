@@ -3,7 +3,7 @@
 import pytest
 
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.parsing import parse_feature_flat
+from vi_api_client.parsing import api_feature_to_flat_features
 
 
 def test_feature_rejects_non_string_command_keys():
@@ -17,7 +17,7 @@ def test_feature_rejects_non_string_command_keys():
 
     # Act and assert: The malformed command metadata raises a response error.
     with pytest.raises(ViResponseError, match="named objects"):
-        parse_feature_flat(raw_feature)
+        api_feature_to_flat_features(raw_feature)
 
 
 def test_feature_simple_value(load_fixture_json):
@@ -25,7 +25,7 @@ def test_feature_simple_value(load_fixture_json):
     data = load_fixture_json("parsing/simple_value.json")
 
     # Act: Parse the feature using flat architecture parser.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Feature should have correct name, value (5.5°C) and unit.
     assert len(features) == 1
@@ -56,7 +56,7 @@ def test_feature_control_parses_required_parameter_markers():
     }
 
     # Act: Parse the API-shaped feature response.
-    feature = parse_feature_flat(raw_feature)[0]
+    feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: Explicit false is optional while missing markers remain conservative.
     assert feature.control is not None
@@ -68,7 +68,7 @@ def test_feature_status(load_fixture_json):
     data = load_fixture_json("parsing/status_feature.json")
 
     # Act: Parse the feature using flat architecture parser.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Feature should have status value "off".
     assert len(features) == 1
@@ -83,7 +83,7 @@ def test_feature_complex_flat_expansion(load_fixture_json):
     data = load_fixture_json("parsing/nested_expansion.json")
 
     # Act: Parse the feature - should flatten complex properties.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Should create 2 separate features from nested properties.
     assert len(features) == 2
@@ -102,7 +102,7 @@ def test_feature_boolean_active(load_fixture_json):
     data = load_fixture_json("parsing/active_feature.json")
 
     # Act: Parse the feature with boolean active property.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Feature should have boolean value True.
     assert len(features) == 1
@@ -117,7 +117,7 @@ def test_feature_do_not_flatten_history(load_fixture_json):
     data = load_fixture_json("parsing/history_array.json")
 
     # Act: Parse the feature with array value.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: History array should be kept as-is, not flattened.
     assert len(features) == 1
@@ -148,7 +148,7 @@ def test_feature_adds_current_year_consumption_alias(
     data = load_fixture_json(fixture_name)
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: The base series and only the currentYear alias are available.
     assert len(features) == 2
@@ -176,7 +176,7 @@ def test_feature_priority_value_over_status(load_fixture_json):
     data = load_fixture_json("parsing/mixed_feature.json")
 
     # Act: Parse feature with multiple property types.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Should create 2 features - base name maps to 'value', status gets suffix.
     assert len(features) == 2
@@ -198,7 +198,7 @@ def test_feature_control_association(load_fixture_json):
     data = load_fixture_json("parsing/feature_with_commands.json")
 
     # Act: Parse feature with writable command associations.
-    features = parse_feature_flat(data)
+    features = api_feature_to_flat_features(data)
 
     # Assert: Features should have control metadata with command details.
     assert len(features) == 2
@@ -226,7 +226,7 @@ def test_hysteresis_commands_create_writable_switch_point_features(load_fixture_
     raw_feature = load_fixture_json("parsing/hysteresis_raw.json")
 
     # Act: Parse the hysteresis feature with its command-linked properties.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The base value and both switch points are writable with their commands.
     assert len(features) == 3
@@ -255,7 +255,7 @@ def test_feature_treats_scalar_min_max_as_metadata():
     }
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: Only the value flattens into a feature.
     assert len(features) == 1
@@ -272,7 +272,7 @@ def test_feature_treats_nested_min_max_as_properties():
     }
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The nested object flattens beside the base value.
     assert len(features) == 2
@@ -291,7 +291,7 @@ def test_feature_value_only_property_keeps_default_unit():
     }
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The value flattens with the declared default unit.
     assert len(features) == 1
@@ -325,7 +325,7 @@ def test_current_year_alias_requires_a_populated_year_series(
     }
 
     # Act: Parse the consumption feature.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The alias exists exactly when the year series is populated.
     alias_names = [
@@ -351,7 +351,7 @@ def test_temperature_property_binds_target_temperature_command():
     }
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The temperature property exposes the aliased command control.
     assert len(features) == 1
@@ -383,7 +383,7 @@ def test_command_enum_maps_to_control_options():
     }
 
     # Act: Parse the feature using the flat architecture parser.
-    features = parse_feature_flat(raw_feature)
+    features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The enum members become the control's allowed options.
     assert len(features) == 1
