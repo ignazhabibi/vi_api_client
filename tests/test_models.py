@@ -17,6 +17,7 @@ from vi_api_client.models import (
 
 
 def test_feature_without_control_is_read_only():
+    """A feature without command metadata reports that it cannot be written."""
     # Act: Create a feature without command metadata.
     feature = Feature(
         name="test.feature", value=10, unit="C", is_enabled=True, is_ready=True
@@ -28,6 +29,7 @@ def test_feature_without_control_is_read_only():
 
 
 def test_feature_value_is_not_recursively_frozen():
+    """Feature values keep the caller's JSON objects instead of frozen copies."""
     # Arrange: Create a feature with a caller-owned arbitrary payload.
     value: dict[str, JsonValue] = {"entries": [1]}
     feature = Feature(
@@ -44,6 +46,7 @@ def test_feature_value_is_not_recursively_frozen():
 
 
 def test_device_features_are_immutable_and_keep_lookup_in_sync():
+    """A device snapshot ignores later changes to the caller's feature list."""
     # Arrange: Build a device from a caller-owned mutable feature list.
     first_feature = Feature(
         name="f1", value=1, unit=None, is_enabled=True, is_ready=True
@@ -74,6 +77,7 @@ def test_device_features_are_immutable_and_keep_lookup_in_sync():
 
 
 def test_device_rejects_duplicate_feature_names():
+    """Feature names identify features, so a device cannot hold two alike."""
     # Arrange: Build two distinct features with the same documented identity.
     duplicate_features = [
         Feature(name="f1", value=1, unit=None, is_enabled=True, is_ready=True),
@@ -94,6 +98,7 @@ def test_device_rejects_duplicate_feature_names():
 
 
 def test_other_model_collections_are_immutable_snapshots():
+    """Controls, refresh results, and installations copy caller collections."""
     # Arrange: Create models from caller-owned mutable collections.
     required_params = ["target"]
     options = ["eco"]
@@ -126,30 +131,36 @@ def test_other_model_collections_are_immutable_snapshots():
     assert installation.address == {"city": "Berlin"}
     for collection in (result.errors_by_device_id, installation.address):
         assert isinstance(collection, Mapping)
-        setitem_method = "__setitem__"
-        with pytest.raises((AttributeError, TypeError)):
-            getattr(collection, setitem_method)("changed", "value")
+        with pytest.raises(TypeError, match="does not support item assignment"):
+            collection["changed"] = "value"  # type: ignore[index]
 
 
-def test_device_from_api():
-    """Device.from_api reads the documented device fields."""
-    # Arrange: Prepare API response data dictionary.
+def test_device_from_api_maps_fields_and_converts_integer_ids_to_text():
+    """API devices map to model fields, with numeric IDs exposed as text."""
+    # Arrange: The API may report a device ID as a JSON integer.
     data = {
-        "id": "dev1",
+        "id": 0,
         "modelId": "complex_model",
         "deviceType": "heatpump",
         "status": "Online",
     }
 
-    # Act: Parse API response into Device model.
-    d = Device.from_api(data, "gw1", "inst1")
+    # Act: Parse the API device within its gateway and installation.
+    device = Device.from_api(data, "gw1", "inst1")
 
-    # Assert: Device should have API data correctly mapped to model fields.
-    assert d.id == "dev1"
-    assert d.model_id == "complex_model"
+    # Assert: Every field is mapped and the identifier is consistently text.
+    assert device == Device(
+        id="0",
+        gateway_serial="gw1",
+        installation_id="inst1",
+        model_id="complex_model",
+        device_type="heatpump",
+        status="Online",
+    )
 
 
 def test_gateway_device_refresh_result_reports_completeness():
+    """A refresh result is complete only when no device reported an error."""
     # Arrange: Create one refreshed device and one device-specific error.
     refreshed_device = Device(
         id="device-0",
@@ -186,6 +197,15 @@ def test_gateway_device_refresh_result_reports_completeness():
         ("false", False),
         ("False", False),
     ],
+    ids=[
+        "bool-true",
+        "bool-false",
+        "lower-true",
+        "title-true",
+        "upper-true",
+        "lower-false",
+        "title-false",
+    ],
 )
 def test_command_response_normalizes_supported_success_representations(
     raw_success: JsonValue, expected: bool
@@ -204,6 +224,17 @@ def test_command_response_normalizes_supported_success_representations(
 @pytest.mark.parametrize(
     "raw_success",
     ["yes", "1", 1, 0, 1.5, None, [], {}, ["true"]],
+    ids=[
+        "word-yes",
+        "digit-text",
+        "integer-one",
+        "integer-zero",
+        "float",
+        "null",
+        "empty-list",
+        "empty-object",
+        "list-of-text",
+    ],
 )
 def test_command_response_rejects_malformed_success_representations(
     raw_success: JsonValue,
@@ -217,7 +248,9 @@ def test_command_response_rejects_malformed_success_representations(
         CommandResponse.from_api(data)
 
 
-@pytest.mark.parametrize("data", [{"data": {}}, {}])
+@pytest.mark.parametrize(
+    "data", [{"data": {}}, {}], ids=["empty-data-object", "empty-root"]
+)
 def test_command_response_requires_success_field(data: dict[str, JsonValue]):
     """A command response without a success flag violates the contract."""
     # Act and assert: The missing known field raises a response error.
@@ -247,6 +280,7 @@ def test_command_response_validates_optional_text_fields():
         ("message", None, "queued"),
         ("reason", "Command accepted", None),
     ],
+    ids=["null-message", "null-reason"],
 )
 def test_command_response_allows_null_optional_text_fields(
     field_name: str, expected_message: str | None, expected_reason: str | None
@@ -293,6 +327,16 @@ def test_command_response_allows_absent_optional_text_fields():
         ("reason", 42),
         ("reason", []),
         ("reason", {}),
+    ],
+    ids=[
+        "message-bool",
+        "message-number",
+        "message-list",
+        "message-object",
+        "reason-bool",
+        "reason-number",
+        "reason-list",
+        "reason-object",
     ],
 )
 def test_command_response_rejects_malformed_optional_text_fields(

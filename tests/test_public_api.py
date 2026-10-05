@@ -6,7 +6,6 @@ import logging
 import pytest
 
 import vi_api_client
-from vi_api_client.utils import mask_pii, parse_cli_params
 
 
 def test_package_logger_has_a_null_handler():
@@ -18,6 +17,7 @@ def test_package_logger_has_a_null_handler():
 
 def test_package_root_exposes_only_the_documented_consumer_api():
     """Package-root exports should match the supported consumer API exactly."""
+    # Arrange: List the names consumers are allowed to import from the root.
     expected_exports = {
         "AbstractAuth",
         "CommandResponse",
@@ -50,6 +50,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "validate_json_value",
     }
 
+    # Assert: __all__ is exact and every listed name resolves.
     assert set(vi_api_client.__all__) == expected_exports
     assert all(hasattr(vi_api_client, export) for export in expected_exports)
 
@@ -58,14 +59,15 @@ def test_removed_client_names_are_not_importable():
     """The breaking rename should leave no transitional client imports."""
     # Assert: Retired public class and module paths must be unavailable.
     assert not hasattr(vi_api_client, "MockViClient")
-    with pytest.raises(ModuleNotFoundError):
+    with pytest.raises(ModuleNotFoundError, match=r"vi_api_client\.api'"):
         importlib.import_module("vi_api_client.api")
-    with pytest.raises(ModuleNotFoundError):
+    with pytest.raises(ModuleNotFoundError, match=r"vi_api_client\.mock_client'"):
         importlib.import_module("vi_api_client.mock_client")
 
 
 def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
     """Technical helpers should stay in their existing modules, not the root API."""
+    # Arrange: List helpers that consumers may only import from their modules.
     non_public_exports = {
         "API_BASE_URL",
         "AUTH_BASE_URL",
@@ -79,7 +81,8 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "api_feature_to_flat_features",
     }
 
-    # Assert: The root hides the helpers while their module paths still import.
+    # Assert: The root hides the helpers while their module paths still provide them.
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
-    assert callable(mask_pii)
-    assert callable(parse_cli_params)
+    utils = importlib.import_module("vi_api_client.utils")
+    assert hasattr(utils, "mask_pii")
+    assert hasattr(utils, "parse_cli_params")

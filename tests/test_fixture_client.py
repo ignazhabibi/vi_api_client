@@ -7,6 +7,17 @@ import pytest
 from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
 
+# The bundled fixture devices and the device types their catalog entries declare.
+EXPECTED_DEVICE_TYPES = {
+    "Vitocal200S": "heating",
+    "Vitocal222S": "heating",
+    "Vitocal250A": "heating",
+    "Vitocal333G-with-Vitovent300F": "heating",
+    "Vitocharge03": "battery",
+    "Vitodens200W": "heating",
+    "Vitopure350": "ventilation",
+}
+
 
 def test_fixture_client_rejects_unknown_device_with_available_names():
     """Unknown fixture names should explain which fixture devices exist."""
@@ -18,67 +29,33 @@ def test_fixture_client_rejects_unknown_device_with_available_names():
 
 
 @pytest.mark.asyncio
-async def test_fixture_device_hydration_uses_deterministic_fixture_topology():
-    """Fixture device discovery should use the selected fixture in one topology."""
-    # Arrange: Select a known fixture device.
-    client = FixtureViClient("Vitodens200W")
-
-    # Act: Discover and hydrate through the public client workflow.
-    devices = await client.get_devices(
-        "99999", "MOCK_GATEWAY_SERIAL", include_features=True
-    )
-
-    # Assert: The public fixture client represents exactly its selected fixture device.
-    assert len(devices) == 1
-    assert devices[0].id == "0"
-    assert devices[0].model_id == "Vitodens200W"
-    assert devices[0].features
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("fixture_name", "model_id", "device_type"),
-    [
-        ("Vitocal200S", "Vitocal200S", "heating"),
-        ("Vitocal222S", "Vitocal222S", "heating"),
-        ("Vitocal250A", "Vitocal250A", "heating"),
-        (
-            "Vitocal333G-with-Vitovent300F",
-            "Vitocal333G-with-Vitovent300F",
-            "heating",
-        ),
-        ("Vitocharge03", "Vitocharge03", "battery"),
-        ("Vitodens200W", "Vitodens200W", "heating"),
-        ("Vitopure350", "Vitopure350", "ventilation"),
-    ],
+    ("fixture_name", "device_type"),
+    EXPECTED_DEVICE_TYPES.items(),
+    ids=list(EXPECTED_DEVICE_TYPES),
 )
 async def test_fixture_discovery_uses_each_fixture_metadata_definition(
-    fixture_name, model_id, device_type
+    fixture_name, device_type
 ):
-    """Fixture discovery should expose each catalogued model and device type."""
+    """Fixture discovery should expose each catalogued model as one device."""
     # Arrange: Select one bundled fixture from the public fixture catalog.
     client = FixtureViClient(fixture_name)
 
     # Act: Discover the fixture through the public client workflow.
     devices = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
 
-    # Assert: The device identity comes from the fixture metadata definition.
-    assert [(device.model_id, device.device_type) for device in devices] == [
-        (model_id, device_type)
+    # Assert: One device carries the identity from the fixture metadata definition.
+    assert [(device.id, device.model_id, device.device_type) for device in devices] == [
+        ("0", fixture_name, device_type)
     ]
 
 
 def test_fixture_device_catalog_lists_each_fixture_metadata_definition():
     """Fixture enumeration should use the same catalog as fixture discovery."""
-    assert FixtureViClient.get_available_fixture_devices() == [
-        "Vitocal200S",
-        "Vitocal222S",
-        "Vitocal250A",
-        "Vitocal333G-with-Vitovent300F",
-        "Vitocharge03",
-        "Vitodens200W",
-        "Vitopure350",
-    ]
+    # Act and assert: The catalog lists exactly the expected devices, sorted.
+    assert FixtureViClient.get_available_fixture_devices() == sorted(
+        EXPECTED_DEVICE_TYPES
+    )
 
 
 @pytest.mark.asyncio

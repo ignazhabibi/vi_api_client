@@ -1,4 +1,4 @@
-"""Tests for feature parsing logic (Flat Architecture)."""
+"""Tests for parsing API features into flat features and their controls."""
 
 import pytest
 
@@ -6,7 +6,7 @@ from vi_api_client.exceptions import ViResponseError
 from vi_api_client.parsing import api_feature_to_flat_features
 
 
-def test_feature_rejects_non_string_command_keys():
+def test_command_mappings_with_non_string_keys_are_rejected():
     """Programmatic mappings with non-string command keys are rejected."""
     # Arrange: Build a feature entry whose command mapping uses an integer key.
     raw_feature = {
@@ -20,14 +20,22 @@ def test_feature_rejects_non_string_command_keys():
         api_feature_to_flat_features(raw_feature)
 
 
-def test_feature_simple_value(load_fixture_json):
-    # Arrange: Load fixture for simple temperature sensor value.
-    data = load_fixture_json("parsing/simple_value.json")
+@pytest.mark.parametrize(
+    "fixture_name",
+    ["parsing/simple_value.json", "parsing/feature_level_unit.json"],
+    ids=["unit-on-value-property", "unit-on-feature"],
+)
+def test_value_property_becomes_the_base_feature_with_its_unit(
+    load_fixture_json, fixture_name: str
+):
+    """The value property keeps the API feature name and the declared unit."""
+    # Arrange: The unit is declared either on the value or for the whole feature.
+    data = load_fixture_json(fixture_name)
 
-    # Act: Parse the feature using flat architecture parser.
+    # Act: Parse the sensor feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Feature should have correct name, value (5.5°C) and unit.
+    # Assert: One feature carries the reading under the API feature name.
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.sensors.temperature.outside"
@@ -36,7 +44,7 @@ def test_feature_simple_value(load_fixture_json):
     assert feature.unit == "celsius"
 
 
-def test_feature_control_parses_required_parameter_markers():
+def test_control_requires_parameters_unless_marked_optional():
     """Command controls include true and unspecified parameters but exclude false."""
     # Arrange: The command has explicit required, explicit optional, and unspecified params.
     raw_feature = {
@@ -63,29 +71,30 @@ def test_feature_control_parses_required_parameter_markers():
     assert feature.control.required_params == ("requiredSibling", "unspecifiedSibling")
 
 
-def test_feature_status(load_fixture_json):
-    # Arrange: Load fixture for circulation pump status feature.
+def test_status_property_becomes_a_suffixed_feature(load_fixture_json):
+    """A status property is exposed under a .status feature name."""
+    # Arrange: Load a circulation pump feature with only a status property.
     data = load_fixture_json("parsing/status_feature.json")
 
-    # Act: Parse the feature using flat architecture parser.
+    # Act: Parse the pump feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Feature should have status value "off".
+    # Assert: The status keeps its text value under the suffixed name.
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.circuits.0.circulation.pump.status"
     assert feature.value == "off"
 
 
-def test_feature_complex_flat_expansion(load_fixture_json):
+def test_scalar_properties_become_separate_features(load_fixture_json):
     """Several scalar properties become separate flat features."""
-    # Arrange: Load fixture with nested properties (propA, propB).
+    # Arrange: Load a feature with two scalar properties, one with a unit.
     data = load_fixture_json("parsing/nested_expansion.json")
 
-    # Act: Parse the feature - should flatten complex properties.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Should create 2 separate features from nested properties.
+    # Assert: Each property is its own feature with its own value and unit.
     assert len(features) == 2
 
     feature_a = next(feature for feature in features if feature.name.endswith(".propA"))
@@ -96,30 +105,30 @@ def test_feature_complex_flat_expansion(load_fixture_json):
     assert feature_b.unit == "C"
 
 
-def test_feature_boolean_active(load_fixture_json):
-    """An 'active' property becomes a boolean flat feature."""
-    # Arrange: Load fixture with 'active' boolean property.
+def test_active_property_becomes_a_boolean_feature(load_fixture_json):
+    """An 'active' property keeps its JSON boolean instead of becoming text."""
+    # Arrange: Load a feature whose only property is a boolean 'active' flag.
     data = load_fixture_json("parsing/active_feature.json")
 
-    # Act: Parse the feature with boolean active property.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Feature should have boolean value True.
+    # Assert: The flag is a real boolean under the suffixed name.
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.circuits.0.operating.modes.active.active"
     assert feature.value is True
 
 
-def test_feature_do_not_flatten_history(load_fixture_json):
+def test_history_series_stay_one_feature_with_their_whole_value(load_fixture_json):
     """History arrays stay one feature with their whole value."""
-    # Arrange: Load fixture with history array property.
+    # Arrange: Load a consumption feature with a daily history series.
     data = load_fixture_json("parsing/history_array.json")
 
-    # Act: Parse the feature with array value.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: History array should be kept as-is, not flattened.
+    # Assert: Consumers can read the series without reassembling it.
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.power.consumption"
@@ -139,15 +148,16 @@ def test_feature_do_not_flatten_history(load_fixture_json):
         ("parsing/consumption_alias_heating.json", "heating.power.consumption.heating"),
         ("parsing/consumption_alias_total.json", "heating.power.consumption.total"),
     ],
+    ids=["cooling", "dhw", "heating", "total"],
 )
-def test_feature_adds_current_year_consumption_alias(
+def test_consumption_series_expose_a_current_year_alias(
     load_fixture_json, fixture_name: str, base_name: str
 ):
     """Consumption series expose the first year value as a currentYear feature."""
     # Arrange: Load the consumption fixture with day, month, and year arrays.
     data = load_fixture_json(fixture_name)
 
-    # Act: Parse the feature using the flat architecture parser.
+    # Act: Parse the consumption feature.
     features = api_feature_to_flat_features(data)
 
     # Assert: The base series and only the currentYear alias are available.
@@ -170,37 +180,33 @@ def test_feature_adds_current_year_consumption_alias(
     )
 
 
-def test_feature_priority_value_over_status(load_fixture_json):
+def test_value_property_keeps_the_base_name_beside_a_suffixed_status(
+    load_fixture_json,
+):
     """The value property keeps the base name; status gets a suffix."""
-    # Arrange: Load fixture with both 'value' and 'status' properties.
+    # Arrange: Load a feature with both 'value' and 'status' properties.
     data = load_fixture_json("parsing/mixed_feature.json")
 
-    # Act: Parse feature with multiple property types.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Should create 2 features - base name maps to 'value', status gets suffix.
-    assert len(features) == 2
-
-    feature_val = next(
-        feature for feature in features if feature.name == "mixed.feature"
-    )  # 'value' key maps to base name
-    assert feature_val.value == 42
-
-    feature_stat = next(
-        feature for feature in features if feature.name.endswith(".status")
-    )
-    assert feature_stat.value == "error"
+    # Assert: Both properties stay addressable without a name collision.
+    assert {feature.name: feature.value for feature in features} == {
+        "mixed.feature": 42,
+        "mixed.feature.status": "error",
+    }
 
 
-def test_feature_control_association(load_fixture_json):
+def test_commands_become_controls_of_the_properties_they_write(load_fixture_json):
     """Commands become controls of the properties they write."""
-    # Arrange: Load fixture with commands (setCurve) linked to properties.
+    # Arrange: Load a curve feature whose one command writes slope and shift.
     data = load_fixture_json("parsing/feature_with_commands.json")
 
-    # Act: Parse feature with writable command associations.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: Features should have control metadata with command details.
+    # Assert: Each property is written through its own command parameter, and
+    # the sibling parameter is required because the command takes both.
     assert len(features) == 2
 
     feature_slope = next(
@@ -229,8 +235,10 @@ def test_hysteresis_commands_create_writable_switch_point_features(load_fixture_
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The base value and both switch points are writable with their commands.
-    assert len(features) == 3
-    expected_commands = {
+    assert {
+        feature.name: feature.control.command_name if feature.control else None
+        for feature in features
+    } == {
         "heating.dhw.temperature.hysteresis": "setHysteresis",
         "heating.dhw.temperature.hysteresis.switchOnValue": (
             "setHysteresisSwitchOnValue"
@@ -239,14 +247,9 @@ def test_hysteresis_commands_create_writable_switch_point_features(load_fixture_
             "setHysteresisSwitchOffValue"
         ),
     }
-    for feature in features:
-        assert feature.name in expected_commands
-        assert feature.is_writable
-        assert feature.control is not None
-        assert feature.control.command_name == expected_commands[feature.name]
 
 
-def test_feature_treats_scalar_min_max_as_metadata():
+def test_scalar_min_max_are_metadata_not_features():
     """Scalar min/max properties should be skipped during flattening."""
     # Arrange: Build a feature with scalar min/max metadata around the value.
     raw_feature = {
@@ -254,7 +257,7 @@ def test_feature_treats_scalar_min_max_as_metadata():
         "properties": {"min": 5, "max": 10, "value": 3},
     }
 
-    # Act: Parse the feature using the flat architecture parser.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: Only the value flattens into a feature.
@@ -263,7 +266,7 @@ def test_feature_treats_scalar_min_max_as_metadata():
     assert features[0].value == 3
 
 
-def test_feature_treats_nested_min_max_as_properties():
+def test_object_shaped_min_max_become_features():
     """Object-shaped min/max properties should flatten into sub-features."""
     # Arrange: Build a feature with a nested min object beside the value.
     raw_feature = {
@@ -271,7 +274,7 @@ def test_feature_treats_nested_min_max_as_properties():
         "properties": {"min": {"value": 1}, "value": 3},
     }
 
-    # Act: Parse the feature using the flat architecture parser.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The nested object flattens beside the base value.
@@ -280,24 +283,6 @@ def test_feature_treats_nested_min_max_as_properties():
         "heating.curve",
         "heating.curve.min",
     }
-
-
-def test_feature_value_only_property_keeps_default_unit():
-    """A value-only feature should flatten with its declared unit."""
-    # Arrange: Build a feature whose only data property is its value.
-    raw_feature = {
-        "feature": "heating.sensors.temperature.outside",
-        "properties": {"unit": "celsius", "type": "number", "value": 5},
-    }
-
-    # Act: Parse the feature using the flat architecture parser.
-    features = api_feature_to_flat_features(raw_feature)
-
-    # Assert: The value flattens with the declared default unit.
-    assert len(features) == 1
-    assert features[0].name == "heating.sensors.temperature.outside"
-    assert features[0].value == 5
-    assert features[0].unit == "celsius"
 
 
 @pytest.mark.parametrize(
@@ -350,7 +335,7 @@ def test_temperature_property_binds_target_temperature_command():
         },
     }
 
-    # Act: Parse the feature using the flat architecture parser.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The temperature property exposes the aliased command control.
@@ -362,7 +347,7 @@ def test_temperature_property_binds_target_temperature_command():
     assert feature.control.param_name == "targetTemperature"
 
 
-def test_command_enum_maps_to_control_options():
+def test_command_enum_becomes_the_control_options():
     """Command enum metadata should surface as the control's value options."""
     # Arrange: Build a writable feature whose parameter declares an enum.
     raw_feature = {
@@ -382,7 +367,7 @@ def test_command_enum_maps_to_control_options():
         },
     }
 
-    # Act: Parse the feature using the flat architecture parser.
+    # Act: Parse the feature.
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: The enum members become the control's allowed options.
@@ -392,14 +377,31 @@ def test_command_enum_maps_to_control_options():
     assert list(control.options or []) == ["auto", "eco"]
 
 
-def _curve_feature(command: dict, slope_property: dict | None = None) -> dict:
-    """Build one heating curve API feature with a single slope command."""
+def _curve_feature(
+    commands: dict[str, dict], slope_property: dict | None = None
+) -> dict:
+    """Build one heating curve API feature whose commands may write the slope."""
     return {
         "feature": "heating.curve",
         "properties": {
             "slope": slope_property or {"type": "number", "value": 1.4},
         },
-        "commands": {"setCurve": {"uri": "/commands/setCurve", **command}},
+        "commands": {
+            name: {"uri": f"/commands/{name}", **command}
+            for name, command in commands.items()
+        },
+    }
+
+
+def _schedule_feature(commands: dict[str, dict]) -> dict:
+    """Build one heating schedule API feature with the given commands."""
+    return {
+        "feature": "heating.circuits.0.heating.schedule",
+        "properties": {"entries": {"type": "Schedule", "value": {"mon": []}}},
+        "commands": {
+            name: {"uri": f"/commands/{name}", **command}
+            for name, command in commands.items()
+        },
     }
 
 
@@ -407,7 +409,7 @@ def test_non_executable_commands_do_not_make_features_writable():
     """A command the API marks as not executable must not create a control."""
     # Arrange: The only command writing the slope is marked not executable.
     raw_feature = _curve_feature(
-        {"isExecutable": False, "params": {"slope": {"type": "number"}}}
+        {"setCurve": {"isExecutable": False, "params": {"slope": {"type": "number"}}}}
     )
 
     # Act: Parse the API feature.
@@ -418,15 +420,39 @@ def test_non_executable_commands_do_not_make_features_writable():
     assert feature.is_writable is False
 
 
+def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
+    """A blocked command must not hide a later command that writes the same value."""
+    # Arrange: Two commands write the slope; only the second one may be executed.
+    raw_feature = _curve_feature(
+        {
+            "setCurveLocked": {
+                "isExecutable": False,
+                "params": {"slope": {"type": "number"}},
+            },
+            "setCurve": {"isExecutable": True, "params": {"slope": {"type": "number"}}},
+        }
+    )
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: The control writes through the executable command.
+    assert control is not None
+    assert (control.command_name, control.param_name) == ("setCurve", "slope")
+    assert control.uri == "/commands/setCurve"
+
+
 def test_command_parameter_constraints_win_over_property_metadata():
     """The command parameter is validated on write, so its constraints win."""
     # Arrange: Parameter and property disagree on every numeric constraint.
     raw_feature = _curve_feature(
         {
-            "params": {
-                "slope": {
-                    "type": "number",
-                    "constraints": {"min": 0.2, "max": 3.5, "stepping": 0.1},
+            "setCurve": {
+                "params": {
+                    "slope": {
+                        "type": "number",
+                        "constraints": {"min": 0.2, "max": 3.5, "stepping": 0.1},
+                    }
                 }
             }
         },
@@ -474,14 +500,9 @@ def test_property_metadata_fills_missing_parameter_constraints():
 def test_schedule_features_are_written_as_one_object_without_scalar_limits():
     """A schedule is one writable feature whose command takes the whole object."""
     # Arrange: A schedule feature with a command writing the 'newSchedule' parameter.
-    raw_feature = {
-        "feature": "heating.circuits.0.heating.schedule",
-        "properties": {
-            "entries": {"type": "Schedule", "value": {"mon": []}},
-        },
-        "commands": {
+    raw_feature = _schedule_feature(
+        {
             "setSchedule": {
-                "uri": "/commands/setSchedule",
                 "params": {
                     "newSchedule": {
                         "type": "Schedule",
@@ -489,14 +510,16 @@ def test_schedule_features_are_written_as_one_object_without_scalar_limits():
                     }
                 },
             }
-        },
-    }
+        }
+    )
 
     # Act: Parse the API feature.
     features = api_feature_to_flat_features(raw_feature)
 
     # Assert: One feature keeps the whole value and writes the schedule parameter.
     assert len(features) == 1
+    assert features[0].name == "heating.circuits.0.heating.schedule"
+    assert features[0].value == {"entries": {"type": "Schedule", "value": {"mon": []}}}
     control = features[0].control
     assert control is not None
     assert control.command_name == "setSchedule"
@@ -513,20 +536,45 @@ def test_schedule_features_are_written_as_one_object_without_scalar_limits():
 def test_non_executable_schedule_commands_do_not_make_schedules_writable():
     """Schedules follow the same executable rule as scalar features."""
     # Arrange: The only schedule command is marked not executable.
-    raw_feature = {
-        "feature": "heating.circuits.0.heating.schedule",
-        "properties": {"entries": {"type": "Schedule", "value": {"mon": []}}},
-        "commands": {
+    raw_feature = _schedule_feature(
+        {
             "setSchedule": {
-                "uri": "/commands/setSchedule",
                 "isExecutable": False,
                 "params": {"newSchedule": {"type": "Schedule"}},
             }
-        },
-    }
+        }
+    )
 
     # Act: Parse the API feature.
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: The schedule stays read-only.
     assert feature.control is None
+
+
+def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
+    """A blocked schedule command must not hide a later executable one."""
+    # Arrange: Two commands write the schedule; only the second may be executed.
+    raw_feature = _schedule_feature(
+        {
+            "setScheduleLocked": {
+                "isExecutable": False,
+                "params": {"newSchedule": {"type": "Schedule"}},
+            },
+            "setSchedule": {
+                "isExecutable": True,
+                "params": {"newSchedule": {"type": "Schedule"}},
+            },
+        }
+    )
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: The schedule control writes through the executable command.
+    assert control is not None
+    assert (control.command_name, control.param_name) == (
+        "setSchedule",
+        "newSchedule",
+    )
+    assert control.uri == "/commands/setSchedule"

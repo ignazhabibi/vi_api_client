@@ -5,10 +5,12 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from builders import build_device, build_gateway
 
+from vi_api_client import ViClient
 from vi_api_client.cli import CLIContext, create_session, setup_client_context
 from vi_api_client.models import Device, Gateway
 
@@ -30,37 +32,20 @@ def _context_args(tmp_path: Path, **overrides: Any) -> Namespace:
     return Namespace(**arguments)
 
 
-def _gateway(serial: str, installation_id: str) -> Gateway:
-    """Build one gateway discovery snapshot."""
-    return Gateway(
-        serial=serial, version="1", status="ok", installation_id=installation_id
-    )
-
-
-def _device(device_id: str, installation_id: str, gateway_serial: str) -> Device:
-    """Build one device discovery snapshot."""
-    return Device(
-        id=device_id,
-        gateway_serial=gateway_serial,
-        installation_id=installation_id,
-        model_id="m1",
-        device_type="heating",
-        status="ok",
-    )
-
-
 @contextmanager
 def _scripted_discovery_client(
     gateways: list[Gateway], devices: list[Device]
-) -> Iterator[MagicMock]:
+) -> Iterator[AsyncMock]:
     """Patch the CLI boundary with scripted gateway and device responses."""
     with (
         patch("vi_api_client.cli.ViClient") as client_cls,
         patch("vi_api_client.cli.OAuth"),
     ):
-        client = client_cls.return_value
-        client.get_gateways = AsyncMock(return_value=gateways)
-        client.get_devices = AsyncMock(return_value=devices)
+        # The spec rejects calls to methods the real client does not offer.
+        client = AsyncMock(spec=ViClient)
+        client.get_gateways.return_value = gateways
+        client.get_devices.return_value = devices
+        client_cls.return_value = client
         yield client
 
 
@@ -120,7 +105,7 @@ async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
 
 @pytest.mark.asyncio
 async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
-    """Explicit IDs should build the context without discovery requests."""
+    """Fully specified IDs are used as given without any account lookup."""
     # Arrange: Supply every identifier and script the discovery boundary.
     args = _context_args(
         tmp_path,
@@ -129,7 +114,7 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
         device_id="dev1",
     )
 
-    with _scripted_discovery_client([_gateway("GW-A", "A")], []) as client:
+    with _scripted_discovery_client([build_gateway("GW-A", "A")], []) as client:
         # Act: Build a context from explicit identifiers.
         async with setup_client_context(args) as ctx:
             # Assert: The context exposes exactly the supplied identifiers.
@@ -138,8 +123,8 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
             assert ctx.device_id == "dev1"
 
     # Assert: No discovery request was needed.
-    client.get_gateways.assert_not_called()
-    client.get_devices.assert_not_called()
+    client.get_gateways.assert_not_awaited()
+    client.get_devices.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -151,8 +136,8 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
     args = _context_args(tmp_path, json=True)
 
     with _scripted_discovery_client(
-        [_gateway("GW123", "100")],
-        [_device("0", "100", "GW123")],
+        [build_gateway("GW123", "100")],
+        [build_device("0", "100", "GW123")],
     ) as client:
         # Act: Discover installation, gateway, and device from scratch.
         async with setup_client_context(args) as ctx:
@@ -163,8 +148,8 @@ async def test_cli_context_autodiscovery_routes_context_to_stderr_for_json(
                 "0",
             )
 
-        client.get_gateways.assert_called_once()
-        client.get_devices.assert_called_once_with("100", "GW123")
+        client.get_gateways.assert_awaited_once()
+        client.get_devices.assert_awaited_once_with("100", "GW123")
 
     # Assert: JSON output callers receive the setup context as a diagnostic.
     captured = capsys.readouterr()
@@ -189,8 +174,8 @@ async def test_cli_context_discovery_completes_partial_scope(
     args = _context_args(tmp_path, **partial_scope)
 
     with _scripted_discovery_client(
-        [_gateway("GW-A", "A"), _gateway("GW-B", "B")],
-        [_device("0", "B", "GW-B")],
+        [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
+        [build_device("0", "B", "GW-B")],
     ) as client:
         # Act: Complete the partial scope through discovery.
         async with setup_client_context(args) as ctx:
@@ -201,17 +186,17 @@ async def test_cli_context_discovery_completes_partial_scope(
                 "0",
             )
 
-        client.get_devices.assert_called_once_with("B", "GW-B")
+        client.get_devices.assert_awaited_once_with("B", "GW-B")
 
 
 @pytest.mark.asyncio
 async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tmp_path):
-    """A supplied device ID should complete the scope without device discovery."""
+    """A known device ID only needs the gateway scope resolved."""
     # Arrange: Provide the gateway scope and the device ID up front.
     args = _context_args(tmp_path, gateway_serial="GW-B", device_id="7")
 
     with _scripted_discovery_client(
-        [_gateway("GW-A", "A"), _gateway("GW-B", "B")],
+        [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
         [],
     ) as client:
         # Act: Complete the gateway scope through discovery.
@@ -224,7 +209,7 @@ async def test_cli_context_discovery_skips_device_lookup_when_device_id_given(tm
             )
 
         # Assert: No device discovery request is needed.
-        client.get_devices.assert_not_called()
+        client.get_devices.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -234,8 +219,8 @@ async def test_cli_context_treats_empty_installation_scope_as_absent(tmp_path):
     args = _context_args(tmp_path, installation_id="")
 
     with _scripted_discovery_client(
-        [_gateway("GW-A", "A")],
-        [_device("0", "A", "GW-A")],
+        [build_gateway("GW-A", "A")],
+        [build_device("0", "A", "GW-A")],
     ):
         # Act: Discover without a usable installation scope.
         async with setup_client_context(args) as ctx:
@@ -254,7 +239,7 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
     args = _context_args(tmp_path, installation_id="A", gateway_serial="GW-B")
 
     with _scripted_discovery_client(
-        [_gateway("GW-A", "A"), _gateway("GW-B", "B")],
+        [build_gateway("GW-A", "A"), build_gateway("GW-B", "B")],
         [],
     ) as client:
         # Act and assert: The mismatched pair rejects before device discovery.
@@ -265,14 +250,14 @@ async def test_cli_context_rejects_mismatched_partial_scope(tmp_path):
             async with setup_client_context(args):
                 pass
 
-        client.get_devices.assert_not_called()
+        client.get_devices.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
     ("gateways", "devices", "message"),
     [
         ([], [], "No gateways found."),
-        ([_gateway("GW-A", "A")], [], "No devices found."),
+        ([build_gateway("GW-A", "A")], [], "No devices found."),
     ],
     ids=["no-gateways", "no-devices"],
 )
@@ -301,7 +286,7 @@ async def test_cli_context_reports_unknown_gateway_scope(tmp_path):
 
     # Act and assert: The unknown serial rejects with a specific message.
     with (
-        _scripted_discovery_client([_gateway("GW-A", "A")], []),
+        _scripted_discovery_client([build_gateway("GW-A", "A")], []),
         pytest.raises(ValueError, match=r"Gateway 'GW-X' not found\."),
     ):
         async with setup_client_context(args):
@@ -316,7 +301,7 @@ async def test_cli_context_reports_gatewayless_installation_scope(tmp_path):
 
     # Act and assert: The gatewayless installation rejects by name.
     with (
-        _scripted_discovery_client([_gateway("GW-A", "A")], []),
+        _scripted_discovery_client([build_gateway("GW-A", "A")], []),
         pytest.raises(ValueError, match=r"No gateway found for installation 'B'\."),
     ):
         async with setup_client_context(args):
@@ -330,8 +315,8 @@ async def test_cli_context_falls_back_to_first_device_without_id_zero(tmp_path):
     args = _context_args(tmp_path)
 
     with _scripted_discovery_client(
-        [_gateway("GW-A", "A")],
-        [_device("7", "A", "GW-A")],
+        [build_gateway("GW-A", "A")],
+        [build_device("7", "A", "GW-A")],
     ):
         # Act: Discover the device for the gateway.
         async with setup_client_context(args) as ctx:
@@ -349,7 +334,7 @@ async def test_cli_context_without_discovery_leaves_ids_absent(tmp_path):
     # Arrange: Omit every identifier while disabling auto-discovery.
     args = _context_args(tmp_path)
 
-    with _scripted_discovery_client([_gateway("GW-A", "A")], []) as client:
+    with _scripted_discovery_client([build_gateway("GW-A", "A")], []) as client:
         # Act: Build a context without discovery.
         async with setup_client_context(args, discover=False) as ctx:
             # Assert: The context carries no identifiers.
@@ -358,12 +343,12 @@ async def test_cli_context_without_discovery_leaves_ids_absent(tmp_path):
             assert ctx.device_id is None
 
         # Assert: No discovery request was made for the context.
-        client.get_gateways.assert_not_called()
-        client.get_devices.assert_not_called()
+        client.get_gateways.assert_not_awaited()
+        client.get_devices.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
+async def test_create_session_routes_insecure_warning_to_stderr_for_json(capsys):
     """Insecure TLS warnings must not contaminate requested JSON output."""
     # Arrange: Request JSON output while disabling TLS verification.
     args = Namespace(insecure=True, json=True)
@@ -379,8 +364,8 @@ async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
 
 
 @pytest.mark.asyncio
-async def test_create_session_disables_certificate_checks_only_when_insecure(capsys):
-    """Only --insecure disables TLS verification, and it says so on stdout."""
+async def test_create_session_disables_certificate_checks_when_insecure(capsys):
+    """--insecure disables TLS verification and warns on stdout for text output."""
     # Arrange: Request an insecure session without JSON output.
     args = Namespace(insecure=True, json=False)
 

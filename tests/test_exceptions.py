@@ -5,6 +5,7 @@ from vi_api_client.exceptions import ViRateLimitError, ViValidationError
 
 
 def test_validation_error_keeps_existing_positional_arguments() -> None:
+    """Validation errors should retain their existing positional signature."""
     # Arrange: Use the public positional signature supported before error types.
     validation_errors: list[ValidationDetail] = [
         {"message": "Invalid", "path": "feature"}
@@ -21,7 +22,7 @@ def test_validation_error_keeps_existing_positional_arguments() -> None:
 
 def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
     """Rate-limit errors should retain their existing positional signature."""
-    # Arrange and Act: Construct with positional arguments supported before retry data.
+    # Act: Construct with the positional arguments supported before retry data.
     error = ViRateLimitError("Rate limited", "error-123", "RATE_LIMIT")
 
     # Assert: Existing values retain their meanings and retry data defaults to none.

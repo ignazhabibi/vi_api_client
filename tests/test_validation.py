@@ -36,6 +36,7 @@ def test_validate_json_value_preserves_nested_json_shapes():
         ({"nested": {"invalid": object()}}, "nested value"),
         (math.nan, "finite number"),
     ],
+    ids=["non-text-key", "nested-object", "nan"],
 )
 def test_validate_json_value_rejects_non_json_python_values(
     value: object, message: str
