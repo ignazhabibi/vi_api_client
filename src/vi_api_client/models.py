@@ -1,4 +1,4 @@
-"""Data models for Viessmann API objects (Flat Architecture)."""
+"""Immutable data models for Viessmann API objects and flat features."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from .exceptions import ViError, ViResponseError
 from .validation import validate_json_value
 
 
-def _required_identifier(data: dict[str, Any], field_name: str, resource: str) -> str:
+def _require_identifier(data: dict[str, Any], field_name: str, resource: str) -> str:
     """Return a required string or integer API identifier as text."""
     value = data.get(field_name)
     if isinstance(value, bool) or not isinstance(value, (str, int)) or value == "":
@@ -20,7 +20,7 @@ def _required_identifier(data: dict[str, Any], field_name: str, resource: str) -
     return str(value)
 
 
-def _required_string(data: dict[str, Any], field_name: str, resource: str) -> str:
+def _require_string(data: dict[str, Any], field_name: str, resource: str) -> str:
     """Return a required non-empty text API field."""
     value = data.get(field_name)
     if not isinstance(value, str) or not value:
@@ -36,7 +36,31 @@ def _optional_string(data: dict[str, Any], field_name: str, resource: str) -> st
     return value
 
 
-def _parse_command_success(value: Any) -> bool:
+def _optional_text(
+    data: Mapping[str, object], field_name: str, resource: str
+) -> str | None:
+    """Return an optional text API field; an absent or null field is `None`.
+
+    Raises:
+        ViResponseError: If a supplied value is not a string.
+    """
+    value = data.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ViResponseError(f"{resource} {field_name} must be a string")
+    return value
+
+
+def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
+    """Return an optional installation address as a validated JSON object."""
+    address = validate_json_value(data.get("address", {}), path="Installation address")
+    if not isinstance(address, dict):
+        raise ViResponseError("Installation address must be an object")
+    return address
+
+
+def _parse_command_success(value: object) -> bool:
     """Return a normalized command success flag.
 
     The API reports success as a JSON boolean or one of the documented
@@ -55,17 +79,22 @@ def _parse_command_success(value: Any) -> bool:
     )
 
 
-def _optional_response_text(root: dict[str, Any], field_name: str) -> str | None:
-    """Return an optional command response text field.
+def _parse_next_cursor(data: dict[str, Any]) -> str | None:
+    """Return the event history continuation cursor, if another page exists.
 
-    An absent or null field is `None`; any other supplied value must be a string.
+    Raises:
+        ViResponseError: If the cursor object or its ``next`` value is malformed.
     """
-    value = root.get(field_name)
-    if value is None:
+    cursor = data.get("cursor")
+    if cursor is None:
         return None
-    if not isinstance(value, str):
-        raise ViResponseError(f"Command response {field_name} must be a string")
-    return value
+    if not isinstance(cursor, dict):
+        raise ViResponseError("Event history cursor must be an object")
+    next_cursor = cast("dict[str, Any]", cursor).get("next")
+    if next_cursor is not None and not isinstance(next_cursor, str):
+        raise ViResponseError("Event history cursor next must be a string")
+    # The provider reports the final page with an empty string.
+    return next_cursor or None
 
 
 @dataclass(frozen=True)
@@ -114,7 +143,7 @@ class FeatureControl:
 
 @dataclass(frozen=True)
 class Feature:
-    """Representation of a Viessmann feature (Flat).
+    """One flat Viessmann feature with its current value.
 
     Attributes:
         name: Unique name of the feature (e.g. 'heating...curve.slope').
@@ -135,7 +164,7 @@ class Feature:
 
     @property
     def is_writable(self) -> bool:
-        """Check if feature is writable."""
+        """Return whether the feature has a command that can change it."""
         return self.control is not None
 
 
@@ -161,9 +190,12 @@ class Device:
     status: str
     features: Sequence[Feature] = field(default_factory=tuple)
 
-    # Internal cache for O(1) lookup
+    # Name index derived from `features`, so it is left out of comparisons.
     _features_by_name: Mapping[str, Feature] = field(
-        init=False, repr=False, default_factory=lambda: MappingProxyType({})
+        init=False,
+        repr=False,
+        compare=False,
+        default_factory=lambda: MappingProxyType({}),
     )
 
     def __post_init__(self) -> None:
@@ -182,7 +214,7 @@ class Device:
         object.__setattr__(self, "_features_by_name", MappingProxyType(feature_map))
 
     def get_feature(self, name: str) -> Feature | None:
-        """O(1) lookup helper.
+        """Return the feature with this exact name, or None.
 
         Args:
             name: The exact name of the feature to find.
@@ -210,11 +242,11 @@ class Device:
             ViResponseError: If a known device identity or text field is malformed.
         """
         return cls(
-            id=_required_identifier(data, "id", "Device"),
+            id=_require_identifier(data, "id", "Device"),
             gateway_serial=gateway_serial,
             installation_id=installation_id,
-            model_id=_required_string(data, "modelId", "Device"),
-            device_type=_required_string(data, "deviceType", "Device"),
+            model_id=_require_string(data, "modelId", "Device"),
+            device_type=_require_string(data, "deviceType", "Device"),
             status=_optional_string(data, "status", "Device"),
         )
 
@@ -283,8 +315,8 @@ class CommandResponse:
         command_data = cast("dict[str, Any]", root)
         return cls(
             success=_parse_command_success(command_data.get("success")),
-            message=_optional_response_text(command_data, "message"),
-            reason=_optional_response_text(command_data, "reason"),
+            message=_optional_text(command_data, "message", "Command response"),
+            reason=_optional_text(command_data, "reason", "Command response"),
         )
 
 
@@ -322,7 +354,7 @@ class Installation:
             ViResponseError: If a known installation field or address is malformed.
         """
         return cls(
-            id=_required_identifier(data, "id", "Installation"),
+            id=_require_identifier(data, "id", "Installation"),
             description=_optional_string(data, "description", "Installation"),
             alias=_optional_string(data, "alias", "Installation"),
             address=_parse_address(data),
@@ -359,28 +391,11 @@ class Gateway:
             ViResponseError: If a known gateway identity or text field is malformed.
         """
         return cls(
-            serial=_required_string(data, "serial", "Gateway"),
+            serial=_require_string(data, "serial", "Gateway"),
             version=_optional_string(data, "version", "Gateway"),
             status=_optional_string(data, "status", "Gateway"),
-            installation_id=_required_identifier(data, "installationId", "Gateway"),
+            installation_id=_require_identifier(data, "installationId", "Gateway"),
         )
-
-
-def _optional_event_text(data: dict[str, JsonValue], field_name: str) -> str | None:
-    """Return an optional event text field.
-
-    An absent or null field is `None`; any other supplied value must be a
-    string.
-
-    Raises:
-        ViResponseError: If the supplied value is not a string.
-    """
-    value = data.get(field_name)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ViResponseError(f"Event {field_name} must be a string")
-    return value
 
 
 @dataclass(frozen=True)
@@ -430,10 +445,10 @@ class InstallationEvent:
         fields = validate_json_value(data, path="Event")
         if not isinstance(fields, dict):
             raise ViResponseError("Event must be an object")
-        # Optional known text fields are validated while unknown fields stay
-        # available through the complete mapping.
+        # Documented contract fields without a model attribute are only
+        # validated; their values stay available through ``fields``.
         for field_name in ("editedBy", "origin"):
-            _optional_event_text(fields, field_name)
+            _optional_text(fields, field_name, "Event")
         audiences = fields.get("audiences")
         if audiences is not None and (
             not isinstance(audiences, list)
@@ -441,10 +456,10 @@ class InstallationEvent:
         ):
             raise ViResponseError("Event audiences must be a list of strings")
         return cls(
-            event_type=_required_string(fields, "eventType", "Event"),
-            created_at=_required_string(fields, "createdAt", "Event"),
-            event_timestamp=_required_string(fields, "eventTimestamp", "Event"),
-            gateway_serial=_optional_event_text(fields, "gatewaySerial"),
+            event_type=_require_string(fields, "eventType", "Event"),
+            created_at=_require_string(fields, "createdAt", "Event"),
+            event_timestamp=_require_string(fields, "eventTimestamp", "Event"),
+            gateway_serial=_optional_text(fields, "gatewaySerial", "Event"),
             body=fields.get("body"),
             fields=fields,
         )
@@ -492,24 +507,4 @@ class EventHistoryPage:
             if not isinstance(entry, dict):
                 raise ViResponseError("Event history data entries must be objects")
             events.append(InstallationEvent.from_api(cast("dict[str, Any]", entry)))
-
-        next_cursor: str | None = None
-        cursor = data.get("cursor")
-        if cursor is not None:
-            if not isinstance(cursor, dict):
-                raise ViResponseError("Event history cursor must be an object")
-            cursor_next = cast("dict[str, Any]", cursor).get("next")
-            if cursor_next is not None:
-                if not isinstance(cursor_next, str):
-                    raise ViResponseError("Event history cursor next must be a string")
-                # The provider reports the final page with an empty string.
-                next_cursor = cursor_next or None
-        return cls(events=events, next_cursor=next_cursor)
-
-
-def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
-    """Return an optional installation address as a validated JSON object."""
-    address = validate_json_value(data.get("address", {}), path="Installation address")
-    if not isinstance(address, dict):
-        raise ViResponseError("Installation address must be an object")
-    return address
+        return cls(events=events, next_cursor=_parse_next_cursor(data))
