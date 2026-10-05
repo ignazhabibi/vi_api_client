@@ -473,61 +473,7 @@ class ViClient:
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
         return await self._send_command(control, parameters)
 
-    @staticmethod
-    def _require_command_control(feature: Feature) -> FeatureControl:
-        """Validate a feature's command availability and return its control.
-
-        Raises:
-            ValueError: If the feature cannot currently execute a command.
-        """
-        if not feature.is_writable:
-            raise ValueError(f"Feature '{feature.name}' is read-only.")
-        if not feature.is_enabled:
-            raise ValueError(f"Feature '{feature.name}' is disabled.")
-        if not feature.is_ready:
-            raise ValueError(f"Feature '{feature.name}' is not ready.")
-
-        control = feature.control
-        # is_writable means a control exists; the assert only narrows the type.
-        assert control is not None
-        return control
-
-    @staticmethod
-    def _reject_non_json_parameters(parameters: dict[str, JsonValue]) -> None:
-        """Reject command parameter values the JSON value contract excludes.
-
-        The parameters come from the caller, so a violation is a ValueError
-        rather than the ViResponseError the shared validator raises for API
-        data.
-
-        Raises:
-            ValueError: If a parameter key or value is not JSON-compatible.
-        """
-        try:
-            validate_json_value(parameters, path="Command parameters")
-        except ViResponseError as error:
-            raise ValueError(str(error)) from error
-
-    @staticmethod
-    def _reject_missing_parameters(
-        control: FeatureControl, parameters: dict[str, JsonValue]
-    ) -> None:
-        """Reject an explicit command payload that lacks a required parameter.
-
-        Raises:
-            ValueError: If the target or a required parameter is absent.
-        """
-        if control.param_name not in parameters:
-            raise ValueError(
-                f"Command '{control.command_name}' is missing target parameter "
-                f"'{control.param_name}'."
-            )
-        for parameter in control.required_params:
-            if parameter not in parameters:
-                raise ValueError(
-                    f"Command '{control.command_name}' is missing required parameter "
-                    f"'{parameter}'."
-                )
+    # Reads: unpack API responses and parse API features into flat features.
 
     @staticmethod
     def _response_object(response: object, *, resource: str) -> dict[str, Any]:
@@ -604,25 +550,7 @@ class ViClient:
                 )
             seen_names.add(feature.name)
 
-    async def _send_command(
-        self, control: FeatureControl, payload: dict[str, JsonValue]
-    ) -> CommandResponse:
-        """Send a prepared command payload and parse the command response.
-
-        Args:
-            control: The feature control describing the command endpoint.
-            payload: The validated command parameters to send.
-
-        Returns:
-            The parsed command response.
-
-        Raises:
-            ViResponseError: If the command response violates the API contract.
-        """
-        response = await self._command_adapter.execute_command(control, payload)
-        return CommandResponse.from_api(
-            self._response_object(response, resource="Command")
-        )
+    # Gateway-scoped device refresh.
 
     @staticmethod
     def _validate_gateway_devices(devices: list[Device]) -> None:
@@ -716,6 +644,48 @@ class ViClient:
 
         return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
 
+    # Feature commands: check availability, build and validate the payload, send it.
+
+    @staticmethod
+    def _require_command_control(feature: Feature) -> FeatureControl:
+        """Validate a feature's command availability and return its control.
+
+        Raises:
+            ValueError: If the feature cannot currently execute a command.
+        """
+        if not feature.is_writable:
+            raise ValueError(f"Feature '{feature.name}' is read-only.")
+        if not feature.is_enabled:
+            raise ValueError(f"Feature '{feature.name}' is disabled.")
+        if not feature.is_ready:
+            raise ValueError(f"Feature '{feature.name}' is not ready.")
+
+        control = feature.control
+        # is_writable means a control exists; the assert only narrows the type.
+        assert control is not None
+        return control
+
+    @staticmethod
+    def _reject_missing_parameters(
+        control: FeatureControl, parameters: dict[str, JsonValue]
+    ) -> None:
+        """Reject an explicit command payload that lacks a required parameter.
+
+        Raises:
+            ValueError: If the target or a required parameter is absent.
+        """
+        if control.param_name not in parameters:
+            raise ValueError(
+                f"Command '{control.command_name}' is missing target parameter "
+                f"'{control.param_name}'."
+            )
+        for parameter in control.required_params:
+            if parameter not in parameters:
+                raise ValueError(
+                    f"Command '{control.command_name}' is missing required parameter "
+                    f"'{parameter}'."
+                )
+
     @staticmethod
     def _resolve_command_payload(
         device: Device, control: FeatureControl, target_value: FeatureValue
@@ -764,6 +734,22 @@ class ViClient:
                 "Resolved dependency '%s' with value %s", parameter, sibling.value
             )
         return payload
+
+    @staticmethod
+    def _reject_non_json_parameters(parameters: dict[str, JsonValue]) -> None:
+        """Reject command parameter values the JSON value contract excludes.
+
+        The parameters come from the caller, so a violation is a ValueError
+        rather than the ViResponseError the shared validator raises for API
+        data.
+
+        Raises:
+            ValueError: If a parameter key or value is not JSON-compatible.
+        """
+        try:
+            validate_json_value(parameters, path="Command parameters")
+        except ViResponseError as error:
+            raise ValueError(str(error)) from error
 
     def _validate_constraints(
         self, control: FeatureControl, value: FeatureValue
@@ -827,3 +813,23 @@ class ViClient:
             raise ValueError(
                 f"Value '{value}' does not match pattern '{control.pattern}'"
             )
+
+    async def _send_command(
+        self, control: FeatureControl, payload: dict[str, JsonValue]
+    ) -> CommandResponse:
+        """Send a prepared command payload and parse the command response.
+
+        Args:
+            control: The feature control describing the command endpoint.
+            payload: The validated command parameters to send.
+
+        Returns:
+            The parsed command response.
+
+        Raises:
+            ViResponseError: If the command response violates the API contract.
+        """
+        response = await self._command_adapter.execute_command(control, payload)
+        return CommandResponse.from_api(
+            self._response_object(response, resource="Command")
+        )
