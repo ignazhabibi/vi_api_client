@@ -551,6 +551,24 @@ def _curve_features() -> list[Feature]:
 
 
 @pytest.mark.asyncio
+async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
+    mock_cli_context, capsys
+):
+    """Read-only features have no command metadata in the JSON document."""
+    # Arrange: Return one read-only feature.
+    args = _cli_args(feature_name="heating.curve.slope", json=True)
+    mock_cli_context.client.get_features.return_value = [_feature(control=None)]
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: Read the feature in JSON mode.
+        assert await cmd_get_feature(args) is True
+
+    # Assert: The control is JSON null rather than an absent or text value.
+    document = json.loads(capsys.readouterr().out)
+    assert document["control"] is None
+
+
+@pytest.mark.asyncio
 async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     mock_cli_context, capsys
 ):
@@ -606,7 +624,9 @@ async def test_cmd_get_feature_not_found(mock_cli_context, capsys):
 
 
 @pytest.mark.asyncio
-async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tmp_path):
+async def test_cmd_login_uses_environment_config_and_persists_it(
+    monkeypatch, tmp_path, capsys
+):
     """Login should reuse environment credentials and save them for later commands."""
     # Arrange: Seed a token file and provide client settings through the environment.
     token_file = tmp_path / "tokens.json"
@@ -630,9 +650,14 @@ async def test_cmd_login_uses_environment_config_and_persists_it(monkeypatch, tm
         mock_create_session.return_value.__aenter__.return_value = mock_session
 
         # Act: Complete the CLI login flow without explicit command-line settings.
-        await cmd_login(args)
+        result = await cmd_login(args)
 
     # Assert: The resolved configuration should be used and stored with tokens.
+    assert result is True
+    assert "Successfully authenticated!" in capsys.readouterr().out
+    mock_auth.async_exchange_code_for_tokens.assert_awaited_once_with(
+        "authorization-code"
+    )
     saved_config = json.loads(token_file.read_text(encoding="utf-8"))
     mock_oauth.assert_called_once_with(
         "environment-client-id",
@@ -1553,6 +1578,47 @@ async def test_cmd_list_events_auto_selects_first_installation(
     mock_cli_context.client.get_event_history.assert_awaited_once_with(
         "12345", days=7, limit=None
     )
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
+    mock_cli_context, capsys
+):
+    """The auto-selected installation must not contaminate the JSON document."""
+    # Arrange: Omit the installation ID and request JSON output.
+    args = _cli_args(days=7, json=True)
+    mock_cli_context.installation_id = None
+    mock_cli_context.client.get_installations.return_value = [
+        Installation(id="12345", description="Home", alias="home", address={})
+    ]
+    mock_cli_context.client.get_event_history.return_value = _event_page()
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List events in JSON mode.
+        assert await cmd_list_events(args) is True
+
+    # Assert: stdout holds only the document; the diagnostic goes to stderr.
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["installationId"] == "12345"
+    assert "Auto-selected installation: 12345" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_cmd_list_events_fails_without_installations(mock_cli_context, caplog):
+    """An account without installations has no event history to list."""
+    # Arrange: Omit the installation ID and return no installations.
+    args = _cli_args(days=7)
+    mock_cli_context.installation_id = None
+    mock_cli_context.client.get_installations.return_value = []
+
+    with _patched_cli_context(mock_cli_context):
+        # Act: List events for the empty account.
+        result = await cmd_list_events(args)
+
+    # Assert: The command fails with the reason and reads no history.
+    assert result is False
+    assert "No installations found." in caplog.text
+    mock_cli_context.client.get_event_history.assert_not_called()
 
 
 @pytest.mark.parametrize(

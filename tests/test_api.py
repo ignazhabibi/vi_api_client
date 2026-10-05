@@ -7,6 +7,7 @@ from dataclasses import replace
 import aiohttp
 import pytest
 from aioresponses import aioresponses
+from yarl import URL
 
 from vi_api_client._types import JsonValue
 from vi_api_client.client import ViClient
@@ -1556,3 +1557,126 @@ async def test_interdependent_features_use_optimistic_values(
 
             assert found_call is not None
             assert found_call.kwargs["json"] == {"slope": 0.7, "shift": 7.0}
+
+
+def _device_features_url(device: Device) -> str:
+    """Return the feature filter URL of one device."""
+    return (
+        f"{API_BASE_URL}{ENDPOINT_FEATURES}/{device.installation_id}/gateways/"
+        f"{device.gateway_serial}/devices/{device.id}/features/filter"
+    )
+
+
+@pytest.mark.parametrize(
+    ("read", "expected_hint"),
+    [
+        (lambda client, device: client.get_features(device), False),
+        (
+            lambda client, device: client.get_features(device, only_enabled=True),
+            True,
+        ),
+        (lambda client, device: client.update_device(device), True),
+        (
+            lambda client, device: client.update_device(device, only_enabled=False),
+            False,
+        ),
+    ],
+    ids=[
+        "get-features-default",
+        "get-features-enabled",
+        "update-device-default",
+        "update-device-all",
+    ],
+)
+@pytest.mark.asyncio
+async def test_feature_reads_send_the_enabled_filter_hint(
+    read, expected_hint: bool, static_token_auth
+):
+    """Feature reads ask the API to skip disabled and not-ready features."""
+    # Arrange: Answer the device feature read with an empty collection.
+    device = _build_gateway_device("0")
+    url = _device_features_url(device)
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(url, payload={"data": []})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act: Read the device features through the public method.
+            await read(client, device)
+
+        # Assert: The request body carries the expected server-side hint.
+        (request,) = mock_responses.requests[("POST", URL(url))]
+    assert request.kwargs["json"] == {
+        "skipDisabled": expected_hint,
+        "skipNotReady": expected_hint,
+    }
+
+
+@pytest.mark.parametrize("only_active_features", [True, False])
+@pytest.mark.asyncio
+async def test_get_devices_passes_the_feature_filter_to_hydration(
+    only_active_features: bool, static_token_auth
+):
+    """Hydrating discovered devices uses the caller's feature filter."""
+    # Arrange: Discover one device and answer its feature read.
+    device = _build_gateway_device("0")
+    devices_url = (
+        f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}/installation-1/gateways/"
+        "gateway-1/devices"
+    )
+    features_url = _device_features_url(device)
+
+    with aioresponses() as mock_responses:
+        mock_responses.get(
+            devices_url,
+            payload={"data": [{"id": "0", "modelId": "m", "deviceType": "heating"}]},
+        )
+        mock_responses.post(features_url, payload={"data": []})
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act: Discover and hydrate the devices.
+            await client.get_devices(
+                "installation-1",
+                "gateway-1",
+                include_features=True,
+                only_active_features=only_active_features,
+            )
+
+        # Assert: The hydration request carries the caller's filter.
+        (request,) = mock_responses.requests[("POST", URL(features_url))]
+    assert request.kwargs["json"] == {
+        "skipDisabled": only_active_features,
+        "skipNotReady": only_active_features,
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_gateway_devices_fallback_reraises_non_device_errors(
+    static_token_auth,
+):
+    """Only device-specific errors are isolated; others abort the fallback."""
+    # Arrange: The bulk read falls back, then the device read is unauthorized.
+    base_url = f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1"
+
+    with aioresponses() as mock_responses:
+        mock_responses.post(
+            f"{base_url}/features/filter",
+            status=400,
+            payload={
+                "message": "Gateway busy",
+                "errorType": "DEVICE_COMMUNICATION_ERROR",
+            },
+        )
+        mock_responses.post(
+            f"{base_url}/devices/0/features/filter",
+            status=401,
+            payload={"message": "Token expired", "errorType": "UNAUTHORIZED"},
+        )
+        async with aiohttp.ClientSession() as session:
+            client = ViClient(static_token_auth(session))
+
+            # Act and assert: The authentication error ends the whole refresh.
+            with pytest.raises(ViAuthError, match="Unauthorized: Token expired"):
+                await client.update_gateway_devices([_build_gateway_device("0")])

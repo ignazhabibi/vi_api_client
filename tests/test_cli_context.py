@@ -378,3 +378,35 @@ async def test_cli_context_routes_insecure_warning_to_stderr_for_json(capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "WARNING: SSL verification disabled via --insecure" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_create_session_disables_certificate_checks_only_when_insecure(capsys):
+    """Only --insecure disables TLS verification, and it says so on stdout."""
+    # Arrange: Request an insecure session without JSON output.
+    args = Namespace(insecure=True, json=False)
+
+    with patch("vi_api_client.cli.aiohttp.TCPConnector") as connector:
+        # Act: Create the session.
+        session = create_session(args)
+        await session.close()
+
+    # Assert: The connector skips certificate checks and the user is warned.
+    connector.assert_called_once_with(ssl=False)
+    assert "WARNING: SSL verification disabled" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_create_session_verifies_certificates_by_default(capsys):
+    """Without --insecure the default verifying session is used."""
+    # Arrange: Request a normal session.
+    args = Namespace(insecure=False, json=False)
+
+    with patch("vi_api_client.cli.aiohttp.TCPConnector") as connector:
+        # Act: Create the session.
+        session = create_session(args)
+        await session.close()
+
+    # Assert: No custom connector and no warning.
+    connector.assert_not_called()
+    assert capsys.readouterr().out == ""
