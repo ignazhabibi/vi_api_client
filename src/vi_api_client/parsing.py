@@ -484,6 +484,9 @@ def _find_control_for_complex_feature(
         FeatureControl if a likely command is found.
     """
     for command_name, command in commands.items():
+        if not command.get("isExecutable", True):
+            continue
+
         params = command.get("params", {})
         # Pick the first schedule-like parameter found.
         target_param = next(
