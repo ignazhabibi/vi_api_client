@@ -512,14 +512,11 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 
 async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
     """An unknown name fails the read rather than printing an empty result."""
-    # Arrange: Return no features for the requested name.
     args = _cli_args("get-feature", "missing.feature")
     mock_cli_context.client.get_features.return_value = []
 
-    # Act: Read the absent feature.
     assert await cmd_get_feature(args) is False
 
-    # Assert: The CLI names the missing feature.
     assert "Feature 'missing.feature' not found." in capsys.readouterr().out
 
 
@@ -681,13 +678,10 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
 
 async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, capsys):
     """Unparseable parameter arguments should reject before any request."""
-    # Arrange: Supply one parameter without the key=value shape.
     args = _cli_args("exec", "heating.curve.slope", "setCurve", "not-key-value")
 
-    # Act: Attempt the explicit command.
     assert await cmd_exec(args) is False
 
-    # Assert: The CLI explains the parameter shape failure without reading.
     assert "Error parsing parameters:" in capsys.readouterr().out
     mock_cli_context.client.get_features.assert_not_called()
 
@@ -1057,11 +1051,9 @@ async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):
 
 async def test_dispatch_command_maps_handler_failure_to_status_one():
     """A handler's False result becomes the process failure status."""
-    # Arrange: Dispatch a command whose handler reports failure.
     handler = AsyncMock(return_value=False)
     args = Namespace(command="set", handler=handler)
 
-    # Act and assert: The dispatcher maps the failure to status one.
     assert await _dispatch_command(args) == 1
     handler.assert_awaited_once_with(args)
 
@@ -1086,10 +1078,8 @@ def test_main_exits_with_async_command_status():
 
 async def test_async_main_without_command_prints_help(capsys):
     """Invoking the CLI without a command should print help and exit zero."""
-    # Act: Invoke the CLI entry path without a command.
     exit_status = await async_main([])
 
-    # Assert: Help is printed and the process status stays successful.
     assert exit_status == 0
     assert "usage:" in capsys.readouterr().out
 
@@ -1253,11 +1243,9 @@ def test_list_events_parser_rejects_non_positive_windows(arguments, capsys):
 
 def test_list_events_parser_requires_days(capsys):
     """Event history has no implicit window, so omitting --days is a usage error."""
-    # Act: Parse the command without its lookback window.
     with pytest.raises(SystemExit) as error:
         build_parser().parse_args(["list-events"])
 
-    # Assert: argparse reports the missing option as a usage error.
     assert error.value.code == 2
     assert "--days" in capsys.readouterr().err
 
@@ -1490,10 +1478,8 @@ def test_event_detail_lines_render_known_and_unknown_bodies(
     event_type: str, body: FeatureValue, expected: list[str]
 ):
     """Detail lines should use known event types and complete JSON otherwise."""
-    # Act: Render the event body of one event with the given provider type.
     details = _event_detail_lines(_detail_event(body, event_type))
 
-    # Assert: Known types are structured and unknown bodies stay complete.
     assert details == expected
 
 
@@ -1506,22 +1492,17 @@ def test_event_detail_lines_render_known_and_unknown_bodies(
 )
 def test_event_detail_lines_labels_gateway_online_events(online: bool, label: str):
     """Gateway-online events should render the reported online transition."""
-    # Arrange: One gateway-online event whose provider type stays unchanged
-    # even when the gateway went offline.
     event = replace(
         _detail_event(None), event_type="gateway-online", body={"online": online}
     )
 
-    # Act and assert: The boolean body value decides the label.
     assert _event_detail_lines(event) == [label]
 
 
 def test_event_detail_lines_does_not_infer_gateway_state():
     """A non-boolean online flag must not imply an online or offline state."""
-    # Arrange: One gateway-online event without a boolean online value.
     event = replace(_detail_event({"online": "yes"}), event_type="gateway-online")
 
-    # Act and assert: The complete body stays visible instead of a label.
     assert _event_detail_lines(event) == ['body: {"online": "yes"}']
 
 
@@ -1603,10 +1584,8 @@ def test_event_detail_lines_shows_descriptions_beyond_the_code(
 
 def test_event_detail_lines_keeps_description_without_code():
     """A description without a code is informative on its own."""
-    # Arrange: One status event without an error code.
     body: FeatureValue = {"errorDescription": "Burner fault"}
 
-    # Act and assert: The description renders without a code line.
     assert _event_detail_lines(_status_event(body)) == ["description: Burner fault"]
 
 
@@ -1629,10 +1608,8 @@ def test_event_detail_lines_handles_missing_status_fields_without_fabrication(
     body: FeatureValue, expected: list[str]
 ):
     """Sparse status bodies render only supplied fields; other bodies stay raw JSON."""
-    # Act: Render one status event body with sparse or unexpected data.
     details = _event_detail_lines(_status_event(body))
 
-    # Assert: Only supplied fields appear; other bodies stay complete JSON.
     assert details == expected
 
 

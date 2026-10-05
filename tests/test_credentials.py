@@ -13,10 +13,8 @@ from vi_api_client.exceptions import ViAuthError
 
 def test_read_reports_unreadable_documents(tmp_path):
     """Reading an unreadable document should raise a library auth error."""
-    # Arrange: Point the document at a directory, which cannot be read as a file.
     document = CredentialDocument(tmp_path)
 
-    # Act and assert: The read failure becomes an auth error naming the path.
     with pytest.raises(ViAuthError, match="Could not read token file"):
         document.read()
 
@@ -45,10 +43,8 @@ def test_read_rejects_non_json_credential_values(token_file):
 )
 def test_read_rejects_non_object_documents(token_file, document_content: str):
     """Documents that are not JSON objects should reject with recovery guidance."""
-    # Arrange: Store a JSON document with a non-object root.
     token_file.write_text(document_content, encoding="utf-8")
 
-    # Act and assert: The non-object root rejects as an auth error.
     with pytest.raises(ViAuthError, match="must contain a JSON object"):
         CredentialDocument(token_file).read()
 
@@ -98,10 +94,8 @@ def test_read_rejects_invalid_known_fields(
     token_file, field_name: str, invalid_value, message: str
 ):
     """Known credential fields with invalid types should reject on read."""
-    # Arrange: Store a document with one invalid known field.
     token_file.write_text(json.dumps({field_name: invalid_value}), encoding="utf-8")
 
-    # Act and assert: The invalid field rejects as an auth error naming it.
     with pytest.raises(ViAuthError, match=f"{field_name} {message}"):
         CredentialDocument(token_file).read()
 
@@ -266,11 +260,8 @@ def test_update_removes_temporary_file_after_serialization_failure(
 
 def test_update_restricts_file_permissions_to_owner(token_file):
     """Credential documents should be owner-readable and owner-writable only."""
-    # Arrange: Prepare the credentials to persist.
     credentials = {"access_token": "new-token"}
 
-    # Act: Persist the credentials.
     CredentialDocument(token_file).update(credentials)
 
-    # Assert: The file mode should not grant group or other access.
     assert stat.S_IMODE(token_file.stat().st_mode) == 0o600

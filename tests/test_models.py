@@ -235,10 +235,8 @@ def test_command_response_accepts_documented_payloads(
     payload: dict[str, JsonValue], expected: tuple[bool, str | None, str | None]
 ):
     """Documented success, message, and reason shapes parse to one response."""
-    # Act: Parse the command response.
     response = CommandResponse.from_api(payload)
 
-    # Assert: Success is a boolean and the optional texts pass through.
     assert (response.success, response.message, response.reason) == expected
 
 
@@ -267,6 +265,5 @@ def test_command_response_rejects_malformed_payloads(
     payload: dict[str, JsonValue], message: str
 ):
     """Malformed known fields fail the command response contract."""
-    # Act and assert: The malformed payload raises a response error.
     with pytest.raises(ViResponseError, match=message):
         CommandResponse.from_api(payload)

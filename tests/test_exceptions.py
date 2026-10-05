@@ -22,10 +22,8 @@ def test_validation_error_keeps_existing_positional_arguments() -> None:
 
 def test_rate_limit_error_keeps_existing_positional_arguments() -> None:
     """Rate-limit errors should retain their existing positional signature."""
-    # Act: Construct with the positional arguments supported before retry data.
     error = ViRateLimitError("Rate limited", "error-123", "RATE_LIMIT")
 
-    # Assert: Existing values retain their meanings and retry data defaults to none.
     assert error.error_id == "error-123"
     assert error.error_type == "RATE_LIMIT"
     assert error.retry_after is None

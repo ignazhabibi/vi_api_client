@@ -43,6 +43,5 @@ def test_validate_json_value_rejects_non_json_python_values(
     value: object, message: str
 ):
     """The public boundary rejects values JSON cannot represent."""
-    # Act and assert: Invalid values become library-owned response errors.
     with pytest.raises(ViResponseError, match=message):
         vi_api_client.validate_json_value(value)

@@ -112,7 +112,6 @@ async def test_get_event_history_rejects_invalid_windows(
     message: str,
 ):
     """Invalid window arguments should fail before any request is sent."""
-    # Act and assert: Local contract violations raise before network I/O.
     with pytest.raises(ValueError, match=message):
         await vi_client.get_event_history(
             INSTALLATION_ID, days=days, cursor=cursor, limit=limit
@@ -122,7 +121,6 @@ async def test_get_event_history_rejects_invalid_windows(
 @pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_empty_installation_ids(vi_client):
     """An event history read requires a usable installation scope."""
-    # Act and assert: The empty scope is rejected before network I/O.
     with pytest.raises(ValueError, match="non-empty string"):
         await vi_client.get_event_history("", days=7)
 
@@ -212,12 +210,10 @@ async def test_get_event_history_rejects_empty_installation_ids(vi_client):
 async def test_get_event_history_rejects_malformed_responses(
     vi_client, mock_responses, payload: dict | list, message: str
 ):
-    # Arrange: Return one malformed successful response from the route.
     url = _page_url("lastNDays=7")
 
     mock_responses.get(url, payload=payload)
 
-    # Act and assert: The public response error names the violated field.
     with pytest.raises(ViResponseError, match=message):
         await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
@@ -242,12 +238,10 @@ async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
 async def test_get_event_history_rejects_successful_non_json_responses(
     vi_client, mock_responses
 ):
-    # Arrange: Return plain text content from the route.
     url = _page_url("lastNDays=7")
 
     mock_responses.get(url, body="not JSON", content_type="text/plain")
 
-    # Act and assert: The transport boundary raises the public error.
     with pytest.raises(ViResponseError, match="not valid JSON"):
         await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
@@ -293,6 +287,5 @@ def test_event_history_page_stores_immutable_snapshots():
 
 def test_installation_event_rejects_non_object_events():
     """An event must be a JSON object."""
-    # Act and assert: A list where an event belongs violates the contract.
     with pytest.raises(ViResponseError, match="Event must be an object"):
         InstallationEvent.from_api(["not", "an", "event"])  # type: ignore[arg-type]

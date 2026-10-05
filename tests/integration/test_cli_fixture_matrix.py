@@ -65,10 +65,8 @@ async def test_text_commands_print_their_result_for_every_fixture(
     run_cli, fixture_device: str, command: list[str], result_marker: str
 ):
     """Every text command prints its own result, not only the setup diagnostic."""
-    # Act: Run the text command against the fixture device.
     exit_status, out, _ = await run_cli(*command, "--fixture-device", fixture_device)
 
-    # Assert: The command succeeds and prints its command-specific result.
     assert exit_status == 0
     assert result_marker in out
 

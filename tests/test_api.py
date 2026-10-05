@@ -200,8 +200,6 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
 async def test_update_gateway_devices_rejects_ambiguous_device_sets_before_any_request(
     vi_client, devices: list[Device], message: str
 ):
-    # Act and assert: Duplicate IDs or mixed gateways cannot form one bulk
-    # request, so they are rejected before any I/O.
     with pytest.raises(ValueError, match=message):
         await vi_client.update_gateway_devices(devices)
 
@@ -239,10 +237,8 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
 
 @pytest.mark.usefixtures("no_http_requests")
 async def test_update_gateway_devices_accepts_empty_input_without_request(vi_client):
-    # Act: Refresh an empty gateway device collection.
     result = await vi_client.update_gateway_devices([])
 
-    # Assert: Empty input is a complete result and performs no I/O.
     assert result.is_complete
     assert result.updated_devices == ()
     assert result.errors_by_device_id == {}
@@ -338,13 +334,10 @@ _DUPLICATED_GATEWAY_FEATURE = {
 async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     vi_client, mock_responses, response, message
 ):
-    # Arrange: Return a malformed successful response from the gateway endpoint.
     device = build_device("0")
 
     mock_responses.post(_gateway_features_url(device), payload=response)
 
-    # Act and assert: Each contract violation names its specific cause as
-    # a public response error rather than a parsing exception.
     with pytest.raises(ViResponseError, match=message):
         await vi_client.update_gateway_devices([device])
 
@@ -452,9 +445,7 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
 
 
 async def test_update_gateway_devices_propagates_connection_errors(vi_client):
-    # Arrange: Do not register the bulk endpoint, causing a network failure.
 
-    # Act and assert: Connection failures abort the entire refresh.
     with pytest.raises(ViConnectionError, match="Network error"):
         await vi_client.update_gateway_devices([build_device("0")])
 
@@ -495,15 +486,12 @@ async def test_get_installations_returns_every_listed_installation(
 
 
 async def test_get_gateways_returns_the_listed_gateway(vi_client, mock_responses):
-    # Arrange: Answer the gateway list with one gateway.
     data = load_fixture_json("gateways.json")
 
     mock_responses.get(f"{API_BASE_URL}{ENDPOINT_GATEWAYS}", payload=data)
 
-    # Act: Fetch gateways from the API.
     gateways = await vi_client.get_gateways()
 
-    # Assert: The single gateway is identified by its serial.
     assert [gateway.serial for gateway in gateways] == ["1234567890"]
 
 
@@ -877,11 +865,9 @@ async def test_update_device_returns_a_new_device_with_the_read_features(
 async def test_update_device_rejects_malformed_feature_responses(
     vi_client, mock_responses
 ):
-    # Arrange: Return an invalid feature collection for an existing device.
     device = build_device("0")
     mock_responses.post(_device_features_url(device), payload={"data": [None]})
 
-    # Act and assert: The composed refresh keeps the public response error.
     with pytest.raises(ViResponseError, match="entries must be objects"):
         await vi_client.update_device(device)
 
