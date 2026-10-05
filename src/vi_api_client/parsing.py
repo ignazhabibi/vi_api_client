@@ -60,7 +60,7 @@ class ValidatedApiFeature(NamedTuple):
     is_ready: bool
 
 
-def parse_api_feature(api_feature: dict[str, Any]) -> list[Feature]:
+def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
     """Parse one API feature into its flat features.
 
     One API feature (e.g. 'heating.circuits.0') can produce several flat
