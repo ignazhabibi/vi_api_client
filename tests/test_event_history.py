@@ -1,10 +1,7 @@
 """Tests for the installation event history read path."""
 
-import aiohttp
 import pytest
-from aioresponses import aioresponses
 
-from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_EVENT_HISTORY
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import EventHistoryPage, InstallationEvent
@@ -18,22 +15,18 @@ def _page_url(query: str) -> str:
     return f"{EVENTS_URL}?{query}"
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_returns_first_page_by_days(
-    load_fixture_device, static_token_auth
+    vi_client, mock_responses, load_fixture_device
 ):
     """A days window should request one page and preserve provider details."""
     # Arrange: Load the bundled page and mock the verified GET route.
     payload = load_fixture_device("event_history")
     url = _page_url("lastNDays=7&limit=50")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload=payload)
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload=payload)
 
-            # Act: Request the first page of a rolling week.
-            page = await client.get_event_history(INSTALLATION_ID, days=7, limit=50)
+    # Act: Request the first page of a rolling week.
+    page = await vi_client.get_event_history(INSTALLATION_ID, days=7, limit=50)
 
     # Assert: Known fields are typed, unknown fields and bodies survive.
     assert len(page.events) == 3
@@ -62,8 +55,9 @@ async def test_get_event_history_returns_first_page_by_days(
     assert request.kwargs["params"] == {"lastNDays": 7, "limit": 50}
 
 
-@pytest.mark.asyncio
-async def test_get_event_history_follows_cursor_without_window(static_token_auth):
+async def test_get_event_history_follows_cursor_without_window(
+    vi_client, mock_responses
+):
     """A cursor page should not repeat the lookback window."""
     # Arrange: Register the continuation URL and a final page. The mock
     # re-encodes the transport-encoded query once more, so the registered
@@ -73,13 +67,10 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
     cursor = "b3BhcXVlLWN1cnNvci10b2tlbg=="
     url = _page_url("cursor=b3BhcXVlLWN1cnNvci10b2tlbg%253D%253D")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload={"data": []})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload={"data": []})
 
-            # Act: Request the next page through the opaque cursor.
-            page = await client.get_event_history(INSTALLATION_ID, cursor=cursor)
+    # Act: Request the next page through the opaque cursor.
+    page = await vi_client.get_event_history(INSTALLATION_ID, cursor=cursor)
 
     # Assert: The final page is empty without a further cursor, and the
     # request carries the cursor instead of the lookback window.
@@ -89,73 +80,70 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
     assert request.kwargs["params"] == {"cursor": cursor}
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("days", "cursor", "limit", "message"),
     [
-        (None, None, None, "exactly one of 'days' or 'cursor'"),
-        (7, "cursor-token", None, "exactly one of 'days' or 'cursor'"),
-        (0, None, None, "positive lookback window"),
-        (-3, None, None, "positive lookback window"),
-        (None, "", None, "non-empty string"),
-        (7, None, 0, "between 1 and 1000"),
-        (7, None, 1001, "between 1 and 1000"),
-    ],
-    ids=[
-        "neither-days-nor-cursor",
-        "both-days-and-cursor",
-        "zero-days",
-        "negative-days",
-        "empty-cursor",
-        "limit-below-range",
-        "limit-above-range",
+        pytest.param(
+            None,
+            None,
+            None,
+            "exactly one of 'days' or 'cursor'",
+            id="neither-days-nor-cursor",
+        ),
+        pytest.param(
+            7,
+            "cursor-token",
+            None,
+            "exactly one of 'days' or 'cursor'",
+            id="both-days-and-cursor",
+        ),
+        pytest.param(0, None, None, "positive lookback window", id="zero-days"),
+        pytest.param(-3, None, None, "positive lookback window", id="negative-days"),
+        pytest.param(None, "", None, "non-empty string", id="empty-cursor"),
+        pytest.param(7, None, 0, "between 1 and 1000", id="limit-below-range"),
+        pytest.param(7, None, 1001, "between 1 and 1000", id="limit-above-range"),
     ],
 )
 @pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_invalid_windows(
+    vi_client,
     days: int | None,
     cursor: str | None,
     limit: int | None,
     message: str,
-    static_token_auth,
 ):
     """Invalid window arguments should fail before any request is sent."""
-    # Arrange: Create a client; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Act and assert: Local contract violations raise before network I/O.
-        with pytest.raises(ValueError, match=message):
-            await client.get_event_history(
-                INSTALLATION_ID, days=days, cursor=cursor, limit=limit
-            )
+    # Act and assert: Local contract violations raise before network I/O.
+    with pytest.raises(ValueError, match=message):
+        await vi_client.get_event_history(
+            INSTALLATION_ID, days=days, cursor=cursor, limit=limit
+        )
 
 
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
-async def test_get_event_history_rejects_empty_installation_ids(static_token_auth):
+async def test_get_event_history_rejects_empty_installation_ids(vi_client):
     """An event history read requires a usable installation scope."""
-    # Arrange: Create a client; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Act and assert: The empty scope is rejected before network I/O.
-        with pytest.raises(ValueError, match="non-empty string"):
-            await client.get_event_history("", days=7)
+    # Act and assert: The empty scope is rejected before network I/O.
+    with pytest.raises(ValueError, match="non-empty string"):
+        await vi_client.get_event_history("", days=7)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
-        ([], "response must be an object"),
-        ({"data": {}}, "data must be a list"),
-        ({"data": ["not-an-object"]}, "entries must be objects"),
-        (
+        pytest.param([], "response must be an object", id="root-not-object"),
+        pytest.param({"data": {}}, "data must be a list", id="data-not-list"),
+        pytest.param(
+            {"data": ["not-an-object"]},
+            "entries must be objects",
+            id="data-entry-not-object",
+        ),
+        pytest.param(
             {"data": [{"eventType": "device.error.raised"}]},
             "createdAt must be a non-empty string",
+            id="missing-required-fields",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -166,8 +154,9 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
                 ]
             },
             "createdAt must be a non-empty string",
+            id="createdAt-not-string",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -179,8 +168,9 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
                 ]
             },
             "gatewaySerial must be a string",
+            id="gatewaySerial-not-string",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -192,8 +182,9 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
                 ]
             },
             "audiences must be a list of strings",
+            id="audiences-not-list",
         ),
-        (
+        pytest.param(
             {
                 "data": [
                     {
@@ -205,75 +196,61 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
                 ]
             },
             "audiences must be a list of strings",
+            id="audiences-entry-not-string",
         ),
-        ({"data": [], "cursor": []}, "cursor must be an object"),
-        ({"data": [], "cursor": {"next": 5}}, "cursor next must be a string"),
-    ],
-    ids=[
-        "root-not-object",
-        "data-not-list",
-        "data-entry-not-object",
-        "missing-required-fields",
-        "createdAt-not-string",
-        "gatewaySerial-not-string",
-        "audiences-not-list",
-        "audiences-entry-not-string",
-        "cursor-not-object",
-        "cursor-next-not-string",
+        pytest.param(
+            {"data": [], "cursor": []},
+            "cursor must be an object",
+            id="cursor-not-object",
+        ),
+        pytest.param(
+            {"data": [], "cursor": {"next": 5}},
+            "cursor next must be a string",
+            id="cursor-next-not-string",
+        ),
     ],
 )
 async def test_get_event_history_rejects_malformed_responses(
-    payload: dict | list, message: str, static_token_auth
+    vi_client, mock_responses, payload: dict | list, message: str
 ):
     # Arrange: Return one malformed successful response from the route.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload=payload)
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload=payload)
 
-            # Act and assert: The public response error names the violated field.
-            with pytest.raises(ViResponseError, match=message):
-                await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act and assert: The public response error names the violated field.
+    with pytest.raises(ViResponseError, match=message):
+        await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
-    static_token_auth,
+    vi_client, mock_responses
 ):
     """The provider reports the final page with an empty next cursor."""
     # Arrange: The live API sends cursor.next as "" when no pages follow.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload={"data": [], "cursor": {"next": ""}})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload={"data": [], "cursor": {"next": ""}})
 
-            # Act: Request the final page of the window.
-            page = await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act: Request the final page of the window.
+    page = await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
     # Assert: The empty string means no continuation cursor.
     assert page.events == ()
     assert page.next_cursor is None
 
 
-@pytest.mark.asyncio
 async def test_get_event_history_rejects_successful_non_json_responses(
-    static_token_auth,
+    vi_client, mock_responses
 ):
     # Arrange: Return plain text content from the route.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, body="not JSON", content_type="text/plain")
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, body="not JSON", content_type="text/plain")
 
-            # Act and assert: The transport boundary raises the public error.
-            with pytest.raises(ViResponseError, match="not valid JSON"):
-                await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act and assert: The transport boundary raises the public error.
+    with pytest.raises(ViResponseError, match="not valid JSON"):
+        await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
 
 def test_installation_event_rejects_non_json_nested_values():
@@ -313,3 +290,10 @@ def test_event_history_page_stores_immutable_snapshots():
     assert page.events[0].body == {"errorCode": "F.9000"}
     assert page.events[0].fields["body"] == {"errorCode": "F.9000"}
     assert page.next_cursor == "cursor-token"
+
+
+def test_installation_event_rejects_non_object_events():
+    """An event must be a JSON object."""
+    # Act and assert: A list where an event belongs violates the contract.
+    with pytest.raises(ViResponseError, match="Event must be an object"):
+        InstallationEvent.from_api(["not", "an", "event"])  # type: ignore[arg-type]

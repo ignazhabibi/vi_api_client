@@ -37,8 +37,11 @@ def test_read_rejects_non_json_credential_values(token_file):
 
 @pytest.mark.parametrize(
     "document_content",
-    ["[]", '"tokens"', "5"],
-    ids=["list", "string", "number"],
+    [
+        pytest.param("[]", id="list"),
+        pytest.param('"tokens"', id="string"),
+        pytest.param("5", id="number"),
+    ],
 )
 def test_read_rejects_non_object_documents(token_file, document_content: str):
     """Documents that are not JSON objects should reject with recovery guidance."""
@@ -53,12 +56,15 @@ def test_read_rejects_non_object_documents(token_file, document_content: str):
 @pytest.mark.parametrize(
     ("credential_fields", "message"),
     [
-        (["not-an-object"], "must be a JSON object"),
-        ({"access_token": 1}, "access_token must be a string"),
-        ({"client_id": 1}, "client_id must be a string"),
-        ({"nested": object()}, "invalid JSON data"),
+        pytest.param(["not-an-object"], "must be a JSON object", id="not-an-object"),
+        pytest.param(
+            {"access_token": 1}, "access_token must be a string", id="token-not-text"
+        ),
+        pytest.param(
+            {"client_id": 1}, "client_id must be a string", id="configuration-not-text"
+        ),
+        pytest.param({"nested": object()}, "invalid JSON data", id="non-json"),
     ],
-    ids=["not-an-object", "token-not-text", "configuration-not-text", "non-json"],
 )
 def test_update_rejects_invalid_fields_without_overwriting(
     token_file, credential_fields, message
@@ -79,22 +85,13 @@ def test_update_rejects_invalid_fields_without_overwriting(
 @pytest.mark.parametrize(
     ("field_name", "invalid_value", "message"),
     [
-        ("access_token", 1, "must be a string"),
-        ("refresh_token", 1, "must be a string"),
-        ("token_type", 1, "must be a string"),
-        ("client_id", 1, "must be a string"),
-        ("redirect_uri", 1, "must be a string"),
-        ("expires_in", "600", "must be a finite number"),
-        ("expires_at", True, "must be a finite number"),
-    ],
-    ids=[
-        "access-token",
-        "refresh-token",
-        "token-type",
-        "client-id",
-        "redirect-uri",
-        "expires-in",
-        "expires-at",
+        pytest.param("access_token", 1, "must be a string", id="access-token"),
+        pytest.param("refresh_token", 1, "must be a string", id="refresh-token"),
+        pytest.param("token_type", 1, "must be a string", id="token-type"),
+        pytest.param("client_id", 1, "must be a string", id="client-id"),
+        pytest.param("redirect_uri", 1, "must be a string", id="redirect-uri"),
+        pytest.param("expires_in", "600", "must be a finite number", id="expires-in"),
+        pytest.param("expires_at", True, "must be a finite number", id="expires-at"),
     ],
 )
 def test_read_rejects_invalid_known_fields(

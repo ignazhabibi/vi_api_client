@@ -7,12 +7,10 @@ from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
-from aioresponses import aioresponses
 
 from vi_api_client._adapter import LiveAdapter
 from vi_api_client._types import JsonValue
 from vi_api_client.auth import AbstractAuth
-from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
 from vi_api_client.exceptions import (
     ViAuthError,
@@ -47,6 +45,12 @@ class _RaisingAuth(AbstractAuth):
         raise self.error
 
 
+@pytest.fixture
+def live_adapter(static_token_auth: AbstractAuth) -> LiveAdapter:
+    """Return a live adapter whose HTTP requests go to ``mock_responses``."""
+    return LiveAdapter(static_token_auth)
+
+
 def _command_control(uri: str) -> FeatureControl:
     """Build a command control targeting the given URI."""
     return FeatureControl(
@@ -58,7 +62,6 @@ def _command_control(uri: str) -> FeatureControl:
     )
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_preserves_external_oauth_error() -> None:
     # Arrange: Configure auth to raise a response-shaped external OAuth error.
     oauth_error = _ExternalOAuthError(
@@ -78,19 +81,17 @@ async def test_live_adapter_preserves_external_oauth_error() -> None:
     assert raised_error.value is oauth_error
 
 
-@pytest.mark.asyncio
-async def test_live_adapter_wraps_aiohttp_connection_error(static_token_auth) -> None:
+async def test_live_adapter_wraps_aiohttp_connection_error(
+    live_adapter, mock_responses
+) -> None:
     # Arrange: Make the installations request fail while opening the connection.
     connection_error = aiohttp.ClientConnectionError("Network unavailable")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, exception=connection_error)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, exception=connection_error)
 
-            # Act: Read installations while the connection cannot be opened.
-            with pytest.raises(ViConnectionError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the connection cannot be opened.
+    with pytest.raises(ViConnectionError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The library error keeps the aiohttp failure as its cause.
     assert raised_error.value.__cause__ is connection_error
@@ -99,29 +100,18 @@ async def test_live_adapter_wraps_aiohttp_connection_error(static_token_auth) ->
 @pytest.mark.parametrize(
     ("status", "expected_error"),
     [
-        (400, ViValidationError),
-        (401, ViAuthError),
-        (403, ViAuthError),
-        (404, ViNotFoundError),
-        (418, ViError),
-        (422, ViValidationError),
-        (429, ViRateLimitError),
-        (500, ViServerInternalError),
-    ],
-    ids=[
-        "bad-request",
-        "unauthorized",
-        "forbidden",
-        "not-found",
-        "unmapped-status",
-        "unprocessable",
-        "rate-limited",
-        "server-error",
+        pytest.param(400, ViValidationError, id="bad-request"),
+        pytest.param(401, ViAuthError, id="unauthorized"),
+        pytest.param(403, ViAuthError, id="forbidden"),
+        pytest.param(404, ViNotFoundError, id="not-found"),
+        pytest.param(418, ViError, id="unmapped-status"),
+        pytest.param(422, ViValidationError, id="unprocessable"),
+        pytest.param(429, ViRateLimitError, id="rate-limited"),
+        pytest.param(500, ViServerInternalError, id="server-error"),
     ],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_preserves_viessmann_error_type(
-    status: int, expected_error: type[ViError], static_token_auth
+    live_adapter, mock_responses, status: int, expected_error: type[ViError]
 ) -> None:
     # Arrange: Return a structured Viessmann error from the HTTP boundary.
     payload = {
@@ -130,14 +120,11 @@ async def test_live_adapter_preserves_viessmann_error_type(
         "viErrorId": "error-123",
     }
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, payload=payload, status=status)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=status)
 
-            # Act: Read installations while the API reports a structured error.
-            with pytest.raises(ViError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the API reports a structured error.
+    with pytest.raises(ViError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The status selects the exact error class, not merely a subclass of
     # it, and the exception retains the API classification data.
@@ -146,9 +133,8 @@ async def test_live_adapter_preserves_viessmann_error_type(
     assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_exposes_validated_validation_details(
-    static_token_auth,
+    live_adapter, mock_responses
 ) -> None:
     """Validated validation details stay dictionary-shaped on the exception."""
     # Arrange: Return one structured validation detail with an unknown field.
@@ -161,14 +147,11 @@ async def test_live_adapter_exposes_validated_validation_details(
         ],
     }
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
 
-            # Act: Read installations while the API reports a validation error.
-            with pytest.raises(ViValidationError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the API reports a validation error.
+    with pytest.raises(ViValidationError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The detail remains a dictionary with dictionary access and
     # contributes to the formatted message.
@@ -183,13 +166,17 @@ async def test_live_adapter_exposes_validated_validation_details(
 
 @pytest.mark.parametrize(
     "validation_errors",
-    ["not-a-list", 42, [{"message": "ok"}, "entry"], ["entry", 42]],
-    ids=["string", "number", "mixed-entries", "no-object-entries"],
+    [
+        pytest.param("not-a-list", id="string"),
+        pytest.param(42, id="number"),
+        pytest.param([{"message": "ok"}, "entry"], id="mixed-entries"),
+        pytest.param(["entry", 42], id="no-object-entries"),
+    ],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_drops_unusable_validation_details(
+    live_adapter,
+    mock_responses,
     validation_errors: JsonValue,
-    static_token_auth,
 ) -> None:
     """Validation detail collections that violate the contract are not exposed."""
     # Arrange: Return a validationErrors value outside the detail contract.
@@ -200,22 +187,18 @@ async def test_live_adapter_drops_unusable_validation_details(
         "validationErrors": validation_errors,
     }
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
 
-            # Act: Read installations while the API reports a validation error.
-            with pytest.raises(ViValidationError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the API reports a validation error.
+    with pytest.raises(ViValidationError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The unusable collection is not partially exposed.
     assert raised_error.value.validation_errors == []
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_drops_non_json_validation_details(
-    static_token_auth,
+    live_adapter, mock_responses
 ) -> None:
     """Validation details JSON cannot represent are dropped, not raised."""
     # Arrange: Return validation details containing a non-finite number.
@@ -226,22 +209,18 @@ async def test_live_adapter_drops_non_json_validation_details(
         "validationErrors": [float("inf")],
     }
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
 
-            # Act: Read installations while the API reports a validation error.
-            with pytest.raises(ViValidationError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the API reports a validation error.
+    with pytest.raises(ViValidationError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The HTTP error surfaces with the unusable details dropped.
     assert raised_error.value.validation_errors == []
 
 
-@pytest.mark.asyncio
 async def test_live_adapter_drops_malformed_structured_error_fields(
-    static_token_auth,
+    live_adapter, mock_responses
 ) -> None:
     """Malformed structured error fields must not reach the public exception."""
     # Arrange: Return structured error fields that violate their contracts.
@@ -251,14 +230,11 @@ async def test_live_adapter_drops_malformed_structured_error_fields(
         "viErrorId": ["not-an-id"],
     }
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
 
-            # Act: Read installations while the API reports malformed error fields.
-            with pytest.raises(ViValidationError) as raised_error:
-                await adapter.get_installations()
+    # Act: Read installations while the API reports malformed error fields.
+    with pytest.raises(ViValidationError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: HTTP-level defaults replace every malformed field.
     error = raised_error.value
@@ -271,45 +247,32 @@ async def test_live_adapter_drops_malformed_structured_error_fields(
 @pytest.mark.parametrize(
     ("retry_after_header", "expected_retry_after"),
     [
-        ("12.5", 12.5),
-        ("0", 0.0),
-        ("-5", None),
-        ("inf", None),
-        ("nan", None),
-        ("not-a-duration", None),
-        ("Wed, 21 Oct 2015 07:28:00", None),
-        (None, None),
-    ],
-    ids=[
-        "fractional-seconds",
-        "zero-seconds",
-        "negative-seconds",
-        "infinite-seconds",
-        "nan-seconds",
-        "not-a-duration",
-        "date-without-timezone",
-        "missing-header",
+        pytest.param("12.5", 12.5, id="fractional-seconds"),
+        pytest.param("0", 0.0, id="zero-seconds"),
+        pytest.param("-5", None, id="negative-seconds"),
+        pytest.param("inf", None, id="infinite-seconds"),
+        pytest.param("nan", None, id="nan-seconds"),
+        pytest.param("not-a-duration", None, id="not-a-duration"),
+        pytest.param("Wed, 21 Oct 2015 07:28:00", None, id="date-without-timezone"),
+        pytest.param(None, None, id="missing-header"),
     ],
 )
-@pytest.mark.asyncio
 async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying(
+    vi_client,
+    mock_responses,
     retry_after_header: str | None,
     expected_retry_after: float | None,
-    static_token_auth,
 ) -> None:
     """A 429 should expose numeric guidance through one client request."""
     # Arrange: Configure a rate-limited public client request.
     headers = (
         {"Retry-After": retry_after_header} if retry_after_header is not None else {}
     )
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-        with aioresponses() as mock_responses:
-            mock_responses.get(INSTALLATIONS_URL, status=429, headers=headers)
+    mock_responses.get(INSTALLATIONS_URL, status=429, headers=headers)
 
-            # Act: Read installations while the API is rate limiting.
-            with pytest.raises(ViRateLimitError) as raised_error:
-                await client.get_installations()
+    # Act: Read installations while the API is rate limiting.
+    with pytest.raises(ViRateLimitError) as raised_error:
+        await vi_client.get_installations()
 
     # Assert: The error carries the parsed guidance after a single request.
     assert raised_error.value.retry_after == expected_retry_after
@@ -319,37 +282,34 @@ async def test_client_normalizes_numeric_or_invalid_retry_after_without_retrying
 @pytest.mark.parametrize(
     ("retry_after_header", "max_retry_after"),
     [
-        (
+        pytest.param(
             lambda: format_datetime(
                 datetime.now(UTC) + timedelta(seconds=30), usegmt=True
             ),
             30,
+            id="future-date",
         ),
-        (lambda: "Wed, 21 Oct 2015 07:28:00 GMT", 0),
+        pytest.param(lambda: "Wed, 21 Oct 2015 07:28:00 GMT", 0, id="past-date"),
     ],
-    ids=["future-date", "past-date"],
 )
-@pytest.mark.asyncio
 async def test_client_normalizes_http_date_retry_after_without_retrying(
+    vi_client,
+    mock_responses,
     retry_after_header: Callable[[], str],
     max_retry_after: float,
-    static_token_auth,
 ) -> None:
     """A 429 HTTP-date header should become a non-negative delay in seconds."""
     # Arrange: Build the header when the test runs, so a future date stays in
     # the future regardless of collection time.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-        with aioresponses() as mock_responses:
-            mock_responses.get(
-                INSTALLATIONS_URL,
-                status=429,
-                headers={"Retry-After": retry_after_header()},
-            )
+    mock_responses.get(
+        INSTALLATIONS_URL,
+        status=429,
+        headers={"Retry-After": retry_after_header()},
+    )
 
-            # Act: Read installations while the API is rate limiting.
-            with pytest.raises(ViRateLimitError) as raised_error:
-                await client.get_installations()
+    # Act: Read installations while the API is rate limiting.
+    with pytest.raises(ViRateLimitError) as raised_error:
+        await vi_client.get_installations()
 
     # Assert: The date becomes a delay, clamped at zero for past dates, from one
     # request.
@@ -361,26 +321,23 @@ async def test_client_normalizes_http_date_retry_after_without_retrying(
 @pytest.mark.parametrize(
     "command_uri",
     [
-        f"{API_BASE_URL}/iot/v2/features/commands/setMode",
-        "/iot/v2/features/commands/setMode",
+        pytest.param(
+            f"{API_BASE_URL}/iot/v2/features/commands/setMode", id="absolute-uri"
+        ),
+        pytest.param("/iot/v2/features/commands/setMode", id="rooted-uri"),
     ],
-    ids=["absolute-uri", "rooted-uri"],
 )
-@pytest.mark.asyncio
 async def test_live_adapter_sends_commands_to_vi_api_uris(
-    command_uri: str, static_token_auth
+    live_adapter, mock_responses, command_uri: str
 ) -> None:
     """Absolute and rooted command URIs resolve to the Vi API."""
     # Arrange: Accept the command at its absolute Vi API URL.
-    with aioresponses() as mock_responses:
-        mock_responses.post(COMMAND_URL, payload={"data": {"success": True}})
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
+    mock_responses.post(COMMAND_URL, payload={"data": {"success": True}})
 
-            # Act: Execute a command whose URI uses the given spelling.
-            response = await adapter.execute_command(
-                _command_control(command_uri), {"mode": "dhw"}
-            )
+    # Act: Execute a command whose URI uses the given spelling.
+    response = await live_adapter.execute_command(
+        _command_control(command_uri), {"mode": "dhw"}
+    )
 
     # Assert: The command reached the Vi API URL.
     assert response == {"data": {"success": True}}
@@ -389,47 +346,46 @@ async def test_live_adapter_sends_commands_to_vi_api_uris(
 @pytest.mark.parametrize(
     "command_uri",
     [
-        "https://example.invalid/iot/v2/features/commands/setMode",
-        f"{API_BASE_URL}.example.invalid/commands/setMode",
-        "//example.invalid/commands/setMode",
-        "",
+        pytest.param(
+            "https://example.invalid/iot/v2/features/commands/setMode",
+            id="foreign-host",
+        ),
+        pytest.param(
+            f"{API_BASE_URL}.example.invalid/commands/setMode", id="lookalike-host"
+        ),
+        pytest.param("//example.invalid/commands/setMode", id="scheme-relative"),
+        pytest.param("", id="empty"),
     ],
-    ids=["foreign-host", "lookalike-host", "scheme-relative", "empty"],
 )
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("no_http_requests")
 async def test_live_adapter_refuses_command_uris_outside_vi_api(
+    live_adapter,
     command_uri: str,
-    static_token_auth,
 ) -> None:
     """Command URIs from API responses must not receive the bearer token."""
     # Arrange: Create an adapter; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        adapter = LiveAdapter(static_token_auth(session))
 
-        # Act and assert: The adapter refuses the URI before any request.
-        with pytest.raises(ViResponseError, match="outside the Vi API"):
-            await adapter.execute_command(
-                _command_control(command_uri), {"mode": "dhw"}
-            )
-
-
-@pytest.mark.asyncio
-async def test_live_adapter_maps_non_json_error_bodies(static_token_auth) -> None:
-    # Arrange: Return an HTML error page with a server error status.
-    with aioresponses() as mock_responses:
-        mock_responses.get(
-            INSTALLATIONS_URL,
-            status=502,
-            body="<html>Bad Gateway</html>",
-            content_type="text/html",
+    # Act and assert: The adapter refuses the URI before any request.
+    with pytest.raises(ViResponseError, match="outside the Vi API"):
+        await live_adapter.execute_command(
+            _command_control(command_uri), {"mode": "dhw"}
         )
-        async with aiohttp.ClientSession() as session:
-            adapter = LiveAdapter(static_token_auth(session))
 
-            # Act: Read installations while a proxy returns an HTML error page.
-            with pytest.raises(ViServerInternalError) as raised_error:
-                await adapter.get_installations()
+
+async def test_live_adapter_maps_non_json_error_bodies(
+    live_adapter, mock_responses
+) -> None:
+    # Arrange: Return an HTML error page with a server error status.
+    mock_responses.get(
+        INSTALLATIONS_URL,
+        status=502,
+        body="<html>Bad Gateway</html>",
+        content_type="text/html",
+    )
+
+    # Act: Read installations while a proxy returns an HTML error page.
+    with pytest.raises(ViServerInternalError) as raised_error:
+        await live_adapter.get_installations()
 
     # Assert: The error surfaces with the HTTP-level message.
     assert str(raised_error.value) == "Server Error 502: HTTP 502"
@@ -438,35 +394,48 @@ async def test_live_adapter_maps_non_json_error_bodies(static_token_auth) -> Non
 @pytest.mark.parametrize(
     ("status", "expected_error", "expected_message"),
     [
-        (401, ViAuthError, "Unauthorized: Device communication failed"),
-        (403, ViAuthError, "Forbidden: Device communication failed"),
-        (404, ViNotFoundError, "Not Found: Device communication failed"),
-        (418, ViError, "Unknown Error 418: Device communication failed"),
+        pytest.param(
+            401,
+            ViAuthError,
+            "Unauthorized: Device communication failed",
+            id="unauthorized",
+        ),
+        pytest.param(
+            403, ViAuthError, "Forbidden: Device communication failed", id="forbidden"
+        ),
+        pytest.param(
+            404,
+            ViNotFoundError,
+            "Not Found: Device communication failed",
+            id="not-found",
+        ),
+        pytest.param(
+            418,
+            ViError,
+            "Unknown Error 418: Device communication failed",
+            id="unmapped-status",
+        ),
     ],
-    ids=["unauthorized", "forbidden", "not-found", "unmapped-status"],
 )
-@pytest.mark.asyncio
 async def test_client_errors_name_the_http_status_in_their_message(
+    vi_client,
+    mock_responses,
     status: int,
     expected_error: type[ViError],
     expected_message: str,
-    static_token_auth,
 ) -> None:
     """Error messages say which HTTP failure occurred before the API message."""
     # Arrange: Return a structured Viessmann error for the installation read.
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(
-            INSTALLATIONS_URL,
-            status=status,
-            payload={"message": "Device communication failed"},
-        )
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(
+        INSTALLATIONS_URL,
+        status=status,
+        payload={"message": "Device communication failed"},
+    )
 
-            # Act: Read installations while the API reports an HTTP error.
-            with pytest.raises(ViError) as raised_error:
-                await client.get_installations()
+    # Act: Read installations while the API reports an HTTP error.
+    with pytest.raises(ViError) as raised_error:
+        await vi_client.get_installations()
 
     # Assert: The exact error class and full message are stable for callers
     # that display them.

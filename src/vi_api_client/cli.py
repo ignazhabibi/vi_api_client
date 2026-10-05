@@ -1203,10 +1203,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def async_main() -> int:
-    """Main CLI entrypoint."""
+async def async_main(argv: Sequence[str] | None = None) -> int:
+    """Main CLI entrypoint.
+
+    Args:
+        argv: The command line arguments without the program name. Defaults
+            to ``sys.argv[1:]``.
+
+    Returns:
+        The process exit status.
+    """
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

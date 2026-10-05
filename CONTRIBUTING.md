@@ -17,11 +17,12 @@
 
 ## Tests
 
-- Use pytest functions, not `unittest.TestCase` classes. Mark async tests with `@pytest.mark.asyncio` and mirror the source layout where practical.
+- Use pytest functions, not `unittest.TestCase` classes. Write async tests as plain `async def` functions; `pytest.ini` sets `asyncio_mode = auto`, so they need no marker. Mirror the source layout where practical.
 - Structure each non-trivial test with Arrange-Act-Assert. Add explicit, test-specific `# Arrange:`, `# Act:`, and `# Assert:` comments when phases are not immediately clear, the test has multiple phases or state changes, or fixture and mock setup is substantial. Exception-focused tests may use `# Act and assert:`.
 - Prefer native `assert` for values and state, mock assertion helpers for interactions, and `pytest.raises` for expected exceptions.
 - Store substantial API payloads in `tests/fixtures/` and load them through shared helpers. Put pytest fixtures shared across modules in `tests/conftest.py`, and plain model builders needed at collection time, such as in `parametrize` arguments, in `tests/builders.py`. Keep fixtures aligned with the real API contract and the bundled product fixtures; inspect `tests/test_fixture_data_integrity.py` when changing fixture assumptions.
-- Use `aioresponses` for HTTP and authentication tests against real client request flows. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows.
+- Use `aioresponses` for HTTP and authentication tests against real client request flows; the `vi_client` and `mock_responses` fixtures in `tests/conftest.py` provide a live client whose requests go to `aioresponses`. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows, and the `run_cli` fixture to run CLI commands in-process.
+- Give parametrized cases readable names with `pytest.param(..., id="...")` next to the values.
 - Inspect fixture or snapshot diffs rather than accepting them blindly. Run the focused test first, then the full quality gate before proposing a commit.
 - Aim for at least 95% line and branch coverage over `src/vi_api_client`; the quality gate enforces both. Reach branches with behavioral tests. Where defensive code is provably unreachable, mark it with a narrowly scoped `# pragma: no cover` or `# pragma: no branch` plus a one-line justification instead of writing a test that only exercises a line.
 

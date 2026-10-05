@@ -79,7 +79,12 @@ def test_parse_cli_params_rejects_malformed_json_arguments():
 
 
 @pytest.mark.parametrize(
-    "prefix", ["Bearer", "bearer", "BEARER"], ids=["title", "lower", "upper"]
+    "prefix",
+    [
+        pytest.param("Bearer", id="title"),
+        pytest.param("bearer", id="lower"),
+        pytest.param("BEARER", id="upper"),
+    ],
 )
 def test_mask_pii_redacts_bearer_tokens_case_insensitively(prefix):
     """Bearer token redaction should not depend on header capitalization."""
@@ -155,12 +160,13 @@ def test_format_feature_renders_missing_values_as_dash():
 @pytest.mark.parametrize(
     ("value", "unit", "expected"),
     [
-        (5.5, "celsius", "5.5 celsius"),
-        ("ready", None, "ready"),
-        ([1.1, 2.2], "kilowattHour", "[1.1, 2.2] kilowattHour"),
-        (list(range(12)), None, "List[12 items]"),
+        pytest.param(5.5, "celsius", "5.5 celsius", id="value-with-unit"),
+        pytest.param("ready", None, "ready", id="value-without-unit"),
+        pytest.param(
+            [1.1, 2.2], "kilowattHour", "[1.1, 2.2] kilowattHour", id="short-list"
+        ),
+        pytest.param(list(range(12)), None, "List[12 items]", id="long-list"),
     ],
-    ids=["value-with-unit", "value-without-unit", "short-list", "long-list"],
 )
 def test_format_feature_renders_values_and_lists(value, unit, expected):
     """Scalar and list values should render with their unit when present."""

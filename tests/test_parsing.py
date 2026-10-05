@@ -22,8 +22,10 @@ def test_command_mappings_with_non_string_keys_are_rejected():
 
 @pytest.mark.parametrize(
     "fixture_name",
-    ["parsing/simple_value.json", "parsing/feature_level_unit.json"],
-    ids=["unit-on-value-property", "unit-on-feature"],
+    [
+        pytest.param("parsing/simple_value.json", id="unit-on-value-property"),
+        pytest.param("parsing/feature_level_unit.json", id="unit-on-feature"),
+    ],
 )
 def test_value_property_becomes_the_base_feature_with_its_unit(
     load_fixture_json, fixture_name: str
@@ -143,12 +145,27 @@ def test_history_series_stay_one_feature_with_their_whole_value(load_fixture_jso
 @pytest.mark.parametrize(
     ("fixture_name", "base_name"),
     [
-        ("parsing/consumption_alias_cooling.json", "heating.power.consumption.cooling"),
-        ("parsing/consumption_alias_dhw.json", "heating.power.consumption.dhw"),
-        ("parsing/consumption_alias_heating.json", "heating.power.consumption.heating"),
-        ("parsing/consumption_alias_total.json", "heating.power.consumption.total"),
+        pytest.param(
+            "parsing/consumption_alias_cooling.json",
+            "heating.power.consumption.cooling",
+            id="cooling",
+        ),
+        pytest.param(
+            "parsing/consumption_alias_dhw.json",
+            "heating.power.consumption.dhw",
+            id="dhw",
+        ),
+        pytest.param(
+            "parsing/consumption_alias_heating.json",
+            "heating.power.consumption.heating",
+            id="heating",
+        ),
+        pytest.param(
+            "parsing/consumption_alias_total.json",
+            "heating.power.consumption.total",
+            id="total",
+        ),
     ],
-    ids=["cooling", "dhw", "heating", "total"],
 )
 def test_consumption_series_expose_a_current_year_alias(
     load_fixture_json, fixture_name: str, base_name: str
@@ -288,11 +305,18 @@ def test_object_shaped_min_max_become_features():
 @pytest.mark.parametrize(
     ("year_property", "expect_alias"),
     [
-        (None, False),
-        ({"type": "array", "unit": "kilowattHour", "value": []}, False),
-        ({"type": "array", "unit": "kilowattHour", "value": [5.5]}, True),
+        pytest.param(None, False, id="year-absent"),
+        pytest.param(
+            {"type": "array", "unit": "kilowattHour", "value": []},
+            False,
+            id="year-empty",
+        ),
+        pytest.param(
+            {"type": "array", "unit": "kilowattHour", "value": [5.5]},
+            True,
+            id="year-populated",
+        ),
     ],
-    ids=["year-absent", "year-empty", "year-populated"],
 )
 def test_current_year_alias_requires_a_populated_year_series(
     year_property: dict | None, expect_alias: bool

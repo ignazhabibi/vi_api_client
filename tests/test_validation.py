@@ -32,11 +32,12 @@ def test_validate_json_value_preserves_nested_json_shapes():
 @pytest.mark.parametrize(
     ("value", "message"),
     [
-        ({1: "not a string key"}, "object keys"),
-        ({"nested": {"invalid": object()}}, "nested value"),
-        (math.nan, "finite number"),
+        pytest.param({1: "not a string key"}, "object keys", id="non-text-key"),
+        pytest.param(
+            {"nested": {"invalid": object()}}, "nested value", id="nested-object"
+        ),
+        pytest.param(math.nan, "finite number", id="nan"),
     ],
-    ids=["non-text-key", "nested-object", "nan"],
 )
 def test_validate_json_value_rejects_non_json_python_values(
     value: object, message: str
