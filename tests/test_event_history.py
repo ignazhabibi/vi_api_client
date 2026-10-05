@@ -102,6 +102,7 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
         (7, None, 1001, "between 1 and 1000"),
     ],
 )
+@pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_invalid_windows(
     days: int | None,
     cursor: str | None,
@@ -110,7 +111,7 @@ async def test_get_event_history_rejects_invalid_windows(
     static_token_auth,
 ):
     """Invalid window arguments should fail before any request is sent."""
-    # Arrange: Create a client without registering any HTTP response.
+    # Arrange: Create a client; any HTTP request would fail the test.
     async with aiohttp.ClientSession() as session:
         client = ViClient(static_token_auth(session))
 
@@ -122,9 +123,10 @@ async def test_get_event_history_rejects_invalid_windows(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_empty_installation_ids(static_token_auth):
     """An event history read requires a usable installation scope."""
-    # Arrange: Create a client without registering any HTTP response.
+    # Arrange: Create a client; any HTTP request would fail the test.
     async with aiohttp.ClientSession() as session:
         client = ViClient(static_token_auth(session))
 
@@ -135,52 +137,67 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "message"),
     [
-        {"data": {}},
-        {"data": ["not-an-object"]},
-        {"data": [{"eventType": "device.error.raised"}]},
-        {
-            "data": [
-                {
-                    "eventType": "device.error.raised",
-                    "createdAt": 5,
-                    "eventTimestamp": "2026-09-18T08:02:10.500Z",
-                }
-            ]
-        },
-        {
-            "data": [
-                {
-                    "eventType": "device.error.raised",
-                    "createdAt": "2026-09-18T08:02:11.000Z",
-                    "eventTimestamp": "2026-09-18T08:02:10.500Z",
-                    "gatewaySerial": 5,
-                }
-            ]
-        },
-        {
-            "data": [
-                {
-                    "eventType": "device.error.raised",
-                    "createdAt": "2026-09-18T08:02:11.000Z",
-                    "eventTimestamp": "2026-09-18T08:02:10.500Z",
-                    "audiences": "OWNER",
-                }
-            ]
-        },
-        {
-            "data": [
-                {
-                    "eventType": "device.error.raised",
-                    "createdAt": "2026-09-18T08:02:11.000Z",
-                    "eventTimestamp": "2026-09-18T08:02:10.500Z",
-                    "audiences": [5],
-                }
-            ]
-        },
-        {"data": [], "cursor": []},
-        {"data": [], "cursor": {"next": 5}},
+        ({"data": {}}, "data must be a list"),
+        ({"data": ["not-an-object"]}, "entries must be objects"),
+        (
+            {"data": [{"eventType": "device.error.raised"}]},
+            "createdAt must be a non-empty string",
+        ),
+        (
+            {
+                "data": [
+                    {
+                        "eventType": "device.error.raised",
+                        "createdAt": 5,
+                        "eventTimestamp": "2026-09-18T08:02:10.500Z",
+                    }
+                ]
+            },
+            "createdAt must be a non-empty string",
+        ),
+        (
+            {
+                "data": [
+                    {
+                        "eventType": "device.error.raised",
+                        "createdAt": "2026-09-18T08:02:11.000Z",
+                        "eventTimestamp": "2026-09-18T08:02:10.500Z",
+                        "gatewaySerial": 5,
+                    }
+                ]
+            },
+            "gatewaySerial must be a string",
+        ),
+        (
+            {
+                "data": [
+                    {
+                        "eventType": "device.error.raised",
+                        "createdAt": "2026-09-18T08:02:11.000Z",
+                        "eventTimestamp": "2026-09-18T08:02:10.500Z",
+                        "audiences": "OWNER",
+                    }
+                ]
+            },
+            "audiences must be a list of strings",
+        ),
+        (
+            {
+                "data": [
+                    {
+                        "eventType": "device.error.raised",
+                        "createdAt": "2026-09-18T08:02:11.000Z",
+                        "eventTimestamp": "2026-09-18T08:02:10.500Z",
+                        "audiences": [5],
+                    }
+                ]
+            },
+            "audiences must be a list of strings",
+        ),
+        ({"data": [], "cursor": []}, "cursor must be an object"),
+        ({"data": [], "cursor": {"next": 5}}, "cursor next must be a string"),
     ],
     ids=[
         "data-not-list",
@@ -195,7 +212,7 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
     ],
 )
 async def test_get_event_history_rejects_malformed_responses(
-    payload: dict, static_token_auth
+    payload: dict, message: str, static_token_auth
 ):
     """Contract violations in successful responses should raise publicly."""
     # Arrange: Return one malformed successful response from the route.
@@ -206,8 +223,8 @@ async def test_get_event_history_rejects_malformed_responses(
         async with aiohttp.ClientSession() as session:
             client = ViClient(static_token_auth(session))
 
-            # Act and assert: The public response error communicates the failure.
-            with pytest.raises(ViResponseError):
+            # Act and assert: The public response error names the violated field.
+            with pytest.raises(ViResponseError, match=message):
                 await client.get_event_history(INSTALLATION_ID, days=7)
 
 
@@ -283,21 +300,23 @@ def test_installation_event_rejects_non_json_nested_values():
 def test_event_history_page_stores_immutable_snapshots():
     """Pages and events should not alias caller-owned collections."""
     # Arrange: Build a page from caller-owned collections.
+    body = {"errorCode": "F.9000"}
     raw_event = {
         "eventType": "device.error.raised",
         "createdAt": "2026-09-18T08:02:11.000Z",
         "eventTimestamp": "2026-09-18T08:02:10.500Z",
-        "body": {"errorCode": "F.9000"},
+        "body": body,
     }
     event = InstallationEvent.from_api(raw_event)
-    page = EventHistoryPage(events=[event], next_cursor="cursor-token")
+    caller_events = [event]
+    page = EventHistoryPage(events=caller_events, next_cursor="cursor-token")
 
-    # Act: Mutate the caller-owned collections after construction.
-    raw_event["body"] = {"errorCode": "CHANGED"}
-    events = list(page.events)
+    # Act: Mutate the caller-owned collections in place after construction.
+    body["errorCode"] = "CHANGED"
+    caller_events.append(event)
 
-    # Assert: Snapshots are immutable and independent of caller mutations.
-    assert isinstance(page.events, tuple)
-    assert events[0].body == {"errorCode": "F.9000"}
-    assert events[0].fields["eventType"] == "device.error.raised"
+    # Assert: The page and its event keep their original snapshots.
+    assert page.events == (event,)
+    assert page.events[0].body == {"errorCode": "F.9000"}
+    assert page.events[0].fields["body"] == {"errorCode": "F.9000"}
     assert page.next_cursor == "cursor-token"

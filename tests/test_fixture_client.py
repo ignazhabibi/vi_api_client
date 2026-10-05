@@ -105,6 +105,7 @@ async def test_fixture_update_device_returns_hydrated_copy_without_mutating_inpu
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_gateway_refresh_uses_the_fixture_adapter_without_authentication():
     """Fixture gateway refresh should reuse the client workflow without credentials."""
     # Arrange: Discover the deterministic fixture device through an offline client.
@@ -197,6 +198,7 @@ async def test_fixture_client_rejects_malformed_fixture_feature_responses(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     """Fixture command execution should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
@@ -210,9 +212,14 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     # Act: Execute a command with an explicit payload.
     response = await client.execute_command(feature, {"slope": 0.7, "shift": 7.0})
 
-    # Assert: The response is deterministic and the fixture-derived value is unchanged.
+    # Assert: The response is deterministic and a fresh read still shows the
+    # fixture value, so the command did not change the fixture state.
     assert response.success
     assert response.reason == "Fixture Execution Success"
-    assert feature.value == 0.6
+    refreshed_feature = (await client.update_device(device)).get_feature(
+        "heating.circuits.0.heating.curve.slope"
+    )
+    assert refreshed_feature is not None
+    assert refreshed_feature.value == 0.6
     assert capsys.readouterr().out == ""
     assert "Executing fixture command 'setCurve'" in caplog.text

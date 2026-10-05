@@ -8,6 +8,7 @@ from vi_api_client.models import Device
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
     """Fixture discovery should share client conversion without a live connector."""
     # Arrange: Use a fixture-backed client with no auth or HTTP dependencies.
@@ -125,6 +126,7 @@ async def test_fixture_workflow_vitocal():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_set_feature_stays_offline():
     """Verify fixture-backed writes use simulated execution without live resources."""
     # Arrange: Hydrate a fixture-backed heat pump without authentication or HTTP resources.
@@ -179,6 +181,7 @@ async def test_fixture_workflow_auto_hydration():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_gateway_device_refresh_stays_offline():
     """Verify gateway-scoped refresh has offline mock parity."""
     # Arrange: Use two known devices on the same fixture gateway.

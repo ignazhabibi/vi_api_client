@@ -1,6 +1,5 @@
-"""Feature command contracts shared by live and fixture-backed clients."""
+"""Feature command contracts of the client behind its command adapter."""
 
-from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, cast
 
@@ -8,7 +7,6 @@ import pytest
 
 from vi_api_client import FeatureValue, JsonValue
 from vi_api_client.client import ViClient
-from vi_api_client.fixture_client import FixtureViClient
 from vi_api_client.models import Device, Feature, FeatureControl
 
 
@@ -28,16 +26,9 @@ class _RecordingCommandAdapter:
         return {"data": {"success": self.success}}
 
 
-def _create_live_client(adapter: _RecordingCommandAdapter) -> ViClient:
+def _create_client(adapter: _RecordingCommandAdapter) -> ViClient:
     """Create a live client with a recording command adapter."""
     client = ViClient.__new__(ViClient)
-    client._command_adapter = adapter
-    return client
-
-
-def _create_fixture_client(adapter: _RecordingCommandAdapter) -> FixtureViClient:
-    """Create a fixture-backed client with a recording command adapter."""
-    client = FixtureViClient.__new__(FixtureViClient)
     client._command_adapter = adapter
     return client
 
@@ -80,15 +71,12 @@ def _control(
     )
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot():
     """The current device feature controls validation, payload, and local update."""
     # Arrange: The supplied stale feature is read-only, while the snapshot is writable.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     canonical_control = _control(
         required_params=["target", "enabled", "count", "label"]
     )
@@ -147,10 +135,8 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot(
         ),
     ],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
     feature: Feature,
     device_features: list[Feature],
     error: str,
@@ -158,7 +144,7 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
     """Local membership, availability, and dependency failures precede adapter I/O."""
     # Arrange: Each scenario supplies an invalid current-device command contract.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     device = _device(device_features)
 
     # Act and assert: Invalid local state never reaches the adapter.
@@ -175,17 +161,15 @@ async def test_set_feature_rejects_invalid_local_contract_without_adapter_io(
         (_feature("heating.mode.other", None), "has no value"),
     ],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_set_feature_rejects_unavailable_required_dependencies_before_constraints(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
     sibling: Feature,
     error: str,
 ):
     """Required dependency validation precedes target constraint validation and I/O."""
     # Arrange: Both the sibling and target constraint are invalid.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = replace(_control(required_params=["target", "other"]), max=10)
     target = _feature("heating.mode.target", "old", control)
     device = _device([target, sibling])
@@ -196,15 +180,12 @@ async def test_set_feature_rejects_unavailable_required_dependencies_before_cons
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_uses_canonical_constraints_before_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_uses_canonical_constraints_before_adapter_io():
     """Target constraints come from the current device feature before adapter I/O."""
     # Arrange: The caller supplies stale permissive metadata for a constrained target.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     canonical = _feature("heating.mode.target", 5, replace(_control(), max=10))
     stale = _feature("heating.mode.target", 5, _control())
     device = _device([canonical])
@@ -223,10 +204,8 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io(
     ],
     ids=["string-options", "numeric-options"],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_set_feature_accepts_declared_option_values(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
     initial_value: Any,
     written_value: Any,
     options: list,
@@ -234,7 +213,7 @@ async def test_set_feature_accepts_declared_option_values(
     """Enum-constrained targets accept values from the declared options."""
     # Arrange: The target declares a closed set of allowed values.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = replace(_control(), options=options)
     target = _feature("heating.mode.target", initial_value, control)
     device = _device([target])
@@ -269,10 +248,8 @@ async def test_set_feature_accepts_declared_option_values(
         "pattern-trailing-newline",
     ],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_set_feature_rejects_values_outside_canonical_constraints(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
     control_overrides: dict[str, Any],
     target_value: Any,
     error: str,
@@ -280,7 +257,7 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     """Canonical constraints reject invalid values before adapter I/O."""
     # Arrange: The current device feature carries the violated constraint.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = replace(_control(), **control_overrides)
     target = _feature("heating.mode.target", "old", control)
     device = _device([target])
@@ -291,15 +268,12 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device():
     """Only required dependencies are sent and API rejection retains the snapshot."""
     # Arrange: The optional sibling is available but must not be sent automatically.
     adapter = _RecordingCommandAdapter(success=False)
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = _control(required_params=[])
     canonical = _feature("heating.mode.target", "old", control)
     device = _device([canonical, _feature("heating.mode.optional", "present")])
@@ -313,15 +287,12 @@ async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device
     assert returned_device is device
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_execute_command_requires_complete_available_command_without_mutation(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_execute_command_requires_complete_available_command_without_mutation():
     """Explicit commands require complete payloads but preserve additional parameters."""
     # Arrange: The complete payload includes an allowed extra parameter.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = _control(required_params=["target", "dependency"])
     feature = _feature("heating.mode.target", "old", control)
     parameters = {"target": "new", "dependency": None, "extra": "kept"}
@@ -335,15 +306,12 @@ async def test_execute_command_requires_complete_available_command_without_mutat
     assert parameters == {"target": "new", "dependency": None, "extra": "kept"}
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_accepts_json_object_target_value(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_accepts_json_object_target_value():
     """Target values may use any JSON value shape, including nested objects."""
     # Arrange: The unconstrained target accepts a structured JSON value.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = _control()
     target = _feature("heating.mode.target", "old", control)
     device = _device([target])
@@ -359,15 +327,12 @@ async def test_set_feature_accepts_json_object_target_value(
     assert updated == replace(target, value=target_value)
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_rejects_non_finite_target_value_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_rejects_non_finite_target_value_without_adapter_io():
     """Target values outside the JSON value contract reject before adapter I/O."""
     # Arrange: A non-finite number is outside the JSON value contract.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     target = _feature("heating.mode.target", "old", _control())
     device = _device([target])
 
@@ -377,15 +342,12 @@ async def test_set_feature_rejects_non_finite_target_value_without_adapter_io(
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_rejects_non_json_target_value_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_rejects_non_json_target_value_without_adapter_io():
     """Target values JSON cannot represent reject before adapter I/O."""
     # Arrange: The target value is a Python object JSON cannot represent.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     target = _feature("heating.mode.target", "old", _control())
     device = _device([target])
 
@@ -395,15 +357,12 @@ async def test_set_feature_rejects_non_json_target_value_without_adapter_io(
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_set_feature_rejects_non_json_required_dependency_value_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_set_feature_rejects_non_json_required_dependency_value_without_adapter_io():
     """Resolved dependency values outside the JSON contract reject before I/O."""
     # Arrange: The required sibling reports a value JSON cannot represent.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     control = _control(required_params=["target", "other"])
     target = _feature("heating.mode.target", "old", control)
     sibling = _feature("heating.mode.other", cast(FeatureValue, object()))
@@ -415,15 +374,12 @@ async def test_set_feature_rejects_non_json_required_dependency_value_without_ad
     assert adapter.calls == []
 
 
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
-async def test_execute_command_rejects_non_json_parameter_values_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
-):
+async def test_execute_command_rejects_non_json_parameter_values_without_adapter_io():
     """Parameter values outside the JSON value contract reject before I/O."""
     # Arrange: One explicit parameter value is outside the JSON value contract.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
     feature = _feature("heating.mode.target", "old", _control())
     parameters: dict[str, JsonValue] = {"target": float("nan")}
 
@@ -455,10 +411,8 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
         ),
     ],
 )
-@pytest.mark.parametrize("create_client", [_create_live_client, _create_fixture_client])
 @pytest.mark.asyncio
 async def test_execute_command_rejects_invalid_local_contract_without_adapter_io(
-    create_client: Callable[[_RecordingCommandAdapter], ViClient],
     feature: Feature,
     parameters: dict[str, Any],
     error: str,
@@ -466,7 +420,7 @@ async def test_execute_command_rejects_invalid_local_contract_without_adapter_io
     """Explicit-command preconditions reject before adapter I/O."""
     # Arrange: Each feature or payload violates the low-level command contract.
     adapter = _RecordingCommandAdapter()
-    client = create_client(adapter)
+    client = _create_client(adapter)
 
     # Act and assert: Local invalidity leaves the adapter untouched.
     with pytest.raises(ValueError, match=error):
