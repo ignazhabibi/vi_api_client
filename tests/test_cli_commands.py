@@ -6,7 +6,6 @@ import subprocess
 import sys
 from argparse import Namespace
 from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -102,17 +101,12 @@ def _feature(
 
 
 @pytest.fixture
-def mock_cli_context() -> CLIContext:
-    """Provide a CLI context whose client only offers real ViClient methods."""
-    return CLIContext(None, AsyncMock(spec=ViClient), "99", "GW1", "DEV1")
-
-
-@contextmanager
-def _patched_cli_context(mock_cli_context: CLIContext) -> Iterator[MagicMock]:
-    """Patch the CLI context setup boundary and yield the setup mock."""
+def mock_cli_context() -> Iterator[CLIContext]:
+    """Make commands use a context whose client offers real ViClient methods."""
+    context = CLIContext(None, AsyncMock(spec=ViClient), "99", "GW1", "DEV1")
     with patch("vi_api_client.cli.setup_client_context") as mock_setup:
-        mock_setup.return_value.__aenter__.return_value = mock_cli_context
-        yield mock_setup
+        mock_setup.return_value.__aenter__.return_value = context
+        yield context
 
 
 def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
@@ -128,9 +122,8 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Set the slope through the CLI.
-        assert await cmd_set(args) is True
+    # Act: Set the slope through the CLI.
+    assert await cmd_set(args) is True
 
     # Assert: The write receives the hydrated device, feature, and parsed value.
     mock_cli_context.client.set_feature.assert_awaited_once()
@@ -160,9 +153,8 @@ async def test_cmd_set_converts_typed_command_values(
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Submit the raw command line value.
-        assert await cmd_set(args) is True
+    # Act: Submit the raw command line value.
+    assert await cmd_set(args) is True
 
     # Assert: The command receives the converted typed value.
     assert mock_cli_context.client.set_feature.call_args.args[2] == expected_value
@@ -187,9 +179,8 @@ async def test_cmd_set_rejects_malformed_typed_values(
     feature = _feature(control=_control(value_type=value_type))
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Submit the malformed command line value.
-        assert await cmd_set(args) is False
+    # Act: Submit the malformed command line value.
+    assert await cmd_set(args) is False
 
     # Assert: The validation failure is printed and no write is sent.
     captured = capsys.readouterr()
@@ -206,9 +197,8 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Set a numeric current value through the CLI.
-        assert await cmd_set(args) is True
+    # Act: Set a numeric current value through the CLI.
+    assert await cmd_set(args) is True
 
     # Assert: The numeric feature value infers the number conversion.
     assert mock_cli_context.client.set_feature.call_args.args[2] == 1.4
@@ -225,9 +215,8 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
         MagicMock(spec=Device),
     )
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the write through the CLI.
-        assert await cmd_set(args) is False
+    # Act: Attempt the write through the CLI.
+    assert await cmd_set(args) is False
 
     # Assert: The failure surfaces the response details.
     captured = capsys.readouterr()
@@ -247,9 +236,8 @@ async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, 
         MagicMock(spec=Device),
     )
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the write through the CLI.
-        assert await cmd_set(args) is False
+    # Act: Attempt the write through the CLI.
+    assert await cmd_set(args) is False
 
     # Assert: The failure prints without message or reason lines.
     captured = capsys.readouterr()
@@ -264,9 +252,8 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
     mock_cli_context.device_id = None
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the write without a device context.
-        result = await cmd_set(args)
+    # Act: Attempt the write without a device context.
+    result = await cmd_set(args)
 
     # Assert: The command names the missing context and sends nothing.
     assert result is False
@@ -327,9 +314,8 @@ async def test_commands_log_unexpected_client_errors_and_fail(
     ]
     getattr(mock_cli_context.client, failing_method).side_effect = RuntimeError("boom")
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Run the command against the failing client.
-        result = await command(_cli_args(**arguments))
+    # Act: Run the command against the failing client.
+    result = await command(_cli_args(**arguments))
 
     # Assert: The command fails and logs which action failed and why.
     assert result is False
@@ -342,9 +328,8 @@ async def test_cmd_set_rejects_read_only_features(mock_cli_context, capsys):
     args = _cli_args(feature_name="heating.curve.slope", value="1.4")
     mock_cli_context.client.get_features.return_value = [_feature(control=None)]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt to set the read-only feature.
-        assert await cmd_set(args) is False
+    # Act: Attempt to set the read-only feature.
+    assert await cmd_set(args) is False
 
     # Assert: The CLI explains the read-only state without a write.
     assert "is read-only" in capsys.readouterr().out
@@ -357,9 +342,8 @@ async def test_cmd_set_reports_missing_features(mock_cli_context, capsys):
     args = _cli_args(feature_name="missing.feature", value="1.4")
     mock_cli_context.client.get_features.return_value = []
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt to set an absent feature.
-        assert await cmd_set(args) is False
+    # Act: Attempt to set an absent feature.
+    assert await cmd_set(args) is False
 
     # Assert: The CLI names the missing feature.
     assert "Error: Feature 'missing.feature' not found." in capsys.readouterr().out
@@ -374,9 +358,8 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.set_feature.side_effect = ViNotFoundError("device gone")
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the write.
-        assert await cmd_set(args) is False
+    # Act: Attempt the write.
+    assert await cmd_set(args) is False
 
     # Assert: The CLI reports the not-found failure.
     assert "Not found: device gone" in capsys.readouterr().out
@@ -430,9 +413,8 @@ async def test_cmd_get_feature_prints_value_and_control_details(
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature through the CLI.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the feature through the CLI.
+    assert await cmd_get_feature(args) is True
 
     # Assert: The output includes the formatted value and control details.
     captured = capsys.readouterr()
@@ -457,9 +439,8 @@ async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys)
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature through the CLI.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the feature through the CLI.
+    assert await cmd_get_feature(args) is True
 
     # Assert: The value prints without any writable command details.
     captured = capsys.readouterr()
@@ -491,9 +472,8 @@ async def test_cmd_get_feature_prints_only_present_control_details(
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature through the CLI.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the feature through the CLI.
+    assert await cmd_get_feature(args) is True
 
     # Assert: Only the present detail kind prints.
     captured = capsys.readouterr()
@@ -517,9 +497,8 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature in JSON mode.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the feature in JSON mode.
+    assert await cmd_get_feature(args) is True
 
     # Assert: The document carries the feature fields and control object.
     document = json.loads(capsys.readouterr().out)
@@ -553,9 +532,8 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_control(
     args = _cli_args(feature_name="heating.curve.slope", json=True)
     mock_cli_context.client.get_features.return_value = [_feature(control=None)]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the feature in JSON mode.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the feature in JSON mode.
+    assert await cmd_get_feature(args) is True
 
     # Assert: The control is JSON null rather than an absent or text value.
     document = json.loads(capsys.readouterr().out)
@@ -570,9 +548,8 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     args = _cli_args(feature_name="heating.curve", json=False)
     mock_cli_context.client.get_features.return_value = _curve_features()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the API feature through the CLI.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the API feature through the CLI.
+    assert await cmd_get_feature(args) is True
 
     # Assert: Both matching features print.
     captured = capsys.readouterr()
@@ -588,9 +565,8 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     args = _cli_args(feature_name="heating.curve", json=True)
     mock_cli_context.client.get_features.return_value = _curve_features()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the API feature in JSON mode.
-        assert await cmd_get_feature(args) is True
+    # Act: Read the API feature in JSON mode.
+    assert await cmd_get_feature(args) is True
 
     # Assert: The output is one JSON array with one document per feature.
     documents = json.loads(capsys.readouterr().out)
@@ -606,9 +582,8 @@ async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, c
     args = _cli_args(feature_name="missing.feature", json=False)
     mock_cli_context.client.get_features.return_value = []
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Read the absent feature.
-        assert await cmd_get_feature(args) is False
+    # Act: Read the absent feature.
+    assert await cmd_get_feature(args) is False
 
     # Assert: The CLI names the missing feature.
     assert "Feature 'missing.feature' not found." in capsys.readouterr().out
@@ -766,9 +741,8 @@ async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
         success=True, message="OK", reason=None
     )
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command through the CLI.
-        assert await cmd_exec(args) is True
+    # Act: Execute the explicit command through the CLI.
+    assert await cmd_exec(args) is True
 
     # Assert: The client receives the hydrated device and exact parameters.
     assert mock_cli_context.client.get_features.call_args.args[0].id == "DEV1"
@@ -787,9 +761,8 @@ async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, 
         params=["not-key-value"],
     )
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the explicit command.
-        assert await cmd_exec(args) is False
+    # Act: Attempt the explicit command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI explains the parameter shape failure without reading.
     assert "Error parsing parameters:" in capsys.readouterr().out
@@ -802,9 +775,8 @@ async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
     args = _cli_args(feature_name="heating.curve.slope", command_name="setCurve")
     mock_cli_context.client.get_features.return_value = [_feature(control=None)]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the explicit command.
-        assert await cmd_exec(args) is False
+    # Act: Attempt the explicit command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI explains the read-only state without executing.
     assert "is read-only" in capsys.readouterr().out
@@ -817,9 +789,8 @@ async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
     args = _cli_args(feature_name="missing.feature", command_name="setCurve", params=[])
     mock_cli_context.client.get_features.return_value = []
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the explicit command.
-        assert await cmd_exec(args) is False
+    # Act: Attempt the explicit command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI names the missing feature.
     assert "Error: Feature 'missing.feature' not found." in capsys.readouterr().out
@@ -836,9 +807,8 @@ async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
     )
     mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Attempt the foreign command.
-        assert await cmd_exec(args) is False
+    # Act: Attempt the foreign command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI names the expected command without executing.
     captured = capsys.readouterr()
@@ -857,9 +827,8 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
     mock_cli_context.client.get_features.return_value = [_feature(control=_control())]
     mock_cli_context.client.execute_command.side_effect = ViNotFoundError("device gone")
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command.
-        assert await cmd_exec(args) is False
+    # Act: Execute the explicit command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI reports the not-found failure.
     assert "Not found: device gone" in capsys.readouterr().out
@@ -878,9 +847,8 @@ async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
         "Simulated Validation Error"
     )
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Execute the explicit command.
-        assert await cmd_exec(args) is False
+    # Act: Execute the explicit command.
+    assert await cmd_exec(args) is False
 
     # Assert: The CLI reports the validation failure.
     assert "Validation failed: Simulated Validation Error" in capsys.readouterr().out
@@ -896,9 +864,8 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     mock_cli_context.client.get_features.return_value = [slope, shift]
     mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Set the slope through the CLI command.
-        assert await cmd_set(args) is True
+    # Act: Set the slope through the CLI command.
+    assert await cmd_set(args) is True
 
     # Assert: The write receives a device containing the sibling shift value.
     command_device = mock_cli_context.client.set_feature.call_args.args[0]
@@ -916,9 +883,8 @@ async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, cap
         _feature(name="f2", value=2),
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the features with JSON output.
-        assert await cmd_list_features(args) is True
+    # Act: List the features with JSON output.
+    assert await cmd_list_features(args) is True
 
     # Assert: stdout carries a JSON list of feature names.
     assert json.loads(capsys.readouterr().out) == ["f1", "f2"]
@@ -934,9 +900,8 @@ async def test_cmd_list_features_json_values_print_value_documents(
         _feature(name="f1", value=1.4, control=_control())
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the feature values with JSON output.
-        assert await cmd_list_features(args) is True
+    # Act: List the feature values with JSON output.
+    assert await cmd_list_features(args) is True
 
     # Assert: stdout carries one machine-readable value document per feature.
     documents = json.loads(capsys.readouterr().out)
@@ -961,9 +926,8 @@ async def test_cmd_list_features_enabled_requests_only_enabled_features(
         _feature(name="f_enabled", value=1)
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List only enabled features.
-        assert await cmd_list_features(args) is True
+    # Act: List only enabled features.
+    assert await cmd_list_features(args) is True
 
     # Assert: The read requests the enabled filter for the context device.
     call_args = mock_cli_context.client.get_features.call_args
@@ -983,9 +947,8 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
         _feature(name="long.feature", value=long_value),
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the feature values as a table.
-        assert await cmd_list_features(args) is True
+    # Act: List the feature values as a table.
+    assert await cmd_list_features(args) is True
 
     # Assert: The table shows the count, writable marks, and truncation.
     captured = capsys.readouterr()
@@ -1003,9 +966,8 @@ async def test_cmd_list_features_prints_one_name_per_line(mock_cli_context, caps
     args = _cli_args(enabled=False, values=False, json=False)
     mock_cli_context.client.get_features.return_value = [_feature(name="f1", value=1)]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the features without flags.
-        assert await cmd_list_features(args) is True
+    # Act: List the features without flags.
+    assert await cmd_list_features(args) is True
 
     # Assert: The output prints the device-scoped feature name list.
     captured = capsys.readouterr()
@@ -1050,9 +1012,8 @@ async def test_cmd_list_devices_prints_account_hierarchy(mock_cli_context, capsy
     mock_cli_context.client.get_gateways.return_value = [build_gateway("GW1", "123")]
     mock_cli_context.client.get_devices.return_value = [build_device("0", "123", "GW1")]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the account hierarchy.
-        assert await cmd_list_devices(args) is True
+    # Act: List the account hierarchy.
+    assert await cmd_list_devices(args) is True
 
     # Assert: The output formats each hierarchy level.
     captured = capsys.readouterr()
@@ -1107,9 +1068,8 @@ async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the writable features.
-        assert await cmd_list_writable(args) is True
+    # Act: List the writable features.
+    assert await cmd_list_writable(args) is True
 
     # Assert: The output names the feature, command, and constraints.
     captured = capsys.readouterr()
@@ -1135,9 +1095,8 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
     )
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the writable features.
-        assert await cmd_list_writable(args) is True
+    # Act: List the writable features.
+    assert await cmd_list_writable(args) is True
 
     # Assert: Every constraint kind appears in the constraint line.
     captured = capsys.readouterr()
@@ -1154,9 +1113,8 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     feature = _feature(name="heating.program", control=_control())
     mock_cli_context.client.get_features.return_value = [feature]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the writable features.
-        assert await cmd_list_writable(args) is True
+    # Act: List the writable features.
+    assert await cmd_list_writable(args) is True
 
     # Assert: The feature prints with its command but no constraint line.
     captured = capsys.readouterr()
@@ -1353,9 +1311,8 @@ async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys)
     args = _cli_args(days=7)
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the complete window through the CLI.
-        assert await cmd_list_events(args) is True
+    # Act: List the complete window through the CLI.
+    assert await cmd_list_events(args) is True
 
     # Assert: Events are grouped by UTC date with an explicit time, and a
     # single gateway adds no label.
@@ -1392,9 +1349,8 @@ async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys)
     args = _cli_args(days=7, limit=10, json=True)
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the first page as JSON.
-        assert await cmd_list_events(args) is True
+    # Act: List the first page as JSON.
+    assert await cmd_list_events(args) is True
 
     # Assert: One JSON document carries full events and the cursor.
     captured = capsys.readouterr()
@@ -1445,9 +1401,8 @@ async def test_cmd_list_events_auto_selects_first_installation(
     ]
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List events without an explicit installation ID.
-        assert await cmd_list_events(args) is True
+    # Act: List events without an explicit installation ID.
+    assert await cmd_list_events(args) is True
 
     # Assert: The first installation scopes the event history request.
     mock_cli_context.client.get_event_history.assert_awaited_once_with(
@@ -1467,9 +1422,8 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     ]
     mock_cli_context.client.get_event_history.return_value = _event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List events in JSON mode.
-        assert await cmd_list_events(args) is True
+    # Act: List events in JSON mode.
+    assert await cmd_list_events(args) is True
 
     # Assert: stdout holds only the document; the diagnostic goes to stderr.
     captured = capsys.readouterr()
@@ -1484,9 +1438,8 @@ async def test_cmd_list_events_fails_without_installations(mock_cli_context, cap
     mock_cli_context.installation_id = None
     mock_cli_context.client.get_installations.return_value = []
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List events for the empty account.
-        result = await cmd_list_events(args)
+    # Act: List events for the empty account.
+    result = await cmd_list_events(args)
 
     # Assert: The command fails with the reason and reads no history.
     assert result is False
@@ -1603,9 +1556,8 @@ async def test_cmd_list_events_follows_cursors_across_pages(mock_cli_context, ca
         EventHistoryPage(events=[], next_cursor=None),
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the complete window through the CLI.
-        assert await cmd_list_events(args) is True
+    # Act: List the complete window through the CLI.
+    assert await cmd_list_events(args) is True
 
     # Assert: The second request carries only the continuation cursor.
     captured = capsys.readouterr()
@@ -1630,9 +1582,8 @@ async def test_cmd_list_events_stops_at_the_safety_limit(mock_cli_context, capsy
         continuing_page,
     ]
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Traverse with a two page safety limit.
-        assert await cmd_list_events(args) is True
+    # Act: Traverse with a two page safety limit.
+    assert await cmd_list_events(args) is True
 
     # Assert: The summary reports the incomplete traversal explicitly.
     captured = capsys.readouterr()
@@ -1652,9 +1603,8 @@ async def test_cmd_list_events_json_marks_incomplete_traversals(
     args = _cli_args(days=7, max_pages=1, json=True)
     mock_cli_context.client.get_event_history.return_value = continuing_page
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: Traverse one page in machine-readable mode.
-        assert await cmd_list_events(args) is True
+    # Act: Traverse one page in machine-readable mode.
+    assert await cmd_list_events(args) is True
 
     # Assert: The document marks the result incomplete with its cursor.
     document = json.loads(capsys.readouterr().out)
@@ -1675,9 +1625,8 @@ async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, caps
     args = _cli_args(days=365)
     mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the empty window as readable text.
-        assert await cmd_list_events(args) is True
+    # Act: List the empty window as readable text.
+    assert await cmd_list_events(args) is True
 
     # Assert: The summary names the empty window without timestamps.
     out = capsys.readouterr().out
@@ -1692,9 +1641,8 @@ async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, 
     args = _cli_args(days=365, json=True)
     mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
-    with _patched_cli_context(mock_cli_context):
-        # Act: List the empty window as JSON.
-        assert await cmd_list_events(args) is True
+    # Act: List the empty window as JSON.
+    assert await cmd_list_events(args) is True
 
     # Assert: The document is complete and has no event timestamps.
     assert json.loads(capsys.readouterr().out) == {

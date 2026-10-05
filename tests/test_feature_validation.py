@@ -1,11 +1,8 @@
 """Public request-flow tests for feature response validation."""
 
-import aiohttp
 import pytest
-from aioresponses import aioresponses
 from builders import build_gateway_device
 
-from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_FEATURES
 from vi_api_client.exceptions import ViResponseError
 
@@ -223,7 +220,7 @@ from vi_api_client.exceptions import ViResponseError
     ],
 )
 async def test_live_feature_read_rejects_malformed_known_fields(
-    static_token_auth, feature, message
+    vi_client, mock_responses, feature, message
 ):
     """Live feature reads reject malformed known fields before flattening."""
     # Arrange: Return an invalid feature through the public HTTP request flow.
@@ -232,11 +229,8 @@ async def test_live_feature_read_rejects_malformed_known_fields(
         f"{API_BASE_URL}{ENDPOINT_FEATURES}/installation-1/gateways/gateway-1/"
         "devices/device-1/features/filter"
     )
-    with aioresponses() as mock_responses:
-        mock_responses.post(endpoint, status=200, payload={"data": [feature]})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.post(endpoint, status=200, payload={"data": [feature]})
 
-            # Act and assert: The public read rejects known contract violations.
-            with pytest.raises(ViResponseError, match=message):
-                await client.get_features(device)
+    # Act and assert: The public read rejects known contract violations.
+    with pytest.raises(ViResponseError, match=message):
+        await vi_client.get_features(device)

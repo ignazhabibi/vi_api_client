@@ -1,10 +1,7 @@
 """Tests for the installation event history read path."""
 
-import aiohttp
 import pytest
-from aioresponses import aioresponses
 
-from vi_api_client.client import ViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_EVENT_HISTORY
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import EventHistoryPage, InstallationEvent
@@ -19,20 +16,17 @@ def _page_url(query: str) -> str:
 
 
 async def test_get_event_history_returns_first_page_by_days(
-    load_fixture_device, static_token_auth
+    vi_client, mock_responses, load_fixture_device
 ):
     """A days window should request one page and preserve provider details."""
     # Arrange: Load the bundled page and mock the verified GET route.
     payload = load_fixture_device("event_history")
     url = _page_url("lastNDays=7&limit=50")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload=payload)
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload=payload)
 
-            # Act: Request the first page of a rolling week.
-            page = await client.get_event_history(INSTALLATION_ID, days=7, limit=50)
+    # Act: Request the first page of a rolling week.
+    page = await vi_client.get_event_history(INSTALLATION_ID, days=7, limit=50)
 
     # Assert: Known fields are typed, unknown fields and bodies survive.
     assert len(page.events) == 3
@@ -61,7 +55,9 @@ async def test_get_event_history_returns_first_page_by_days(
     assert request.kwargs["params"] == {"lastNDays": 7, "limit": 50}
 
 
-async def test_get_event_history_follows_cursor_without_window(static_token_auth):
+async def test_get_event_history_follows_cursor_without_window(
+    vi_client, mock_responses
+):
     """A cursor page should not repeat the lookback window."""
     # Arrange: Register the continuation URL and a final page. The mock
     # re-encodes the transport-encoded query once more, so the registered
@@ -71,13 +67,10 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
     cursor = "b3BhcXVlLWN1cnNvci10b2tlbg=="
     url = _page_url("cursor=b3BhcXVlLWN1cnNvci10b2tlbg%253D%253D")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload={"data": []})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload={"data": []})
 
-            # Act: Request the next page through the opaque cursor.
-            page = await client.get_event_history(INSTALLATION_ID, cursor=cursor)
+    # Act: Request the next page through the opaque cursor.
+    page = await vi_client.get_event_history(INSTALLATION_ID, cursor=cursor)
 
     # Assert: The final page is empty without a further cursor, and the
     # request carries the cursor instead of the lookback window.
@@ -110,34 +103,26 @@ async def test_get_event_history_follows_cursor_without_window(static_token_auth
 )
 @pytest.mark.usefixtures("no_http_requests")
 async def test_get_event_history_rejects_invalid_windows(
+    vi_client,
     days: int | None,
     cursor: str | None,
     limit: int | None,
     message: str,
-    static_token_auth,
 ):
     """Invalid window arguments should fail before any request is sent."""
-    # Arrange: Create a client; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Act and assert: Local contract violations raise before network I/O.
-        with pytest.raises(ValueError, match=message):
-            await client.get_event_history(
-                INSTALLATION_ID, days=days, cursor=cursor, limit=limit
-            )
+    # Act and assert: Local contract violations raise before network I/O.
+    with pytest.raises(ValueError, match=message):
+        await vi_client.get_event_history(
+            INSTALLATION_ID, days=days, cursor=cursor, limit=limit
+        )
 
 
 @pytest.mark.usefixtures("no_http_requests")
-async def test_get_event_history_rejects_empty_installation_ids(static_token_auth):
+async def test_get_event_history_rejects_empty_installation_ids(vi_client):
     """An event history read requires a usable installation scope."""
-    # Arrange: Create a client; any HTTP request would fail the test.
-    async with aiohttp.ClientSession() as session:
-        client = ViClient(static_token_auth(session))
-
-        # Act and assert: The empty scope is rejected before network I/O.
-        with pytest.raises(ValueError, match="non-empty string"):
-            await client.get_event_history("", days=7)
+    # Act and assert: The empty scope is rejected before network I/O.
+    with pytest.raises(ValueError, match="non-empty string"):
+        await vi_client.get_event_history("", days=7)
 
 
 @pytest.mark.parametrize(
@@ -218,35 +203,29 @@ async def test_get_event_history_rejects_empty_installation_ids(static_token_aut
     ],
 )
 async def test_get_event_history_rejects_malformed_responses(
-    payload: dict | list, message: str, static_token_auth
+    vi_client, mock_responses, payload: dict | list, message: str
 ):
     # Arrange: Return one malformed successful response from the route.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload=payload)
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload=payload)
 
-            # Act and assert: The public response error names the violated field.
-            with pytest.raises(ViResponseError, match=message):
-                await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act and assert: The public response error names the violated field.
+    with pytest.raises(ViResponseError, match=message):
+        await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
 
 async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
-    static_token_auth,
+    vi_client, mock_responses
 ):
     """The provider reports the final page with an empty next cursor."""
     # Arrange: The live API sends cursor.next as "" when no pages follow.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, payload={"data": [], "cursor": {"next": ""}})
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, payload={"data": [], "cursor": {"next": ""}})
 
-            # Act: Request the final page of the window.
-            page = await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act: Request the final page of the window.
+    page = await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
     # Assert: The empty string means no continuation cursor.
     assert page.events == ()
@@ -254,19 +233,16 @@ async def test_get_event_history_accepts_empty_cursor_next_as_final_page(
 
 
 async def test_get_event_history_rejects_successful_non_json_responses(
-    static_token_auth,
+    vi_client, mock_responses
 ):
     # Arrange: Return plain text content from the route.
     url = _page_url("lastNDays=7")
 
-    with aioresponses() as mock_responses:
-        mock_responses.get(url, body="not JSON", content_type="text/plain")
-        async with aiohttp.ClientSession() as session:
-            client = ViClient(static_token_auth(session))
+    mock_responses.get(url, body="not JSON", content_type="text/plain")
 
-            # Act and assert: The transport boundary raises the public error.
-            with pytest.raises(ViResponseError, match="not valid JSON"):
-                await client.get_event_history(INSTALLATION_ID, days=7)
+    # Act and assert: The transport boundary raises the public error.
+    with pytest.raises(ViResponseError, match="not valid JSON"):
+        await vi_client.get_event_history(INSTALLATION_ID, days=7)
 
 
 def test_installation_event_rejects_non_json_nested_values():

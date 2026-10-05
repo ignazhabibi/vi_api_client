@@ -1,13 +1,15 @@
 """Shared fixtures and test doubles for the vi_api_client test suite."""
 
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
+import aiohttp
 import pytest
 from aioresponses import aioresponses
 
 from vi_api_client.auth import AbstractAuth
+from vi_api_client.client import ViClient
 
 TESTS_DIR = Path(__file__).resolve().parent
 
@@ -30,9 +32,25 @@ class StaticTokenAuth(AbstractAuth):
 
 
 @pytest.fixture
-def static_token_auth() -> type[StaticTokenAuth]:
-    """Return the shared static-token auth double class."""
-    return StaticTokenAuth
+def mock_responses() -> Iterator[aioresponses]:
+    """Intercept every aiohttp request; unregistered requests fail."""
+    with aioresponses() as responses:
+        yield responses
+
+
+@pytest.fixture
+async def static_token_auth(
+    mock_responses: aioresponses,
+) -> AsyncIterator[StaticTokenAuth]:
+    """Return a static-token auth over a session whose requests are mocked."""
+    async with aiohttp.ClientSession() as session:
+        yield StaticTokenAuth(session)
+
+
+@pytest.fixture
+def vi_client(static_token_auth: StaticTokenAuth) -> ViClient:
+    """Return a live client whose HTTP requests go to ``mock_responses``."""
+    return ViClient(static_token_auth)
 
 
 @pytest.fixture
@@ -90,9 +108,8 @@ def load_fixture_json():
 
 
 @pytest.fixture
-def no_http_requests() -> Iterator[aioresponses]:
+def no_http_requests(mock_responses: aioresponses) -> Iterator[aioresponses]:
     """Fail the test if code under test attempts any aiohttp request."""
-    with aioresponses() as mock_responses:
-        # No response is registered, so any request raises a connection error.
-        yield mock_responses
+    # No response is registered, so any request raises a connection error.
+    yield mock_responses
     assert mock_responses.requests == {}
