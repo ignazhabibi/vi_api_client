@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+from builders import build_gateway_device
 
 from vi_api_client.client import ViClient
 from vi_api_client.exceptions import ViResponseError, ViValidationError
@@ -76,18 +77,6 @@ class _ScriptedGatewayDiscoveryAdapter:
         return self.command_response
 
 
-def _build_gateway_device(device_id: str) -> Device:
-    """Build a device for gateway-scoped refresh contract tests."""
-    return Device(
-        id=device_id,
-        gateway_serial="gateway-1",
-        installation_id="installation-1",
-        model_id=f"model-{device_id}",
-        device_type="heating",
-        status="connected",
-    )
-
-
 def _create_client(adapter: _ScriptedGatewayDiscoveryAdapter) -> ViClient:
     """Create a live client whose raw discovery boundary is scripted."""
     client = ViClient.__new__(ViClient)
@@ -116,7 +105,7 @@ async def test_gateway_refresh_falls_back_for_omitted_devices_and_preserves_orde
         device_responses={"0": {"data": []}},
     )
     client = _create_client(adapter)
-    devices = [_build_gateway_device("10"), _build_gateway_device("0")]
+    devices = [build_gateway_device("10"), build_gateway_device("0")]
 
     # Act: Refresh from either raw-response adapter.
     result = await client.update_gateway_devices(devices)
@@ -158,7 +147,7 @@ async def test_gateway_refresh_groups_only_requested_device_features():
     client = _create_client(adapter)
 
     # Act: Refresh the only requested device from either raw-response adapter.
-    result = await client.update_gateway_devices([_build_gateway_device("0")])
+    result = await client.update_gateway_devices([build_gateway_device("0")])
 
     # Assert: Only the requested device's feature is exposed and no fallback occurs.
     assert adapter.calls == ["gateway"]
@@ -195,7 +184,7 @@ async def test_gateway_refresh_returns_device_specific_fallback_errors():
 
     # Act: Refresh through the public gateway operation.
     result = await client.update_gateway_devices(
-        [_build_gateway_device("10"), _build_gateway_device("0")]
+        [build_gateway_device("10"), build_gateway_device("0")]
     )
 
     # Assert: The successful device remains available with the known error isolated.
@@ -216,17 +205,17 @@ async def test_gateway_refresh_rejects_invalid_bulk_responses():
 
     # Act and assert: Invalid raw data aborts the shared refresh consistently.
     with pytest.raises(ViResponseError, match="valid feature name"):
-        await client.update_gateway_devices([_build_gateway_device("0")])
+        await client.update_gateway_devices([build_gateway_device("0")])
     assert adapter.calls == ["gateway"]
 
 
 @pytest.mark.parametrize(
     ("devices", "error_message"),
     [
-        ([_build_gateway_device("0"), _build_gateway_device("0")], "unique IDs"),
+        ([build_gateway_device("0"), build_gateway_device("0")], "unique IDs"),
         (
             [
-                _build_gateway_device("0"),
+                build_gateway_device("0"),
                 Device(
                     id="1",
                     gateway_serial="gateway-2",
@@ -278,7 +267,7 @@ async def test_gateway_refresh_rejects_ambiguous_feature_ownership():
 
     # Act and assert: Ambiguous ownership is a shared response-contract failure.
     with pytest.raises(ViResponseError, match="ambiguous device ownership"):
-        await client.update_gateway_devices([_build_gateway_device("0")])
+        await client.update_gateway_devices([build_gateway_device("0")])
     assert adapter.calls == ["gateway"]
 
 

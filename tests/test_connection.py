@@ -138,7 +138,7 @@ async def test_live_adapter_exposes_validated_validation_details(
         async with aiohttp.ClientSession() as session:
             adapter = LiveAdapter(static_token_auth(session))
 
-            # Act: The public exception exposes the validated detail.
+            # Act: Read installations while the API reports a validation error.
             with pytest.raises(ViValidationError) as raised_error:
                 await adapter.get_installations()
 
@@ -177,7 +177,7 @@ async def test_live_adapter_drops_unusable_validation_details(
         async with aiohttp.ClientSession() as session:
             adapter = LiveAdapter(static_token_auth(session))
 
-            # Act: The public exception is still raised for the HTTP error.
+            # Act: Read installations while the API reports a validation error.
             with pytest.raises(ViValidationError) as raised_error:
                 await adapter.get_installations()
 
@@ -204,10 +204,11 @@ async def test_live_adapter_drops_non_json_validation_details(
         async with aiohttp.ClientSession() as session:
             adapter = LiveAdapter(static_token_auth(session))
 
-            # Act and assert: The HTTP error surfaces with the details dropped.
+            # Act: Read installations while the API reports a validation error.
             with pytest.raises(ViValidationError) as raised_error:
                 await adapter.get_installations()
 
+    # Assert: The HTTP error surfaces with the unusable details dropped.
     assert raised_error.value.validation_errors == []
 
 

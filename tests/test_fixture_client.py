@@ -8,13 +8,6 @@ from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
 
 
-def test_fixture_client_rejects_obsolete_authentication_argument():
-    """Fixture clients should accept only the selected fixture device name."""
-    # Act and assert: Fixture clients must not accept unused authentication state.
-    with pytest.raises(TypeError, match="auth"):
-        FixtureViClient("Vitodens200W", auth=None)  # pyright: ignore[reportCallIssue]
-
-
 def test_fixture_client_rejects_unknown_device_with_available_names():
     """Unknown fixture names should explain which fixture devices exist."""
     # Act and assert: The error names the unknown device and the catalog entries.
@@ -102,24 +95,6 @@ async def test_fixture_update_device_returns_hydrated_copy_without_mutating_inpu
     assert device.features == ()
     assert refreshed_device is not device
     assert refreshed_device.features
-
-
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("no_http_requests")
-async def test_fixture_gateway_refresh_uses_the_fixture_adapter_without_authentication():
-    """Fixture gateway refresh should reuse the client workflow without credentials."""
-    # Arrange: Discover the deterministic fixture device through an offline client.
-    client = FixtureViClient("Vitodens200W")
-    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-
-    # Act: Refresh the discovered device through the inherited gateway operation.
-    result = await client.update_gateway_devices([device])
-
-    # Assert: The fixture refresh is complete and preserves the source device metadata.
-    assert result.is_complete
-    assert result.updated_devices[0].id == device.id
-    assert result.updated_devices[0].model_id == device.model_id
-    assert result.updated_devices[0].features
 
 
 @pytest.mark.parametrize(

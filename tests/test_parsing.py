@@ -78,7 +78,7 @@ def test_feature_status(load_fixture_json):
 
 
 def test_feature_complex_flat_expansion(load_fixture_json):
-    """Test that complex features (multiple properties) are flattened."""
+    """Several scalar properties become separate flat features."""
     # Arrange: Load fixture with nested properties (propA, propB).
     data = load_fixture_json("parsing/nested_expansion.json")
 
@@ -97,7 +97,7 @@ def test_feature_complex_flat_expansion(load_fixture_json):
 
 
 def test_feature_boolean_active(load_fixture_json):
-    """Test feature with 'active' property."""
+    """An 'active' property becomes a boolean flat feature."""
     # Arrange: Load fixture with 'active' boolean property.
     data = load_fixture_json("parsing/active_feature.json")
 
@@ -112,7 +112,7 @@ def test_feature_boolean_active(load_fixture_json):
 
 
 def test_feature_do_not_flatten_history(load_fixture_json):
-    """Test that history/day arrays are NOT flattened."""
+    """History arrays stay one feature with their whole value."""
     # Arrange: Load fixture with history array property.
     data = load_fixture_json("parsing/history_array.json")
 
@@ -171,7 +171,7 @@ def test_feature_adds_current_year_consumption_alias(
 
 
 def test_feature_priority_value_over_status(load_fixture_json):
-    """Test that flattening creates strict sub-features."""
+    """The value property keeps the base name; status gets a suffix."""
     # Arrange: Load fixture with both 'value' and 'status' properties.
     data = load_fixture_json("parsing/mixed_feature.json")
 
@@ -193,7 +193,7 @@ def test_feature_priority_value_over_status(load_fixture_json):
 
 
 def test_feature_control_association(load_fixture_json):
-    """Test that commands are linked to properties."""
+    """Commands become controls of the properties they write."""
     # Arrange: Load fixture with commands (setCurve) linked to properties.
     data = load_fixture_json("parsing/feature_with_commands.json")
 

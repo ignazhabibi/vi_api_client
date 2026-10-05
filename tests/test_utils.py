@@ -18,23 +18,8 @@ def _feature(value, unit=None) -> Feature:
     )
 
 
-def test_parse_key_value():
-    """Test standard key=value parsing."""
-    # Arrange: Create list of key=value strings with different types.
-    inputs = ["slope=1.4", "shift=0", "mode=active", "enabled=true"]
-    expected = {"slope": 1.4, "shift": 0, "mode": "active", "enabled": True}
-
-    # Act: Parse the CLI parameters.
-    params = parse_cli_params(inputs)
-
-    # Assert: All supported value types are inferred from their string form.
-    assert params == expected
-
-
-def test_parse_json_string():
-    """Test parsing a single JSON string."""
-    # Arrange: Create single JSON object string input.
-    # Note: in CLI, this comes as a list with one string
+def test_parse_cli_params_accepts_one_json_object_argument():
+    # Arrange: The CLI passes a JSON object as one argument string.
     inputs = ['{"slope": 1.4, "shift": 0}']
     expected = {"slope": 1.4, "shift": 0}
 
@@ -45,8 +30,7 @@ def test_parse_json_string():
     assert params == expected
 
 
-def test_parse_mixed_types():
-    """Test type inference."""
+def test_parse_cli_params_infers_value_types_from_key_value_pairs():
     # Arrange: Create key=value strings with int, float, bool, string values.
     inputs = ["int=42", "float=42.5", "bool_t=true", "bool_f=False", "str=hello"]
 
@@ -66,17 +50,14 @@ def test_parse_mixed_types():
     assert params["str"] == "hello"
 
 
-def test_invalid_format():
-    """Test invalid input format."""
-    # Act and Assert: Invalid format should raise ValueError with specific message.
+def test_parse_cli_params_rejects_arguments_without_equals_sign():
+    # Act and assert: An argument without "=" names the expected format.
     with pytest.raises(ValueError, match="Expected key=value"):
         parse_cli_params(["invalid_arg"])
 
 
-def test_nested_json_value():
-    """Test parsing a JSON value within a key=value pair."""
-    # Arrange: Create key=value with JSON dict as value.
-    # e.g. schedule={"day": 1}
+def test_parse_cli_params_parses_json_values_inside_pairs():
+    # Arrange: A key=value pair whose value is a JSON object.
     inputs = ['schedule={"day": 1, "temp": 20}']
 
     # Act: Parse CLI params - value should be extracted as dict.

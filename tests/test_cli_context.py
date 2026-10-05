@@ -121,7 +121,7 @@ async def test_cli_context_fixture_mode_routes_diagnostics_to_stderr_for_json(
 @pytest.mark.asyncio
 async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
     """Explicit IDs should build the context without discovery requests."""
-    # Arrange: Supply every identifier and mock the live session boundary.
+    # Arrange: Supply every identifier and script the discovery boundary.
     args = _context_args(
         tmp_path,
         installation_id="123",
@@ -129,19 +129,17 @@ async def test_cli_context_explicit_ids_skip_discovery(tmp_path):
         device_id="dev1",
     )
 
-    with (
-        patch("vi_api_client.cli.OAuth"),
-        patch("vi_api_client.cli.create_session") as mock_create_session,
-    ):
-        mock_session = MagicMock()
-        mock_create_session.return_value.__aenter__.return_value = mock_session
-
+    with _scripted_discovery_client([_gateway("GW-A", "A")], []) as client:
         # Act: Build a context from explicit identifiers.
         async with setup_client_context(args) as ctx:
             # Assert: The context exposes exactly the supplied identifiers.
             assert ctx.installation_id == "123"
             assert ctx.gateway_serial == "serial"
             assert ctx.device_id == "dev1"
+
+    # Assert: No discovery request was needed.
+    client.get_gateways.assert_not_called()
+    client.get_devices.assert_not_called()
 
 
 @pytest.mark.asyncio
