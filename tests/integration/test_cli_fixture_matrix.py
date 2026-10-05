@@ -2,13 +2,11 @@
 
 import asyncio
 import json
-import logging
 from collections.abc import Callable
 
 import pytest
 
 from vi_api_client import FixtureViClient
-from vi_api_client.cli import async_main
 from vi_api_client.models import Feature
 
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
@@ -49,25 +47,6 @@ def _writable_feature_cases(*, empty_value: bool) -> list:
         for fixture_device, feature in _WRITABLE_FEATURES
         if (feature.value == "") is empty_value
     ]
-
-
-@pytest.fixture
-def run_cli(monkeypatch, capsys, caplog):
-    """Run one CLI invocation in-process and return its status and outputs."""
-    caplog.set_level(logging.INFO)
-    # async_main configures root logging for real processes; in-process runs
-    # must not leave handlers behind for later tests.
-    monkeypatch.setattr(logging, "basicConfig", lambda **_: None)
-
-    async def _run(*arguments: str) -> tuple[int, str, str]:
-        capsys.readouterr()
-        caplog.clear()
-        monkeypatch.setattr("sys.argv", ["vi-client", *arguments])
-        exit_status = await async_main()
-        captured = capsys.readouterr()
-        return exit_status, captured.out, captured.err + caplog.text
-
-    return _run
 
 
 @_for_every_fixture_device

@@ -1,6 +1,7 @@
 """Shared fixtures and test doubles for the vi_api_client test suite."""
 
 import json
+import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 from aioresponses import aioresponses
 
 from vi_api_client.auth import AbstractAuth
+from vi_api_client.cli import async_main
 from vi_api_client.client import ViClient
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -113,3 +115,24 @@ def no_http_requests(mock_responses: aioresponses) -> Iterator[aioresponses]:
     # No response is registered, so any request raises a connection error.
     yield mock_responses
     assert mock_responses.requests == {}
+
+
+@pytest.fixture
+def run_cli(monkeypatch, capsys, caplog):
+    """Run one CLI invocation in-process and return its status and outputs.
+
+    The returned error text joins stderr and the captured log records.
+    """
+    caplog.set_level(logging.INFO)
+    # async_main configures root logging for real processes; in-process runs
+    # must not leave handlers behind for later tests.
+    monkeypatch.setattr(logging, "basicConfig", lambda **_: None)
+
+    async def _run(*arguments: str) -> tuple[int, str, str]:
+        capsys.readouterr()
+        caplog.clear()
+        exit_status = await async_main(list(arguments))
+        captured = capsys.readouterr()
+        return exit_status, captured.out, captured.err + caplog.text
+
+    return _run

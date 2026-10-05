@@ -715,12 +715,9 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
     token_file = tmp_path / "tokens.json"
     invalid_content = "{not-json"
     token_file.write_text(invalid_content, encoding="utf-8")
-    monkeypatch.setattr(
-        "sys.argv", ["vi-client", "login", "--token-file", str(token_file)]
-    )
 
     # Act: Invoke the command through its process-status boundary.
-    exit_status = await async_main()
+    exit_status = await async_main(["login", "--token-file", str(token_file)])
 
     # Assert: The command fails and leaves the malformed source untouched.
     assert exit_status == 1
@@ -984,19 +981,11 @@ async def test_async_main_json_setup_error_keeps_stdout_empty(
     # environment credentials.
     monkeypatch.delenv("VIESSMANN_CLIENT_ID", raising=False)
     monkeypatch.delenv("VIESSMANN_REDIRECT_URI", raising=False)
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-features",
-            "--json",
-            "--token-file",
-            str(tmp_path / "tokens.json"),
-        ],
-    )
 
     # Act: Invoke the CLI entry path.
-    exit_status = await async_main()
+    exit_status = await async_main(
+        ["list-features", "--json", "--token-file", str(tmp_path / "tokens.json")]
+    )
 
     # Assert: The failed setup leaves stdout empty and logs the diagnostic.
     assert exit_status == 1
@@ -1169,48 +1158,41 @@ def test_main_exits_with_async_command_status():
     assert exit_error.value.code == 1
 
 
-async def test_async_main_without_command_prints_help(monkeypatch, capsys):
+async def test_async_main_without_command_prints_help(capsys):
     """Invoking the CLI without a command should print help and exit zero."""
-    # Arrange: Parse an argument list without a command.
-    monkeypatch.setattr("sys.argv", ["vi-client"])
-
-    # Act: Invoke the CLI entry path.
-    exit_status = await async_main()
+    # Act: Invoke the CLI entry path without a command.
+    exit_status = await async_main([])
 
     # Assert: Help is printed and the process status stays successful.
     assert exit_status == 0
     assert "usage:" in capsys.readouterr().out
 
 
-async def test_async_main_maps_keyboard_interrupt_to_130(monkeypatch):
+async def test_async_main_maps_keyboard_interrupt_to_130():
     """Ctrl+C ends the CLI with the shell's conventional SIGINT status."""
     # Arrange: Interrupt the dispatcher while it runs a command.
-    monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices"])
-
     with patch(
         "vi_api_client.cli._dispatch_command", new_callable=AsyncMock
     ) as mock_dispatch:
         mock_dispatch.side_effect = KeyboardInterrupt
 
         # Act: Invoke the CLI entry path.
-        exit_status = await async_main()
+        exit_status = await async_main(["list-fixture-devices"])
 
     # Assert: The interrupt maps to the conventional terminal status.
     assert exit_status == 130
 
 
-async def test_async_main_maps_unexpected_errors_to_one(monkeypatch):
+async def test_async_main_maps_unexpected_errors_to_one():
     """Errors escaping the dispatcher end with the generic failure status."""
     # Arrange: Fail the dispatcher with an unexpected error.
-    monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices"])
-
     with patch(
         "vi_api_client.cli._dispatch_command", new_callable=AsyncMock
     ) as mock_dispatch:
         mock_dispatch.side_effect = RuntimeError("boom")
 
         # Act: Invoke the CLI entry path.
-        exit_status = await async_main()
+        exit_status = await async_main(["list-fixture-devices"])
 
     # Assert: The unexpected failure maps to a generic failure status.
     assert exit_status == 1
@@ -1229,7 +1211,6 @@ async def test_async_main_configures_logging_after_parsing(
 ):
     """The CLI should configure root logging itself, honoring the --verbose flag."""
     # Arrange: Request a fixture listing with or without verbose logging.
-    monkeypatch.setattr("sys.argv", ["vi-client", "list-fixture-devices", *extra_argv])
     configured_levels = []
     monkeypatch.setattr(
         logging,
@@ -1238,7 +1219,7 @@ async def test_async_main_configures_logging_after_parsing(
     )
 
     # Act: Invoke the parser and dispatcher through the CLI entry path.
-    exit_status = await async_main()
+    exit_status = await async_main(["list-fixture-devices", *extra_argv])
 
     # Assert: Logging is configured once with the requested level.
     assert exit_status == 0
@@ -1264,131 +1245,6 @@ def test_importing_cli_leaves_root_logging_unconfigured():
     assert result.stdout.strip() == "0"
 
 
-def _event_page() -> EventHistoryPage:
-    """Build one complete final event history page with provider details."""
-    feature_changed = InstallationEvent(
-        event_type="feature-changed",
-        created_at="2026-09-20T10:15:30.000Z",
-        event_timestamp="2026-09-20T10:15:30.000Z",
-        gateway_serial="7630175843100101",
-        body={
-            "featureName": "heating.dhw.temperature.main",
-            "commandName": "setTargetTemperature",
-            "commandBody": {"temperature": 55},
-        },
-        fields={
-            "eventType": "feature-changed",
-            "createdAt": "2026-09-20T10:15:30.000Z",
-            "eventTimestamp": "2026-09-20T10:15:30.000Z",
-            "gatewaySerial": "7630175843100101",
-            "body": {
-                "featureName": "heating.dhw.temperature.main",
-                "commandName": "setTargetTemperature",
-                "commandBody": {"temperature": 55},
-            },
-        },
-    )
-    gateway_online = InstallationEvent(
-        event_type="gateway-online",
-        created_at="2026-09-19T22:41:05.123Z",
-        event_timestamp="2026-09-19T22:41:03.000Z",
-        gateway_serial="7630175843100101",
-        body={"online": True},
-        fields={
-            "eventType": "gateway-online",
-            "createdAt": "2026-09-19T22:41:05.123Z",
-            "eventTimestamp": "2026-09-19T22:41:03.000Z",
-            "gatewaySerial": "7630175843100101",
-            "body": {"online": True},
-        },
-    )
-    return EventHistoryPage(events=[feature_changed, gateway_online], next_cursor=None)
-
-
-async def test_cmd_list_events_prints_readable_summary(mock_cli_context, capsys):
-    """The readable summary should group events by UTC date without loss."""
-    # Arrange: Provide one fixture event page for a seven day window.
-    args = _cli_args(days=7)
-    mock_cli_context.client.get_event_history.return_value = _event_page()
-
-    # Act: List the complete window through the CLI.
-    assert await cmd_list_events(args) is True
-
-    # Assert: Events are grouped by UTC date with an explicit time, and a
-    # single gateway adds no label.
-    captured = capsys.readouterr()
-    lines = captured.out.splitlines()
-    assert "Found 2 event(s) for installation 99 (last 7 days):" in lines
-    assert lines[lines.index("2026-09-20 (UTC)") + 1] == (
-        "- 10:15:30 UTC feature-changed"
-    )
-    assert lines[lines.index("2026-09-19 (UTC)") + 1] == (
-        "- 22:41:03 UTC gateway-online"
-    )
-    assert "    heating.dhw.temperature.main" in lines
-    assert "    command: setTargetTemperature" in lines
-    assert '    parameters: {"temperature": 55}' in lines
-    assert "    ONLINE" in lines
-    assert all(len(line) <= 120 for line in lines)
-    assert "..." not in captured.out
-    assert "7630175843100101" not in captured.out
-    assert (
-        "Earliest event: 2026-09-19T22:41:03.000Z; "
-        "latest event: 2026-09-20T10:15:30.000Z" in lines
-    )
-    assert "Pagination completed after 1 page(s)" in captured.out
-    assert "safety limit" not in captured.out
-    mock_cli_context.client.get_event_history.assert_awaited_once_with(
-        "99", days=7, limit=None
-    )
-
-
-async def test_cmd_list_events_json_emits_one_document(mock_cli_context, capsys):
-    """JSON output should keep complete events and pagination metadata."""
-    # Arrange: Request the machine-readable form with a page limit.
-    args = _cli_args(days=7, limit=10, json=True)
-    mock_cli_context.client.get_event_history.return_value = _event_page()
-
-    # Act: List the first page as JSON.
-    assert await cmd_list_events(args) is True
-
-    # Assert: One JSON document carries full events and the cursor.
-    captured = capsys.readouterr()
-    document = json.loads(captured.out)
-    assert document == {
-        "installationId": "99",
-        "events": [
-            {
-                "eventType": "feature-changed",
-                "createdAt": "2026-09-20T10:15:30.000Z",
-                "eventTimestamp": "2026-09-20T10:15:30.000Z",
-                "gatewaySerial": "7630175843100101",
-                "body": {
-                    "featureName": "heating.dhw.temperature.main",
-                    "commandName": "setTargetTemperature",
-                    "commandBody": {"temperature": 55},
-                },
-            },
-            {
-                "eventType": "gateway-online",
-                "createdAt": "2026-09-19T22:41:05.123Z",
-                "eventTimestamp": "2026-09-19T22:41:03.000Z",
-                "gatewaySerial": "7630175843100101",
-                "body": {"online": True},
-            },
-        ],
-        "eventCount": 2,
-        "earliestEventTimestamp": "2026-09-19T22:41:03.000Z",
-        "latestEventTimestamp": "2026-09-20T10:15:30.000Z",
-        "pagesFetched": 1,
-        "paginationComplete": True,
-        "nextCursor": None,
-    }
-    mock_cli_context.client.get_event_history.assert_awaited_once_with(
-        "99", days=7, limit=10
-    )
-
-
 async def test_cmd_list_events_auto_selects_first_installation(
     mock_cli_context, capsys
 ):
@@ -1399,7 +1255,7 @@ async def test_cmd_list_events_auto_selects_first_installation(
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
     ]
-    mock_cli_context.client.get_event_history.return_value = _event_page()
+    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
     # Act: List events without an explicit installation ID.
     assert await cmd_list_events(args) is True
@@ -1420,7 +1276,7 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
     ]
-    mock_cli_context.client.get_event_history.return_value = _event_page()
+    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
 
     # Act: List events in JSON mode.
     assert await cmd_list_events(args) is True
@@ -1503,115 +1359,29 @@ def test_parser_keeps_installation_ids_as_text():
     assert args.installation_id == "123"
 
 
-async def test_async_main_list_events_fixture_json_is_machine_readable(
-    monkeypatch, capsys
+async def test_list_events_json_emits_complete_events_across_pages(
+    run_cli, load_fixture_device
 ):
-    """The real CLI path must emit one JSON document for fixture events."""
-    # Arrange: Use the bundled fixture through the real parser and dispatch.
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-events",
-            "--fixture-device",
-            "Vitodens200W",
-            "--days",
-            "7",
-            "--json",
-        ],
+    """JSON output is one document with every event and the pagination state."""
+    # Act: List the two-page fixture history as JSON.
+    exit_status, out, err = await run_cli(
+        "list-events", "--fixture-device", "Vitodens200W", "--days", "7", "--json"
     )
 
-    # Act: Invoke the parser, dispatcher, and fixture context setup.
-    exit_status = await async_main()
-
-    # Assert: The document preserves full events and pagination metadata.
-    captured = capsys.readouterr()
+    # Assert: The document keeps the provider events unchanged, follows the
+    # cursor to the final page, and leaves diagnostics on stderr.
     assert exit_status == 0
-    document = json.loads(captured.out)
-    assert document["installationId"] == "99999"
-    assert len(document["events"]) == 3
-    first_event = document["events"][0]
-    assert first_event["eventType"] == "feature-changed"
-    assert first_event["body"] == {
-        "featureName": "heating.dhw.temperature.main",
-        "commandName": "setTargetTemperature",
-        "commandBody": {"temperature": 55},
+    assert json.loads(out) == {
+        "installationId": "99999",
+        "events": load_fixture_device("event_history")["data"],
+        "eventCount": 3,
+        "earliestEventTimestamp": "2026-09-18T08:02:10.500Z",
+        "latestEventTimestamp": "2026-09-20T10:15:30.000Z",
+        "pagesFetched": 2,
+        "paginationComplete": True,
+        "nextCursor": None,
     }
-    assert document["eventCount"] == 3
-    assert document["pagesFetched"] == 2
-    assert document["paginationComplete"] is True
-    assert document["nextCursor"] is None
-    assert document["earliestEventTimestamp"] == "2026-09-18T08:02:10.500Z"
-    assert document["latestEventTimestamp"] == "2026-09-20T10:15:30.000Z"
-    assert "Using Fixture Device: Vitodens200W" in captured.err
-
-
-async def test_cmd_list_events_follows_cursors_across_pages(mock_cli_context, capsys):
-    """The traversal should continue with the cursor, not the window."""
-    # Arrange: Serve one continuation page followed by a final page.
-    first_page = replace(_event_page(), next_cursor="cursor-token")
-    args = _cli_args(days=7)
-    mock_cli_context.client.get_event_history.side_effect = [
-        first_page,
-        EventHistoryPage(events=[], next_cursor=None),
-    ]
-
-    # Act: List the complete window through the CLI.
-    assert await cmd_list_events(args) is True
-
-    # Assert: The second request carries only the continuation cursor.
-    captured = capsys.readouterr()
-    assert "Found 2 event(s) for installation 99 (last 7 days):" in captured.out
-    assert "Pagination completed after 2 page(s)" in captured.out
-    awaited_calls = mock_cli_context.client.get_event_history.await_args_list
-    assert len(awaited_calls) == 2
-    assert awaited_calls[0].args == ("99",)
-    assert awaited_calls[0].kwargs == {"days": 7, "limit": None}
-    assert awaited_calls[1].args == ("99",)
-    assert awaited_calls[1].kwargs == {"cursor": "cursor-token", "limit": None}
-
-
-async def test_cmd_list_events_stops_at_the_safety_limit(mock_cli_context, capsys):
-    """A remaining cursor at the safety limit should mark the result incomplete."""
-    # Arrange: Every served page reports a further cursor.
-    continuing_page = replace(_event_page(), next_cursor="cursor-token")
-    args = _cli_args(days=7, max_pages=2)
-    mock_cli_context.client.get_event_history.side_effect = [
-        continuing_page,
-        continuing_page,
-        continuing_page,
-    ]
-
-    # Act: Traverse with a two page safety limit.
-    assert await cmd_list_events(args) is True
-
-    # Assert: The summary reports the incomplete traversal explicitly.
-    captured = capsys.readouterr()
-    assert "Found 4 event(s) for installation 99 (last 7 days):" in captured.out
-    assert "Stopped at the safety limit of 2 page(s)" in captured.out
-    assert "next cursor: cursor-token" in captured.out
-    assert "Pagination completed" not in captured.out
-    assert mock_cli_context.client.get_event_history.await_count == 2
-
-
-async def test_cmd_list_events_json_marks_incomplete_traversals(
-    mock_cli_context, capsys
-):
-    """JSON output should expose the remaining cursor of a limited traversal."""
-    # Arrange: The single served page keeps reporting a further cursor.
-    continuing_page = replace(_event_page(), next_cursor="cursor-token")
-    args = _cli_args(days=7, max_pages=1, json=True)
-    mock_cli_context.client.get_event_history.return_value = continuing_page
-
-    # Act: Traverse one page in machine-readable mode.
-    assert await cmd_list_events(args) is True
-
-    # Assert: The document marks the result incomplete with its cursor.
-    document = json.loads(capsys.readouterr().out)
-    assert document["eventCount"] == 2
-    assert document["pagesFetched"] == 1
-    assert document["paginationComplete"] is False
-    assert document["nextCursor"] == "cursor-token"
+    assert "Using Fixture Device: Vitodens200W" in err
 
 
 def _empty_event_page() -> EventHistoryPage:
@@ -1657,61 +1427,40 @@ async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, 
     }
 
 
-async def test_async_main_list_events_fixture_stops_at_one_page(monkeypatch, capsys):
-    """The offline fixture traversal should honor the page safety limit."""
-    # Arrange: Use the bundled fixture with a one page safety limit.
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-events",
-            "--fixture-device",
-            "Vitodens200W",
-            "--days",
-            "7",
-            "--max-pages",
-            "1",
-            "--json",
-        ],
+async def test_list_events_json_marks_the_safety_limit(run_cli):
+    """A remaining cursor at the page limit marks the JSON result incomplete."""
+    # Act: List the two-page fixture history with a one page limit.
+    exit_status, out, _ = await run_cli(
+        "list-events",
+        "--fixture-device",
+        "Vitodens200W",
+        "--days",
+        "7",
+        "--max-pages",
+        "1",
+        "--json",
     )
 
-    # Act: Invoke the parser, dispatcher, and fixture context setup.
-    exit_status = await async_main()
-
-    # Assert: The document marks the limited traversal incomplete.
-    captured = capsys.readouterr()
+    # Assert: The document reports the stop and the cursor to continue from.
     assert exit_status == 0
-    document = json.loads(captured.out)
+    document = json.loads(out)
     assert document["eventCount"] == 3
     assert document["pagesFetched"] == 1
     assert document["paginationComplete"] is False
     assert document["nextCursor"] == "b3BhcXVlLWN1cnNvci10b2tlbg=="
 
 
-async def test_async_main_list_events_fixture_prints_readable_summary(
-    monkeypatch, capsys
-):
-    """The real CLI path should print the grouped readable event list."""
-    # Arrange: Use the bundled fixture through the real parser and dispatch.
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-events",
-            "--fixture-device",
-            "Vitodens200W",
-            "--days",
-            "7",
-        ],
+async def test_list_events_prints_readable_summary(run_cli):
+    """The readable summary groups events by UTC date without loss."""
+    # Act: List the two-page fixture history as text.
+    exit_status, out, _ = await run_cli(
+        "list-events", "--fixture-device", "Vitodens200W", "--days", "7"
     )
 
-    # Act: Invoke the parser, dispatcher, and fixture context setup.
-    exit_status = await async_main()
-
-    # Assert: Events group by UTC date with wrapped, complete details.
-    captured = capsys.readouterr()
+    # Assert: Events group by UTC date with complete details; a single gateway
+    # adds no serial label.
     assert exit_status == 0
-    lines = captured.out.splitlines()
+    lines = out.splitlines()
     assert "Found 3 event(s) for installation 99999 (last 7 days):" in lines
     assert lines[lines.index("2026-09-20 (UTC)") + 1] == (
         "- 10:15:30 UTC feature-changed"
@@ -1726,40 +1475,33 @@ async def test_async_main_list_events_fixture_prints_readable_summary(
         "Earliest event: 2026-09-18T08:02:10.500Z; "
         "latest event: 2026-09-20T10:15:30.000Z" in lines
     )
-    assert "Pagination completed after 2 page(s)" in captured.out
-    assert "Using Fixture Device: Vitodens200W" in captured.out
+    assert "Pagination completed after 2 page(s)" in out
+    assert all(len(line) <= _EVENT_LINE_WIDTH for line in lines)
+    assert "..." not in out
+    assert "7630175843100101" not in out
 
 
-async def test_async_main_list_events_fixture_readable_marks_safety_limit(
-    monkeypatch, capsys
-):
-    """Readable output names the remaining cursor so a truncated history is visible."""
-    # Arrange: Use the bundled fixture with a one page safety limit.
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "vi-client",
-            "list-events",
-            "--fixture-device",
-            "Vitodens200W",
-            "--days",
-            "7",
-            "--max-pages",
-            "1",
-        ],
+async def test_list_events_readable_output_marks_the_safety_limit(run_cli):
+    """Readable output names the remaining cursor of a truncated history."""
+    # Act: List the two-page fixture history with a one page limit.
+    exit_status, out, _ = await run_cli(
+        "list-events",
+        "--fixture-device",
+        "Vitodens200W",
+        "--days",
+        "7",
+        "--max-pages",
+        "1",
     )
 
-    # Act: Invoke the parser, dispatcher, and fixture context setup.
-    exit_status = await async_main()
-
-    # Assert: The readable output marks the limited traversal incomplete.
-    captured = capsys.readouterr()
+    # Assert: The summary reports the stop instead of claiming completion.
     assert exit_status == 0
-    assert "Found 3 event(s) for installation 99999 (last 7 days):" in captured.out
+    assert "Found 3 event(s) for installation 99999 (last 7 days):" in out
     assert (
         "Stopped at the safety limit of 1 page(s); more events may be "
         "available (next cursor: b3BhcXVlLWN1cnNvci10b2tlbg==)"
-    ) in captured.out
+    ) in out
+    assert "Pagination completed" not in out
 
 
 def _detail_event(body: FeatureValue, event_type: str = "detail") -> InstallationEvent:
