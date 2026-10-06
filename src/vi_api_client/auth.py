@@ -114,6 +114,8 @@ class OAuth(AbstractAuth):
 
         If websession is None, a session is created lazily. Use the auth provider
         as an async context manager or call `async_close` to release it.
+        The token file is not read here; it is loaded in a worker thread on
+        the first token request so construction never blocks the event loop.
 
         Args:
             client_id: OAuth client ID.
@@ -128,7 +130,8 @@ class OAuth(AbstractAuth):
         self.token_file: Path = Path(token_file)
         self._credential_document = CredentialDocument(self.token_file)
         self.scope = scope
-        self._token_info: dict[str, JsonValue] = self._credential_document.read()
+        self._token_info: dict[str, JsonValue] | None = None
+        self._token_load_lock = asyncio.Lock()
         self._pkce_verifier: str | None = None
         self._refresh_task: asyncio.Task[None] | None = None
 
@@ -151,16 +154,31 @@ class OAuth(AbstractAuth):
 
         return f"{ENDPOINT_AUTHORIZE}?{urlencode(params)}"
 
-    def _update_tokens(self, token_data: object) -> None:
-        """Update internal token state and save."""
+    async def _async_token_info(self) -> dict[str, JsonValue]:
+        """Return the stored tokens, loading the token file once in a thread.
+
+        Raises:
+            ViAuthError: If the token file cannot be read or is malformed.
+        """
+        if self._token_info is None:
+            async with self._token_load_lock:
+                if self._token_info is None:
+                    self._token_info = await asyncio.to_thread(
+                        self._credential_document.read
+                    )
+        return self._token_info
+
+    async def _async_update_tokens(self, token_data: object) -> None:
+        """Update internal token state and save it in a worker thread."""
         validated_token_data = _validate_token_response(token_data)
-        self._token_info.update(validated_token_data)
+        token_info = await self._async_token_info()
+        token_info.update(validated_token_data)
 
         expires_in = validated_token_data.get("expires_in")
         if is_json_number(expires_in):
-            self._token_info["expires_at"] = time.time() + expires_in
+            token_info["expires_at"] = time.time() + expires_in
 
-        self._credential_document.update(self._token_info)
+        await asyncio.to_thread(self._credential_document.update, dict(token_info))
 
     async def _async_request_tokens(
         self, form_data: Mapping[str, JsonValue], action: str
@@ -177,7 +195,7 @@ class OAuth(AbstractAuth):
             async with websession.post(ENDPOINT_TOKEN, data=form_data) as response:
                 if response.status != 200:
                     raise ViAuthError(f"Failed to {action}: {await response.text()}")
-                self._update_tokens(await _read_token_response(response))
+                await self._async_update_tokens(await _read_token_response(response))
         except (TimeoutError, aiohttp.ClientError) as error:
             raise ViConnectionError(f"Network error: {error}") from error
 
@@ -206,7 +224,8 @@ class OAuth(AbstractAuth):
 
     async def _async_refresh_access_token(self) -> None:
         """Refresh the access token through the token endpoint."""
-        refresh_token = self._token_info.get("refresh_token")
+        token_info = await self._async_token_info()
+        refresh_token = token_info.get("refresh_token")
         if not refresh_token:
             raise ViAuthError("No refresh token available.")
 
@@ -218,7 +237,7 @@ class OAuth(AbstractAuth):
         _LOGGER.debug("Refreshing access token")
         await self._async_request_tokens(form_data, "refresh token")
         _LOGGER.debug(
-            "Access token refreshed (expires_in=%s)", self._token_info.get("expires_in")
+            "Access token refreshed (expires_in=%s)", token_info.get("expires_in")
         )
 
     async def async_refresh_access_token(self) -> None:
@@ -268,32 +287,34 @@ class OAuth(AbstractAuth):
             ViConnectionError: If a needed refresh cannot reach the token
                 endpoint.
         """
-        if not self._token_info:
+        token_info = await self._async_token_info()
+        if not token_info:
             raise ViAuthError("No tokens loaded. Please authenticate first.")
 
-        expires_at = self._token_info.get("expires_at")
+        expires_at = token_info.get("expires_at")
         if (
             is_json_number(expires_at)
             and time.time() < expires_at - _TOKEN_EXPIRY_MARGIN_SECONDS
         ):
-            return self._access_token_value()
+            return _access_token_value(token_info)
 
-        if "refresh_token" in self._token_info:
+        if "refresh_token" in token_info:
             await self.async_refresh_access_token()
-            return self._access_token_value()
+            return _access_token_value(token_info)
 
         # Without the offline_access scope there is no refresh token to renew with.
         _LOGGER.warning(
             "No refresh token available; using possibly expired access token"
         )
-        return self._access_token_value()
+        return _access_token_value(token_info)
 
-    def _access_token_value(self) -> str:
-        """Return the validated current access token."""
-        access_token = self._token_info.get("access_token")
-        if not isinstance(access_token, str) or not access_token:
-            raise ViAuthError("No valid access token available.")
-        return access_token
+
+def _access_token_value(token_info: Mapping[str, JsonValue]) -> str:
+    """Return the validated current access token."""
+    access_token = token_info.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise ViAuthError("No valid access token available.")
+    return access_token
 
 
 def _validate_token_response(token_data: object) -> dict[str, JsonValue]:

@@ -114,8 +114,11 @@ await auth.async_exchange_code_for_tokens(code)  # saves tokens to token_file
 
 ### Automatic Token Refresh
 The class automatically:
-1.  **Loads** tokens from disk on startup.
+1.  **Loads** tokens from disk on the first token request.
 2.  **Saves** new tokens to disk whenever they are refreshed.
+
+Constructing `OAuth` does no file I/O. Reading and writing the token file run
+in a worker thread, so they never block the event loop.
 
 If the token endpoint cannot be reached during a login or refresh, `OAuth`
 raises `ViConnectionError`; a rejected request raises `ViAuthError`.
@@ -123,7 +126,7 @@ raises `ViConnectionError`; a rejected request raises `ViAuthError`.
 This ensures persistent authentication across restarts.
 
 If the token file contains invalid JSON, `OAuth` leaves it untouched and raises
-`ViAuthError`. Repair or remove that file before authenticating again; this avoids
+`ViAuthError` on the first token request. Repair or remove that file before authenticating again; this avoids
 silently losing credentials or saved client configuration.
 
 Successful OAuth token responses and persisted credential documents are checked

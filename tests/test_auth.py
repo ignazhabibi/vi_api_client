@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import logging
+import threading
 import time
 from collections.abc import Collection
 from pathlib import Path
@@ -21,6 +22,7 @@ from aioresponses import aioresponses
 from builders import load_fixture_json
 from yarl import URL
 
+from vi_api_client._types import JsonValue
 from vi_api_client.auth import OAuth
 from vi_api_client.client import ViClient
 from vi_api_client.const import (
@@ -29,6 +31,7 @@ from vi_api_client.const import (
     ENDPOINT_INSTALLATIONS,
     ENDPOINT_TOKEN,
 )
+from vi_api_client.credentials import CredentialDocument
 from vi_api_client.exceptions import ViAuthError, ViConnectionError
 
 INSTALLATIONS_URL = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
@@ -147,18 +150,48 @@ def test_oauth_websession_is_read_only_after_constructor_injection(token_file):
         oauth.websession = MagicMock(spec=aiohttp.ClientSession)  # type: ignore[misc]
 
 
-def test_oauth_rejects_malformed_token_file_without_modifying_it(token_file):
+async def test_oauth_rejects_malformed_token_file_without_modifying_it(token_file):
     """Malformed token files should remain intact and explain the recovery action."""
     # Arrange: Store invalid JSON in the configured token file.
     invalid_content = "{invalid"
     token_file.write_text(invalid_content, encoding="utf-8")
+    oauth = OAuth("client", "https://example.invalid", token_file)
 
-    # Act and assert: Loading the malformed token file should preserve its content.
+    # Act and assert: The first token request reports the malformed file.
     with pytest.raises(ViAuthError, match="Repair or remove the file"):
-        OAuth("client", "https://example.invalid", token_file)
+        await oauth.async_get_access_token()
 
     # Assert: The invalid file should remain available for manual recovery.
     assert token_file.read_text(encoding="utf-8") == invalid_content
+
+
+async def test_oauth_reads_the_token_file_once_in_a_worker_thread(
+    token_file, monkeypatch
+):
+    """Construction does no file I/O; concurrent first requests share one read."""
+    # Arrange: Store valid tokens and record which threads read the file.
+    _write_token_document(token_file, expires_at=time.time() + 3600)
+    read_threads: list[int] = []
+    original_read = CredentialDocument.read
+
+    def recording_read(document: CredentialDocument) -> dict[str, JsonValue]:
+        read_threads.append(threading.get_ident())
+        return original_read(document)
+
+    monkeypatch.setattr(CredentialDocument, "read", recording_read)
+
+    # Act: Construct the provider, then request tokens concurrently.
+    oauth = OAuth("client", "https://example.invalid", token_file)
+    reads_after_construction = len(read_threads)
+    tokens = await asyncio.gather(
+        oauth.async_get_access_token(), oauth.async_get_access_token()
+    )
+
+    # Assert: The file is read once, off the event loop thread.
+    assert reads_after_construction == 0
+    assert tokens == ["stored-access", "stored-access"]
+    assert len(read_threads) == 1
+    assert read_threads[0] != threading.get_ident()
 
 
 @pytest.mark.parametrize(
