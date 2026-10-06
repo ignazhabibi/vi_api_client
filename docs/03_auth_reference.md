@@ -96,10 +96,29 @@ from vi_api_client import OAuth
 | `token_file` | `Path \| str` | Yes | Path to the JSON credential document used to store and load tokens. |
 | `websession` | `ClientSession` | No | `aiohttp` session to share connections. |
 
+### First Login
+
+Without stored tokens, log in once. `get_authorization_url` returns the login
+page URL; after the user signs in, the browser is redirected to `redirect_uri`
+with a `code` query parameter. Exchange that code on the same `OAuth` instance,
+because it holds the PKCE verifier:
+
+```python
+url = auth.get_authorization_url()
+print(f"Open this URL and sign in: {url}")
+code = input("Paste the code parameter from the redirect URL: ")
+await auth.async_exchange_code_for_tokens(code)  # saves tokens to token_file
+```
+
+`vi-client login` runs the same flow from the command line.
+
 ### Automatic Token Refresh
 The class automatically:
 1.  **Loads** tokens from disk on startup.
 2.  **Saves** new tokens to disk whenever they are refreshed.
+
+If the token endpoint cannot be reached during a login or refresh, `OAuth`
+raises `ViConnectionError`; a rejected request raises `ViAuthError`.
 
 This ensures persistent authentication across restarts.
 

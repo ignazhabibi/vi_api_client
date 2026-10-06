@@ -7,7 +7,7 @@ name = "vi_api_client"
 version = "4.0.0"
 description = "Async Python client for Viessmann Climate Solutions API"
 authors = [
-  { name = "Michael", email = "antigravity@example.com" },
+  { name = "Michael", email = "notme@bieber-home.net" },
 ]
 license = "MIT"
 classifiers = [
