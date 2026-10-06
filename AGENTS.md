@@ -32,6 +32,7 @@ ruff format --check .
 pyright --pythonpath python
 pyright --project pyrightconfig.strict.json
 python -m pytest -q
+python scripts/check_coverage.py
 python -m build
 python scripts/verify_distributions.py
 ```

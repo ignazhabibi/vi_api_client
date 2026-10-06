@@ -679,6 +679,14 @@ def _print_feature_constraints(control: FeatureControl) -> None:
     if constraints:
         print(f"    Constraints: {', '.join(constraints)}")
 
+    if control.schedule is not None:
+        schedule_rules = [
+            f"{name}: {value}"
+            for name, value in asdict(control.schedule).items()
+            if value is not None
+        ]
+        print(f"    Schedule rules: {', '.join(schedule_rules)}")
+
 
 @_reports_errors("listing events")
 async def cmd_list_events(args: argparse.Namespace) -> bool:
@@ -1115,7 +1123,9 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common_parser, device_parser],
     )
     parser_features.add_argument(
-        "--enabled", action="store_true", help="List only enabled features"
+        "--enabled",
+        action="store_true",
+        help="List only enabled and ready features",
     )
     parser_features.add_argument(
         "--values", action="store_true", help="Show feature values"

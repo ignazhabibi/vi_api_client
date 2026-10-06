@@ -441,8 +441,9 @@ Required sibling features must exist, be enabled and ready, and have a value
 other than `None`. `False`, `0`, and an empty string are valid values.
 Optional siblings are not added automatically.
 
-Before I/O, the core checks options, ranges, steps, string lengths, and regular
-expressions. Invalid local input raises without sending a request.
+Before I/O, the core checks the value type, options, ranges, steps, string
+lengths, regular expressions, and the reported schedule rules. Invalid local
+input raises without sending a request.
 
 Command success is not read-back. The returned snapshot applies the requested
 value locally; a later refresh may confirm or replace it. Optimistic UI state,
