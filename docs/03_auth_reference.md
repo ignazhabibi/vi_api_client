@@ -91,10 +91,11 @@ from vi_api_client import OAuth
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `client_id` | `str` | Yes | Your Client ID from the [Viessmann Developer Portal](https://developer.viessmann.com/). |
+| `client_id` | `str` | Yes | Your Client ID from the [Viessmann Developer Portal](https://developer.viessmann-climatesolutions.com/start.html). |
 | `redirect_uri` | `str` | Yes | Must match your registered Redirect URI (e.g. `http://localhost:4200/`). |
 | `token_file` | `Path \| str` | Yes | Path to the JSON credential document used to store and load tokens. |
 | `websession` | `ClientSession` | No | `aiohttp` session to share connections. |
+| `scope` | `str` | No | OAuth scopes to request. Defaults to `DEFAULT_SCOPES` (`"IoT User offline_access"`); without `offline_access` no refresh token is issued. |
 
 ### First Login
 

@@ -195,11 +195,21 @@ List all features that can be changed, including their parameters and constraint
 
 ```bash
 vi-client list-writable
-# Output example:
-# Feature: heating.circuits.0.heating.curve.slope
-#   Command: setCurve, Param: slope
-#   Constraints: min=0.2, max=3.5, step=0.1
 ```
+
+Example output:
+
+```text
+- heating.circuits.0.heating.curve.slope
+    Param:   slope (via setCurve)
+    Constraints: min: 0.2, max: 3.5, step: 0.1
+
+- heating.dhw.pumps.circulation.schedule
+    Param:   newSchedule (via setSchedule)
+    Schedule rules: max_entries: 4, modes: ('on',), resolution: 10, overlap_allowed: False, default_mode: off
+```
+
+`Schedule rules` lists only the rules the device reports for a schedule.
 
 ## 7. Set Feature Value (Write)
 Set a new value for a specific feature.

@@ -53,7 +53,12 @@ from vi_api_client.exceptions import (
     ViNotFoundError,
     ViValidationError,
 )
-from vi_api_client.models import Device, Feature, FeatureControl
+from vi_api_client.models import (
+    Device,
+    Feature,
+    FeatureControl,
+    ScheduleConstraints,
+)
 
 
 def _cli_args(*argv: str) -> Namespace:
@@ -1051,6 +1056,34 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     assert "heating.program" in captured.out
     assert "setCurve" in captured.out
     assert "Constraints:" not in captured.out
+
+
+async def test_cmd_list_writable_prints_reported_schedule_rules(
+    mock_cli_context, capsys
+):
+    """Schedule features should print only the schedule rules the API reports."""
+    # Arrange: Provide a schedule control that reports some rules but not all.
+    args = _cli_args("list-writable")
+    feature = build_feature(
+        name="heating.dhw.schedule",
+        control=_control(
+            command_name="setSchedule",
+            param_name="newSchedule",
+            schedule=ScheduleConstraints(max_entries=4, modes=["on"], resolution=10),
+        ),
+    )
+    mock_cli_context.client.get_features.return_value = [feature]
+
+    # Act: List the writable features.
+    assert await cmd_list_writable(args) is True
+
+    # Assert: Reported rules appear; unreported ones are left out.
+    captured = capsys.readouterr()
+    assert (
+        "Schedule rules: max_entries: 4, modes: ('on',), resolution: 10" in captured.out
+    )
+    assert "overlap_allowed" not in captured.out
+    assert "default_mode" not in captured.out
 
 
 async def test_cmd_list_fixture_devices_prints_the_bundled_catalog(capsys):

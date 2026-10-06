@@ -92,6 +92,8 @@ If a feature is writable, it has a `.control` attribute with metadata:
 *   `options`: List of allowed values (Enum)
 *   `min_length` / `max_length`: String length constraints
 *   `pattern`: Regex pattern for validation
+*   `value_type`: API command value type (e.g., `number`, `boolean`, `string`)
+*   `schedule`: `ScheduleConstraints` with the rules for writing a schedule, if the API reports them
 
 ## 5. Usage Pattern
 
