@@ -305,7 +305,9 @@ The parser also associates command metadata with the correct feature. Only a
 parameter explicitly marked `required: false` is optional. If the flag is
 absent, the parameter is treated as required to avoid incomplete commands.
 Complex structures such as schedules remain one value when further splitting
-would lose their meaning.
+would lose their meaning. A schedule feature's value is the weekly plan from
+its `entries` property, the shape `setSchedule` writes, and its other
+properties such as `active` become their own read-only flat features.
 
 ## 8. Read workflow
 

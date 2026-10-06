@@ -27,6 +27,7 @@ from .models import (
     GatewayDeviceRefreshResult,
     Installation,
     InstallationEvent,
+    ScheduleConstraints,
 )
 from .utils import format_feature
 from .validation import validate_json_value
@@ -53,6 +54,7 @@ __all__ = [
     "InstallationEvent",
     "JsonValue",
     "OAuth",
+    "ScheduleConstraints",
     "ValidationDetail",
     "ViAuthError",
     "ViClient",

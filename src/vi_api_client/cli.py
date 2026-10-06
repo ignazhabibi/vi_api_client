@@ -458,7 +458,7 @@ async def cmd_set(args: argparse.Namespace) -> bool:
 
 def _parse_set_value(
     raw_value: str, feature: Feature, control: FeatureControl
-) -> bool | float | int | str:
+) -> JsonValue:
     """Convert a CLI value according to the target command parameter type.
 
     Args:
@@ -470,11 +470,21 @@ def _parse_set_value(
         The value in the type expected by the target command.
 
     Raises:
-        ViValidationError: If a numeric or boolean command value is malformed.
+        ViValidationError: If a numeric, boolean, or schedule command value is
+            malformed.
     """
     value_type = control.value_type
     if value_type is None:
         value_type = _infer_feature_value_type(feature)
+
+    if value_type == "Schedule":
+        try:
+            schedule: JsonValue = json.loads(raw_value)
+        except json.JSONDecodeError as error:
+            raise ViValidationError(
+                f"Value for '{feature.name}' must be a JSON schedule object."
+            ) from error
+        return schedule
 
     if value_type == "boolean":
         normalized_value = raw_value.casefold()

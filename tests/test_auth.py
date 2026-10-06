@@ -29,7 +29,7 @@ from vi_api_client.const import (
     ENDPOINT_INSTALLATIONS,
     ENDPOINT_TOKEN,
 )
-from vi_api_client.exceptions import ViAuthError
+from vi_api_client.exceptions import ViAuthError, ViConnectionError
 
 INSTALLATIONS_URL = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
 
@@ -575,6 +575,44 @@ async def test_code_exchange_failure_does_not_write_tokens(mock_responses, token
 
     # Assert: Failed authentication should not create a token file.
     assert not token_file.exists()
+
+
+async def test_code_exchange_network_error_is_a_connection_error(
+    mock_responses, token_file
+):
+    """An unreachable token endpoint should raise the library's network error."""
+    # Arrange: Make the token endpoint unreachable.
+    mock_responses.post(ENDPOINT_TOKEN, exception=aiohttp.ClientConnectionError())
+
+    async with aiohttp.ClientSession() as session:
+        oauth = OAuth("client", "https://example.invalid", token_file, session)
+        oauth.get_authorization_url()
+
+        # Act and assert: The network failure arrives as ViConnectionError.
+        with pytest.raises(ViConnectionError, match="Network error"):
+            await oauth.async_exchange_code_for_tokens("code")
+
+    # Assert: No token file is written.
+    assert not token_file.exists()
+
+
+@pytest.mark.parametrize(
+    "network_error", [aiohttp.ClientConnectionError(), TimeoutError()]
+)
+async def test_refresh_network_error_is_a_connection_error(
+    mock_responses, token_file, network_error
+):
+    """A refresh that cannot reach the token endpoint should raise ViConnectionError."""
+    # Arrange: Store an expired token and make the token endpoint unreachable.
+    _write_token_document(token_file, expires_at=0)
+    mock_responses.post(ENDPOINT_TOKEN, exception=network_error)
+
+    async with aiohttp.ClientSession() as session:
+        oauth = OAuth("client", "https://example.invalid", token_file, session)
+
+        # Act and assert: The failed refresh arrives as ViConnectionError.
+        with pytest.raises(ViConnectionError, match="Network error"):
+            await oauth.async_get_access_token()
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,7 @@ import pytest
 
 from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
+from vi_api_client.utils import format_feature
 
 # The bundled fixture devices and the device types their catalog entries declare.
 EXPECTED_DEVICE_TYPES = {
@@ -159,3 +160,45 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     assert refreshed_feature.value == 0.6
     assert capsys.readouterr().out == ""
     assert "Executing fixture command 'setCurve'" in caplog.text
+
+
+async def test_fixture_comfort_temperature_is_written_with_set_temperature():
+    """Comfort temperature should use setTemperature, not the program switch."""
+    # Arrange: Load a fixture that also offers activate(temperature).
+    client = FixtureViClient("Vitocal200S")
+    (device,) = await client.get_devices(
+        "99999", "MOCK_GATEWAY_SERIAL", include_features=True
+    )
+
+    # Act: Read the comfort temperature feature.
+    feature = device.get_feature(
+        "heating.circuits.0.operating.programs.comfort.temperature"
+    )
+
+    # Assert: The write targets setTemperature and its targetTemperature.
+    assert feature is not None
+    assert feature.control is not None
+    assert feature.control.command_name == "setTemperature"
+    assert feature.control.param_name == "targetTemperature"
+
+
+async def test_fixture_schedule_value_is_the_plan_and_renders_compactly():
+    """A read schedule should be the plan itself and format per day."""
+    # Arrange: Load a fixture device with a heating circuit schedule.
+    client = FixtureViClient("Vitocal250A")
+    (device,) = await client.get_devices(
+        "99999", "MOCK_GATEWAY_SERIAL", include_features=True
+    )
+
+    # Act: Read the schedule and its status flag.
+    schedule = device.get_feature("heating.circuits.0.heating.schedule")
+    active = device.get_feature("heating.circuits.0.heating.schedule.active")
+
+    # Assert: The value holds days, the status is read-only, and it formats.
+    assert schedule is not None
+    assert isinstance(schedule.value, dict)
+    assert "mon" in schedule.value
+    assert active is not None
+    assert isinstance(active.value, bool)
+    assert active.is_writable is False
+    assert format_feature(schedule).startswith("Mo[")

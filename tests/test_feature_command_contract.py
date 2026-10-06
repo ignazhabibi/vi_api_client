@@ -8,7 +8,12 @@ from builders import StaticTokenAuth, build_feature
 
 from vi_api_client import FeatureValue, JsonValue
 from vi_api_client.client import ViClient
-from vi_api_client.models import Device, Feature, FeatureControl
+from vi_api_client.models import (
+    Device,
+    Feature,
+    FeatureControl,
+    ScheduleConstraints,
+)
 
 
 class _RecordingCommandAdapter:
@@ -445,3 +450,136 @@ async def test_execute_command_rejects_invalid_local_contract_without_adapter_io
     with pytest.raises(ValueError, match=error):
         await client.execute_command(feature, parameters)
     assert adapter.calls == []
+
+
+_SCHEDULE_RULES = ScheduleConstraints(
+    max_entries=2, modes=("on",), resolution=10, overlap_allowed=False
+)
+
+
+def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
+    """Build command metadata for writing a whole schedule."""
+    return FeatureControl(
+        command_name="setSchedule",
+        param_name="newSchedule",
+        required_params=["newSchedule"],
+        parent_feature_name="heating.dhw.schedule",
+        uri="/commands/setSchedule",
+        value_type="Schedule",
+        schedule=rules,
+    )
+
+
+def _slot(start: str, end: str, mode: str = "on") -> dict[str, JsonValue]:
+    """Build one schedule time slot."""
+    return {"start": start, "end": end, "mode": mode, "position": 0}
+
+
+async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
+    """A written plan is sent as is and becomes the snapshot value unchanged."""
+    # Arrange: A writable schedule and a plan within all reported rules.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = _schedule_control()
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    device = _device([schedule])
+    plan: FeatureValue = {
+        "mon": [_slot("05:30", "09:00"), _slot("18:30", "24:00")],
+        "sun": [],
+    }
+
+    # Act: Write the plan.
+    response, updated_device = await client.set_feature(device, schedule, plan)
+
+    # Assert: The plan is sent and read back in the same shape.
+    assert response.success
+    assert adapter.calls == [(control, {"newSchedule": plan})]
+    updated_schedule = updated_device.get_feature("heating.dhw.schedule")
+    assert updated_schedule is not None
+    assert updated_schedule.value == plan
+
+
+@pytest.mark.parametrize(
+    ("plan", "error"),
+    [
+        pytest.param([], "must be an object", id="not-an-object"),
+        pytest.param({"monday": []}, "not one of mon to sun", id="unknown-day"),
+        pytest.param({"mon": {}}, "must be a list", id="day-not-a-list"),
+        pytest.param({"mon": ["05:30"]}, "must be objects", id="slot-not-an-object"),
+        pytest.param(
+            {"mon": [_slot("5:30", "09:00")]}, "HH:MM", id="time-without-padding"
+        ),
+        pytest.param({"mon": [_slot("05:30", "24:10")]}, "after 24:00", id="past-24"),
+        pytest.param(
+            {"mon": [{"end": "09:00", "mode": "on"}]}, "HH:MM", id="start-missing"
+        ),
+        pytest.param(
+            {"mon": [_slot("09:00", "05:30")]},
+            "start before it ends",
+            id="end-before-start",
+        ),
+        pytest.param(
+            {"mon": [_slot("05:00", "06:00")] * 3},
+            "at most 2",
+            id="too-many-slots",
+        ),
+        pytest.param(
+            {"mon": [_slot("05:00", "06:00", "comfort")]},
+            "'comfort' is not one of",
+            id="unknown-mode",
+        ),
+        pytest.param(
+            {"mon": [_slot("05:35", "06:00")]},
+            "10-minute grid",
+            id="off-grid",
+        ),
+        pytest.param(
+            {"mon": [_slot("08:00", "10:00"), _slot("05:00", "08:10")]},
+            "overlap",
+            id="overlapping-slots",
+        ),
+    ],
+)
+async def test_set_feature_rejects_schedules_that_break_their_rules(plan, error):
+    # Arrange: The schedule reports rules that the plan breaks.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    device = _device([schedule])
+
+    # Act and assert: The plan is rejected before any command is sent.
+    with pytest.raises(ValueError, match=error):
+        await client.set_feature(device, schedule, plan)
+    assert adapter.calls == []
+
+
+async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules():
+    """Without reported rules only the general plan shape is checked."""
+    # Arrange: The schedule reports no rules at all.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = _schedule_control(rules=None)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    device = _device([schedule])
+    plan: FeatureValue = {
+        "mon": [_slot("08:00", "10:00", "comfort"), _slot("09:05", "11:00", "x")]
+    }
+
+    # Act: Write the plan.
+    response, _ = await client.set_feature(device, schedule, plan)
+
+    # Assert: The plan is sent unchanged.
+    assert response.success
+    assert adapter.calls == [(control, {"newSchedule": plan})]
+
+
+async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    device = _device([schedule])
+    plan: FeatureValue = {"mon": [_slot("06:00", "08:00"), _slot("08:00", "09:00")]}
+
+    response, _ = await client.set_feature(device, schedule, plan)
+
+    assert response.success

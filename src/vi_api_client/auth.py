@@ -165,12 +165,21 @@ class OAuth(AbstractAuth):
     async def _async_request_tokens(
         self, form_data: Mapping[str, JsonValue], action: str
     ) -> None:
-        """Post a token request and store the returned tokens."""
+        """Post a token request and store the returned tokens.
+
+        Raises:
+            ViAuthError: If the token endpoint rejects the request or returns
+                an invalid token response.
+            ViConnectionError: If the token request cannot be made.
+        """
         websession = await self._async_get_websession()
-        async with websession.post(ENDPOINT_TOKEN, data=form_data) as response:
-            if response.status != 200:
-                raise ViAuthError(f"Failed to {action}: {await response.text()}")
-            self._update_tokens(await _read_token_response(response))
+        try:
+            async with websession.post(ENDPOINT_TOKEN, data=form_data) as response:
+                if response.status != 200:
+                    raise ViAuthError(f"Failed to {action}: {await response.text()}")
+                self._update_tokens(await _read_token_response(response))
+        except (TimeoutError, aiohttp.ClientError) as error:
+            raise ViConnectionError(f"Network error: {error}") from error
 
     async def async_exchange_code_for_tokens(self, code: str) -> None:
         """Exchange an authorization code for tokens and store them.
@@ -178,6 +187,7 @@ class OAuth(AbstractAuth):
         Raises:
             ViAuthError: If `get_authorization_url` was not called first or the
                 token endpoint rejects the code.
+            ViConnectionError: If the token endpoint cannot be reached.
         """
         if not self._pkce_verifier:
             raise ViAuthError(
@@ -216,6 +226,7 @@ class OAuth(AbstractAuth):
 
         Raises:
             ViAuthError: If the refresh token is unavailable or rejected.
+            ViConnectionError: If the token endpoint cannot be reached.
         """
         refresh_task = self._refresh_task
         if refresh_task is None or refresh_task.done():
@@ -236,6 +247,7 @@ class OAuth(AbstractAuth):
                 await asyncio.shield(refresh_task)
             except (
                 ViAuthError,
+                ViConnectionError,
                 aiohttp.ClientError,
                 OSError,
                 TimeoutError,
@@ -253,6 +265,8 @@ class OAuth(AbstractAuth):
 
         Raises:
             ViAuthError: If no usable token is stored or the refresh fails.
+            ViConnectionError: If a needed refresh cannot reach the token
+                endpoint.
         """
         if not self._token_info:
             raise ViAuthError("No tokens loaded. Please authenticate first.")

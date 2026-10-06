@@ -39,6 +39,7 @@ from vi_api_client import (
     JsonValue,
     FixtureViClient,
     OAuth,
+    ScheduleConstraints,
     ValidationDetail,
     ViAuthError,
     ViClient,
