@@ -216,12 +216,13 @@ become numbers, `true`/`false` become booleans, and text values such as `auto`
 or `01` remain strings. It then validates the value against the feature constraints.
 
 A schedule takes the whole weekly plan as one JSON object, in the same shape
-that `get-feature` reads. Days left out of the object are sent as given, so
-include every day the plan should keep:
+that `get-feature` reads. The plan must contain all seven days; a day without
+slots is an empty list:
 
 ```bash
 vi-client set heating.dhw.pumps.circulation.schedule \
-  '{"mon": [{"start": "06:00", "end": "22:00", "mode": "on", "position": 0}]}'
+  '{"mon": [{"start": "06:00", "end": "22:00", "mode": "on", "position": 0}],
+    "tue": [], "wed": [], "thu": [], "fri": [], "sat": [], "sun": []}'
 ```
 
 The CLI checks the plan against the rules the device reports (slots per day,

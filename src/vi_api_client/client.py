@@ -34,7 +34,7 @@ _DEVICE_SPECIFIC_ERROR_TYPES = frozenset(
     {"DEVICE_COMMUNICATION_ERROR", "DEVICE_NOT_FOUND", "PACKAGE_NOT_PAID_FOR"}
 )
 
-_SCHEDULE_DAYS = frozenset({"mon", "tue", "wed", "thu", "fri", "sat", "sun"})
+_SCHEDULE_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _SCHEDULE_TIME_PATTERN = re.compile(r"([01][0-9]|2[0-4]):([0-5][0-9])")
 
 # Float modulo can land just below the step (0.3 % 0.1 is about 0.1), so a
@@ -827,11 +827,12 @@ class ViClient:
     ) -> None:
         """Validate a weekly plan against the general shape and the API rules.
 
-        A plan maps weekdays to lists of time slots with ``start`` and ``end``
-        times in ``HH:MM``; ``24:00`` ends a slot at midnight. The rules the
-        API reports per schedule (slot count, modes, time grid, overlaps) are
-        checked when present. Other slot fields such as ``position`` are left
-        to the API.
+        A plan maps every weekday to a list of time slots with ``start`` and
+        ``end`` times in ``HH:MM``; ``24:00`` ends a slot at midnight. The API
+        replaces the whole plan, so all seven days are required; a day without
+        slots is an empty list. The rules the API reports per schedule (slot
+        count, modes, time grid, overlaps) are checked when present. Other slot
+        fields such as ``position`` are left to the API.
 
         Raises:
             ValueError: If the plan violates its shape or a reported rule.
@@ -849,23 +850,7 @@ class ViClient:
                     f"Schedule day '{day}' has {len(slots)} slots, "
                     f"at most {rules.max_entries} are allowed"
                 )
-            slot_times: list[tuple[int, int]] = []
-            for slot in slots:
-                if not isinstance(slot, dict):
-                    raise ValueError(f"Schedule day '{day}' slots must be objects")
-                start = _schedule_minutes(slot.get("start"), day, rules.resolution)
-                end = _schedule_minutes(slot.get("end"), day, rules.resolution)
-                if start >= end:
-                    raise ValueError(
-                        f"Schedule day '{day}' slot must start before it ends"
-                    )
-                mode = slot.get("mode")
-                if rules.modes is not None and mode not in rules.modes:
-                    raise ValueError(
-                        f"Schedule day '{day}' mode {mode!r} is not one of "
-                        f"{list(rules.modes)}"
-                    )
-                slot_times.append((start, end))
+            slot_times = [_schedule_slot_times(slot, day, rules) for slot in slots]
             if rules.overlap_allowed is False:
                 ordered_times = sorted(slot_times)
                 for (_, previous_end), (next_start, _) in itertools.pairwise(
@@ -873,6 +858,12 @@ class ViClient:
                 ):
                     if next_start < previous_end:
                         raise ValueError(f"Schedule day '{day}' slots overlap")
+        missing_days = [day for day in _SCHEDULE_DAYS if day not in value]
+        if missing_days:
+            raise ValueError(
+                f"Schedule must contain every weekday, missing: "
+                f"{', '.join(missing_days)}"
+            )
 
     async def _send_command(
         self, control: FeatureControl, payload: dict[str, JsonValue]
@@ -893,6 +884,29 @@ class ViClient:
         return CommandResponse.from_api(
             self._response_object(response, resource="Command")
         )
+
+
+def _schedule_slot_times(
+    slot: JsonValue, day: str, rules: ScheduleConstraints
+) -> tuple[int, int]:
+    """Return a slot's start and end in minutes after checking its fields.
+
+    Raises:
+        ValueError: If the slot is not an object, its times are invalid or out
+            of order, or its mode is not one of the reported modes.
+    """
+    if not isinstance(slot, dict):
+        raise ValueError(f"Schedule day '{day}' slots must be objects")
+    start = _schedule_minutes(slot.get("start"), day, rules.resolution)
+    end = _schedule_minutes(slot.get("end"), day, rules.resolution)
+    if start >= end:
+        raise ValueError(f"Schedule day '{day}' slot must start before it ends")
+    mode = slot.get("mode")
+    if rules.modes is not None and mode not in rules.modes:
+        raise ValueError(
+            f"Schedule day '{day}' mode {mode!r} is not one of {list(rules.modes)}"
+        )
+    return start, end
 
 
 def _schedule_minutes(time_text: object, day: str, resolution: int | None) -> int:

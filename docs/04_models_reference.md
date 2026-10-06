@@ -161,7 +161,9 @@ A schedule feature's value is the weekly plan itself, a mapping from `mon` to
 `{"start": "06:00", "end": "22:00", "mode": "normal", "position": 0}`. Whether
 the plan is currently in effect is the separate read-only feature
 `<schedule name>.active`. `set_feature` takes a plan of the same shape and
-checks it before sending: days must be `mon` to `sun`, times `HH:MM` up to
+checks it before sending: the plan must contain all seven days `mon` to `sun`
+(a day without slots is an empty list), because the API replaces the whole
+plan; times must be `HH:MM` up to
 `24:00` on the reported grid, each slot must start before it ends, and the
 slot count, modes, and overlaps must follow the reported rules. A violation
 raises `ValueError` without a request.

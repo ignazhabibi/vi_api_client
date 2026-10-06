@@ -470,9 +470,18 @@ def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
     )
 
 
-def _slot(start: str, end: str, mode: str = "on") -> dict[str, JsonValue]:
+def _slot(start: str, end: str, mode: str = "on") -> JsonValue:
     """Build one schedule time slot."""
     return {"start": start, "end": end, "mode": mode, "position": 0}
+
+
+def _week(**days: JsonValue) -> dict[str, JsonValue]:
+    """Build a full weekly plan with the given days and empty other days."""
+    plan: dict[str, JsonValue] = {
+        day: [] for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+    plan.update(days)
+    return plan
 
 
 async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
@@ -483,10 +492,7 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     control = _schedule_control()
     schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
     device = _device([schedule])
-    plan: FeatureValue = {
-        "mon": [_slot("05:30", "09:00"), _slot("18:30", "24:00")],
-        "sun": [],
-    }
+    plan: FeatureValue = _week(mon=[_slot("05:30", "09:00"), _slot("18:30", "24:00")])
 
     # Act: Write the plan.
     response, updated_device = await client.set_feature(device, schedule, plan)
@@ -503,38 +509,43 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     ("plan", "error"),
     [
         pytest.param([], "must be an object", id="not-an-object"),
-        pytest.param({"monday": []}, "not one of mon to sun", id="unknown-day"),
-        pytest.param({"mon": {}}, "must be a list", id="day-not-a-list"),
-        pytest.param({"mon": ["05:30"]}, "must be objects", id="slot-not-an-object"),
+        pytest.param(_week(monday=[]), "not one of mon to sun", id="unknown-day"),
         pytest.param(
-            {"mon": [_slot("5:30", "09:00")]}, "HH:MM", id="time-without-padding"
+            {"mon": [], "tue": []},
+            "missing: wed, thu, fri, sat, sun",
+            id="missing-days",
         ),
-        pytest.param({"mon": [_slot("05:30", "24:10")]}, "after 24:00", id="past-24"),
+        pytest.param(_week(mon={}), "must be a list", id="day-not-a-list"),
+        pytest.param(_week(mon=["05:30"]), "must be objects", id="slot-not-an-object"),
         pytest.param(
-            {"mon": [{"end": "09:00", "mode": "on"}]}, "HH:MM", id="start-missing"
+            _week(mon=[_slot("5:30", "09:00")]), "HH:MM", id="time-without-padding"
+        ),
+        pytest.param(_week(mon=[_slot("05:30", "24:10")]), "after 24:00", id="past-24"),
+        pytest.param(
+            _week(mon=[{"end": "09:00", "mode": "on"}]), "HH:MM", id="start-missing"
         ),
         pytest.param(
-            {"mon": [_slot("09:00", "05:30")]},
+            _week(mon=[_slot("09:00", "05:30")]),
             "start before it ends",
             id="end-before-start",
         ),
         pytest.param(
-            {"mon": [_slot("05:00", "06:00")] * 3},
+            _week(mon=[_slot("05:00", "06:00")] * 3),
             "at most 2",
             id="too-many-slots",
         ),
         pytest.param(
-            {"mon": [_slot("05:00", "06:00", "comfort")]},
+            _week(mon=[_slot("05:00", "06:00", "comfort")]),
             "'comfort' is not one of",
             id="unknown-mode",
         ),
         pytest.param(
-            {"mon": [_slot("05:35", "06:00")]},
+            _week(mon=[_slot("05:35", "06:00")]),
             "10-minute grid",
             id="off-grid",
         ),
         pytest.param(
-            {"mon": [_slot("08:00", "10:00"), _slot("05:00", "08:10")]},
+            _week(mon=[_slot("08:00", "10:00"), _slot("05:00", "08:10")]),
             "overlap",
             id="overlapping-slots",
         ),
@@ -561,9 +572,9 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
     control = _schedule_control(rules=None)
     schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
     device = _device([schedule])
-    plan: FeatureValue = {
-        "mon": [_slot("08:00", "10:00", "comfort"), _slot("09:05", "11:00", "x")]
-    }
+    plan: FeatureValue = _week(
+        mon=[_slot("08:00", "10:00", "comfort"), _slot("09:05", "11:00", "x")]
+    )
 
     # Act: Write the plan.
     response, _ = await client.set_feature(device, schedule, plan)
@@ -578,7 +589,7 @@ async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
     client = _create_client(adapter)
     schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
     device = _device([schedule])
-    plan: FeatureValue = {"mon": [_slot("06:00", "08:00"), _slot("08:00", "09:00")]}
+    plan: FeatureValue = _week(mon=[_slot("06:00", "08:00"), _slot("08:00", "09:00")])
 
     response, _ = await client.set_feature(device, schedule, plan)
 
