@@ -766,8 +766,14 @@ class ViClient:
             value: The JSON value to check.
 
         Raises:
-            ValueError: If value violates any constraints.
+            ValueError: If value has the wrong type for the command parameter
+                or violates any constraints.
         """
+        if not _matches_value_type(control.value_type, value):
+            raise ValueError(
+                f"Value {value!r} is not of type '{control.value_type}' "
+                f"expected by command '{control.command_name}'"
+            )
         if control.options and value not in control.options:
             raise ValueError(
                 f"Value {value} is not in allowed options: {control.options}"
@@ -884,6 +890,29 @@ class ViClient:
         return CommandResponse.from_api(
             self._response_object(response, resource="Command")
         )
+
+
+def _matches_value_type(value_type: str | None, value: FeatureValue) -> bool:
+    """Return whether a value fits the command parameter's reported type.
+
+    Unknown or missing types are not checked. Booleans never count as numbers,
+    and an integer parameter also accepts a whole-number float such as ``2.0``.
+    """
+    if isinstance(value, bool):
+        return value_type not in {"number", "integer", "string"}
+    match value_type:
+        case "number":
+            return isinstance(value, int | float)
+        case "integer":
+            return isinstance(value, int) or (
+                isinstance(value, float) and value.is_integer()
+            )
+        case "string":
+            return isinstance(value, str)
+        case "boolean":
+            return False
+        case _:
+            return True
 
 
 def _schedule_slot_times(

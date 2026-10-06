@@ -594,3 +594,64 @@ async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
     response, _ = await client.set_feature(device, schedule, plan)
 
     assert response.success
+
+
+@pytest.mark.parametrize(
+    ("value_type", "target_value"),
+    [
+        pytest.param("number", True, id="boolean-as-number"),
+        pytest.param("number", "21.5", id="text-as-number"),
+        pytest.param("integer", 1.5, id="fraction-as-integer"),
+        pytest.param("integer", False, id="boolean-as-integer"),
+        pytest.param("string", 1, id="number-as-string"),
+        pytest.param("string", True, id="boolean-as-string"),
+        pytest.param("boolean", 1, id="number-as-boolean"),
+        pytest.param("boolean", "true", id="text-as-boolean"),
+    ],
+)
+async def test_set_feature_rejects_values_of_the_wrong_parameter_type(
+    value_type: str, target_value: FeatureValue
+):
+    """A value of a different type than the command expects is not sent."""
+    # Arrange: The command reports the type of its parameter.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = replace(_control(), value_type=value_type)
+    target = build_feature("heating.mode.target", "old", control)
+    device = _device([target])
+
+    # Act and assert: The type mismatch rejects before I/O.
+    with pytest.raises(ValueError, match=f"not of type '{value_type}'"):
+        await client.set_feature(device, target, target_value)
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize(
+    ("value_type", "target_value"),
+    [
+        pytest.param("number", 21, id="integer-as-number"),
+        pytest.param("number", 21.5, id="float-as-number"),
+        pytest.param("integer", 2.0, id="whole-float-as-integer"),
+        pytest.param("string", "eco", id="text-as-string"),
+        pytest.param("boolean", True, id="boolean-as-boolean"),
+        pytest.param(None, True, id="no-reported-type"),
+        pytest.param("array", [1, 2], id="unchecked-type"),
+    ],
+)
+async def test_set_feature_sends_values_of_the_reported_parameter_type(
+    value_type: str | None, target_value: FeatureValue
+):
+    """Values that fit the reported type, or an unchecked type, are sent."""
+    # Arrange: The command reports a type, an unchecked type, or none.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = replace(_control(), value_type=value_type)
+    target = build_feature("heating.mode.target", "old", control)
+    device = _device([target])
+
+    # Act: Write the value.
+    response, _ = await client.set_feature(device, target, target_value)
+
+    # Assert: The command is sent with the value.
+    assert response.success
+    assert adapter.calls == [(control, {"target": target_value})]

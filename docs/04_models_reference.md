@@ -98,6 +98,12 @@ A feature is one flat, addressable device property with its reported value and
 capabilities. A writable feature reports `is_writable=True` and has
 `FeatureControl` metadata describing how a feature command can target it.
 
+`is_writable` says that the API offers a command for the feature. It stays
+`True` while the feature is disabled or not ready, so a writable feature is a
+stable capability, not a promise that a write succeeds right now. Check
+`is_enabled` and `is_ready` too before writing; `set_feature` raises
+`ValueError` otherwise.
+
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
@@ -105,7 +111,7 @@ capabilities. A writable feature reports `is_writable=True` and has
 | `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
-| `is_writable` | `bool` | `True` if this feature can be modified. | `True` |
+| `is_writable` | `bool` | `True` if the API offers a command that changes this feature. | `True` |
 | `control` | `FeatureControl \| None` | Metadata for writing to this feature. | `FeatureControl(...)` |
 
 ### Formatting Values
