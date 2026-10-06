@@ -305,7 +305,9 @@ The parser also associates command metadata with the correct feature. Only a
 parameter explicitly marked `required: false` is optional. If the flag is
 absent, the parameter is treated as required to avoid incomplete commands.
 Complex structures such as schedules remain one value when further splitting
-would lose their meaning.
+would lose their meaning. A schedule feature's value is the weekly plan from
+its `entries` property, the shape `setSchedule` writes, and its other
+properties such as `active` become their own read-only flat features.
 
 ## 8. Read workflow
 
@@ -569,7 +571,9 @@ flowchart TD
 `CredentialDocument` is the single owner of the shared OAuth and CLI JSON
 file. A missing file is empty; corrupted JSON raises and remains intact.
 Updates preserve unknown fields, write a temporary sibling, set mode `0600`,
-and use `os.replace()`.
+and use `os.replace()`. Its methods are synchronous; `OAuth` calls them in a
+worker thread, reading on the first token request rather than at construction,
+so file access never blocks the event loop.
 
 Atomic replacement ensures readers see either the complete old or complete new
 file, never a partial write. It does not coordinate in-memory tokens across

@@ -4,6 +4,7 @@ import pytest
 from builders import load_fixture_json
 
 from vi_api_client.exceptions import ViResponseError
+from vi_api_client.models import ScheduleConstraints
 from vi_api_client.parsing import api_feature_to_flat_features
 
 
@@ -418,7 +419,10 @@ def _schedule_feature(commands: dict[str, dict]) -> dict:
     """Build one heating schedule API feature with the given commands."""
     return {
         "feature": "heating.circuits.0.heating.schedule",
-        "properties": {"entries": {"type": "Schedule", "value": {"mon": []}}},
+        "properties": {
+            "active": {"type": "boolean", "value": True},
+            "entries": {"type": "Schedule", "value": {"mon": []}},
+        },
         "commands": {
             name: {"uri": f"/commands/{name}", **command}
             for name, command in commands.items()
@@ -518,8 +522,8 @@ def test_property_metadata_fills_missing_parameter_constraints():
     assert control.pattern == "^[A-Z]"
 
 
-def test_schedule_features_are_written_as_one_object_without_scalar_limits():
-    """A schedule is one writable feature whose command takes the whole object."""
+def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
+    """A schedule reads in the shape its command writes: the plan itself."""
     # Arrange: A schedule feature with a command writing the 'newSchedule' parameter.
     raw_feature = _schedule_feature(
         {
@@ -537,11 +541,16 @@ def test_schedule_features_are_written_as_one_object_without_scalar_limits():
     # Act: Parse the API feature.
     features = api_feature_to_flat_features(raw_feature)
 
-    # Assert: One feature keeps the whole value and writes the schedule parameter.
-    assert len(features) == 1
-    assert features[0].name == "heating.circuits.0.heating.schedule"
-    assert features[0].value == {"entries": {"type": "Schedule", "value": {"mon": []}}}
-    control = features[0].control
+    # Assert: The plan is the schedule value; 'active' is a read-only feature.
+    assert [feature.name for feature in features] == [
+        "heating.circuits.0.heating.schedule",
+        "heating.circuits.0.heating.schedule.active",
+    ]
+    schedule, active = features
+    assert schedule.value == {"mon": []}
+    assert active.value is True
+    assert active.control is None
+    control = schedule.control
     assert control is not None
     assert control.command_name == "setSchedule"
     assert control.param_name == "newSchedule"
@@ -552,6 +561,127 @@ def test_schedule_features_are_written_as_one_object_without_scalar_limits():
         None,
         None,
     )
+
+
+def test_schedule_control_carries_the_reported_schedule_rules():
+    """The rules of the schedule command parameter become schedule constraints."""
+    # Arrange: The schedule command reports all known schedule rules.
+    raw_feature = _schedule_feature(
+        {
+            "setSchedule": {
+                "params": {
+                    "newSchedule": {
+                        "type": "Schedule",
+                        "constraints": {
+                            "defaultMode": "off",
+                            "maxEntries": 4,
+                            "modes": ["on"],
+                            "overlapAllowed": False,
+                            "resolution": 10,
+                        },
+                    }
+                },
+            }
+        }
+    )
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: Every rule is available on the control.
+    assert control is not None
+    assert control.schedule == ScheduleConstraints(
+        max_entries=4,
+        modes=("on",),
+        resolution=10,
+        overlap_allowed=False,
+        default_mode="off",
+    )
+
+
+def test_schedule_control_without_reported_rules_has_no_schedule_constraints():
+    raw_feature = _schedule_feature(
+        {"setSchedule": {"params": {"newSchedule": {"type": "Schedule"}}}}
+    )
+
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    assert control is not None
+    assert control.schedule is None
+
+
+@pytest.mark.parametrize(
+    ("constraints", "error"),
+    [
+        pytest.param({"maxEntries": "4"}, "maxEntries", id="max-entries-text"),
+        pytest.param({"maxEntries": 0}, "maxEntries", id="max-entries-zero"),
+        pytest.param({"resolution": True}, "resolution", id="resolution-boolean"),
+        pytest.param({"modes": "on"}, "modes", id="modes-not-a-list"),
+        pytest.param({"modes": ["on", 1]}, "modes", id="modes-not-text"),
+        pytest.param({"overlapAllowed": "no"}, "overlapAllowed", id="overlap-text"),
+        pytest.param({"defaultMode": 0}, "defaultMode", id="default-mode-number"),
+    ],
+)
+def test_malformed_schedule_rules_are_rejected(constraints, error):
+    raw_feature = _schedule_feature(
+        {
+            "setSchedule": {
+                "params": {
+                    "newSchedule": {"type": "Schedule", "constraints": constraints}
+                }
+            }
+        }
+    )
+
+    with pytest.raises(ViResponseError, match=error):
+        api_feature_to_flat_features(raw_feature)
+
+
+def test_command_requiring_the_value_is_preferred_over_one_taking_it_optionally():
+    """'activate(temperature)' switches a program on, so 'setTemperature' writes it."""
+    # Arrange: 'activate' comes first and takes the temperature only optionally.
+    raw_feature = {
+        "feature": "heating.circuits.0.operating.programs.comfort",
+        "properties": {"temperature": {"type": "number", "value": 20}},
+        "commands": {
+            "activate": {
+                "uri": "/commands/activate",
+                "params": {"temperature": {"type": "number", "required": False}},
+            },
+            "setTemperature": {
+                "uri": "/commands/setTemperature",
+                "params": {"targetTemperature": {"type": "number", "required": True}},
+            },
+        },
+    }
+
+    # Act: Parse the API feature.
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    # Assert: The temperature is written through 'setTemperature'.
+    assert control is not None
+    assert (control.command_name, control.param_name) == (
+        "setTemperature",
+        "targetTemperature",
+    )
+
+
+def test_command_taking_the_value_optionally_is_used_when_it_is_the_only_one():
+    raw_feature = {
+        "feature": "heating.circuits.0.operating.programs.comfort",
+        "properties": {"temperature": {"type": "number", "value": 20}},
+        "commands": {
+            "activate": {
+                "uri": "/commands/activate",
+                "params": {"temperature": {"type": "number", "required": False}},
+            },
+        },
+    }
+
+    control = api_feature_to_flat_features(raw_feature)[0].control
+
+    assert control is not None
+    assert (control.command_name, control.param_name) == ("activate", "temperature")
 
 
 def test_non_executable_schedule_commands_do_not_make_schedules_writable():

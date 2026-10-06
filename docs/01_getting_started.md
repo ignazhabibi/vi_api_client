@@ -124,8 +124,8 @@ async def set_heating_mode(client, device):
         print("Feature not found")
         return
 
-    # 2. Check if writable
-    if feature.is_writable:
+    # 2. Check that it is writable and currently available
+    if feature.is_writable and feature.is_enabled and feature.is_ready:
         print(f"Setting mode to 'heating'...")
 
         # 3. Execute High-Level Set

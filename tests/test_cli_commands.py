@@ -114,6 +114,12 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
         pytest.param("boolean", "TRUE", True, id="boolean-true"),
         pytest.param("boolean", "false", False, id="boolean-false"),
         pytest.param("integer", "2", 2, id="integer"),
+        pytest.param(
+            "Schedule",
+            '{"mon": [{"start": "06:00", "end": "22:00", "mode": "on"}]}',
+            {"mon": [{"start": "06:00", "end": "22:00", "mode": "on"}]},
+            id="schedule-json",
+        ),
     ],
 )
 async def test_cmd_set_converts_typed_command_values(
@@ -158,6 +164,21 @@ async def test_cmd_set_rejects_malformed_typed_values(
     captured = capsys.readouterr()
     assert f"Validation failed: Value '{raw_value}'" in captured.out
     assert message in captured.out
+    mock_cli_context.client.set_feature.assert_not_called()
+
+
+async def test_cmd_set_rejects_schedules_that_are_not_json(mock_cli_context, capsys):
+    """A schedule value that is not JSON should be rejected without a write."""
+    # Arrange: Provide a writable schedule feature.
+    args = _cli_args("set", "heating.curve.slope", "mon 06:00-22:00")
+    feature = build_feature(control=_control(value_type="Schedule"))
+    mock_cli_context.client.get_features.return_value = [feature]
+
+    # Act: Submit a schedule that is not JSON.
+    assert await cmd_set(args) is False
+
+    # Assert: The validation failure asks for JSON and no write is sent.
+    assert "must be a JSON schedule object" in capsys.readouterr().out
     mock_cli_context.client.set_feature.assert_not_called()
 
 

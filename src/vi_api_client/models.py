@@ -98,6 +98,30 @@ def _parse_next_cursor(data: dict[str, Any]) -> str | None:
 
 
 @dataclass(frozen=True)
+class ScheduleConstraints:
+    """Rules the API reports for writing a schedule.
+
+    Attributes:
+        max_entries: Maximum number of time slots per day.
+        modes: Read-only modes a time slot may use.
+        resolution: Grid in minutes that slot start and end times must follow.
+        overlap_allowed: Whether time slots of one day may overlap.
+        default_mode: Mode that applies outside the time slots.
+    """
+
+    max_entries: int | None = None
+    modes: Sequence[str] | None = None
+    resolution: int | None = None
+    overlap_allowed: bool | None = None
+    default_mode: str | None = None
+
+    def __post_init__(self) -> None:
+        """Store caller-owned mode sequences as immutable snapshots."""
+        if self.modes is not None:
+            object.__setattr__(self, "modes", tuple(self.modes))
+
+
+@dataclass(frozen=True)
 class FeatureControl:
     """Command metadata for a writable feature, not an executed command.
 
@@ -118,6 +142,7 @@ class FeatureControl:
         min_length: Minimum length of string value.
         max_length: Maximum length of string value.
         pattern: Regex pattern for string validation.
+        schedule: Rules for writing a schedule, if the API reports them.
     """
 
     command_name: str
@@ -133,6 +158,7 @@ class FeatureControl:
     min_length: int | None = None
     max_length: int | None = None
     pattern: str | None = None
+    schedule: ScheduleConstraints | None = None
 
     def __post_init__(self) -> None:
         """Store caller-owned sequences as immutable snapshots."""

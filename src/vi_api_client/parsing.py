@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, cast
 
 from ._types import JsonValue
 from .exceptions import ViResponseError
-from .models import Feature, FeatureControl
+from .models import Feature, FeatureControl, ScheduleConstraints
 from .validation import validate_json_value
 
 # Keys that indicate complex data structures which should NOT be flattened.
@@ -64,9 +64,11 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
     """Parse one API feature into its flat features.
 
     One API feature (e.g. 'heating.circuits.0') can produce several flat
-    features (e.g. '...active', '...name'). An API feature whose properties
-    hold schedules or time series stays one feature with its whole property
-    object as value.
+    features (e.g. '...active', '...name'). A schedule becomes one feature
+    whose value is the weekly plan itself, the same shape its command writes;
+    its other properties become flat features of their own. An API feature
+    whose properties hold time series or other complex data stays one feature
+    with its whole property object as value.
 
     Args:
         api_feature: The raw JSON object of one API feature.
@@ -79,6 +81,24 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
     """
     entry = validate_feature_entry(api_feature)
     api_feature_name, properties = entry.name, entry.properties
+
+    schedule_entries = properties.get("entries")
+    if (
+        isinstance(schedule_entries, dict)
+        and schedule_entries.get("type") == "Schedule"
+    ):
+        schedule_feature = Feature(
+            name=api_feature_name,
+            value=schedule_entries.get("value"),
+            unit=None,
+            is_enabled=entry.is_enabled,
+            is_ready=entry.is_ready,
+            control=_find_control_for_complex_feature(api_feature_name, entry.commands),
+        )
+        other_properties = {
+            key: value for key, value in properties.items() if key != "entries"
+        }
+        return [schedule_feature, *_flat_property_features(entry, other_properties)]
 
     if not set(properties).isdisjoint(COMPLEX_DATA_INDICATORS):
         control = _find_control_for_complex_feature(api_feature_name, entry.commands)
@@ -102,6 +122,13 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
         )
         return features
 
+    return _flat_property_features(entry, properties)
+
+
+def _flat_property_features(
+    entry: ValidatedApiFeature, properties: dict[str, JsonValue]
+) -> list[Feature]:
+    """Return one flat feature per value-carrying property."""
     default_unit = properties.get("unit")
     if not isinstance(default_unit, str):
         default_unit = None
@@ -110,11 +137,9 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
     for key in _feature_property_keys(properties):
         property_data = properties[key]
         # The "value" property carries the API feature's own value.
-        feature_name = (
-            api_feature_name if key == "value" else f"{api_feature_name}.{key}"
-        )
+        feature_name = entry.name if key == "value" else f"{entry.name}.{key}"
         value, unit = _extract_value_and_unit(property_data, default_unit)
-        control = _find_control(key, entry.commands, api_feature_name, property_data)
+        control = _find_control(key, entry.commands, entry.name, property_data)
         features.append(
             Feature(
                 name=feature_name,
@@ -256,12 +281,38 @@ def _validate_constraint_values(constraints: dict[str, Any]) -> None:
         value = constraints.get(name)
         if value is not None and not isinstance(value, str):
             raise ViResponseError(f"Feature constraint {name} must be a string")
+    _validate_schedule_constraint_values(constraints)
     enum = constraints.get("enum")
     if enum is not None:
         if not isinstance(enum, list):
             raise ViResponseError("Feature constraint enum must be a list")
         # Runtime-checked container; enum members follow the JSON contract.
         validate_json_value(cast("list[object]", enum), path="Feature constraint enum")
+
+
+def _validate_schedule_constraint_values(constraints: dict[str, Any]) -> None:
+    """Validate the known schedule rule shapes of one constraint object."""
+    max_entries = constraints.get("maxEntries")
+    resolution = constraints.get("resolution")
+    for name, value in (("maxEntries", max_entries), ("resolution", resolution)):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 1
+        ):
+            raise ViResponseError(
+                f"Feature constraint {name} must be a positive integer"
+            )
+    modes = constraints.get("modes")
+    if modes is not None and (
+        not isinstance(modes, list)
+        or not all(isinstance(mode, str) for mode in cast("list[object]", modes))
+    ):
+        raise ViResponseError("Feature constraint modes must be a list of strings")
+    overlap_allowed = constraints.get("overlapAllowed")
+    if overlap_allowed is not None and not isinstance(overlap_allowed, bool):
+        raise ViResponseError("Feature constraint overlapAllowed must be a boolean")
+    default_mode = constraints.get("defaultMode")
+    if default_mode is not None and not isinstance(default_mode, str):
+        raise ViResponseError("Feature constraint defaultMode must be a string")
 
 
 def _build_consumption_alias_features(
@@ -350,6 +401,10 @@ def _find_control(
     Returns:
         FeatureControl command metadata if a matching command is found, else None.
     """
+    # A command whose matching parameter is optional only writes the value on
+    # the side, e.g. 'activate(temperature)' switches a program on; a command
+    # that requires the parameter, such as 'setTemperature', is preferred.
+    optional_parameter_control: FeatureControl | None = None
     for command_name, command in commands.items():
         if not command.get("isExecutable", True):
             continue
@@ -357,11 +412,14 @@ def _find_control(
         params = command.get("params", {})
         target_param = _match_parameter(property_key, params, command_name)
         if target_param:
-            return _build_control(
+            control = _build_control(
                 command_name, command, target_param, api_feature_name, property_data
             )
+            if params[target_param].get("required") is not False:
+                return control
+            optional_parameter_control = optional_parameter_control or control
 
-    return None
+    return optional_parameter_control
 
 
 def _build_control(
@@ -498,14 +556,33 @@ def _find_control_for_complex_feature(
             None,
         )
         if target_param:
+            parameter = params[target_param]
             return FeatureControl(
                 command_name=command_name,
                 param_name=target_param,
                 required_params=_get_required_params(params),
                 parent_feature_name=api_feature_name,
                 uri=command.get("uri", ""),
-                value_type=params[target_param].get("type"),
+                value_type=parameter.get("type"),
                 # A schedule is written as one object, so the scalar
                 # constraints (min, max, step, options) do not apply.
+                schedule=_build_schedule_constraints(parameter.get("constraints", {})),
             )
     return None
+
+
+def _build_schedule_constraints(
+    constraints: dict[str, Any],
+) -> ScheduleConstraints | None:
+    """Return the schedule rules of a command parameter, if it reports any."""
+    # The constraint shapes were validated by validate_feature_entry.
+    schedule_constraints = ScheduleConstraints(
+        max_entries=constraints.get("maxEntries"),
+        modes=constraints.get("modes"),
+        resolution=constraints.get("resolution"),
+        overlap_allowed=constraints.get("overlapAllowed"),
+        default_mode=constraints.get("defaultMode"),
+    )
+    if schedule_constraints == ScheduleConstraints():
+        return None
+    return schedule_constraints

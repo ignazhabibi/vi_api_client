@@ -196,7 +196,9 @@ successful command response, without an API read-back.
         locally on success, or the original snapshot on failure.
 *   **Raises**:
     *   `ValueError` if the feature is absent from the device, unavailable,
-        missing a required enabled and ready sibling value, violates
+        missing a required enabled and ready sibling value, has a different
+        type than the command parameter reports (`number`, `integer`,
+        `string`, or `boolean`; a boolean never counts as a number), violates
         client-side constraints, or a command parameter value is not a JSON
         value.
     *   `ViValidationError` if the API rejects the generated command payload.

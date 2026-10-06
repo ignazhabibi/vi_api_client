@@ -30,15 +30,18 @@ from vi_api_client import (
     Device,
     ENDPOINT_AUTHORIZE,
     ENDPOINT_TOKEN,
+    EventHistoryPage,
     Feature,
     FeatureControl,
     FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    InstallationEvent,
     JsonValue,
     FixtureViClient,
     OAuth,
+    ScheduleConstraints,
     ValidationDetail,
     ViAuthError,
     ViClient,
@@ -130,6 +133,10 @@ vi-client list-events --days 7
 See [CLI Reference](docs/06_cli_reference.md) for more details.
 
 ### Python Code
+
+The example reads tokens from `tokens.json`. Create that file once with
+`vi-client login`, or log in from Python as shown in the
+[Authentication reference](docs/03_auth_reference.md#first-login).
 
 ```python
 import asyncio

@@ -15,6 +15,7 @@ from vi_api_client import (
     GatewayDeviceRefreshResult,
     Installation,
     JsonValue,
+    ScheduleConstraints,
     ValidationDetail,
     format_feature,
     validate_json_value,
@@ -97,6 +98,12 @@ A feature is one flat, addressable device property with its reported value and
 capabilities. A writable feature reports `is_writable=True` and has
 `FeatureControl` metadata describing how a feature command can target it.
 
+`is_writable` says that the API offers a command for the feature. It stays
+`True` while the feature is disabled or not ready, so a writable feature is a
+stable capability, not a promise that a write succeeds right now. Check
+`is_enabled` and `is_ready` too before writing; `set_feature` raises
+`ValueError` otherwise.
+
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
@@ -104,7 +111,7 @@ capabilities. A writable feature reports `is_writable=True` and has
 | `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
-| `is_writable` | `bool` | `True` if this feature can be modified. | `True` |
+| `is_writable` | `bool` | `True` if the API offers a command that changes this feature. | `True` |
 | `control` | `FeatureControl \| None` | Metadata for writing to this feature. | `FeatureControl(...)` |
 
 ### Formatting Values
@@ -140,6 +147,32 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | `pattern` | `str \| None` | Regex the whole string value must match. | `'^[a-z]+$'` |
 | `min_length` | `int \| None` | Minimum string length. | `1` |
 | `max_length` | `int \| None` | Maximum string length. | `20` |
+| `schedule` | `ScheduleConstraints \| None` | Rules for writing a schedule, if the API reports them. | `ScheduleConstraints(max_entries=4, ...)` |
+
+## ScheduleConstraints
+
+Frozen rules the API reports for a `Schedule` command parameter. Any field the
+API does not report is `None`, and the matching rule is not checked.
+
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `max_entries` | `int \| None` | Most time slots allowed per day. | `4` |
+| `modes` | `Sequence[str] \| None` | Read-only modes a slot may use. | `('normal', 'comfort')` |
+| `resolution` | `int \| None` | Minute grid that slot times must fall on. | `10` |
+| `overlap_allowed` | `bool \| None` | Whether slots on one day may overlap. | `False` |
+| `default_mode` | `str \| None` | Mode the device uses outside all slots. | `'reduced'` |
+
+A schedule feature's value is the weekly plan itself, a mapping from `mon` to
+`sun` to lists of slots such as
+`{"start": "06:00", "end": "22:00", "mode": "normal", "position": 0}`. Whether
+the plan is currently in effect is the separate read-only feature
+`<schedule name>.active`. `set_feature` takes a plan of the same shape and
+checks it before sending: the plan must contain all seven days `mon` to `sun`
+(a day without slots is an empty list), because the API replaces the whole
+plan; times must be `HH:MM` up to
+`24:00` on the reported grid, each slot must start before it ends, and the
+slot count, modes, and overlaps must follow the reported rules. A violation
+raises `ValueError` without a request.
 
 ## CommandResponse
 

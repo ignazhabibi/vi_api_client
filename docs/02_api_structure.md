@@ -69,7 +69,7 @@ A `Feature` object in this library represents a single property.
 | `name` | Unique identifier (e.g., `heating.sensors.temperature.outside`) |
 | `value` | The current value as a `FeatureValue` (e.g., `12.5` or `"on"`), following the recursive `JsonValue` contract |
 | `unit` | Unit of measurement, if any (`celsius`, `bar`, `percent`) |
-| `is_writable` | `True` if this value can be changed |
+| `is_writable` | `True` if the API offers a command that changes this value; writing also needs `is_enabled` and `is_ready` |
 | `control` | (Optional) Contains details on how to write to this feature |
 
 Responses are validated at the client's trust boundary: known malformed

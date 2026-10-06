@@ -8,7 +8,12 @@ from builders import StaticTokenAuth, build_feature
 
 from vi_api_client import FeatureValue, JsonValue
 from vi_api_client.client import ViClient
-from vi_api_client.models import Device, Feature, FeatureControl
+from vi_api_client.models import (
+    Device,
+    Feature,
+    FeatureControl,
+    ScheduleConstraints,
+)
 
 
 class _RecordingCommandAdapter:
@@ -445,3 +450,208 @@ async def test_execute_command_rejects_invalid_local_contract_without_adapter_io
     with pytest.raises(ValueError, match=error):
         await client.execute_command(feature, parameters)
     assert adapter.calls == []
+
+
+_SCHEDULE_RULES = ScheduleConstraints(
+    max_entries=2, modes=("on",), resolution=10, overlap_allowed=False
+)
+
+
+def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
+    """Build command metadata for writing a whole schedule."""
+    return FeatureControl(
+        command_name="setSchedule",
+        param_name="newSchedule",
+        required_params=["newSchedule"],
+        parent_feature_name="heating.dhw.schedule",
+        uri="/commands/setSchedule",
+        value_type="Schedule",
+        schedule=rules,
+    )
+
+
+def _slot(start: str, end: str, mode: str = "on") -> JsonValue:
+    """Build one schedule time slot."""
+    return {"start": start, "end": end, "mode": mode, "position": 0}
+
+
+def _week(**days: JsonValue) -> dict[str, JsonValue]:
+    """Build a full weekly plan with the given days and empty other days."""
+    plan: dict[str, JsonValue] = {
+        day: [] for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+    plan.update(days)
+    return plan
+
+
+async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
+    """A written plan is sent as is and becomes the snapshot value unchanged."""
+    # Arrange: A writable schedule and a plan within all reported rules.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = _schedule_control()
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    device = _device([schedule])
+    plan: FeatureValue = _week(mon=[_slot("05:30", "09:00"), _slot("18:30", "24:00")])
+
+    # Act: Write the plan.
+    response, updated_device = await client.set_feature(device, schedule, plan)
+
+    # Assert: The plan is sent and read back in the same shape.
+    assert response.success
+    assert adapter.calls == [(control, {"newSchedule": plan})]
+    updated_schedule = updated_device.get_feature("heating.dhw.schedule")
+    assert updated_schedule is not None
+    assert updated_schedule.value == plan
+
+
+@pytest.mark.parametrize(
+    ("plan", "error"),
+    [
+        pytest.param([], "must be an object", id="not-an-object"),
+        pytest.param(_week(monday=[]), "not one of mon to sun", id="unknown-day"),
+        pytest.param(
+            {"mon": [], "tue": []},
+            "missing: wed, thu, fri, sat, sun",
+            id="missing-days",
+        ),
+        pytest.param(_week(mon={}), "must be a list", id="day-not-a-list"),
+        pytest.param(_week(mon=["05:30"]), "must be objects", id="slot-not-an-object"),
+        pytest.param(
+            _week(mon=[_slot("5:30", "09:00")]), "HH:MM", id="time-without-padding"
+        ),
+        pytest.param(_week(mon=[_slot("05:30", "24:10")]), "after 24:00", id="past-24"),
+        pytest.param(
+            _week(mon=[{"end": "09:00", "mode": "on"}]), "HH:MM", id="start-missing"
+        ),
+        pytest.param(
+            _week(mon=[_slot("09:00", "05:30")]),
+            "start before it ends",
+            id="end-before-start",
+        ),
+        pytest.param(
+            _week(mon=[_slot("05:00", "06:00")] * 3),
+            "at most 2",
+            id="too-many-slots",
+        ),
+        pytest.param(
+            _week(mon=[_slot("05:00", "06:00", "comfort")]),
+            "'comfort' is not one of",
+            id="unknown-mode",
+        ),
+        pytest.param(
+            _week(mon=[_slot("05:35", "06:00")]),
+            "10-minute grid",
+            id="off-grid",
+        ),
+        pytest.param(
+            _week(mon=[_slot("08:00", "10:00"), _slot("05:00", "08:10")]),
+            "overlap",
+            id="overlapping-slots",
+        ),
+    ],
+)
+async def test_set_feature_rejects_schedules_that_break_their_rules(plan, error):
+    # Arrange: The schedule reports rules that the plan breaks.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    device = _device([schedule])
+
+    # Act and assert: The plan is rejected before any command is sent.
+    with pytest.raises(ValueError, match=error):
+        await client.set_feature(device, schedule, plan)
+    assert adapter.calls == []
+
+
+async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules():
+    """Without reported rules only the general plan shape is checked."""
+    # Arrange: The schedule reports no rules at all.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = _schedule_control(rules=None)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    device = _device([schedule])
+    plan: FeatureValue = _week(
+        mon=[_slot("08:00", "10:00", "comfort"), _slot("09:05", "11:00", "x")]
+    )
+
+    # Act: Write the plan.
+    response, _ = await client.set_feature(device, schedule, plan)
+
+    # Assert: The plan is sent unchanged.
+    assert response.success
+    assert adapter.calls == [(control, {"newSchedule": plan})]
+
+
+async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    device = _device([schedule])
+    plan: FeatureValue = _week(mon=[_slot("06:00", "08:00"), _slot("08:00", "09:00")])
+
+    response, _ = await client.set_feature(device, schedule, plan)
+
+    assert response.success
+
+
+@pytest.mark.parametrize(
+    ("value_type", "target_value"),
+    [
+        pytest.param("number", True, id="boolean-as-number"),
+        pytest.param("number", "21.5", id="text-as-number"),
+        pytest.param("integer", 1.5, id="fraction-as-integer"),
+        pytest.param("integer", False, id="boolean-as-integer"),
+        pytest.param("string", 1, id="number-as-string"),
+        pytest.param("string", True, id="boolean-as-string"),
+        pytest.param("boolean", 1, id="number-as-boolean"),
+        pytest.param("boolean", "true", id="text-as-boolean"),
+    ],
+)
+async def test_set_feature_rejects_values_of_the_wrong_parameter_type(
+    value_type: str, target_value: FeatureValue
+):
+    """A value of a different type than the command expects is not sent."""
+    # Arrange: The command reports the type of its parameter.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = replace(_control(), value_type=value_type)
+    target = build_feature("heating.mode.target", "old", control)
+    device = _device([target])
+
+    # Act and assert: The type mismatch rejects before I/O.
+    with pytest.raises(ValueError, match=f"not of type '{value_type}'"):
+        await client.set_feature(device, target, target_value)
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize(
+    ("value_type", "target_value"),
+    [
+        pytest.param("number", 21, id="integer-as-number"),
+        pytest.param("number", 21.5, id="float-as-number"),
+        pytest.param("integer", 2.0, id="whole-float-as-integer"),
+        pytest.param("string", "eco", id="text-as-string"),
+        pytest.param("boolean", True, id="boolean-as-boolean"),
+        pytest.param(None, True, id="no-reported-type"),
+        pytest.param("array", [1, 2], id="unchecked-type"),
+    ],
+)
+async def test_set_feature_sends_values_of_the_reported_parameter_type(
+    value_type: str | None, target_value: FeatureValue
+):
+    """Values that fit the reported type, or an unchecked type, are sent."""
+    # Arrange: The command reports a type, an unchecked type, or none.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    control = replace(_control(), value_type=value_type)
+    target = build_feature("heating.mode.target", "old", control)
+    device = _device([target])
+
+    # Act: Write the value.
+    response, _ = await client.set_feature(device, target, target_value)
+
+    # Assert: The command is sent with the value.
+    assert response.success
+    assert adapter.calls == [(control, {"target": target_value})]
