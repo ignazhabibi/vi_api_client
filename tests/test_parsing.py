@@ -70,7 +70,10 @@ def test_control_requires_parameters_unless_marked_optional():
 
     # Assert: Explicit false is optional while missing markers remain conservative.
     assert feature.control is not None
-    assert feature.control.required_params == ("requiredSibling", "unspecifiedSibling")
+    assert feature.control.required_parameters == (
+        "requiredSibling",
+        "unspecifiedSibling",
+    )
 
 
 def test_status_property_becomes_a_suffixed_feature():
@@ -229,16 +232,16 @@ def test_commands_become_controls_of_the_properties_they_write():
     )
     assert feature_slope.control is not None
     assert feature_slope.control.command_name == "setCurve"
-    assert feature_slope.control.param_name == "slope"
+    assert feature_slope.control.parameter_name == "slope"
     assert feature_slope.control.value_type == "number"
-    assert "shift" in feature_slope.control.required_params
+    assert "shift" in feature_slope.control.required_parameters
 
     feature_shift = next(
         feature for feature in features if feature.name.endswith(".shift")
     )
     assert feature_shift.control is not None
     assert feature_shift.control.command_name == "setCurve"
-    assert feature_shift.control.param_name == "shift"
+    assert feature_shift.control.parameter_name == "shift"
 
 
 def test_hysteresis_commands_create_writable_switch_point_features():
@@ -366,7 +369,7 @@ def test_temperature_property_binds_target_temperature_command():
     assert feature.name == "heating.dhw.temperature.main.temperature"
     assert feature.control is not None
     assert feature.control.command_name == "setTargetTemperature"
-    assert feature.control.param_name == "targetTemperature"
+    assert feature.control.parameter_name == "targetTemperature"
 
 
 def test_command_enum_becomes_the_control_options():
@@ -463,7 +466,7 @@ def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
 
     # Assert: The control writes through the executable command.
     assert control is not None
-    assert (control.command_name, control.param_name) == ("setCurve", "slope")
+    assert (control.command_name, control.parameter_name) == ("setCurve", "slope")
     assert control.uri == "/commands/setCurve"
 
 
@@ -553,7 +556,7 @@ def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
     control = schedule.control
     assert control is not None
     assert control.command_name == "setSchedule"
-    assert control.param_name == "newSchedule"
+    assert control.parameter_name == "newSchedule"
     assert control.value_type == "Schedule"
     assert (control.min, control.max, control.step, control.options) == (
         None,
@@ -660,7 +663,7 @@ def test_command_requiring_the_value_is_preferred_over_one_taking_it_optionally(
 
     # Assert: The temperature is written through 'setTemperature'.
     assert control is not None
-    assert (control.command_name, control.param_name) == (
+    assert (control.command_name, control.parameter_name) == (
         "setTemperature",
         "targetTemperature",
     )
@@ -681,7 +684,7 @@ def test_command_taking_the_value_optionally_is_used_when_it_is_the_only_one():
     control = api_feature_to_flat_features(raw_feature)[0].control
 
     assert control is not None
-    assert (control.command_name, control.param_name) == ("activate", "temperature")
+    assert (control.command_name, control.parameter_name) == ("activate", "temperature")
 
 
 def test_non_executable_schedule_commands_do_not_make_schedules_writable():
@@ -724,7 +727,7 @@ def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
 
     # Assert: The schedule control writes through the executable command.
     assert control is not None
-    assert (control.command_name, control.param_name) == (
+    assert (control.command_name, control.parameter_name) == (
         "setSchedule",
         "newSchedule",
     )

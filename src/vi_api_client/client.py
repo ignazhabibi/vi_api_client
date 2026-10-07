@@ -106,7 +106,7 @@ class ViClient:
         installation_id: str,
         gateway_serial: str,
         include_features: bool = False,
-        only_active_features: bool = False,
+        only_enabled: bool = False,
     ) -> list[Device]:
         """Return the devices behind one gateway.
 
@@ -114,7 +114,8 @@ class ViClient:
             installation_id: ID of the installation.
             gateway_serial: Serial number of the gateway.
             include_features: Whether to automatically fetch features for all devices.
-            only_active_features: If include_features is True, fetch only enabled ones.
+            only_enabled: If include_features is True, fetch only enabled and ready
+                features.
 
         Returns:
             Device snapshots. When requested, device feature hydration produces
@@ -133,12 +134,12 @@ class ViClient:
 
         if include_features:
             _LOGGER.debug(
-                "Hydrating %s devices with features (active_only=%s)",
+                "Hydrating %s devices with features (only_enabled=%s)",
                 len(devices),
-                only_active_features,
+                only_enabled,
             )
             return [
-                await self.update_device(device, only_enabled=only_active_features)
+                await self.refresh_device(device, only_enabled=only_enabled)
                 for device in devices
             ]
 
@@ -224,7 +225,7 @@ class ViClient:
                 installation_id,
                 gateway.serial,
                 include_features=True,
-                only_active_features=only_enabled,
+                only_enabled=only_enabled,
             )
             all_devices.extend(devices)
 
@@ -289,7 +290,7 @@ class ViClient:
             self._response_object(response, resource="Event history")
         )
 
-    async def update_device(self, device: Device, only_enabled: bool = True) -> Device:
+    async def refresh_device(self, device: Device, only_enabled: bool = True) -> Device:
         """Return a refreshed device snapshot from an API feature read.
 
         Args:
@@ -306,7 +307,7 @@ class ViClient:
         features = await self.get_features(device, only_enabled=only_enabled)
         return replace(device, features=features)
 
-    async def update_gateway_devices(
+    async def refresh_gateway_devices(
         self, devices: list[Device]
     ) -> GatewayDeviceRefreshResult:
         """Refresh enabled and ready features for devices on one gateway.
@@ -636,7 +637,7 @@ class ViClient:
 
         for device in devices:
             try:
-                updated_device = await self.update_device(device, only_enabled=True)
+                updated_device = await self.refresh_device(device, only_enabled=True)
             except ViError as error:
                 if error.error_type not in _DEVICE_SPECIFIC_ERROR_TYPES:
                     raise
@@ -679,12 +680,12 @@ class ViClient:
         Raises:
             ValueError: If the target or a required parameter is absent.
         """
-        if control.param_name not in parameters:
+        if control.parameter_name not in parameters:
             raise ValueError(
                 f"Command '{control.command_name}' is missing target parameter "
-                f"'{control.param_name}'."
+                f"'{control.parameter_name}'."
             )
-        for parameter in control.required_params:
+        for parameter in control.required_parameters:
             if parameter not in parameters:
                 raise ValueError(
                     f"Command '{control.command_name}' is missing required parameter "
@@ -711,10 +712,10 @@ class ViClient:
             ValueError: If a required sibling feature is absent, disabled, not
                 ready, or has no value.
         """
-        payload = {control.param_name: target_value}
+        payload = {control.parameter_name: target_value}
 
-        for parameter in control.required_params:
-            if parameter == control.param_name:
+        for parameter in control.required_parameters:
+            if parameter == control.parameter_name:
                 continue
 
             # Other required parameters come from sibling features, e.g. the

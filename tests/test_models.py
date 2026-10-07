@@ -100,12 +100,12 @@ def test_device_rejects_duplicate_feature_names():
 def test_other_model_collections_are_immutable_snapshots():
     """Controls, refresh results, and installations copy caller collections."""
     # Arrange: Create models from caller-owned mutable collections.
-    required_params = ["target"]
+    required_parameters = ["target"]
     options = ["eco"]
     control = FeatureControl(
         command_name="set",
-        param_name="target",
-        required_params=required_params,
+        parameter_name="target",
+        required_parameters=required_parameters,
         parent_feature_name="parent",
         uri="url",
         options=options,
@@ -117,14 +117,14 @@ def test_other_model_collections_are_immutable_snapshots():
     installation = Installation("1", "Home", "Home", address)
 
     # Act: Mutate the original collections after construction.
-    required_params.append("mode")
+    required_parameters.append("mode")
     options.append("comfort")
     refreshed_devices.append(Device("1", "gw", "inst", "model", "heating", "connected"))
     errors_by_device_id["device-2"] = ViError("offline")
     address["street"] = "Example Street"
 
     # Assert: Each public collection is an immutable defensive copy.
-    assert control.required_params == ("target",)
+    assert control.required_parameters == ("target",)
     assert control.options == ("eco",)
     assert result.updated_devices == ()
     assert list(result.errors_by_device_id) == ["device-1"]

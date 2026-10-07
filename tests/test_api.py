@@ -56,7 +56,7 @@ def _gateway_features_url(device: Device) -> str:
     )
 
 
-async def test_update_gateway_devices_refreshes_multiple_devices_with_one_request(
+async def test_refresh_gateway_devices_refreshes_multiple_devices_with_one_request(
     vi_client,
     mock_responses,
 ):
@@ -68,7 +68,7 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     mock_responses.post(url, payload=response)
 
     # Act: Refresh both devices through the public gateway operation.
-    result = await vi_client.update_gateway_devices(devices)
+    result = await vi_client.refresh_gateway_devices(devices)
 
     # Assert: Both devices are refreshed in input order by one bulk request.
     assert result.is_complete
@@ -98,7 +98,7 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     }
 
 
-async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_input_order(
+async def test_refresh_gateway_devices_falls_back_only_for_omitted_devices_in_input_order(
     vi_client, mock_responses
 ):
     # Arrange: The bulk response covers device 10 only, so device 0 needs its
@@ -123,7 +123,7 @@ async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_inp
     mock_responses.post(_device_features_url(device_0), payload={"data": []})
 
     # Act: Refresh both devices through the public gateway operation.
-    result = await vi_client.update_gateway_devices([device_10, device_0])
+    result = await vi_client.refresh_gateway_devices([device_10, device_0])
 
     # Assert: Only the omitted device is read individually, and the result keeps
     # the caller's order across both refresh paths.
@@ -138,7 +138,7 @@ async def test_update_gateway_devices_falls_back_only_for_omitted_devices_in_inp
     assert result.updated_devices[1].features == ()
 
 
-async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device_features(
+async def test_refresh_gateway_devices_ignores_gateway_owned_and_unrelated_device_features(
     vi_client, mock_responses
 ):
     # Arrange: The bulk response mixes the requested device's feature with a
@@ -168,7 +168,7 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
     mock_responses.post(url, payload=response)
 
     # Act: Refresh the only requested device.
-    result = await vi_client.update_gateway_devices([device])
+    result = await vi_client.refresh_gateway_devices([device])
 
     # Assert: Only the requested device's feature is exposed, and the bulk
     # request was enough, so no individual fallback read happened.
@@ -197,14 +197,14 @@ async def test_update_gateway_devices_ignores_gateway_owned_and_unrelated_device
     ],
 )
 @pytest.mark.usefixtures("no_http_requests")
-async def test_update_gateway_devices_rejects_ambiguous_device_sets_before_any_request(
+async def test_refresh_gateway_devices_rejects_ambiguous_device_sets_before_any_request(
     vi_client, devices: list[Device], message: str
 ):
     with pytest.raises(ValueError, match=message):
-        await vi_client.update_gateway_devices(devices)
+        await vi_client.refresh_gateway_devices(devices)
 
 
-async def test_update_gateway_devices_decodes_complete_device_uri_segments(
+async def test_refresh_gateway_devices_decodes_complete_device_uri_segments(
     vi_client, mock_responses
 ):
     # Arrange: Return a feature for a device ID containing an encoded slash.
@@ -225,7 +225,7 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
     mock_responses.post(_gateway_features_url(device), payload=response)
 
     # Act: Refresh the encoded device ID.
-    result = await vi_client.update_gateway_devices([device])
+    result = await vi_client.refresh_gateway_devices([device])
 
     # Assert: The decoded complete segment maps to the requested device.
     assert result.is_complete
@@ -236,8 +236,8 @@ async def test_update_gateway_devices_decodes_complete_device_uri_segments(
 
 
 @pytest.mark.usefixtures("no_http_requests")
-async def test_update_gateway_devices_accepts_empty_input_without_request(vi_client):
-    result = await vi_client.update_gateway_devices([])
+async def test_refresh_gateway_devices_accepts_empty_input_without_request(vi_client):
+    result = await vi_client.refresh_gateway_devices([])
 
     assert result.is_complete
     assert result.updated_devices == ()
@@ -331,7 +331,7 @@ _DUPLICATED_GATEWAY_FEATURE = {
         ),
     ],
 )
-async def test_update_gateway_devices_rejects_invalid_bulk_responses(
+async def test_refresh_gateway_devices_rejects_invalid_bulk_responses(
     vi_client, mock_responses, response, message
 ):
     device = build_device("0")
@@ -339,7 +339,7 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
     mock_responses.post(_gateway_features_url(device), payload=response)
 
     with pytest.raises(ViResponseError, match=message):
-        await vi_client.update_gateway_devices([device])
+        await vi_client.refresh_gateway_devices([device])
 
 
 @pytest.mark.parametrize(
@@ -352,7 +352,7 @@ async def test_update_gateway_devices_rejects_invalid_bulk_responses(
         pytest.param(403, "PACKAGE_NOT_PAID_FOR", id="package-not-paid-for"),
     ],
 )
-async def test_update_gateway_devices_captures_device_specific_fallback_errors(
+async def test_refresh_gateway_devices_captures_device_specific_fallback_errors(
     vi_client, mock_responses, status: int, error_type: str
 ):
     # Arrange: Gateway communication fails and device 0 then fails specifically.
@@ -380,7 +380,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
     )
 
     # Act: Refresh through the public gateway operation.
-    result = await vi_client.update_gateway_devices(devices)
+    result = await vi_client.refresh_gateway_devices(devices)
 
     # Assert: Successful devices and per-device errors remain independent.
     assert not result.is_complete
@@ -422,7 +422,7 @@ async def test_update_gateway_devices_captures_device_specific_fallback_errors(
         ),
     ],
 )
-async def test_update_gateway_devices_propagates_global_gateway_errors(
+async def test_refresh_gateway_devices_propagates_global_gateway_errors(
     vi_client,
     mock_responses,
     status: int,
@@ -441,16 +441,16 @@ async def test_update_gateway_devices_propagates_global_gateway_errors(
 
     # Act and assert: Global failures abort the entire refresh.
     with pytest.raises(expected_error, match=message):
-        await vi_client.update_gateway_devices([device])
+        await vi_client.refresh_gateway_devices([device])
 
 
-async def test_update_gateway_devices_propagates_connection_errors(vi_client):
+async def test_refresh_gateway_devices_propagates_connection_errors(vi_client):
 
     with pytest.raises(ViConnectionError, match="Network error"):
-        await vi_client.update_gateway_devices([build_device("0")])
+        await vi_client.refresh_gateway_devices([build_device("0")])
 
 
-async def test_update_gateway_devices_translates_malformed_fallback_response(
+async def test_refresh_gateway_devices_translates_malformed_fallback_response(
     vi_client, mock_responses
 ):
     # Arrange: An empty bulk response triggers the fallback, which then returns
@@ -464,7 +464,7 @@ async def test_update_gateway_devices_translates_malformed_fallback_response(
 
     # Act and assert: Fallback contract failures use the public error.
     with pytest.raises(ViResponseError, match="properties must be an object"):
-        await vi_client.update_gateway_devices([device])
+        await vi_client.refresh_gateway_devices([device])
 
 
 async def test_get_installations_returns_every_listed_installation(
@@ -843,17 +843,17 @@ async def test_get_features_returns_nothing_for_unknown_names(
     assert features == []
 
 
-async def test_update_device_returns_a_new_device_with_the_read_features(
+async def test_refresh_device_returns_a_new_device_with_the_read_features(
     vi_client, mock_responses
 ):
     # Arrange: Answer the refresh with one feature the device does not have yet.
-    data = load_fixture_json("update_device_response.json")
+    data = load_fixture_json("refresh_device_response.json")
     device = build_device("0")
 
     mock_responses.post(_device_features_url(device), payload=data)
 
     # Act: Refresh the device through the public client method.
-    updated_device = await vi_client.update_device(device)
+    updated_device = await vi_client.refresh_device(device)
 
     # Assert: The refresh is a new snapshot; the input device stays unhydrated.
     assert updated_device is not device
@@ -862,14 +862,14 @@ async def test_update_device_returns_a_new_device_with_the_read_features(
     assert device.features == ()
 
 
-async def test_update_device_rejects_malformed_feature_responses(
+async def test_refresh_device_rejects_malformed_feature_responses(
     vi_client, mock_responses
 ):
     device = build_device("0")
     mock_responses.post(_device_features_url(device), payload={"data": [None]})
 
     with pytest.raises(ViResponseError, match="entries must be objects"):
-        await vi_client.update_device(device)
+        await vi_client.refresh_device(device)
 
 
 async def test_get_devices_hydrates_each_device_with_its_own_features(
@@ -888,7 +888,7 @@ async def test_get_devices_hydrates_each_device_with_its_own_features(
     )
     mock_responses.post(
         _device_features_url(build_device("gateway")),
-        payload=load_fixture_json("update_device_response.json"),
+        payload=load_fixture_json("refresh_device_response.json"),
     )
 
     # Act: Fetch devices with hydration enabled.
@@ -1079,12 +1079,12 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
             id="get-features-enabled",
         ),
         pytest.param(
-            lambda client, device: client.update_device(device),
+            lambda client, device: client.refresh_device(device),
             True,
             id="update-device-default",
         ),
         pytest.param(
-            lambda client, device: client.update_device(device, only_enabled=False),
+            lambda client, device: client.refresh_device(device, only_enabled=False),
             False,
             id="update-device-all",
         ),
@@ -1095,7 +1095,7 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 ):
     """Feature reads tell the API whether to skip disabled and not-ready features.
 
-    ``get_features`` asks for all features by default, while ``update_device``
+    ``get_features`` asks for all features by default, while ``refresh_device``
     asks the API to skip disabled and not-ready ones unless told otherwise.
     """
     # Arrange: Answer the device feature read with an empty collection.
@@ -1116,14 +1116,14 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 
 
 @pytest.mark.parametrize(
-    "only_active_features",
+    "only_enabled",
     [
         pytest.param(True, id="active-only"),
         pytest.param(False, id="all-features"),
     ],
 )
 async def test_get_devices_passes_the_feature_filter_to_hydration(
-    vi_client, mock_responses, only_active_features: bool
+    vi_client, mock_responses, only_enabled: bool
 ):
     # Arrange: Discover one device and answer its feature read.
     device = build_device("0")
@@ -1141,18 +1141,18 @@ async def test_get_devices_passes_the_feature_filter_to_hydration(
         "installation-1",
         "gateway-1",
         include_features=True,
-        only_active_features=only_active_features,
+        only_enabled=only_enabled,
     )
 
     # Assert: The hydration request carries the caller's filter.
     (request,) = mock_responses.requests[("POST", URL(features_url))]
     assert await request.json() == {
-        "skipDisabled": only_active_features,
-        "skipNotReady": only_active_features,
+        "skipDisabled": only_enabled,
+        "skipNotReady": only_enabled,
     }
 
 
-async def test_update_gateway_devices_fallback_reraises_non_device_errors(
+async def test_refresh_gateway_devices_fallback_reraises_non_device_errors(
     vi_client, mock_responses
 ):
     """Only device-specific errors are isolated; others abort the fallback."""
@@ -1175,4 +1175,4 @@ async def test_update_gateway_devices_fallback_reraises_non_device_errors(
 
     # Act and assert: The authentication error ends the whole refresh.
     with pytest.raises(ViAuthError, match="Unauthorized: Token expired"):
-        await vi_client.update_gateway_devices([device])
+        await vi_client.refresh_gateway_devices([device])

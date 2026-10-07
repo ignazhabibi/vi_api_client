@@ -243,7 +243,7 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
             retry_after=_parse_retry_after(response.headers.get("Retry-After")),
         )
     # Vi reports unreachable devices as 400 DEVICE_COMMUNICATION_ERROR;
-    # ViClient.update_gateway_devices relies on this mapping for its
+    # ViClient.refresh_gateway_devices relies on this mapping for its
     # per-device fallback.
     if status in (400, 422):
         raise ViValidationError(

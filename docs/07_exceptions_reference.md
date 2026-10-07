@@ -60,7 +60,7 @@ defaults instead of being exposed. `validation_errors` is a sequence of
 working. Rate-limit retry guidance is exposed only as the validated,
 non-negative `retry_after` delay.
 
-`update_gateway_devices` uses `error_type` to keep
+`refresh_gateway_devices` uses `error_type` to keep
 `DEVICE_COMMUNICATION_ERROR`, `DEVICE_NOT_FOUND`, and
 `PACKAGE_NOT_PAID_FOR` failures from concrete per-device fallbacks in its
 partial result. Authentication, rate-limit, connection, server, unknown API,

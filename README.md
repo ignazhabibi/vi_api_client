@@ -176,7 +176,7 @@ async def main():
 
         # 2. Discover and refresh devices behind one gateway
         devices = await client.get_devices(installation.id, gateway.serial)
-        refresh = await client.update_gateway_devices(devices)
+        refresh = await client.refresh_gateway_devices(devices)
         for device_id, error in refresh.errors_by_device_id.items():
             print(f"Device {device_id} could not be refreshed: {error}")
         if not refresh.updated_devices:

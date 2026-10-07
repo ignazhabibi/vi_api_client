@@ -55,8 +55,8 @@ def _command_control(uri: str) -> FeatureControl:
     """Build a command control targeting the given URI."""
     return FeatureControl(
         command_name="setMode",
-        param_name="mode",
-        required_params=["mode"],
+        parameter_name="mode",
+        required_parameters=["mode"],
         parent_feature_name="heating.mode",
         uri=uri,
     )

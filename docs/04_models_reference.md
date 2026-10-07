@@ -137,8 +137,8 @@ This object abstracts away the complexity of Viessmann Commands. You rarely inte
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `command_name` | `str` | The internal command name. | `'setCurve'` |
-| `param_name` | `str` | The parameter name this feature maps to. | `'slope'` |
-| `required_params` | `Sequence[str]` | Read-only parameters marked required by the API (or with no marker); explicitly optional parameters are excluded. | `('slope', 'shift')` |
+| `parameter_name` | `str` | The parameter name this feature maps to. | `'slope'` |
+| `required_parameters` | `Sequence[str]` | Read-only parameters marked required by the API (or with no marker); explicitly optional parameters are excluded. | `('slope', 'shift')` |
 | `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
 | `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
 | `min` | `float \| None` | Minimum allowed value (numeric). | `0.2` |
@@ -206,7 +206,7 @@ if response.success:
 
 ## GatewayDeviceRefreshResult
 
-Frozen result dataclass returned by `update_gateway_devices`. Its collection
+Frozen result dataclass returned by `refresh_gateway_devices`. Its collection
 attributes are immutable snapshots.
 
 | Property | Type | Description |

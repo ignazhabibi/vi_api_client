@@ -127,8 +127,8 @@ class FeatureControl:
 
     Attributes:
         command_name: Name of the feature command (e.g. 'setCurve').
-        param_name: Name of the parameter mapping to this feature (e.g. 'slope').
-        required_params: Read-only parameter names required by this command.
+        parameter_name: Name of the parameter mapping to this feature (e.g. 'slope').
+        required_parameters: Read-only parameter names required by this command.
             Used for dependency resolution (e.g. ['slope', 'shift']).
         parent_feature_name: Name of the parent feature in the API.
             Used to find sibling features during dependency resolution.
@@ -146,8 +146,8 @@ class FeatureControl:
     """
 
     command_name: str
-    param_name: str
-    required_params: Sequence[str]
+    parameter_name: str
+    required_parameters: Sequence[str]
     parent_feature_name: str
     uri: str
     min: float | None = None
@@ -162,7 +162,7 @@ class FeatureControl:
 
     def __post_init__(self) -> None:
         """Store caller-owned sequences as immutable snapshots."""
-        object.__setattr__(self, "required_params", tuple(self.required_params))
+        object.__setattr__(self, "required_parameters", tuple(self.required_parameters))
         if self.options is not None:
             object.__setattr__(self, "options", tuple(self.options))
 

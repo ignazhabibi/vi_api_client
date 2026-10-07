@@ -118,7 +118,7 @@ async def set_heating_mode(client, device):
     feature_name = "heating.circuits.0.operating.modes.active"
 
     # 1. Refresh the device snapshot so command dependencies are current.
-    device = await client.update_device(device)
+    device = await client.refresh_device(device)
     feature = device.get_feature(feature_name)
     if feature is None:
         print("Feature not found")

@@ -70,8 +70,8 @@ def _control(**overrides: Any) -> FeatureControl:
     """Build one writable feature control for a ``heating.curve.slope`` target."""
     fields: dict[str, Any] = {
         "command_name": "setCurve",
-        "param_name": "slope",
-        "required_params": ["slope"],
+        "parameter_name": "slope",
+        "required_parameters": ["slope"],
         "parent_feature_name": "heating.curve",
         "uri": "uri",
     }
@@ -473,7 +473,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     assert document["value"] == 1.4
     assert document["unit"] == "celsius"
     assert document["control"]["command_name"] == "setCurve"
-    assert document["control"]["param_name"] == "slope"
+    assert document["control"]["parameter_name"] == "slope"
 
 
 def _curve_features() -> list[Feature]:
@@ -795,7 +795,7 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     """CLI writes should provide sibling values required by a command."""
     # Arrange: Provide heating-curve features that share the setCurve command.
     args = _cli_args("set", "heating.curve.slope", "1.4")
-    control = _control(required_params=["shift", "slope"])
+    control = _control(required_parameters=["shift", "slope"])
     slope = build_feature(control=control)
     shift = build_feature(name="heating.curve.shift", value=4.0, control=control)
     mock_cli_context.client.get_features.return_value = [slope, shift]
@@ -1068,7 +1068,7 @@ async def test_cmd_list_writable_prints_reported_schedule_rules(
         name="heating.dhw.schedule",
         control=_control(
             command_name="setSchedule",
-            param_name="newSchedule",
+            parameter_name="newSchedule",
             schedule=ScheduleConstraints(max_entries=4, modes=["on"], resolution=10),
         ),
     )

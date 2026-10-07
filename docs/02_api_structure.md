@@ -82,8 +82,8 @@ for the full value contract.
 If a feature is writable, it has a `.control` attribute with metadata:
 
 *   `command_name`: The internal command to send (e.g., `setCurve`)
-*   `param_name`: The parameter this feature maps to (e.g., `slope`)
-*   `required_params`: API parameters marked required, plus parameters with no
+*   `parameter_name`: The parameter this feature maps to (e.g., `slope`)
+*   `required_parameters`: API parameters marked required, plus parameters with no
     `required` marker; explicitly optional parameters are excluded (e.g.,
     `['slope', 'shift']`)
 *   `parent_feature_name`: Name of the parent feature, used to resolve sibling dependencies (e.g., `heating.circuits.0.heating.curve`)
@@ -125,7 +125,7 @@ The library handles the "magic" of mapping your simple `1.6` value back to the c
 ## 6. Gateway-Scoped Device Refresh
 
 When several known devices belong to the same installation and gateway,
-`update_gateway_devices(devices)` refreshes their enabled and ready features
+`refresh_gateway_devices(devices)` refreshes their enabled and ready features
 with one gateway-scoped bulk feature fetch in the normal case. Returned feature
 URIs are matched to complete, URL-decoded device-ID path segments. Gateway-owned
 features and features for devices outside the requested set are not added to a
@@ -142,7 +142,7 @@ consumer owns polling cadence and stale-state policy.
 *   **Everything is a Feature**: Scalar properties are exposed as addressable `Feature` objects.
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
 *   **Simple Set**: Use `set_feature(device, feature, value)`.
-*   **Explicit Multi-Device Refresh**: Use `update_gateway_devices` for known devices behind one gateway.
+*   **Explicit Multi-Device Refresh**: Use `refresh_gateway_devices` for known devices behind one gateway.
 
 ## Next Steps
 
