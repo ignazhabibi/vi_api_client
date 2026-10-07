@@ -26,6 +26,21 @@ jobs:
     - name: Quality check
       run: python scripts/quality_check.py
 
+  minimum-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+        cache: 'pip'
+    - name: Install lowest supported dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -c constraints-ci-lowest.txt .[dev]
+    - name: Test
+      run: python -m pytest -q
+
   release:
     needs: quality-check
     if: startsWith(github.ref, 'refs/tags/v')

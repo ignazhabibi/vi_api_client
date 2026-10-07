@@ -84,17 +84,15 @@ async def test_live_adapter_preserves_external_oauth_error() -> None:
 async def test_live_adapter_wraps_aiohttp_connection_error(
     live_adapter, mock_responses
 ) -> None:
-    # Arrange: Make the installations request fail while opening the connection.
-    connection_error = aiohttp.ClientConnectionError("Network unavailable")
+    # Arrange: Make the connection drop before the installations response.
+    mock_responses.get(INSTALLATIONS_URL, exception=True)
 
-    mock_responses.get(INSTALLATIONS_URL, exception=connection_error)
-
-    # Act: Read installations while the connection cannot be opened.
+    # Act: Read installations while the connection drops.
     with pytest.raises(ViConnectionError) as raised_error:
         await live_adapter.get_installations()
 
     # Assert: The library error keeps the aiohttp failure as its cause.
-    assert raised_error.value.__cause__ is connection_error
+    assert isinstance(raised_error.value.__cause__, aiohttp.ClientConnectionError)
 
 
 @pytest.mark.parametrize(
