@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 from collections.abc import Collection
@@ -578,6 +579,8 @@ async def test_code_exchange_sends_the_verifier_matching_the_login_challenge(
 
     # Assert: The login URL and the exchange form belong to one PKCE pair.
     form = _token_request_form(mock_responses)
+    # RFC 7636: 43 to 128 unreserved characters.
+    assert re.fullmatch(r"[A-Za-z0-9._~-]{43,128}", form["code_verifier"])
     verifier_digest = hashlib.sha256(form["code_verifier"].encode()).digest()
     expected_challenge = base64.urlsafe_b64encode(verifier_digest).rstrip(b"=")
     assert query["code_challenge"] == [expected_challenge.decode()]

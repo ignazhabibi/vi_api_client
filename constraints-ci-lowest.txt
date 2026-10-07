@@ -2,5 +2,4 @@
 # Renovate leaves this file alone; raise these pins together with the
 # lower bounds in pyproject.toml.
 aiohttp==3.13.3
-pkce==1.0.3
 aiointercept==0.1.12

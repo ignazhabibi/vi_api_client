@@ -1,8 +1,11 @@
 """Authentication module for Viessmann API."""
 
 import asyncio
+import base64
+import hashlib
 import json
 import logging
+import secrets
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
@@ -13,7 +16,6 @@ from typing import Any, Self
 from urllib.parse import urlencode
 
 import aiohttp
-import pkce
 
 from ._types import JsonValue
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
@@ -141,7 +143,7 @@ class OAuth(AbstractAuth):
         The verifier is required by `async_exchange_code_for_tokens`, so call
         both methods on the same instance.
         """
-        self._pkce_verifier, code_challenge = pkce.generate_pkce_pair()
+        self._pkce_verifier, code_challenge = _generate_pkce_pair()
 
         params = {
             "client_id": self.client_id,
@@ -307,6 +309,15 @@ class OAuth(AbstractAuth):
             "No refresh token available; using possibly expired access token"
         )
         return _access_token_value(token_info)
+
+
+def _generate_pkce_pair() -> tuple[str, str]:
+    """Return a PKCE code verifier and its S256 code challenge (RFC 7636)."""
+    # 96 random bytes encode to 128 URL-safe characters, the RFC's maximum.
+    verifier = secrets.token_urlsafe(96)
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return verifier, challenge
 
 
 def _access_token_value(token_info: Mapping[str, JsonValue]) -> str:
