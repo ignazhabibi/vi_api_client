@@ -21,7 +21,7 @@
 - Structure each non-trivial test with Arrange-Act-Assert. Add explicit, test-specific `# Arrange:`, `# Act:`, and `# Assert:` comments when phases are not immediately clear, the test has multiple phases or state changes, or fixture and mock setup is substantial. Exception-focused tests may use `# Act and assert:`. Tests of only a few lines need no phase comments.
 - Prefer native `assert` for values and state, mock assertion helpers for interactions, and `pytest.raises` for expected exceptions.
 - Store substantial API payloads in `tests/fixtures/` and load them with the plain helpers in `tests/builders.py` (`load_fixture_json`, `load_fixture_device`, `load_fixture_features`). Put pytest fixtures shared across modules in `tests/conftest.py`, and plain builders and test doubles, which `parametrize` arguments can use at collection time, in `tests/builders.py`. Build CLI arguments through `build_parser()` rather than hand-made namespaces. Keep fixtures aligned with the real API contract and the bundled product fixtures; inspect `tests/test_fixture_data_integrity.py` when changing fixture assumptions.
-- Use `aioresponses` for HTTP and authentication tests against real client request flows; the `vi_client` and `mock_responses` fixtures in `tests/conftest.py` provide a live client whose requests go to `aioresponses`. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows, and the `run_cli` fixture to run CLI commands in-process.
+- Use `aiointercept` for HTTP and authentication tests against real client request flows; the `vi_client` and `mock_responses` fixtures in `tests/conftest.py` provide a live client whose requests go to a local `aiointercept` test server. Assert on the recorded `aiohttp.web.Request` (`request.headers`, `request.query`, `await request.json()`, `request.captured_body`) rather than the deprecated `request.kwargs`. `patch`, `AsyncMock`, and `MagicMock` are appropriate for CLI orchestration boundaries. Prefer `FixtureViClient` for realistic offline smoke and integration-style workflows, and the `run_cli` fixture to run CLI commands in-process.
 - Give parametrized cases readable names with `pytest.param(..., id="...")` next to the values.
 - Inspect fixture or snapshot diffs rather than accepting them blindly. Run the focused test first, then the full quality gate before proposing a commit.
 - Aim for at least 95% line and branch coverage over `src/vi_api_client`; the quality gate enforces both. Reach branches with behavioral tests. Where defensive code is provably unreachable, mark it with a narrowly scoped `# pragma: no cover` or `# pragma: no branch` plus a one-line justification instead of writing a test that only exercises a line.
@@ -45,5 +45,8 @@ proposing a commit or push. The gate covers, in order:
 
 Install development dependencies with the CI constraints
 (`python -m pip install -c constraints-ci.txt '.[dev]'`) to reproduce the
-tested HTTP client and mock combination. See
-[README.md](README.md#development-and-tests) for the full walkthrough.
+tested HTTP client and mock combination. CI additionally runs the test suite
+against the lowest supported runtime dependencies from
+`constraints-ci-lowest.txt`; raise those pins together with the lower bounds in
+`pyproject.toml`. See [README.md](README.md#development-and-tests) for the full
+walkthrough.

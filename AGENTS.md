@@ -11,7 +11,7 @@ Keep changes small and directly related to the request. Do not refactor or clean
 - This is `vi_api_client`, an asynchronous Python library for the Viessmann Climate Solutions API. Library code is in `src/vi_api_client/`; tests are in `tests/`; user-facing documentation is in `docs/`.
 - The library has a flat feature model: use dot-named `Feature` objects from `device.get_feature(...)` rather than navigating raw nested API payloads. Read values from `feature.value`. `feature.is_writable` means the API offers a command for the feature; whether it can be written right now also needs `feature.is_enabled` and `feature.is_ready`.
 - `update_device` returns a new `Device`; do not mutate device instances in place. Use `set_feature` for writes rather than constructing raw API payloads.
-- `FixtureViClient` uses the bundled fixtures in `src/vi_api_client/fixtures/` and is the preferred client for offline smoke, CLI, and integration-style tests. Use `aioresponses` for HTTP and OAuth request-flow tests against `ViClient`.
+- `FixtureViClient` uses the bundled fixtures in `src/vi_api_client/fixtures/` and is the preferred client for offline smoke, CLI, and integration-style tests. Use `aiointercept` (a local test server behind the `mock_responses` fixture) for HTTP and OAuth request-flow tests against `ViClient`.
 - `vi_climate_devices` and other consumers are separate codebases. Do not edit them or add consumer-specific library behavior without an explicit request. Explain compatibility impact, expected consumer follow-up, and required version bump instead.
 
 ## Python and Tests
@@ -45,6 +45,9 @@ verifies the built wheel and source distribution as typed PEP 561 consumer
 artifacts. `python
 scripts/quality_check.py` runs the complete gate and CI runs the same script.
 `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
+`constraints-ci-lowest.txt` pins the lowest supported runtime dependencies,
+which CI's `minimum-dependencies` job tests; keep it in step with the lower
+bounds in `pyproject.toml`.
 
 In Claude Code cloud sessions, `.claude/hooks/session-start.sh` installs Python
 3.14 with uv, creates `.venv` with the dev dependencies, and activates it, so the
@@ -55,7 +58,7 @@ gate runs without the manual setup above.
 - `main` is protected. Use short-lived branches and pull requests; never commit or merge directly to `main` without an explicitly confirmed emergency bypass.
 - When a pull request implements an issue, include `Closes #<issue-number>` in its body so GitHub closes the issue when the pull request merges.
 - Stage only requested files. Before committing, show the files, summary, and proposed Conventional Commit message; no additional confirmation is needed.
-- Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` job before treating a PR as merge-ready. Squash merge only with explicit authorization.
+- Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` and `minimum-dependencies` jobs before treating a PR as merge-ready. Squash merge only with explicit authorization.
 - For multi-line GitHub issue or PR bodies, use a heredoc or `--body-file` so GitHub receives real newlines, then verify the rendered body.
 - After a merge, fast-forward local `main` and delete the confirmed merged local branch.
 - For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump through a PR, then create an annotated `vX.Y.Z` tag on the merged `main` commit. Its message becomes the GitHub Release body. A release is complete only after the tag workflow is green.

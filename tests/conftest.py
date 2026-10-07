@@ -6,7 +6,7 @@ from pathlib import Path
 
 import aiohttp
 import pytest
-from aioresponses import aioresponses
+from aiointercept import aiointercept
 from builders import StaticTokenAuth
 
 from vi_api_client.cli import async_main
@@ -14,15 +14,15 @@ from vi_api_client.client import ViClient
 
 
 @pytest.fixture
-def mock_responses() -> Iterator[aioresponses]:
+async def mock_responses() -> AsyncIterator[aiointercept]:
     """Intercept every aiohttp request; unregistered requests fail."""
-    with aioresponses() as responses:
+    async with aiointercept(mock_external_urls=True) as responses:
         yield responses
 
 
 @pytest.fixture
 async def static_token_auth(
-    mock_responses: aioresponses,
+    mock_responses: aiointercept,
 ) -> AsyncIterator[StaticTokenAuth]:
     """Return a static-token auth over a session whose requests are mocked."""
     async with aiohttp.ClientSession() as session:
@@ -42,7 +42,7 @@ def token_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def no_http_requests(mock_responses: aioresponses) -> Iterator[aioresponses]:
+def no_http_requests(mock_responses: aiointercept) -> Iterator[aiointercept]:
     """Fail the test if code under test attempts any aiohttp request."""
     # No response is registered, so any request raises a connection error.
     yield mock_responses

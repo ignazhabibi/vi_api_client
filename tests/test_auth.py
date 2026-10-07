@@ -14,11 +14,11 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Self, cast
 from unittest.mock import MagicMock
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, parse_qsl, urlsplit
 
 import aiohttp
 import pytest
-from aioresponses import aioresponses
+from aiointercept import CallbackResult, aiointercept
 from builders import load_fixture_json
 from yarl import URL
 
@@ -51,10 +51,11 @@ def _write_token_document(
     token_file.write_text(json.dumps(document), encoding="utf-8")
 
 
-def _token_request_form(mock_responses: aioresponses) -> dict[str, str]:
+def _token_request_form(mock_responses: aiointercept) -> dict[str, str]:
     """Return the form data of the single request sent to the token endpoint."""
     (request,) = mock_responses.requests[("POST", URL(ENDPOINT_TOKEN))]
-    return request.kwargs["data"]
+    assert request.captured_body is not None
+    return dict(parse_qsl(request.captured_body.decode()))
 
 
 class _BlockingRefreshResponse:
@@ -615,7 +616,7 @@ async def test_code_exchange_network_error_is_a_connection_error(
 ):
     """An unreachable token endpoint should raise the library's network error."""
     # Arrange: Make the token endpoint unreachable.
-    mock_responses.post(ENDPOINT_TOKEN, exception=aiohttp.ClientConnectionError())
+    mock_responses.post(ENDPOINT_TOKEN, exception=True)
 
     async with aiohttp.ClientSession() as session:
         oauth = OAuth("client", "https://example.invalid", token_file, session)
@@ -629,23 +630,51 @@ async def test_code_exchange_network_error_is_a_connection_error(
     assert not token_file.exists()
 
 
-@pytest.mark.parametrize(
-    "network_error", [aiohttp.ClientConnectionError(), TimeoutError()]
-)
-async def test_refresh_network_error_is_a_connection_error(
-    mock_responses, token_file, network_error
-):
+async def test_refresh_network_error_is_a_connection_error(mock_responses, token_file):
     """A refresh that cannot reach the token endpoint should raise ViConnectionError."""
     # Arrange: Store an expired token and make the token endpoint unreachable.
     _write_token_document(token_file, expires_at=0)
-    mock_responses.post(ENDPOINT_TOKEN, exception=network_error)
+    mock_responses.post(ENDPOINT_TOKEN, exception=True)
 
     async with aiohttp.ClientSession() as session:
         oauth = OAuth("client", "https://example.invalid", token_file, session)
 
         # Act and assert: The failed refresh arrives as ViConnectionError.
-        with pytest.raises(ViConnectionError, match="Network error"):
+        with pytest.raises(ViConnectionError, match="Network error") as raised_error:
             await oauth.async_get_access_token()
+
+    # Assert: The library error keeps the aiohttp failure as its cause.
+    assert isinstance(raised_error.value.__cause__, aiohttp.ClientConnectionError)
+
+
+async def test_refresh_timeout_is_a_connection_error(mock_responses, token_file):
+    """A refresh that times out should raise ViConnectionError."""
+    # Arrange: Store an expired token and stall the token endpoint until the
+    # client timeout has expired.
+    _write_token_document(token_file, expires_at=0)
+    release = asyncio.Event()
+
+    async def _stall_until_released(_url: URL, **_kwargs: object) -> CallbackResult:
+        await release.wait()
+        return CallbackResult(payload={})
+
+    mock_responses.post(ENDPOINT_TOKEN, callback=_stall_until_released)
+
+    timeout = aiohttp.ClientTimeout(total=0.05)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        oauth = OAuth("client", "https://example.invalid", token_file, session)
+
+        # Act and assert: The timed-out refresh arrives as ViConnectionError.
+        try:
+            with pytest.raises(
+                ViConnectionError, match="Network error"
+            ) as raised_error:
+                await oauth.async_get_access_token()
+        finally:
+            release.set()
+
+    # Assert: The library error keeps the timeout as its cause.
+    assert isinstance(raised_error.value.__cause__, TimeoutError)
 
 
 @pytest.mark.parametrize(
@@ -799,10 +828,8 @@ async def test_authenticated_requests_add_a_bearer_header_without_mutating_input
 
     # Assert: The sent request has both headers; the caller's dict is unchanged.
     (request,) = mock_responses.requests[("GET", URL(INSTALLATIONS_URL))]
-    assert request.kwargs["headers"] == {
-        "Accept": "application/json",
-        "Authorization": "Bearer stored-access",
-    }
+    assert request.headers["Accept"] == "application/json"
+    assert request.headers["Authorization"] == "Bearer stored-access"
     assert caller_headers == {"Accept": "application/json"}
 
 

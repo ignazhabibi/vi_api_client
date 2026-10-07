@@ -51,20 +51,17 @@ async def test_get_event_history_returns_first_page_by_days(vi_client, mock_resp
     assert method == "GET"
     assert str(request_url) == url
     request = _requests[0]
-    assert request.kwargs["params"] == {"lastNDays": 7, "limit": 50}
+    assert dict(request.query) == {"lastNDays": "7", "limit": "50"}
 
 
 async def test_get_event_history_follows_cursor_without_window(
     vi_client, mock_responses
 ):
     """A cursor page should not repeat the lookback window."""
-    # Arrange: Register the continuation URL and a final page. The mock
-    # re-encodes the transport-encoded query once more, so the registered
-    # URL uses the mock's double-encoded form; the asserted request
-    # contract below is the unchanged params mapping, which the provider
-    # receives single-encoded.
+    # Arrange: Register the continuation URL, with the cursor as the provider
+    # receives it on the wire, and a final page.
     cursor = "b3BhcXVlLWN1cnNvci10b2tlbg=="
-    url = _page_url("cursor=b3BhcXVlLWN1cnNvci10b2tlbg%253D%253D")
+    url = _page_url("cursor=b3BhcXVlLWN1cnNvci10b2tlbg%3D%3D")
 
     mock_responses.get(url, payload={"data": []})
 
@@ -76,7 +73,7 @@ async def test_get_event_history_follows_cursor_without_window(
     assert page.events == ()
     assert page.next_cursor is None
     request = next(iter(mock_responses.requests.values()))[0]
-    assert request.kwargs["params"] == {"cursor": cursor}
+    assert dict(request.query) == {"cursor": cursor}
 
 
 @pytest.mark.parametrize(

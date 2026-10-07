@@ -91,7 +91,7 @@ async def test_update_gateway_devices_refreshes_multiple_devices_with_one_reques
     assert heating_curve_slope.is_writable
     assert len(mock_responses.requests) == 1
     (request,) = mock_responses.requests[("POST", URL(url))]
-    assert request.kwargs["json"] == {
+    assert await request.json() == {
         "includeDevicesFeatures": True,
         "skipDisabled": True,
         "skipNotReady": True,
@@ -820,7 +820,7 @@ async def test_get_features_matches_feature_and_api_feature_names_locally(
     # Assert: Matching is local, so the request carries no server-side name filter.
     assert sorted(feature.name for feature in features) == expected_names
     (request,) = mock_responses.requests[("POST", URL(url))]
-    assert "filter" not in request.kwargs["json"]
+    assert "filter" not in await request.json()
 
 
 async def test_get_features_returns_nothing_for_unknown_names(
@@ -926,7 +926,7 @@ async def test_set_feature_sends_the_current_value_of_a_required_sibling(
     # Assert: The command also carries the fixture's current shift of 4.
     assert response.success
     (request,) = mock_responses.requests[("POST", URL(CURVE_COMMAND_URL))]
-    assert request.kwargs["json"] == {"slope": 1.2, "shift": 4}
+    assert await request.json() == {"slope": 1.2, "shift": 4}
 
 
 async def test_set_feature_returns_a_new_device_with_the_written_value(
@@ -981,7 +981,7 @@ async def test_execute_command_preserves_explicit_parameters(vi_client, mock_res
     # Assert: The adapter sends the supplied parameters unchanged.
     assert response.success
     (request,) = mock_responses.requests[("POST", URL(CURVE_COMMAND_URL))]
-    assert request.kwargs["json"] == parameters
+    assert await request.json() == parameters
 
 
 async def test_execute_command_rejects_malformed_success_response(
@@ -1062,7 +1062,7 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
     _slope_request, shift_request = mock_responses.requests[
         ("POST", URL(CURVE_COMMAND_URL))
     ]
-    assert shift_request.kwargs["json"] == {"slope": 0.7, "shift": 7.0}
+    assert await shift_request.json() == {"slope": 0.7, "shift": 7.0}
 
 
 @pytest.mark.parametrize(
@@ -1109,7 +1109,7 @@ async def test_feature_reads_send_the_enabled_filter_hint(
 
     # Assert: The request body carries the expected server-side hint.
     (request,) = mock_responses.requests[("POST", URL(url))]
-    assert request.kwargs["json"] == {
+    assert await request.json() == {
         "skipDisabled": expected_hint,
         "skipNotReady": expected_hint,
     }
@@ -1146,7 +1146,7 @@ async def test_get_devices_passes_the_feature_filter_to_hydration(
 
     # Assert: The hydration request carries the caller's filter.
     (request,) = mock_responses.requests[("POST", URL(features_url))]
-    assert request.kwargs["json"] == {
+    assert await request.json() == {
         "skipDisabled": only_active_features,
         "skipNotReady": only_active_features,
     }
