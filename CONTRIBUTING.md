@@ -48,5 +48,8 @@ Install development dependencies with the CI constraints
 tested HTTP client and mock combination. CI additionally runs the test suite
 against the lowest supported runtime dependencies from
 `constraints-ci-lowest.txt`; raise those pins together with the lower bounds in
-`pyproject.toml`. See [README.md](README.md#development-and-tests) for the full
+`pyproject.toml`. The `Security audit` workflow runs `python -m pip_audit`
+against the `constraints-ci.txt` environment on pull requests, on `main`, and
+weekly; it needs network access and is therefore not part of
+`scripts/quality_check.py`. See [README.md](README.md#development-and-tests) for the full
 walkthrough.

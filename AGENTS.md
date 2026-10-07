@@ -47,7 +47,10 @@ scripts/quality_check.py` runs the complete gate and CI runs the same script.
 `constraints-ci.txt` defines the CI-tested HTTP-client and mock combination.
 `constraints-ci-lowest.txt` pins the lowest supported runtime dependencies,
 which CI's `minimum-dependencies` job tests; keep it in step with the lower
-bounds in `pyproject.toml`.
+bounds in `pyproject.toml`. The `Security audit` workflow runs
+`python -m pip_audit` against the `constraints-ci.txt` environment on pull
+requests, on `main`, and weekly. A finding there means updating the pin in
+`constraints-ci.txt`, not ignoring the advisory.
 
 In Claude Code cloud sessions, `.claude/hooks/session-start.sh` installs Python
 3.14 with uv, creates `.venv` with the dev dependencies, and activates it, so the
