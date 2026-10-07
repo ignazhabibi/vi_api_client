@@ -127,7 +127,7 @@ class _FixtureCommandAdapter:
             "Executing fixture command %r for feature %r (parameter %r) with values %s",
             control.command_name,
             control.parent_feature_name,
-            control.param_name,
+            control.parameter_name,
             parameters,
         )
         return {"data": {"success": True, "reason": "Fixture Execution Success"}}

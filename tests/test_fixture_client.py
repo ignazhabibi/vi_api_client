@@ -49,14 +49,14 @@ async def test_fixture_discovery_uses_each_fixture_metadata_definition(
     ]
 
 
-async def test_fixture_update_device_returns_hydrated_copy_without_mutating_input():
+async def test_fixture_refresh_device_returns_hydrated_copy_without_mutating_input():
     """Fixture refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
     # Act: Refresh through the public client workflow.
-    refreshed_device = await client.update_device(device)
+    refreshed_device = await client.refresh_device(device)
 
     # Assert: The input remains unhydrated and the returned copy has features.
     assert device.features == ()
@@ -142,7 +142,7 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     caplog.set_level(logging.DEBUG, logger="vi_api_client.fixture_client")
     client = FixtureViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    device = await client.update_device(device)
+    device = await client.refresh_device(device)
     feature = device.get_feature("heating.circuits.0.heating.curve.slope")
     assert feature is not None
 
@@ -153,7 +153,7 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     # fixture value, so the command did not change the fixture state.
     assert response.success
     assert response.reason == "Fixture Execution Success"
-    refreshed_feature = (await client.update_device(device)).get_feature(
+    refreshed_feature = (await client.refresh_device(device)).get_feature(
         "heating.circuits.0.heating.curve.slope"
     )
     assert refreshed_feature is not None
@@ -179,7 +179,7 @@ async def test_fixture_comfort_temperature_is_written_with_set_temperature():
     assert feature is not None
     assert feature.control is not None
     assert feature.control.command_name == "setTemperature"
-    assert feature.control.param_name == "targetTemperature"
+    assert feature.control.parameter_name == "targetTemperature"
 
 
 async def test_fixture_schedule_value_is_the_plan_and_renders_compactly():

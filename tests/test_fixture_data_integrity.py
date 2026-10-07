@@ -57,7 +57,7 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
     ]
     for name, control in controls:
         # Curve settings without bounds would let consumers send invalid values.
-        if "heating.curve" in name and control.param_name in ("slope", "shift"):
+        if "heating.curve" in name and control.parameter_name in ("slope", "shift"):
             assert control.min is not None, f"{name}: missing min constraint"
             assert control.max is not None, f"{name}: missing max constraint"
         if control.pattern:

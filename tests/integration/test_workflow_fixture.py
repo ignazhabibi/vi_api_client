@@ -107,7 +107,7 @@ async def test_fixture_gateway_device_refresh_stays_offline():
     ]
 
     # Act: Refresh both devices through the gateway-scoped public API.
-    result = await client.update_gateway_devices(devices)
+    result = await client.refresh_gateway_devices(devices)
 
     # Assert: Fixture refresh preserves order and metadata without HTTP access.
     assert result.is_complete

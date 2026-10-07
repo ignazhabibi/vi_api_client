@@ -52,14 +52,14 @@ Fetches all available installations.
 Fetches all gateways (automatically linked to installations).
 *   **Returns**: List of `Gateway` objects.
 
-### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_active_features: bool = False) -> list[Device]`
+### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_enabled: bool = False) -> list[Device]`
 Fetches devices attached to a specific gateway.
 
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
     *   `include_features`: If `True`, performs device feature hydration (Default `False`).
-    *   `only_active_features`: If `include_features=True`, only returns enabled and ready features (Default `False`).
+    *   `only_enabled`: If `include_features=True`, only returns enabled and ready features (Default `False`).
 *   **Returns**: List of device snapshots. If `include_features=True`, device
     feature hydration produces new snapshots from the feature responses.
 
@@ -141,16 +141,16 @@ Fetches features for a specific device. This is the primary method to read data.
 *   **Returns**: List of `Feature` objects. Unknown names select nothing; they do not raise.
 *   **Matching**: The client always fetches the device's features and matches names locally after parsing, so live and fixture-backed clients return the same features. A name that is both a feature name and an API feature name, such as `heating.circuits.0.name`, selects both matches. The request therefore carries the whole device feature set even when only a few names are requested; the number of API calls does not change.
 
-### `update_device(device: Device, only_enabled: bool = True) -> Device`
+### `refresh_device(device: Device, only_enabled: bool = True) -> Device`
 Refreshes a specific device by refetching all its features.
 
 *   **Parameters**:
-    *   `device`: The `Device` object to update.
+    *   `device`: The `Device` object to refresh.
     *   `only_enabled`: if `True`, only returns enabled and ready features (default `True`).
 *   **Returns**: A refreshed device snapshot with features from an API read response.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
-### `update_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
+### `refresh_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
 
 Refreshes known devices belonging to one installation and gateway. The normal
 path uses one POST feature-filter request and retrieves enabled and ready
@@ -167,7 +167,7 @@ features only.
 *   **Boundary behavior**: Empty input returns an empty complete result without I/O. Failed original devices are not returned in `updated_devices`.
 
 ```python
-result = await client.update_gateway_devices(devices)
+result = await client.refresh_gateway_devices(devices)
 for device in result.updated_devices:
     use_current_state(device)
 
@@ -175,7 +175,7 @@ for device_id, error in result.errors_by_device_id.items():
     handle_unavailable_device(device_id, error.error_type)
 ```
 
-`get_features`, `update_device`, `get_devices`, and
+`get_features`, `refresh_device`, `get_devices`, and
 `get_full_installation_status` use their single-device request and error
 semantics rather than this gateway-scoped partial-result contract.
 

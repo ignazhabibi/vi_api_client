@@ -364,10 +364,10 @@ configurable page safety limit that marks truncated results incomplete.
 
 ## 9. Device refresh
 
-`update_device(device)` reads one device's features and returns a new refreshed
+`refresh_device(device)` reads one device's features and returns a new refreshed
 snapshot. The input remains unchanged.
 
-`update_gateway_devices(devices)` refreshes known devices on one gateway,
+`refresh_gateway_devices(devices)` refreshes known devices on one gateway,
 normally with one bulk request:
 
 ```mermaid

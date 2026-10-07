@@ -453,8 +453,8 @@ def _build_control(
 
     return FeatureControl(
         command_name=command_name,
-        param_name=target_param,
-        required_params=_get_required_params(params),
+        parameter_name=target_param,
+        required_parameters=_get_required_parameters(params),
         parent_feature_name=api_feature_name,
         uri=command.get("uri", ""),
         min=_resolve_constraint(["min"], sources),
@@ -468,7 +468,7 @@ def _build_control(
     )
 
 
-def _get_required_params(params: dict[str, Any]) -> list[str]:
+def _get_required_parameters(params: dict[str, Any]) -> list[str]:
     """Return parameters required by the API command metadata.
 
     An omitted marker is conservatively required; only an explicit ``false``
@@ -559,8 +559,8 @@ def _find_control_for_complex_feature(
             parameter = params[target_param]
             return FeatureControl(
                 command_name=command_name,
-                param_name=target_param,
-                required_params=_get_required_params(params),
+                parameter_name=target_param,
+                required_parameters=_get_required_parameters(params),
                 parent_feature_name=api_feature_name,
                 uri=command.get("uri", ""),
                 value_type=parameter.get("type"),

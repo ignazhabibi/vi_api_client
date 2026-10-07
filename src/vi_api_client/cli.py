@@ -416,7 +416,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         if control is None:
             continue
         print(f"  Writable via command: {control.command_name}")
-        print(f"  Target param: {control.param_name}")
+        print(f"  Target param: {control.parameter_name}")
         if control.min is not None:
             print(
                 f"  Constraints: min={control.min}, max={control.max}, "
@@ -446,7 +446,7 @@ async def cmd_set(args: argparse.Namespace) -> bool:
         device, feature, control = target
 
         print(f"Setting '{feature.name}' to '{raw_value}'...")
-        print(f"  (Command: {control.command_name}, Param: {control.param_name})")
+        print(f"  (Command: {control.command_name}, Param: {control.parameter_name})")
 
         value = _parse_set_value(raw_value, feature, control)
         result, _updated_device = await context.client.set_feature(
@@ -651,7 +651,7 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     print(f"\nFound {len(writable_features)} writable features:\n")
     for feature, control in writable_features:
         print(f"- {feature.name}")
-        print(f"    Param:   {control.param_name} (via {control.command_name})")
+        print(f"    Param:   {control.parameter_name} (via {control.command_name})")
         _print_feature_constraints(control)
         print("")
 

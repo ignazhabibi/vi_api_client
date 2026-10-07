@@ -53,13 +53,15 @@ def _device(features: list[Feature]) -> Device:
 
 
 def _control(
-    *, required_params: list[str] | None = None, param_name: str = "target"
+    *, required_parameters: list[str] | None = None, parameter_name: str = "target"
 ) -> FeatureControl:
     """Build command metadata for a target under ``heating.mode``."""
     return FeatureControl(
         command_name="setMode",
-        param_name=param_name,
-        required_params=[param_name] if required_params is None else required_params,
+        parameter_name=parameter_name,
+        required_parameters=[parameter_name]
+        if required_parameters is None
+        else required_parameters,
         parent_feature_name="heating.mode",
         uri="/commands/setMode",
     )
@@ -71,7 +73,7 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
     canonical_control = _control(
-        required_params=["target", "enabled", "count", "label"]
+        required_parameters=["target", "enabled", "count", "label"]
     )
     canonical = build_feature("heating.mode.target", "old", canonical_control)
     device = _device(
@@ -128,7 +130,7 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
                 build_feature(
                     "heating.mode.target",
                     "old",
-                    _control(required_params=["target", "other"]),
+                    _control(required_parameters=["target", "other"]),
                 )
             ],
             "Required dependency",
@@ -181,7 +183,7 @@ async def test_set_feature_rejects_unavailable_required_dependencies_before_cons
     # Arrange: Both the sibling and target constraint are invalid.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(required_params=["target", "other"]), max=10)
+    control = replace(_control(required_parameters=["target", "other"]), max=10)
     target = build_feature("heating.mode.target", "old", control)
     device = _device([target, sibling])
 
@@ -290,7 +292,7 @@ async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device
     # Arrange: The optional sibling is available but must not be sent automatically.
     adapter = _RecordingCommandAdapter(success=False)
     client = _create_client(adapter)
-    control = _control(required_params=[])
+    control = _control(required_parameters=[])
     canonical = build_feature("heating.mode.target", "old", control)
     device = _device([canonical, build_feature("heating.mode.optional", "present")])
 
@@ -308,7 +310,7 @@ async def test_execute_command_requires_complete_available_command_without_mutat
     # Arrange: The complete payload includes an allowed extra parameter.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = _control(required_params=["target", "dependency"])
+    control = _control(required_parameters=["target", "dependency"])
     feature = build_feature("heating.mode.target", "old", control)
     parameters = {"target": "new", "dependency": None, "extra": "kept"}
 
@@ -374,7 +376,7 @@ async def test_set_feature_rejects_non_json_required_dependency_value_without_ad
     # Arrange: The required sibling reports a value JSON cannot represent.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = _control(required_params=["target", "other"])
+    control = _control(required_parameters=["target", "other"])
     target = build_feature("heating.mode.target", "old", control)
     sibling = build_feature("heating.mode.other", cast(FeatureValue, object()))
     device = _device([target, sibling])
@@ -428,7 +430,7 @@ async def test_execute_command_rejects_non_json_parameter_values_without_adapter
         ),
         pytest.param(
             build_feature(
-                "target", "old", _control(required_params=["target", "other"])
+                "target", "old", _control(required_parameters=["target", "other"])
             ),
             {"target": "new"},
             "required parameter",
@@ -461,8 +463,8 @@ def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
     """Build command metadata for writing a whole schedule."""
     return FeatureControl(
         command_name="setSchedule",
-        param_name="newSchedule",
-        required_params=["newSchedule"],
+        parameter_name="newSchedule",
+        required_parameters=["newSchedule"],
         parent_feature_name="heating.dhw.schedule",
         uri="/commands/setSchedule",
         value_type="Schedule",

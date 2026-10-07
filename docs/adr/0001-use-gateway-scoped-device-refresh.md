@@ -4,6 +4,10 @@ status: accepted
 
 # Use an explicit gateway-scoped device refresh with partial results
 
+> **Note:** Version 5.0.0 renamed `update_gateway_devices` to
+> `refresh_gateway_devices` and `update_device` to `refresh_device`. This record
+> keeps the method name from the time of the decision.
+
 `vi_api_client` will expose `update_gateway_devices(devices)` for refreshing the
 enabled and ready features of known devices through the gateway-scoped bulk
 endpoint. The method accepts devices from exactly one installation and gateway
