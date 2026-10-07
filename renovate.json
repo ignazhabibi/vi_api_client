@@ -6,6 +6,9 @@
   "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "rangeStrategy": "replace",
+  "pip_requirements": {
+    "managerFilePatterns": ["/(^|/)constraints-ci\\.txt$/"]
+  },
   "packageRules": [
     {
       "matchPackageNames": [
