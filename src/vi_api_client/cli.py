@@ -40,7 +40,7 @@ from .utils import format_feature, parse_cli_params
 
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 # Tokens and the OAuth client configuration are stored together in this file.
-DEFAULT_TOKEN_FILE = "tokens.json"
+DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
 # Default safety limit on pages fetched for one event history window.
 DEFAULT_EVENT_HISTORY_MAX_PAGES = 50
 

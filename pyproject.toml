@@ -55,7 +55,8 @@ select = [
     "B",   # flake8-bugbear
     "SIM", # flake8-simplify
     "PL",  # pylint
-    "RUF"  # ruff specific
+    "RUF", # ruff specific
+    "S"    # flake8-bandit (security)
 ]
 
 ignore = [
@@ -68,7 +69,13 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D", "PLR0913", "PLR0917", "PLR2004", "E501"]
+"tests/*" = [
+    "D", "PLR0913", "PLR0917", "PLR2004", "E501",
+    # Tests assert, use placeholder tokens, and run the CLI as a subprocess.
+    "S101", "S105", "S106", "S603",
+]
+# Repository scripts run fixed tool commands and parse the local coverage.xml.
+"scripts/*" = ["S314", "S603"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
