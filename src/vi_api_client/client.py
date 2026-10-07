@@ -667,7 +667,7 @@ class ViClient:
 
         control = feature.control
         # is_writable means a control exists; the assert only narrows the type.
-        assert control is not None
+        assert control is not None  # noqa: S101
         return control
 
     @staticmethod
