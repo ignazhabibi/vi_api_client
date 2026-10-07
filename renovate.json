@@ -6,6 +6,10 @@
   "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "rangeStrategy": "replace",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "addLabels": ["security"]
+  },
   "pip_requirements": {
     "managerFilePatterns": ["/(^|/)constraints-ci\\.txt$/"]
   },
