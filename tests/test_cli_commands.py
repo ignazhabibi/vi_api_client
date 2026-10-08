@@ -1442,7 +1442,7 @@ async def test_list_events_prints_readable_summary(run_cli):
     assert "Pagination completed after 2 page(s)" in out
     assert all(len(line) <= _EVENT_LINE_WIDTH for line in lines)
     assert "..." not in out
-    assert "7630175843100101" not in out
+    assert "1234567890123456" not in out
 
 
 async def test_list_events_readable_output_marks_the_safety_limit(run_cli):
@@ -1907,11 +1907,11 @@ def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
         _detail_event(
             {"featureName": "heating.dhw.temperature.main"}, "feature-changed"
         ),
-        gateway_serial="7630175843100101",
+        gateway_serial="1234567890123456",
     )
     second = replace(
         _detail_event({"featureName": "heating.dhw.oneTimeCharge"}, "feature-changed"),
-        gateway_serial="8112200229931101",
+        gateway_serial="9876543210987654",
     )
     third = replace(
         _detail_event({"featureName": "heating.dhw.schedule"}, "feature-changed"),
@@ -1926,6 +1926,6 @@ def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
 
     # Assert: Every event names its gateway, or explicitly none.
     output = capsys.readouterr().out
-    assert "- 10:15:30 UTC feature-changed gateway 7630175843100101" in output
-    assert "- 10:15:30 UTC feature-changed gateway 8112200229931101" in output
+    assert "- 10:15:30 UTC feature-changed gateway 1234567890123456" in output
+    assert "- 10:15:30 UTC feature-changed gateway 9876543210987654" in output
     assert "- 10:15:30 UTC feature-changed gateway unknown" in output
