@@ -630,8 +630,8 @@ from vi_api_client import Device, Feature, FixtureViClient, OAuth, ViClient
 The package root is `vi_api_client/__init__.py`. It is the curated public
 surface and includes clients, auth types, models, results, the exception
 hierarchy, external OAuth constants, the dynamic value-contract types
-(`JsonValue`, `FeatureValue`, `ValidationDetail`), `validate_json_value`, and
-`format_feature`.
+(`JsonValue`, `FeatureValue`, `ValidationDetail`), `validate_json_value`,
+`format_feature`, and `mask_identifiers`.
 
 Private adapters, parsers, credential persistence, endpoints, and CLI helpers
 are not consumer contracts. The curated package root and the private module

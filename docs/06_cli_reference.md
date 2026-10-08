@@ -262,6 +262,23 @@ vi-client list-fixture-devices
 vi-client list-features --fixture-device Vitocal250A --values
 ```
 
+### Export a Device as a Fixture
+
+`dump-device` prints the selected device's features as one anonymized JSON
+document, the format a new fixture is added from. It selects the device like
+the other commands and prints setup messages to standard error, so the output
+can be redirected into a file:
+
+```bash
+vi-client dump-device > export.json
+vi-client dump-device --installation-id 123456 --device-id 1 > export.json
+```
+
+The export always reads every feature, including disabled and not-ready ones,
+and masks installation IDs, gateway and device serials, and coordinates. Free
+text, such as circuit names, is kept; check the file before sharing it. See
+`export_device_fixture` in the [Client Reference](05_client_reference.md).
+
 ## Debug Logging
 
 Every command accepts `--verbose` to enable debug logging for the CLI and the

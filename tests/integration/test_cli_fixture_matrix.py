@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from builders import load_fixture_features
+from builders import load_fixture_device, load_fixture_features
 
 from vi_api_client import FixtureViClient
 from vi_api_client.models import Feature
@@ -101,6 +101,37 @@ async def test_list_features_values_json_prints_value_documents(
     assert exit_status == 0
     for document in json.loads(out):
         assert set(document) == {"formatted", "name", "unit", "value", "writable"}
+
+
+@_for_every_fixture_device
+async def test_dump_device_prints_the_fixture_as_one_document(
+    run_cli, fixture_device: str
+):
+    """The device export is one JSON document holding the fixture's features."""
+    # Act: Export the fixture device.
+    exit_status, out, err = await run_cli(
+        "dump-device", "--fixture-device", fixture_device
+    )
+
+    # Assert: stdout is exactly the export; setup output stays out of it.
+    assert exit_status == 0
+    document = json.loads(out)
+    assert document["data"] == load_fixture_device(fixture_device)["data"]
+    assert set(document["device"]) == {"modelId", "deviceType", "capturedAt"}
+    assert f"Using Fixture Device: {fixture_device}" in err
+
+
+async def test_dump_device_reports_an_unknown_device(run_cli):
+    """An unknown device ID fails without printing a document."""
+    # Act: Export a device the fixture gateway does not have.
+    exit_status, out, err = await run_cli(
+        "dump-device", "--fixture-device", "Vitodens200W", "--device-id", "9"
+    )
+
+    # Assert: The command fails and names the missing device.
+    assert exit_status == 1
+    assert out == ""
+    assert "Device 9 not found" in err
 
 
 @_for_every_fixture_device

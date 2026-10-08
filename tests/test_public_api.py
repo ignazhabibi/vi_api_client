@@ -45,6 +45,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ViServerInternalError",
         "ViValidationError",
         "format_feature",
+        "mask_identifiers",
         "validate_json_value",
     }
 

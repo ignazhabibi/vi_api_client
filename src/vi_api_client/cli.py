@@ -1045,6 +1045,30 @@ def _feature_change_lines(body: dict[str, JsonValue]) -> list[str] | None:
     return lines
 
 
+@_reports_errors("exporting device fixture")
+async def cmd_dump_device(args: argparse.Namespace) -> bool:
+    """Print the selected device as an anonymized fixture document.
+
+    The JSON document is the only standard output, so it can be redirected
+    into a file; setup information goes to standard error.
+
+    Args:
+        args: Parsed command line arguments with the optional device target.
+    """
+    async with setup_client_context(args) as context:
+        target = _transient_device(context)
+        devices = await context.client.get_devices(
+            target.installation_id, target.gateway_serial
+        )
+        device = next((device for device in devices if device.id == target.id), None)
+        if device is None:
+            raise ValueError(f"Device {target.id} not found.")
+        document = await context.client.export_device_fixture(device)
+
+    _print_json(document)
+    return True
+
+
 async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     """List available fixture devices.
 
@@ -1188,6 +1212,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="List available fixture devices",
         parents=[common_parser],
     ).set_defaults(handler=cmd_list_fixture_devices)
+
+    # Dump Device
+    subparsers.add_parser(
+        "dump-device",
+        help="Print a device's features as an anonymized fixture (JSON)",
+        parents=[common_parser, device_parser],
+    ).set_defaults(handler=cmd_dump_device, json=True)
 
     # List Writable Features
     subparsers.add_parser(

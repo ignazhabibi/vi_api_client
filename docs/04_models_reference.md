@@ -20,6 +20,7 @@ from vi_api_client import (
     ScheduleConstraints,
     ValidationDetail,
     format_feature,
+    mask_identifiers,
     validate_json_value,
 )
 ```

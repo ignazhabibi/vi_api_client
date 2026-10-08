@@ -150,6 +150,32 @@ Refreshes a specific device by refetching all its features.
 *   **Returns**: A refreshed device snapshot with features from an API read response.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
+### `export_device_fixture(device: Device) -> dict[str, JsonValue]`
+Exports a device's features as an anonymized fixture document, for example to
+contribute a new fixture.
+
+*   **Parameters**:
+    *   `device`: The `Device` to export. It only identifies the device; features already on it are not used.
+*   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
+*   **Anonymization**: The whole document is masked with `mask_identifiers`, so it contains no installation IDs, gateway or device serials, or coordinates. Free text, such as user-chosen circuit names, stays.
+*   **Raises**: `ViResponseError` for a malformed response, and the applicable `ViError` subclass for API failures.
+
+`FixtureViClient` exports its bundled fixture the same way.
+
+```python
+import json
+from pathlib import Path
+
+document = await client.export_device_fixture(device)
+Path("export.json").write_text(json.dumps(document), encoding="utf-8")
+```
+
+`mask_identifiers(document)` applies the same masking to any JSON-compatible
+API document and returns a masked copy:
+
+*   A string, or a `/`-separated segment of a string such as a URI path segment, that consists of six or more digits becomes the same number of `#` characters. This is the rule PyViCare's `dump_secure` applies. Numbers, such as counters, and shorter IDs such as device `"0"` stay.
+*   The numeric value of a `latitude` or `longitude` entry becomes `0`.
+
 ### `refresh_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
 
 Refreshes known devices belonging to one installation and gateway. The normal

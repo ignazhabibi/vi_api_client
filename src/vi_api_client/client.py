@@ -4,6 +4,7 @@ import itertools
 import logging
 import re
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import unquote, urlsplit
 
@@ -24,6 +25,7 @@ from .models import (
     ScheduleConstraints,
 )
 from .parsing import api_feature_to_flat_features, validate_feature_entry
+from .utils import mask_identifiers
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -306,6 +308,42 @@ class ViClient:
         """
         features = await self.get_features(device, only_enabled=only_enabled)
         return replace(device, features=features)
+
+    async def export_device_fixture(self, device: Device) -> dict[str, JsonValue]:
+        """Return a device's raw API features as an anonymized fixture document.
+
+        The features are always read fresh from the API, including disabled
+        and not-ready features, and kept in their raw API shape. The device
+        only identifies what to read: features already on ``device`` are not
+        used. The document is masked with `mask_identifiers`, so it carries no
+        installation IDs, serials, or coordinates and can be shared, for
+        example as a new fixture.
+
+        Args:
+            device: The device to export.
+
+        Returns:
+            ``{"device": {...}, "data": [...]}``: the device's ``modelId``,
+            ``deviceType``, and the UTC ``capturedAt`` date, and the masked
+            raw API features.
+
+        Raises:
+            ViResponseError: If the API response is malformed.
+        """
+        response = await self._discovery_adapter.get_features(
+            device, {"skipDisabled": False, "skipNotReady": False}
+        )
+        api_features = self._response_items(response, resource="Feature")
+        document: dict[str, JsonValue] = {
+            "device": {
+                "modelId": device.model_id,
+                "deviceType": device.device_type,
+                "capturedAt": datetime.now(UTC).date().isoformat(),
+            },
+            "data": validate_json_value(api_features, path="features"),
+        }
+        # Masking keeps the document's shape, so the result is still an object.
+        return cast("dict[str, JsonValue]", mask_identifiers(document))
 
     async def refresh_gateway_devices(
         self, devices: list[Device]
