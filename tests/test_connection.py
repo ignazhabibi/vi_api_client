@@ -1,12 +1,16 @@
 """Tests for private live adapter HTTP and authentication behavior."""
 
-from collections.abc import Callable
+import asyncio
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
+from aiointercept import CallbackResult, aiointercept
+from builders import StaticTokenAuth
+from yarl import URL
 
 from vi_api_client._adapter import LiveAdapter
 from vi_api_client._types import JsonValue
@@ -51,6 +55,39 @@ def live_adapter(static_token_auth: AbstractAuth) -> LiveAdapter:
     return LiveAdapter(static_token_auth)
 
 
+@pytest.fixture
+async def short_timeout_adapter(
+    mock_responses: aiointercept,
+) -> AsyncIterator[LiveAdapter]:
+    """Return a live adapter whose session times out after a short delay."""
+    timeout = aiohttp.ClientTimeout(total=0.05)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        yield LiveAdapter(StaticTokenAuth(session))
+
+
+@pytest.fixture
+async def release_stalled_responses(
+    mock_responses: aiointercept,
+) -> AsyncIterator[asyncio.Event]:
+    """Return an event that lets stalled mock responses finish at teardown."""
+    release = asyncio.Event()
+    yield release
+    release.set()
+
+
+async def _stalled_body(release: asyncio.Event) -> AsyncIterator[bytes]:
+    """Send the start of a JSON body, then wait until the test releases it."""
+    yield b'{"data": ['
+    await release.wait()
+    yield b"]}"
+
+
+async def _dropped_body() -> AsyncIterator[bytes]:
+    """Send the start of a JSON body, then drop the connection."""
+    yield b'{"data": ['
+    raise ConnectionResetError("connection dropped mid-body")
+
+
 def _command_control(uri: str) -> FeatureControl:
     """Build a command control targeting the given URI."""
     return FeatureControl(
@@ -93,6 +130,75 @@ async def test_live_adapter_wraps_aiohttp_connection_error(
 
     # Assert: The library error keeps the aiohttp failure as its cause.
     assert isinstance(raised_error.value.__cause__, aiohttp.ClientConnectionError)
+
+
+async def test_live_adapter_wraps_a_timeout_before_the_response(
+    short_timeout_adapter, mock_responses, release_stalled_responses
+) -> None:
+    # Arrange: Stall the installations response until the client timeout expires.
+    async def _stall_until_released(_url: URL, **_kwargs: object) -> CallbackResult:
+        await release_stalled_responses.wait()
+        return CallbackResult(payload={"data": []})
+
+    mock_responses.get(INSTALLATIONS_URL, callback=_stall_until_released)
+
+    # Act: Read installations while no response headers arrive.
+    with pytest.raises(ViConnectionError, match="Network error") as raised_error:
+        await short_timeout_adapter.get_installations()
+
+    # Assert: The library error keeps the timeout as its cause.
+    assert isinstance(raised_error.value.__cause__, TimeoutError)
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_cause"),
+    [
+        pytest.param("stalled", TimeoutError, id="timeout"),
+        pytest.param("dropped", aiohttp.ClientPayloadError, id="connection-drop"),
+    ],
+)
+async def test_live_adapter_wraps_an_incomplete_success_body(
+    short_timeout_adapter,
+    mock_responses,
+    release_stalled_responses,
+    body,
+    expected_cause,
+) -> None:
+    # Arrange: Send the response headers, then stall or drop the JSON body.
+    response_body = (
+        _stalled_body(release_stalled_responses)
+        if body == "stalled"
+        else _dropped_body()
+    )
+    mock_responses.get(
+        INSTALLATIONS_URL, body=response_body, content_type="application/json"
+    )
+
+    # Act: Read installations while the body does not arrive completely.
+    with pytest.raises(ViConnectionError, match="Network error") as raised_error:
+        await short_timeout_adapter.get_installations()
+
+    # Assert: The incomplete body is a network failure, not invalid JSON.
+    assert isinstance(raised_error.value.__cause__, expected_cause)
+
+
+async def test_live_adapter_keeps_the_status_error_when_its_body_times_out(
+    short_timeout_adapter, mock_responses, release_stalled_responses
+) -> None:
+    # Arrange: Send a server error status, then stall its JSON error body.
+    mock_responses.get(
+        INSTALLATIONS_URL,
+        status=500,
+        body=_stalled_body(release_stalled_responses),
+        content_type="application/json",
+    )
+
+    # Act: Read installations while the error body does not arrive.
+    with pytest.raises(ViServerInternalError) as raised_error:
+        await short_timeout_adapter.get_installations()
+
+    # Assert: The HTTP status decides the error, with the HTTP-level message.
+    assert str(raised_error.value) == "Server Error 500: HTTP 500"
 
 
 @pytest.mark.parametrize(

@@ -21,6 +21,7 @@ from .const import (
 )
 from .exceptions import (
     ViAuthError,
+    ViConnectionError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -33,6 +34,14 @@ from .utils import mask_pii
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
+
+# Failures while reading a response body after its headers arrived: the
+# request was not completed, unlike a complete body that is not valid JSON.
+_BODY_READ_ERRORS = (
+    TimeoutError,
+    aiohttp.ClientConnectionError,
+    aiohttp.ClientPayloadError,
+)
 
 
 class DiscoveryAdapter(Protocol):
@@ -147,6 +156,7 @@ class LiveAdapter:
         The body is untrusted JSON of any shape; callers validate it.
 
         Raises:
+            ViConnectionError: If the response body cannot be read completely.
             ViResponseError: If the URL is outside the Vi API or a successful
                 response is not valid JSON.
         """
@@ -158,6 +168,8 @@ class LiveAdapter:
             await _raise_for_status(response)
             try:
                 return await response.json()
+            except _BODY_READ_ERRORS as error:
+                raise ViConnectionError(f"Network error: {error}") from error
             except (aiohttp.ClientError, ValueError) as error:
                 raise ViResponseError(
                     "Successful API response was not valid JSON"
@@ -206,7 +218,7 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     validation_details: list[ValidationDetail] = []
     try:
         data = await response.json()
-    except aiohttp.ClientError, ValueError:
+    except TimeoutError, aiohttp.ClientError, ValueError:
         data = None
     if isinstance(data, dict):
         # The untyped aiohttp JSON boundary yields an unknown container shape;

@@ -70,7 +70,8 @@ logic of attaching the Bearer token to requests.
 Returns a valid access token. Custom authentication providers can raise their
 own exceptions from this method; the client preserves those exceptions so the
 calling application can handle provider-specific recovery. Connection failures
-while sending the authenticated API request are exposed as `ViConnectionError`.
+and timeouts while sending the authenticated API request or reading its response
+are exposed as `ViConnectionError`.
 
 ## `OAuth`
 

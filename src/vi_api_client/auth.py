@@ -358,5 +358,8 @@ async def _read_token_response(response: aiohttp.ClientResponse) -> object:
     """Read a successful token response as JSON with library-owned errors."""
     try:
         return await response.json()
+    except aiohttp.ClientConnectionError, aiohttp.ClientPayloadError:
+        # An incomplete body is a network failure, which the caller reports.
+        raise
     except (aiohttp.ClientError, json.JSONDecodeError, UnicodeDecodeError) as error:
         raise ViAuthError("Token response contains invalid JSON data") from error
