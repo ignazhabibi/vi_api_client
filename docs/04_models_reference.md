@@ -225,7 +225,7 @@ returned by `EventHistoryPage.events`.
 | `event_type` | `str` | Provider event type. | `'heating.circuits.0.heating.curve.changed'` |
 | `created_at` | `str` | When the provider recorded the event. | `'2026-09-20T10:15:30.000Z'` |
 | `event_timestamp` | `str` | When the event occurred. | `'2026-09-20T10:15:30.000Z'` |
-| `gateway_serial` | `str \| None` | Serial of the reporting gateway, when known. | `'7630175843100101'` |
+| `gateway_serial` | `str \| None` | Serial of the reporting gateway, when known. | `'1234567890123456'` |
 | `body` | `JsonValue` | The complete event body, exactly as reported. | `{'slope': 1.2, 'shift': 4}` |
 | `fields` | `Mapping[str, JsonValue]` | Read-only complete event mapping, including unknown fields. | |
 
