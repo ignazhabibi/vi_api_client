@@ -1,4 +1,4 @@
-"""Helpers for CLI parameters, feature display, and log masking."""
+"""Helpers for CLI parameters, feature display, and identifier masking."""
 
 from __future__ import annotations
 
@@ -28,6 +28,10 @@ _GATEWAY_SERIAL_PATTERN = re.compile(r'(gateways/|serial":\s?"?|Serial: )([0-9]{
 _INSTALLATION_ID_PATTERN = re.compile(
     r'(installations/|installationId":\s?|ID: )([0-9]{4,10})'
 )
+# Installation IDs, gateway serials, and device serials are numeric; shorter
+# numbers such as the device ID "0" stay readable.
+_IDENTIFIER_SEGMENT_PATTERN = re.compile(r"[0-9]{6,}")
+_COORDINATE_KEYS = frozenset({"latitude", "longitude"})
 
 
 def parse_cli_params(params_list: list[str]) -> dict[str, JsonValue]:
@@ -161,3 +165,58 @@ def mask_pii(text: str) -> str:
     text = _BEARER_TOKEN_PATTERN.sub("Bearer ***", text)
     text = _GATEWAY_SERIAL_PATTERN.sub(r"\1****************", text)
     return _INSTALLATION_ID_PATTERN.sub(r"\1****", text)
+
+
+def mask_identifiers(document: JsonValue) -> JsonValue:
+    """Return a copy of an API document with identifying values masked.
+
+    Masks the identifiers that API responses carry in values and URIs, so a
+    response can be shared, for example as a fixture:
+
+    - A string, or a ``/``-separated segment of a string, that consists of six
+      or more digits is replaced by the same number of ``#`` characters. This
+      covers installation IDs, gateway serials, and device serials, the rule
+      PyViCare's ``dump_secure`` applies. Numbers, such as counters, are kept.
+    - The numeric value of a ``latitude`` or ``longitude`` entry is set to 0.
+
+    Free text, such as user-chosen names, is not masked.
+
+    Args:
+        document: A JSON-compatible API document.
+
+    Returns:
+        The masked copy with the same structure.
+    """
+    if isinstance(document, str):
+        return "/".join(
+            "#" * len(segment)
+            if _IDENTIFIER_SEGMENT_PATTERN.fullmatch(segment)
+            else segment
+            for segment in document.split("/")
+        )
+    if isinstance(document, list):
+        return [mask_identifiers(item) for item in document]
+    if isinstance(document, dict):
+        return {
+            str(mask_identifiers(key)): (
+                _zero_coordinate(mask_identifiers(value))
+                if key in _COORDINATE_KEYS
+                else mask_identifiers(value)
+            )
+            for key, value in document.items()
+        }
+    return document
+
+
+def _zero_coordinate(coordinate: JsonValue) -> JsonValue:
+    """Return a coordinate, or its property object, with the number set to 0."""
+    if _is_number(coordinate):
+        return 0
+    if isinstance(coordinate, dict) and _is_number(coordinate.get("value")):
+        return {**coordinate, "value": 0}
+    return coordinate
+
+
+def _is_number(value: JsonValue) -> bool:
+    """Return whether a JSON value is a number rather than a boolean."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)

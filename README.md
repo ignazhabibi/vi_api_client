@@ -53,6 +53,7 @@ from vi_api_client import (
     ViServerInternalError,
     ViValidationError,
     format_feature,
+    mask_identifiers,
     validate_json_value,
 )
 ```
@@ -60,7 +61,8 @@ from vi_api_client import (
 `DEFAULT_SCOPES`, `ENDPOINT_AUTHORIZE`, and `ENDPOINT_TOKEN` support external
 OAuth integrations. `JsonValue`, `FeatureValue`, `ValidationDetail`, and
 `validate_json_value` form the public recursive JSON value contract that
-dynamic feature values and API validation details follow. CLI helpers,
+dynamic feature values and API validation details follow. `mask_identifiers`
+masks installation IDs, serials, and coordinates in API documents. CLI helpers,
 transport details, persistence, parsing, and utilities such as `mask_pii`
 remain available from their dedicated modules.
 

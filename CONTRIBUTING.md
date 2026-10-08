@@ -26,6 +26,21 @@
 - Inspect fixture or snapshot diffs rather than accepting them blindly. Run the focused test first, then the full quality gate before proposing a commit.
 - Aim for at least 95% line and branch coverage over `src/vi_api_client`; the quality gate enforces both. Reach branches with behavioral tests. Where defensive code is provably unreachable, mark it with a narrowly scoped `# pragma: no cover` or `# pragma: no branch` plus a one-line justification instead of writing a test that only exercises a line.
 
+## Adding a Fixture
+
+Bundled device fixtures come from `vi-client dump-device`, which writes an
+anonymized export. Add one with:
+
+```bash
+python scripts/add_fixture.py export.json --name Vitocal250A
+```
+
+The script masks identifiers the export still contains, checks that the name is
+free and that the library parses the features, writes
+`src/vi_api_client/fixtures/<name>.json`, and adds a sorted `discovery.json`
+catalog entry with the model, device type, and capture date. Review the fixture
+diff, then run the quality gate.
+
 ## Quality Gate
 
 CI runs `python scripts/quality_check.py`; run the same script locally before

@@ -29,7 +29,7 @@ from .models import (
     InstallationEvent,
     ScheduleConstraints,
 )
-from .utils import format_feature
+from .utils import format_feature, mask_identifiers
 from .validation import validate_json_value
 
 # Library best practice: consume the package logger without requiring
@@ -66,5 +66,6 @@ __all__ = [
     "ViServerInternalError",
     "ViValidationError",
     "format_feature",
+    "mask_identifiers",
     "validate_json_value",
 ]
