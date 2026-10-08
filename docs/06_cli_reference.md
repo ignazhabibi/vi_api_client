@@ -279,6 +279,44 @@ and masks installation IDs, gateway and device serials, and coordinates. Free
 text, such as circuit names, is kept; check the file before sharing it. See
 `export_device_fixture` in the [Client Reference](05_client_reference.md).
 
+### Compare Device Features
+
+`diff-features` compares the API features of two sources to show new or
+changed features, for example after a firmware update. Each side is
+`fixture:<name>` for a bundled fixture, `live` for the selected device
+(exported like `dump-device`), or the path of a fixture file or export:
+
+```bash
+# A new export against the bundled fixture of the same device
+vi-client diff-features fixture:Vitocal250A live
+vi-client diff-features fixture:Vitocal250A export.json
+
+# Two bundled fixtures
+vi-client diff-features fixture:Vitocal222S fixture:Vitocal250A
+```
+
+Values are not compared. The report has up to four sections:
+
+*   **Added** and **Removed**: features that exist on one side only.
+*   **Structure changed**: properties (name, type, unit), commands, and
+    command parameters (type, required flag, constraints such as `min`, `max`,
+    or `enum`), and the `deprecated` notice. Properties and commands are
+    compared only when the feature is enabled on both sides, because the API
+    returns a disabled feature without them.
+*   **State changed**: `isEnabled`, `isReady`, and each command's
+    `isExecutable`.
+
+```text
+Structure changed (1):
+  heating.dhw.temperature.main
+    setTargetTemperature.temperature max: 60 → 65
+```
+
+Comparing different devices also works, but then many differences come from
+the installation, such as the number of heating circuits. The command exits
+with 0 after a comparison, with or without differences, and with 1 when a
+source cannot be read.
+
 ## Debug Logging
 
 Every command accepts `--verbose` to enable debug logging for the CLI and the
