@@ -239,6 +239,7 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | `credentials.py` | Read, merge, safely replace credentials | OAuth decisions |
 | `exceptions.py` | Public exceptions | UI error presentation |
 | `cli.py` | Command-line orchestration | A second client implementation |
+| `_feature_diff.py` | Compare raw API features for `diff-features` | Comparing values or a public API |
 | `utils.py` | Formatting and privacy helpers | Domain workflows |
 
 `ViClient` contains shared rules. Adapters retrieve or send raw data; they do

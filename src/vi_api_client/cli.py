@@ -8,13 +8,13 @@ import math
 import os
 import sys
 import textwrap
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 import aiohttp
 
@@ -26,6 +26,7 @@ from vi_api_client import (
     ViValidationError,
 )
 
+from ._feature_diff import diff_features, feature_entries, format_feature_diff
 from ._types import JsonValue
 from .credentials import CredentialDocument
 from .models import (
@@ -43,6 +44,9 @@ DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
 # Default safety limit on pages fetched for one event history window.
 DEFAULT_EVENT_HISTORY_MAX_PAGES = 50
+# diff-features sources besides file paths.
+_LIVE_SOURCE = "live"
+_FIXTURE_SOURCE_PREFIX = "fixture:"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1056,17 +1060,69 @@ async def cmd_dump_device(args: argparse.Namespace) -> bool:
         args: Parsed command line arguments with the optional device target.
     """
     async with setup_client_context(args) as context:
-        target = _transient_device(context)
-        devices = await context.client.get_devices(
-            target.installation_id, target.gateway_serial
-        )
-        device = next((device for device in devices if device.id == target.id), None)
-        if device is None:
-            raise ValueError(f"Device {target.id} not found.")
-        document = await context.client.export_device_fixture(device)
+        document = await _export_context_device(context)
 
     _print_json(document)
     return True
+
+
+async def _export_context_device(context: CLIContext) -> dict[str, JsonValue]:
+    """Return the anonymized fixture export of the context's target device.
+
+    Raises:
+        ValueError: If the gateway has no device with the target ID.
+    """
+    target = _transient_device(context)
+    devices = await context.client.get_devices(
+        target.installation_id, target.gateway_serial
+    )
+    device = next((device for device in devices if device.id == target.id), None)
+    if device is None:
+        raise ValueError(f"Device {target.id} not found.")
+    return await context.client.export_device_fixture(device)
+
+
+@_reports_errors("comparing device features")
+async def cmd_diff_features(args: argparse.Namespace) -> bool:
+    """Compare the API features of two fixtures, exports, or the live device.
+
+    Values are not compared; see the CLI reference for the report sections.
+
+    Args:
+        args: Parsed command line arguments with the left and right sources.
+    """
+    left = await _load_feature_source(args, args.left)
+    right = await _load_feature_source(args, args.right)
+    for line in format_feature_diff(diff_features(left, right), args.left, args.right):
+        print(line)
+    return True
+
+
+async def _load_feature_source(
+    args: argparse.Namespace, source: str
+) -> dict[str, Mapping[str, Any]]:
+    """Return the raw API features of one diff-features source.
+
+    ``live`` exports the selected device, ``fixture:<name>`` reads a bundled
+    fixture, and any other source is a path to a fixture file or export.
+
+    Raises:
+        ValueError: If the fixture is unknown or the document has no features.
+    """
+    if source == _LIVE_SOURCE or source.startswith(_FIXTURE_SOURCE_PREFIX):
+        source_args = args
+        if source != _LIVE_SOURCE:
+            source_args = argparse.Namespace(
+                **{
+                    **vars(args),
+                    "fixture_device": source.removeprefix(_FIXTURE_SOURCE_PREFIX),
+                }
+            )
+        async with setup_client_context(source_args) as context:
+            document: object = await _export_context_device(context)
+    else:
+        document = json.loads(Path(source).read_text(encoding="utf-8"))
+    return feature_entries(document)
 
 
 async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
@@ -1212,6 +1268,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="List available fixture devices",
         parents=[common_parser],
     ).set_defaults(handler=cmd_list_fixture_devices)
+
+    # Diff Features
+    parser_diff = subparsers.add_parser(
+        "diff-features",
+        help="Compare the features of two fixtures, exports, or the live device",
+        parents=[common_parser, device_parser],
+    )
+    for side in ("left", "right"):
+        parser_diff.add_argument(
+            side, help="fixture:<name>, live, or a fixture or export JSON file"
+        )
+    parser_diff.set_defaults(handler=cmd_diff_features)
 
     # Dump Device
     subparsers.add_parser(
