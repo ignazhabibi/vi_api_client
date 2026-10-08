@@ -33,7 +33,7 @@ async def test_get_event_history_returns_first_page_by_days(vi_client, mock_resp
     assert first.event_type == "feature-changed"
     assert first.created_at == "2026-09-20T10:15:30.878Z"
     assert first.event_timestamp == "2026-09-20T10:15:30.000Z"
-    assert first.gateway_serial == "7630175843100101"
+    assert first.gateway_serial == "1234567890123456"
     assert first.body == {
         "featureName": "heating.dhw.temperature.main",
         "commandName": "setTargetTemperature",
