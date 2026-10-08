@@ -650,6 +650,33 @@ async def test_refresh_network_error_is_a_connection_error(mock_responses, token
     assert isinstance(raised_error.value.__cause__, aiohttp.ClientConnectionError)
 
 
+async def test_refresh_with_a_dropped_token_body_is_a_connection_error(
+    mock_responses, token_file
+):
+    """A token response that breaks off mid-body should raise ViConnectionError."""
+    # Arrange: Store an expired token and drop the connection mid-body.
+    _write_token_document(token_file, expires_at=0)
+
+    async def _dropped_body():
+        yield b'{"access_token": '
+        raise ConnectionResetError("connection dropped mid-body")
+
+    mock_responses.post(
+        ENDPOINT_TOKEN, body=_dropped_body(), content_type="application/json"
+    )
+
+    async with aiohttp.ClientSession() as session:
+        oauth = OAuth("client", "https://example.invalid", token_file, session)
+
+        # Act and assert: The incomplete body is a network failure, not an
+        # invalid token response.
+        with pytest.raises(ViConnectionError, match="Network error") as raised_error:
+            await oauth.async_get_access_token()
+
+    # Assert: The library error keeps the aiohttp failure as its cause.
+    assert isinstance(raised_error.value.__cause__, aiohttp.ClientPayloadError)
+
+
 async def test_refresh_timeout_is_a_connection_error(mock_responses, token_file):
     """A refresh that times out should raise ViConnectionError."""
     # Arrange: Store an expired token and stall the token endpoint until the
