@@ -157,7 +157,7 @@ contribute a new fixture.
 *   **Parameters**:
     *   `device`: The `Device` to export. It only identifies the device; features already on it are not used.
 *   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
-*   **Anonymization**: The whole document is masked with `mask_identifiers`, so it contains no installation IDs, gateway or device serials, or coordinates. Free text, such as user-chosen circuit names, stays.
+*   **Anonymization**: The whole document is redacted with `redact_sensitive` (see [Redacting Sensitive Data](#redacting-sensitive-data)), so it contains no installation IDs, gateway or device serials, or coordinates. Free text, such as user-chosen circuit names, stays.
 *   **Raises**: `ViResponseError` for a malformed response, and the applicable `ViError` subclass for API failures.
 
 `FixtureViClient` exports its bundled fixture the same way.
@@ -170,11 +170,37 @@ document = await client.export_device_fixture(device)
 Path("export.json").write_text(json.dumps(document), encoding="utf-8")
 ```
 
-`mask_identifiers(document)` applies the same masking to any JSON-compatible
-API document and returns a masked copy:
+### Redacting Sensitive Data
 
-*   A string, or a `/`-separated segment of a string such as a URI path segment, that consists of six or more digits becomes the same number of `#` characters. This is the rule PyViCare's `dump_secure` applies. Numbers, such as counters, and shorter IDs such as device `"0"` stay.
-*   The numeric value of a `latitude` or `longitude` entry becomes `0`.
+One rule set in `vi_api_client.privacy` decides what is sensitive, so logs,
+fixture exports, and consumer diagnostics redact the same data:
+
+| Category | Detection | Replacement |
+| --- | --- | --- |
+| Secrets | keys ending in `token`, `secret`, or `password`, `credential`/`credentials` keys, and `Bearer <token>` in text | `placeholder` |
+| Address data | the keys `address`, `alias`, and `description` | `placeholder` |
+| Identifiers | runs of six or more digits that are not part of a longer word, number, or version, in values, URIs, and text | `#` of the same length |
+| Location | numeric `latitude` and `longitude` values | `0` |
+
+Free text such as circuit names, URLs apart from their identifiers, raw device
+messages, and error codes are kept. Keys that only contain a matching word, such
+as `busAddress` or `token_type`, are kept too. Replacements keep the structure
+and the type of numbers, so a redacted feature document still parses as a
+fixture.
+
+*   `redact_sensitive(value, *, placeholder="<redacted>")`: returns redacted log text for a `str` and a redacted copy for any other JSON value.
+*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, control URI, and control options are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
+*   `redact_device(device, *, placeholder=...)`: returns a `Device` whose ID, gateway serial, installation ID, and features are redacted.
+
+```python
+from vi_api_client import redact_device, redact_sensitive
+
+logger.debug("Request: %s", redact_sensitive(url))
+diagnostics_device = redact_device(device, placeholder="**REDACTED**")
+```
+
+Which data a diagnostics report contains, how it is serialized, and labels such
+as `device_1` stay with the consuming application.
 
 ### `refresh_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
 

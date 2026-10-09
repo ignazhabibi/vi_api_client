@@ -45,7 +45,9 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ViServerInternalError",
         "ViValidationError",
         "format_feature",
-        "mask_identifiers",
+        "redact_device",
+        "redact_feature",
+        "redact_sensitive",
         "validate_json_value",
     }
 
@@ -65,7 +67,6 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "ENDPOINT_INSTALLATIONS",
         "SCOPE_IOT_USER",
         "SCOPE_OFFLINE_ACCESS",
-        "mask_pii",
         "parse_cli_params",
         "api_feature_to_flat_features",
     }
@@ -73,5 +74,4 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
     # Assert: The root hides the helpers while their module paths still provide them.
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
     utils = importlib.import_module("vi_api_client.utils")
-    assert hasattr(utils, "mask_pii")
     assert hasattr(utils, "parse_cli_params")

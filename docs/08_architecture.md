@@ -240,7 +240,8 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | `exceptions.py` | Public exceptions | UI error presentation |
 | `cli.py` | Command-line orchestration | A second client implementation |
 | `_feature_diff.py` | Compare raw API features for `diff-features` | Comparing values or a public API |
-| `utils.py` | Formatting and privacy helpers | Domain workflows |
+| `utils.py` | CLI parameter parsing and feature formatting | Domain workflows |
+| `privacy.py` | One rule set for redacting sensitive data in text, JSON, and models | Presentation of redacted data |
 
 `ViClient` contains shared rules. Adapters retrieve or send raw data; they do
 not make domain decisions. This applies the single-responsibility principle at
@@ -632,12 +633,11 @@ The package root is `vi_api_client/__init__.py`. It is the curated public
 surface and includes clients, auth types, models, results, the exception
 hierarchy, external OAuth constants, the dynamic value-contract types
 (`JsonValue`, `FeatureValue`, `ValidationDetail`), `validate_json_value`,
-`format_feature`, and `mask_identifiers`.
+`format_feature`, and the redaction functions from `privacy.py`.
 
 Private adapters, parsers, credential persistence, endpoints, and CLI helpers
 are not consumer contracts. The curated package root and the private module
-names reinforce this intent. `mask_pii` remains a direct utility import rather
-than a package-root export.
+names reinforce this intent.
 
 This boundary lets internal structure evolve without making every module path a
 compatibility promise.

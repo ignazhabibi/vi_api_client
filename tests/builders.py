@@ -1,6 +1,7 @@
 """Model builders and fixture loaders shared by several test modules."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,10 @@ TEST_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 BUNDLED_FIXTURES_DIR = (
     Path(__file__).resolve().parents[1] / "src" / "vi_api_client" / "fixtures"
 )
+
+
+# A masked identifier in a bundled fixture: a whole string or path segment.
+_MASKED_IDENTIFIER_PATTERN = re.compile(r'(?<=["/])#+(?=["/])')
 
 
 class StaticTokenAuth(AbstractAuth):
@@ -96,3 +101,15 @@ def build_feature(
         is_ready=is_ready,
         control=control,
     )
+
+
+def unmask_identifiers(document: object) -> Any:
+    """Replace each masked identifier in a fixture with digits of the same length.
+
+    The result looks like an unredacted API response, so redaction tests can
+    expect the bundled fixture back.
+    """
+    text = _MASKED_IDENTIFIER_PATTERN.sub(
+        lambda match: "7" * len(match.group()), json.dumps(document)
+    )
+    return json.loads(text)
