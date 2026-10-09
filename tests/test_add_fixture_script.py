@@ -113,7 +113,7 @@ def test_masks_identifiers_left_in_the_export(tmp_path, fixtures_dir, capsys):
     written = (fixtures_dir / "Masked.json").read_text(encoding="utf-8")
     assert "7630175843100101" not in written
     assert "################" in written
-    assert "Warning: masked identifiers" in capsys.readouterr().err
+    assert "Warning: redacted sensitive data" in capsys.readouterr().err
     devices = json.loads((fixtures_dir / "discovery.json").read_text())["devices"]
     assert {
         "fixtureName": "Masked",

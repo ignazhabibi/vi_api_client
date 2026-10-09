@@ -16,7 +16,7 @@ FIXTURES_DIR = PROJECT_ROOT / "src" / "vi_api_client" / "fixtures"
 # Use the repository source the fixture is written into, not an installed copy.
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from vi_api_client import ViError, mask_identifiers  # noqa: E402
+from vi_api_client import ViError, redact_sensitive  # noqa: E402
 from vi_api_client.parsing import api_feature_to_flat_features  # noqa: E402
 
 # Fixture names become file names and CLI arguments, such as "Vitocal250A".
@@ -119,16 +119,16 @@ def add_fixture(export_path: Path, name: str, fixtures_dir: Path) -> str:
         raise FixtureError(f"Fixture {name!r} already exists")
 
     export = _read_export(export_path)
-    # Masking keeps the document's shape, so the result is still an object.
-    masked_export = cast("dict[str, Any]", mask_identifiers(export))
-    if masked_export != export:
+    # Redaction keeps the document's shape, so the result is still an object.
+    redacted_export = cast("dict[str, Any]", redact_sensitive(export))
+    if redacted_export != export:
         print(
-            "Warning: masked identifiers that the export still contained",
+            "Warning: redacted sensitive data that the export still contained",
             file=sys.stderr,
         )
-    feature_count = _check_parses(masked_export["data"])
+    feature_count = _check_parses(redacted_export["data"])
 
-    device = masked_export["device"]
+    device = redacted_export["device"]
     entry = {
         "fixtureName": name,
         "modelId": device["modelId"],
@@ -140,7 +140,7 @@ def add_fixture(export_path: Path, name: str, fixtures_dir: Path) -> str:
         [*catalog["devices"], entry], key=lambda item: item["fixtureName"]
     )
 
-    _write_json(fixture_path, {"data": masked_export["data"]})
+    _write_json(fixture_path, {"data": redacted_export["data"]})
     _write_json(catalog_path, catalog)
     return (
         f"Added fixture {name} ({entry['modelId']}, {entry['deviceType']}) "

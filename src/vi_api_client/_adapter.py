@@ -30,7 +30,7 @@ from .exceptions import (
     ViValidationError,
 )
 from .models import Device, FeatureControl
-from .utils import mask_pii
+from .privacy import redact_sensitive
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ class LiveAdapter:
                 response is not valid JSON.
         """
         full_url = _api_url(url)
-        _LOGGER.debug("Request: %s %s", method, mask_pii(full_url))
+        _LOGGER.debug("Request: %s %s", method, redact_sensitive(full_url))
         async with await self._auth.request(
             method, full_url, params=params, json=json
         ) as response:
@@ -188,7 +188,7 @@ def _api_url(url: str) -> str:
     full_url = urljoin(API_BASE_URL, url)
     if not full_url.startswith(f"{API_BASE_URL}/"):
         raise ViResponseError(
-            f"Refusing request outside the Vi API: {mask_pii(full_url)}"
+            f"Refusing request outside the Vi API: {redact_sensitive(full_url)}"
         )
     return full_url
 

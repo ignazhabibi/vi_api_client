@@ -275,9 +275,10 @@ vi-client dump-device --installation-id 123456 --device-id 1 > export.json
 ```
 
 The export always reads every feature, including disabled and not-ready ones,
-and masks installation IDs, gateway and device serials, and coordinates. Free
-text, such as circuit names, is kept; check the file before sharing it. See
-`export_device_fixture` in the [Client Reference](05_client_reference.md).
+and redacts secrets, address data, installation IDs, gateway and device serials,
+and coordinates. Free text, such as circuit names, is kept; check the file
+before sharing it. See `export_device_fixture` in the
+[Client Reference](05_client_reference.md).
 
 ### Compare Device Features
 

@@ -35,7 +35,7 @@ anonymized export. Add one with:
 python scripts/add_fixture.py export.json --name Vitocal250A
 ```
 
-The script masks identifiers the export still contains, checks that the name is
+The script redacts sensitive data the export still contains, checks that the name is
 free and that the library parses the features, writes
 `src/vi_api_client/fixtures/<name>.json`, and adds a sorted `discovery.json`
 catalog entry with the model, device type, and capture date. Review the fixture

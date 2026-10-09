@@ -25,7 +25,7 @@ from .models import (
     ScheduleConstraints,
 )
 from .parsing import api_feature_to_flat_features, validate_feature_entry
-from .utils import mask_identifiers
+from .privacy import redact_sensitive
 from .validation import validate_json_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -315,7 +315,7 @@ class ViClient:
         The features are always read fresh from the API, including disabled
         and not-ready features, and kept in their raw API shape. The device
         only identifies what to read: features already on ``device`` are not
-        used. The document is masked with `mask_identifiers`, so it carries no
+        used. The document is redacted with `redact_sensitive`, so it carries no
         installation IDs, serials, or coordinates and can be shared, for
         example as a new fixture.
 
@@ -324,7 +324,7 @@ class ViClient:
 
         Returns:
             ``{"device": {...}, "data": [...]}``: the device's ``modelId``,
-            ``deviceType``, and the UTC ``capturedAt`` date, and the masked
+            ``deviceType``, and the UTC ``capturedAt`` date, and the redacted
             raw API features.
 
         Raises:
@@ -342,8 +342,8 @@ class ViClient:
             },
             "data": validate_json_value(api_features, path="features"),
         }
-        # Masking keeps the document's shape, so the result is still an object.
-        return cast("dict[str, JsonValue]", mask_identifiers(document))
+        # Redaction keeps the document's shape, so the result is still an object.
+        return cast("dict[str, JsonValue]", redact_sensitive(document))
 
     async def refresh_gateway_devices(
         self, devices: list[Device]

@@ -4,7 +4,7 @@ import pytest
 from builders import build_feature
 
 from vi_api_client import FeatureValue
-from vi_api_client.utils import format_feature, mask_pii, parse_cli_params
+from vi_api_client.utils import format_feature, parse_cli_params
 
 
 def test_parse_cli_params_accepts_one_json_object_argument():
@@ -58,66 +58,6 @@ def test_parse_cli_params_rejects_malformed_json_arguments():
     """JSON-looking single arguments that are unusable should reject clearly."""
     with pytest.raises(ValueError, match="could not be parsed"):
         parse_cli_params(["{not-json"])
-
-
-@pytest.mark.parametrize(
-    "prefix",
-    [
-        pytest.param("Bearer", id="title"),
-        pytest.param("bearer", id="lower"),
-        pytest.param("BEARER", id="upper"),
-    ],
-)
-def test_mask_pii_redacts_bearer_tokens_case_insensitively(prefix):
-    """Bearer token redaction should not depend on header capitalization."""
-    token = "sensitive-token-value"
-
-    masked_text = mask_pii(f"Authorization: {prefix} {token}")
-
-    assert token not in masked_text
-    assert masked_text.endswith("Bearer ***")
-
-
-def test_mask_pii_returns_empty_text_unchanged():
-    """Masking empty input should stay a no-op."""
-    assert mask_pii("") == ""
-
-
-def test_mask_pii_redacts_gateway_serials_in_urls():
-    """Sixteen-digit gateway serials should be redacted in URLs."""
-    text = "GET /iot/v2/features/installations/123/gateways/1234567890123456/devices/0"
-
-    masked_text = mask_pii(text)
-
-    assert "1234567890123456" not in masked_text
-    assert "gateways/****************" in masked_text
-
-
-def test_mask_pii_redacts_gateway_serials_in_compact_json():
-    """Serials in JSON without a space after the colon should be redacted."""
-    text = '{"serial":"1234567890123456"}'
-
-    masked_text = mask_pii(text)
-
-    assert "1234567890123456" not in masked_text
-    assert 'serial":"****************' in masked_text
-
-
-def test_mask_pii_redacts_installation_ids_in_paths_and_labels():
-    """Installation IDs should be redacted in paths and labeled contexts."""
-    # Arrange: Build log lines with installation IDs in two known contexts.
-    path_text = "GET /iot/v2/features/installations/123456/gateways/GW1"
-    label_text = "Using installation ID: 12345"
-
-    # Act: Mask both log lines.
-    masked_path = mask_pii(path_text)
-    masked_label = mask_pii(label_text)
-
-    # Assert: The IDs are redacted while their context words remain.
-    assert "123456" not in masked_path
-    assert "installations/****" in masked_path
-    assert "12345" not in masked_label
-    assert "ID: ****" in masked_label
 
 
 def test_format_feature_renders_missing_values_as_dash():
