@@ -59,17 +59,35 @@ jobs:
       run: |
         pip install -c constraints-ci.txt .[dev]
         python -m build
-    - name: Fetch Tag Message
-      id: tag_message
+    - name: Read Release Notes
+      id: release_notes
+      env:
+        TAG: ${{ github.ref_name }}
+      # The release PR adds release-notes/<tag>.md, so a tag created on the
+      # GitHub release page works. An annotated tag's message is the fallback;
+      # a lightweight tag has no message of its own, so the job fails rather
+      # than publish the commit message as release notes.
       run: |
-        git fetch --depth=1 origin +refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}
-        TAG_MSG=$(git tag -l --format='%(contents:body)' ${{ github.ref_name }})
-        echo "body<<EOF" >> $GITHUB_OUTPUT
-        echo "$TAG_MSG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        NOTES_FILE="release-notes/${TAG}.md"
+        if [ -f "$NOTES_FILE" ]; then
+          NOTES=$(cat "$NOTES_FILE")
+        else
+          git fetch --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+          if [ "$(git cat-file -t "$TAG")" != "tag" ]; then
+            echo "::error::Missing $NOTES_FILE, and $TAG is not an annotated tag"
+            exit 1
+          fi
+          NOTES=$(git tag -l --format='%(contents:body)' "$TAG")
+        fi
+        DELIMITER="RELEASE_NOTES_$(date +%s%N)"
+        {
+          echo "body<<${DELIMITER}"
+          echo "$NOTES"
+          echo "${DELIMITER}"
+        } >> "$GITHUB_OUTPUT"
     - name: GitHub Release
       uses: softprops/action-gh-release@v3
       with:
         files: dist/*
-        body: ${{ steps.tag_message.outputs.body }}
+        body: ${{ steps.release_notes.outputs.body }}
         generate_release_notes: false

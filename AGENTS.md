@@ -62,7 +62,7 @@ gate runs without the manual setup above.
 - Run the full local quality gate before proposing a commit or push. Wait for GitHub's `quality-check` and `minimum-dependencies` jobs before treating a PR as merge-ready. Squash merge only with explicit authorization.
 - For multi-line GitHub issue or PR bodies, use a heredoc or `--body-file` so GitHub receives real newlines, then verify the rendered body.
 - After a merge, fast-forward local `main` and delete the confirmed merged local branch.
-- For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump through a PR, then create an annotated `vX.Y.Z` tag on the merged `main` commit. Its message becomes the GitHub Release body. A release is complete only after the tag workflow is green.
+- For a release, analyze commits since the previous tag, propose the semantic version bump and changelog, and wait for confirmation. Land the version bump and the confirmed changelog as `release-notes/vX.Y.Z.md` through a PR, then create the `vX.Y.Z` tag on the merged `main` commit, for example on the GitHub release page. The tag workflow publishes that file as the GitHub Release body; without it, it falls back to an annotated tag's message. A release is complete only after the tag workflow is green.
 - Write release notes as `# Changelog`, followed by non-empty sections in this order: `### Breaking Changes 🚨`, `### New Features 💫`, `### Other Changes ☀️`, and `### Bug Fixes 🐞`. List each user-facing change as `- \`<short SHA>\` Description ([#<number>](<GitHub issue or pull-request URL>)).` where a related Issue or PR exists.
 
 ## Documentation Drift
