@@ -57,10 +57,17 @@ _NAME_FEATURE = {
 }
 
 
-def _run(export_path: Path, name: str, fixtures_dir: Path) -> int:
+def _run(export_path: Path, name: str, fixtures_dir: Path, *options: str) -> int:
     """Run the script's command line entry point."""
     return add_fixture.main(
-        [str(export_path), "--name", name, "--fixtures-dir", str(fixtures_dir)]
+        [
+            str(export_path),
+            "--name",
+            name,
+            "--fixtures-dir",
+            str(fixtures_dir),
+            *options,
+        ]
     )
 
 
@@ -158,6 +165,72 @@ def test_rejects_an_unusable_export_without_writing(
     exit_status = _run(export_path, name, fixtures_dir)
 
     # Assert: The script fails with the reason and leaves the catalog unchanged.
+    assert exit_status == 1
+    assert message in capsys.readouterr().err
+    assert (fixtures_dir / "discovery.json").read_text(
+        encoding="utf-8"
+    ) == catalog_before
+    assert sorted(path.name for path in fixtures_dir.iterdir()) == ["discovery.json"]
+
+
+def test_replace_overwrites_the_fixture_and_its_catalog_entry(
+    tmp_path, fixtures_dir, capsys
+):
+    # Arrange: Bundle an outdated Vitocal250A fixture and export new features.
+    (fixtures_dir / "Vitocal250A.json").write_text('{"data": []}\n', encoding="utf-8")
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+    devices_before = json.loads((fixtures_dir / "discovery.json").read_text())[
+        "devices"
+    ]
+
+    # Act: Replace the fixture with the export.
+    exit_status = _run(export_path, "Vitocal250A", fixtures_dir, "--replace")
+
+    # Assert: The fixture holds the export, the catalog has one updated entry
+    # in name order, and the other entries are unchanged.
+    assert exit_status == 0
+    written = json.loads((fixtures_dir / "Vitocal250A.json").read_text())
+    assert written == {"data": [_NAME_FEATURE]}
+    devices = json.loads((fixtures_dir / "discovery.json").read_text())["devices"]
+    names = [device["fixtureName"] for device in devices]
+    assert names == sorted(names)
+    assert names.count("Vitocal250A") == 1
+    assert {
+        "fixtureName": "Vitocal250A",
+        "modelId": "E3_Vitocal",
+        "deviceType": "heating",
+        "capturedAt": "2026-10-08",
+    } in devices
+    assert [d for d in devices if d["fixtureName"] != "Vitocal250A"] == [
+        d for d in devices_before if d["fixtureName"] != "Vitocal250A"
+    ]
+    assert "Replaced fixture Vitocal250A" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("name", "document", "message"),
+    [
+        pytest.param("New", _export([]), "does not exist", id="unknown-name"),
+        pytest.param("discovery", _export([]), "does not exist", id="catalog-file"),
+        pytest.param(
+            "Vitocal250A",
+            _export([_NAME_FEATURE, _NAME_FEATURE]),
+            "Duplicate feature name: device.name",
+            id="unusable-export",
+        ),
+    ],
+)
+def test_replace_rejects_without_writing(
+    tmp_path, fixtures_dir, capsys, name, document, message
+):
+    # Arrange: Write the export and remember the catalog.
+    export_path = _write_export(tmp_path, document)
+    catalog_before = (fixtures_dir / "discovery.json").read_text(encoding="utf-8")
+
+    # Act: Try to replace a fixture with the export.
+    exit_status = _run(export_path, name, fixtures_dir, "--replace")
+
+    # Assert: The script fails with the reason and writes nothing.
     assert exit_status == 1
     assert message in capsys.readouterr().err
     assert (fixtures_dir / "discovery.json").read_text(
