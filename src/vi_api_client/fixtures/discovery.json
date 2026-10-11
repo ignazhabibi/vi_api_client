@@ -35,7 +35,8 @@
     {
       "fixtureName": "Vitocal250A",
       "modelId": "Vitocal250A",
-      "deviceType": "heating"
+      "deviceType": "heating",
+      "capturedAt": "2026-10-11"
     },
     {
       "fixtureName": "Vitocal333G-with-Vitovent300F",

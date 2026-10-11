@@ -187,7 +187,7 @@ def test_replace_overwrites_the_fixture_and_its_catalog_entry(
     exit_status = _run(export_path, "Vitocal250A", fixtures_dir, "--replace")
 
     # Assert: The fixture holds the export, the catalog has one updated entry
-    # in name order, and the other entries are unchanged.
+    # in name order that keeps its model ID, and the other entries are unchanged.
     assert exit_status == 0
     written = json.loads((fixtures_dir / "Vitocal250A.json").read_text())
     assert written == {"data": [_NAME_FEATURE]}
@@ -197,7 +197,7 @@ def test_replace_overwrites_the_fixture_and_its_catalog_entry(
     assert names.count("Vitocal250A") == 1
     assert {
         "fixtureName": "Vitocal250A",
-        "modelId": "E3_Vitocal",
+        "modelId": "Vitocal250A",
         "deviceType": "heating",
         "capturedAt": "2026-10-08",
     } in devices

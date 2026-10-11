@@ -270,7 +270,7 @@ async def test_diff_features_compares_two_bundled_fixtures(run_cli):
         "Comparing fixture:Vitocal222S (319 features) with fixture:Vitocal250A" in out
     )
     assert "  + device.brand" in out
-    assert "  - heating.dhw.scaldProtection" in out
+    assert "  - heating.dhw.operating.modes.comfort" in out
     assert "efficientUpperBorder: 53 → 55" in out
     assert "+ command setSchedule" not in out
     state_section = out.split("State changed")[1]

@@ -109,7 +109,7 @@ def add_fixture(
     """Add an export as a fixture file and a discovery catalog entry.
 
     With `replace`, the export replaces a catalogued fixture of that name and
-    its catalog entry instead.
+    its catalog entry instead; the entry keeps its model ID.
 
     Returns:
         A summary of the added or replaced fixture.
@@ -125,12 +125,12 @@ def add_fixture(
     catalog_path = fixtures_dir / "discovery.json"
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     fixture_path = fixtures_dir / f"{name}.json"
-    catalogued_names = {entry["fixtureName"] for entry in catalog["devices"]}
+    catalogued = {entry["fixtureName"]: entry for entry in catalog["devices"]}
     if replace:
         # Only catalogued names, so a typo cannot add a fixture by accident.
-        if name not in catalogued_names:
+        if name not in catalogued:
             raise FixtureError(f"Fixture {name!r} does not exist")
-    elif fixture_path.exists() or name in catalogued_names:
+    elif fixture_path.exists() or name in catalogued:
         raise FixtureError(f"Fixture {name!r} already exists")
 
     export = _read_export(export_path)
@@ -144,9 +144,11 @@ def add_fixture(
     feature_count = _check_parses(redacted_export["data"])
 
     device = redacted_export["device"]
+    # A replaced fixture keeps the model ID that consumers already see.
+    model_id = catalogued[name]["modelId"] if replace else device["modelId"]
     entry = {
         "fixtureName": name,
-        "modelId": device["modelId"],
+        "modelId": model_id,
         "deviceType": device["deviceType"],
     }
     if isinstance(device.get("capturedAt"), str):
