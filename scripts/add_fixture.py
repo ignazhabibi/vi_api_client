@@ -42,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=FIXTURES_DIR,
         help="Fixture directory with discovery.json (default: bundled fixtures)",
     )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace an existing fixture and its catalog entry",
+    )
     return parser
 
 
@@ -98,14 +103,20 @@ def _write_json(path: Path, document: object) -> None:
     )
 
 
-def add_fixture(export_path: Path, name: str, fixtures_dir: Path) -> str:
+def add_fixture(
+    export_path: Path, name: str, fixtures_dir: Path, *, replace: bool = False
+) -> str:
     """Add an export as a fixture file and a discovery catalog entry.
 
+    With `replace`, the export replaces a catalogued fixture of that name and
+    its catalog entry instead.
+
     Returns:
-        A summary of the added fixture.
+        A summary of the added or replaced fixture.
 
     Raises:
-        FixtureError: If the name is invalid or taken, or the export is unusable.
+        FixtureError: If the name is invalid, taken (or, with `replace`, not
+            catalogued), or the export is unusable.
     """
     if not _FIXTURE_NAME_PATTERN.fullmatch(name):
         raise FixtureError(
@@ -115,7 +126,11 @@ def add_fixture(export_path: Path, name: str, fixtures_dir: Path) -> str:
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     fixture_path = fixtures_dir / f"{name}.json"
     catalogued_names = {entry["fixtureName"] for entry in catalog["devices"]}
-    if fixture_path.exists() or name in catalogued_names:
+    if replace:
+        # Only catalogued names, so a typo cannot add a fixture by accident.
+        if name not in catalogued_names:
+            raise FixtureError(f"Fixture {name!r} does not exist")
+    elif fixture_path.exists() or name in catalogued_names:
         raise FixtureError(f"Fixture {name!r} already exists")
 
     export = _read_export(export_path)
@@ -136,14 +151,16 @@ def add_fixture(export_path: Path, name: str, fixtures_dir: Path) -> str:
     }
     if isinstance(device.get("capturedAt"), str):
         entry["capturedAt"] = device["capturedAt"]
+    other_entries = [item for item in catalog["devices"] if item["fixtureName"] != name]
     catalog["devices"] = sorted(
-        [*catalog["devices"], entry], key=lambda item: item["fixtureName"]
+        [*other_entries, entry], key=lambda item: item["fixtureName"]
     )
 
     _write_json(fixture_path, {"data": redacted_export["data"]})
     _write_json(catalog_path, catalog)
+    action = "Replaced" if replace else "Added"
     return (
-        f"Added fixture {name} ({entry['modelId']}, {entry['deviceType']}) "
+        f"{action} fixture {name} ({entry['modelId']}, {entry['deviceType']}) "
         f"with {feature_count} features"
     )
 
@@ -152,7 +169,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Add the export and report the result."""
     args = build_parser().parse_args(argv)
     try:
-        summary = add_fixture(args.export, args.name, args.fixtures_dir)
+        summary = add_fixture(
+            args.export, args.name, args.fixtures_dir, replace=args.replace
+        )
     except FixtureError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

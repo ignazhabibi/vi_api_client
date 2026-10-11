@@ -38,8 +38,10 @@ python scripts/add_fixture.py export.json --name Vitocal250A
 The script redacts sensitive data the export still contains, checks that the name is
 free and that the library parses the features, writes
 `src/vi_api_client/fixtures/<name>.json`, and adds a sorted `discovery.json`
-catalog entry with the model, device type, and capture date. Review the fixture
-diff, then run the quality gate.
+catalog entry with the model, device type, and capture date. To refresh an
+existing fixture, for example after a firmware update, add `--replace`; the
+script then replaces the fixture file and its catalog entry and refuses names
+that are not in the catalog. Review the fixture diff, then run the quality gate.
 
 ## Quality Gate
 
