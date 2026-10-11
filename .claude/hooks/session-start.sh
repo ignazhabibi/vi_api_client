@@ -26,7 +26,7 @@ if [ ! -x .venv/bin/python ] || ! .venv/bin/python -c 'import sys; sys.exit(sys.
 fi
 
 .venv/bin/python -m pip install --quiet --upgrade pip
-.venv/bin/python -m pip install --quiet -c constraints-ci.txt '.[dev]'
+.venv/bin/python -m pip install --quiet -c constraints-ci.txt -e '.[dev]'
 
 # The pyright wrapper fetches its Node runtime on first use; warm it now so the
 # download is part of the cached container state.

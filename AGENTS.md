@@ -26,7 +26,7 @@ Prefer matching CI's Python 3.14 baseline locally. The normal development setup 
 python3.14 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -c constraints-ci.txt '.[dev]'
+python -m pip install -c constraints-ci.txt -e '.[dev]'
 ruff check .
 ruff format --check .
 pyright --pythonpath python
@@ -36,6 +36,11 @@ python scripts/check_coverage.py
 python -m build
 python scripts/verify_distributions.py
 ```
+
+The editable install keeps `vi-client` and the bundled fixtures on the
+checked-out source; repeat the install only after dependency changes in
+`pyproject.toml` or `constraints-ci.txt`. CI installs without `-e` to test the
+installed package.
 
 The quality gate keeps tests in standard type checking while the
 shipped package must pass the strict configuration in
