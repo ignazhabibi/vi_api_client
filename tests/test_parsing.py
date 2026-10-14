@@ -1,7 +1,7 @@
 """Tests for parsing API features into flat features and their controls."""
 
 import pytest
-from builders import load_fixture_json
+from builders import load_fixture_features, load_fixture_json
 
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import ScheduleConstraints
@@ -170,34 +170,55 @@ def test_history_series_stay_one_feature_with_their_whole_value():
         ),
     ],
 )
-def test_consumption_series_expose_a_current_year_alias(
+def test_consumption_series_expose_current_day_and_year_aliases(
     fixture_name: str, base_name: str
 ):
-    """Consumption series expose the first year value as a currentYear feature."""
+    """Consumption series expose the first day and year values as aliases."""
     # Arrange: Load the consumption fixture with day, month, and year arrays.
     data = load_fixture_json(fixture_name)
 
     # Act: Parse the consumption feature.
     features = api_feature_to_flat_features(data)
 
-    # Assert: The base series and only the currentYear alias are available.
-    assert len(features) == 2
+    # Assert: The base series and only the currentDay and currentYear aliases
+    # are available, each mirroring the first entry of its series.
+    features_by_name = {feature.name: feature for feature in features}
+    assert set(features_by_name) == {
+        base_name,
+        f"{base_name}.currentDay",
+        f"{base_name}.currentYear",
+    }
 
-    base_feature = next(feature for feature in features if feature.name == base_name)
-    assert isinstance(base_feature.value, dict)
-    year = base_feature.value["year"]
-    assert isinstance(year, dict)
+    series = features_by_name[base_name].value
+    assert isinstance(series, dict)
+    for alias_name, source_name in (("currentDay", "day"), ("currentYear", "year")):
+        source = series[source_name]
+        assert isinstance(source, dict)
+        source_values = source["value"]
+        assert isinstance(source_values, list)
+        alias_feature = features_by_name[f"{base_name}.{alias_name}"]
+        assert alias_feature.value == source_values[0]
+        assert alias_feature.unit == "kilowattHour"
+        assert alias_feature.control is None
 
-    current_year_feature = next(
-        feature for feature in features if feature.name == f"{base_name}.currentYear"
-    )
-    year_values = year["value"]
-    assert isinstance(year_values, list)
-    assert current_year_feature.value == year_values[0]
-    assert current_year_feature.unit == "kilowattHour"
-    assert not any(
-        feature.name.endswith((".currentDay", ".currentMonth")) for feature in features
-    )
+
+def test_bundled_fixture_exposes_current_day_aliases():
+    """A real device export yields currentDay aliases for populated day series."""
+    # Act: Parse every feature of the bundled Vitocal250A export.
+    features = load_fixture_features("Vitocal250A")
+
+    # Assert: Only consumption series with a day list get a currentDay alias.
+    assert {
+        feature.name: (feature.value, feature.unit)
+        for feature in features
+        if feature.name.endswith(".currentDay")
+        and feature.name.startswith("heating.power.consumption.")
+        and ".summary." not in feature.name
+    } == {
+        "heating.power.consumption.dhw.currentDay": (1.8, "kilowattHour"),
+        "heating.power.consumption.heating.currentDay": (4.5, "kilowattHour"),
+        "heating.power.consumption.total.currentDay": (2.1, "kilowattHour"),
+    }
 
 
 def test_value_property_keeps_the_base_name_beside_a_suffixed_status():
@@ -304,31 +325,43 @@ def test_object_shaped_min_max_become_features():
 
 
 @pytest.mark.parametrize(
-    ("year_property", "expect_alias"),
+    ("alias_name", "source_name", "other_name"),
     [
-        pytest.param(None, False, id="year-absent"),
+        pytest.param("currentDay", "day", "year", id="current-day"),
+        pytest.param("currentYear", "year", "day", id="current-year"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("source_property", "expect_alias"),
+    [
+        pytest.param(None, False, id="source-absent"),
         pytest.param(
             {"type": "array", "unit": "kilowattHour", "value": []},
             False,
-            id="year-empty",
+            id="source-empty",
         ),
         pytest.param(
             {"type": "array", "unit": "kilowattHour", "value": [5.5]},
             True,
-            id="year-populated",
+            id="source-populated",
         ),
     ],
 )
-def test_current_year_alias_requires_a_populated_year_series(
-    year_property: dict | None, expect_alias: bool
+def test_consumption_alias_requires_a_populated_source_series(
+    alias_name: str,
+    source_name: str,
+    other_name: str,
+    source_property: dict | None,
+    expect_alias: bool,
 ):
-    """The currentYear alias should only mirror a populated year series."""
-    # Arrange: Build a consumption feature with the given year property.
+    """An alias should only mirror a populated source series."""
+    # Arrange: Build a consumption feature with the given source property and
+    # a populated sibling series.
     properties: dict = {
-        "day": {"type": "array", "unit": "kilowattHour", "value": [1.0]}
+        other_name: {"type": "array", "unit": "kilowattHour", "value": [1.0]}
     }
-    if year_property is not None:
-        properties["year"] = year_property
+    if source_property is not None:
+        properties[source_name] = source_property
     raw_feature = {
         "feature": "heating.power.consumption.cooling",
         "properties": properties,
@@ -337,11 +370,11 @@ def test_current_year_alias_requires_a_populated_year_series(
     # Act: Parse the consumption feature.
     features = api_feature_to_flat_features(raw_feature)
 
-    # Assert: The alias exists exactly when the year series is populated.
+    # Assert: The alias exists exactly when the source series is populated.
     alias_names = [
         feature.name
         for feature in features
-        if feature.name == "heating.power.consumption.cooling.currentYear"
+        if feature.name == f"heating.power.consumption.cooling.{alias_name}"
     ]
     assert bool(alias_names) is expect_alias
 
