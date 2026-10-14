@@ -35,7 +35,7 @@ jobs:
     - uses: actions/checkout@v7
     - uses: actions/setup-python@v7
       with:
-        python-version: "3.14"
+        python-version: "3.15"
         cache: 'pip'
     - name: Install lowest supported dependencies
       run: |
@@ -54,7 +54,7 @@ jobs:
     - uses: actions/checkout@v7
     - uses: actions/setup-python@v7
       with:
-        python-version: "3.14"
+        python-version: "3.15"
     - name: Build
       run: |
         pip install -c constraints-ci.txt .[dev]
