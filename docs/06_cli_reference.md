@@ -54,7 +54,7 @@ JSON output writes one parseable document to standard output; setup diagnostics
 and warnings are written to standard error.
 
 *Note: This auto-detects the first device. You can specify `--installation-id`, `--gateway-serial`, and `--device-id` if needed. A numeric installation ID matches the API's string identifier.*
-*Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include one synthetic `...currentYear` alias per base feature. `currentDay` and `currentMonth` aliases are not generated.*
+*Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include the synthetic aliases `...currentDay` and `...currentYear` per base feature, mirroring the first entry of the `day` and `year` series. `currentMonth` aliases are not generated.*
 
 ## 4. Fetch Feature Details
 Get the current value of a specific feature. The name may be a feature name or

@@ -35,6 +35,7 @@ CONSUMPTION_ALIAS_FEATURES = {
 }
 
 CONSUMPTION_ALIAS_MAPPING = {
+    "currentDay": "day",
     "currentYear": "year",
 }
 
@@ -321,7 +322,10 @@ def _build_consumption_alias_features(
     is_enabled: bool,
     is_ready: bool,
 ) -> list[Feature]:
-    """Build synthetic currentYear alias features for selected consumption metrics.
+    """Build synthetic currentDay and currentYear aliases for consumption metrics.
+
+    Each alias mirrors the first entry of its time series, so day and year
+    counters come from the same source as the series itself.
 
     Args:
         api_feature_name: The name of the API feature.
