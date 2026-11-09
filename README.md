@@ -71,18 +71,19 @@ their dedicated modules.
 
 ## Installation
 
-This is currently a local development package. **Requires Python 3.14+**.
+**Requires Python 3.14+.** Install the released package from PyPI:
 
 ```bash
-# Clone the repository
-git clone https://github.com/ignazhabibi/vi_api_client.git
-cd vi_api_client
-
-# Create virtual env
 python3.14 -m venv .venv
 source .venv/bin/activate
+pip install vi_api_client
+```
 
-# Install in editable mode
+To work on the library itself, install it from a clone in editable mode:
+
+```bash
+git clone https://github.com/ignazhabibi/vi_api_client.git
+cd vi_api_client
 pip install -e .
 ```
 
@@ -135,13 +136,13 @@ vi-client list-writable
 vi-client list-events --days 7
 ```
 
-See [CLI Reference](docs/06_cli_reference.md) for more details.
+See [CLI Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/06_cli_reference.md) for more details.
 
 ### Python Code
 
 The example reads tokens from `tokens.json`. Create that file once with
 `vi-client login`, or log in from Python as shown in the
-[Authentication reference](docs/03_auth_reference.md#first-login).
+[Authentication reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/03_auth_reference.md#first-login).
 
 ```python
 import asyncio
@@ -215,13 +216,13 @@ if __name__ == "__main__":
 
 The detailed documentation is available in the `docs/` directory:
 
-1.  **[Getting Started](docs/01_getting_started.md)**: Installation and First Steps.
-2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the Flat Architecture.
-3.  **[Authentication & Connection](docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
-4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Controls.
-5.  **[Client Reference](docs/05_client_reference.md)**: The `ViClient` class methods.
-6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
-7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.
-8.  **[Architecture Guide](docs/08_architecture.md)**: System structure,
+1.  **[Getting Started](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/01_getting_started.md)**: Installation and First Steps.
+2.  **[API Structure & Concepts](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/02_api_structure.md)**: Understanding the Flat Architecture.
+3.  **[Authentication & Connection](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
+4.  **[Models Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/04_models_reference.md)**: Devices, Features, and Controls.
+5.  **[Client Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/05_client_reference.md)**: The `ViClient` class methods.
+6.  **[CLI Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/06_cli_reference.md)**: Using the command line interface.
+7.  **[Exceptions Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/07_exceptions_reference.md)**: Handling errors.
+8.  **[Architecture Guide](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/08_architecture.md)**: System structure,
     responsibilities, data flows, and diagrams explained for developers and
     non-specialists.

@@ -4,22 +4,22 @@ This guide covers the first steps to get up and running with the `vi_api_client`
 
 ## Installation
 
-This is currently a local development package. **Requires Python 3.14+**.
+**Requires Python 3.14+.** Install the released package from PyPI with
+`pip install vi_api_client`, ideally inside a virtual environment.
 
 The package is strictly typed and PEP 561 complete: it ships a `py.typed`
 marker, so type checkers such as Pyright verify your usage of the client API
 automatically, including the dynamic JSON value contract behind feature values.
 
+To work on the library itself, install it from a clone in editable mode:
+
 ```bash
-# Clone the repository
 git clone https://github.com/ignazhabibi/vi_api_client.git
 cd vi_api_client
 
-# Create virtual env
 python3.14 -m venv .venv
 source .venv/bin/activate
 
-# Install in editable mode
 pip install -e .
 ```
 
