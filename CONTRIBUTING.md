@@ -67,3 +67,28 @@ against the lowest supported runtime dependencies from
 `constraints-ci-lowest.txt`; raise those pins together with the lower bounds in
 `pyproject.toml`. See [README.md](README.md#development-and-tests) for the full
 walkthrough.
+
+## Publishing to PyPI
+
+The `CI/CD Pipeline` workflow (`.github/workflows/ci_cd.yml`) builds the
+distributions once and publishes them with PyPI trusted publishing, so no API
+token is stored in the repository. Both indexes need a trusted publisher
+registered for owner `ignazhabibi`, repository `vi_api_client`, workflow
+`ci_cd.yml`, and the matching GitHub environment:
+
+| Index | Environment | Triggered by |
+| --- | --- | --- |
+| [TestPyPI](https://test.pypi.org/project/vi-api-client/) | `testpypi` | Manual `workflow_dispatch` run |
+| [PyPI](https://pypi.org/project/vi-api-client/) | `pypi` | Pushing a `vX.Y.Z` tag |
+
+- **Dry run:** run the workflow manually from `main` (Actions tab, or
+  `gh workflow run ci_cd.yml --ref main`). It builds the current version and
+  uploads it to TestPyPI only. Check the project page, then
+  `pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ vi_api_client==<version>`.
+  TestPyPI also rejects a version it has already seen, so bump to a dev
+  version such as `X.Y.Z.dev1` in `pyproject.toml` for repeat runs.
+- **Release:** a `vX.Y.Z` tag first checks that the tag equals the version in
+  `pyproject.toml`, then builds, publishes to PyPI, and attaches the same files
+  to the GitHub release. Add required reviewers to the `pypi` environment so
+  each upload needs a manual approval: PyPI never accepts the same version
+  twice, and a bad upload can only be yanked, not replaced.
