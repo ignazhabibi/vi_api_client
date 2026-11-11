@@ -26,10 +26,10 @@ async def test_fixture_discovery_uses_shared_domain_conversion_without_auth():
 
 
 async def _enabled_features_by_name(fixture_device: str) -> dict[str, Feature]:
-    """Return the enabled features of a discovered fixture device by name."""
+    """Return the available features of a discovered fixture device by name."""
     client = FixtureViClient(fixture_device)
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    features = await client.get_features(device, only_enabled=True)
+    features = await client.get_features(device, only_available=True)
     return {feature.name: feature for feature in features}
 
 
@@ -72,9 +72,9 @@ async def test_fixture_set_feature_stays_offline():
         await client.get_devices(
             installation_id="99999",
             gateway_serial="MOCK_GW",
-            include_features=True,
         )
     )[0]
+    device = await client.refresh_device(device)
     slope = device.get_feature("heating.circuits.0.heating.curve.slope")
     assert slope is not None
 
@@ -111,12 +111,12 @@ async def test_fixture_gateway_device_refresh_stays_offline():
 
     # Assert: Fixture refresh preserves order and metadata without HTTP access.
     assert result.is_complete
-    assert [device.id for device in result.updated_devices] == ["10", "0"]
-    assert [device.model_id for device in result.updated_devices] == [
+    assert [device.id for device in result.refreshed_devices] == ["10", "0"]
+    assert [device.model_id for device in result.refreshed_devices] == [
         "model-10",
         "model-0",
     ]
-    assert all(device.features for device in result.updated_devices)
+    assert all(device.features for device in result.refreshed_devices)
 
 
 @pytest.mark.usefixtures("no_http_requests")
@@ -126,18 +126,17 @@ async def test_every_catalog_device_supports_the_standard_workflow(fixture_devic
     # Arrange: Create a fixture client for one bundled catalog device.
     client = FixtureViClient(fixture_device)
 
-    # Act: Discover the installation, gateway, and hydrated device.
+    # Act: Discover the installation, gateway, and device, then load features.
     installation = (await client.get_installations())[0]
     gateway = (await client.get_gateways())[0]
     devices = await client.get_devices(
         installation_id=installation.id,
         gateway_serial=gateway.serial,
-        include_features=True,
     )
 
-    # Assert: The chain yields one hydrated device with features.
+    # Assert: Discovery returns one device and the refresh hydrates it.
     assert len(devices) == 1
-    device = devices[0]
+    device = await client.refresh_device(devices[0])
     assert device.features
 
     # Act: Read one feature back through the name-filtered public read.

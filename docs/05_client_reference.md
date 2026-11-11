@@ -40,6 +40,19 @@ catalog defines each selectable fixture name, model identity, and device type;
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 
+### Which read method when
+
+Every read fetches device identity or features from the API; none works from a
+stored snapshot alone.
+
+| Method | Purpose | API requests |
+| :--- | :--- | :--- |
+| `get_devices(installation_id, gateway_serial)` | Discover the devices of one gateway, without features. | 1: the device list |
+| `get_features(device)` or `get_features(device, feature_names=...)` | Read (selected) features of one device. | 1: the device's feature read |
+| `refresh_device(device)` | Read one device's features as a new device snapshot; the workhorse for polling. | 1: the device's feature read |
+| `get_full_installation_status(installation_id)` | Scan a whole installation: gateways, their devices, and each device's features. | 1 gateways read, plus 1 device list per matching gateway, plus 1 feature read per device |
+| `refresh_gateway_devices(devices)` | Refresh the features of several devices on one gateway with one bulk read. | 1 bulk feature read; a fallback adds up to 1 individual feature read per device |
+
 ## Discovery Methods
 
 Methods to discover the structure of your heating system.
@@ -52,23 +65,21 @@ Fetches all available installations.
 Fetches all gateways (automatically linked to installations).
 *   **Returns**: List of `Gateway` objects.
 
-### `get_devices(installation_id: str, gateway_serial: str, include_features: bool = False, only_enabled: bool = False) -> list[Device]`
+### `get_devices(installation_id: str, gateway_serial: str) -> list[Device]`
 Fetches devices attached to a specific gateway.
 
 *   **Parameters**:
     *   `installation_id`: Installation ID (string).
     *   `gateway_serial`: Gateway serial number.
-    *   `include_features`: If `True`, performs device feature hydration (Default `False`).
-    *   `only_enabled`: If `include_features=True`, only returns enabled and ready features (Default `False`).
-*   **Returns**: List of device snapshots. If `include_features=True`, device
-    feature hydration produces new snapshots from the feature responses.
+*   **Returns**: List of device snapshots without features. Load features with
+    `refresh_device`, `get_features`, or `get_full_installation_status`.
 
-### `get_full_installation_status(installation_id: str, only_enabled: bool = True) -> list[Device]`
+### `get_full_installation_status(installation_id: str, only_available: bool = True) -> list[Device]`
 Fetches the complete status of an installation as refreshed device snapshots.
 
 *   **Parameters**:
     *   `installation_id`: The ID of the installation to scan.
-    *   `only_enabled`: if `True` (default), only returns enabled and ready features.
+    *   `only_available`: if `True` (default), only returns enabled and ready features.
 *   **Returns**: List of refreshed device snapshots whose features came from API
     read responses.
 *   **Use Case**: Initial startup (e.g., Home Assistant integration load) to populate the entire entity registry at once.
@@ -131,22 +142,25 @@ page as the end of the available window.
 
 Methods to read data and control the device.
 
-### `get_features(device: Device, only_enabled: bool = False, feature_names: list[str] | None = None) -> list[Feature]`
+### `get_features(device: Device, only_available: bool = True, feature_names: list[str] | None = None) -> list[Feature]`
 Fetches features for a specific device. This is the primary method to read data.
 
 *   **Parameters**:
     *   `device`: A `Device` object.
-    *   `only_enabled`: if `True`, only returns features that are enabled and ready.
+    *   `only_available`: if `True` (default), only returns features that are enabled and ready.
     *   `feature_names`: Optional list of feature names or API feature names to return (e.g. `["heating.circuits.0.heating.curve.slope"]` or `["heating.circuits.0.heating.curve"]`). An API feature name selects every feature parsed from it. If None, returns all features.
 *   **Returns**: List of `Feature` objects. Unknown names select nothing; they do not raise.
 *   **Matching**: The client always fetches the device's features and matches names locally after parsing, so live and fixture-backed clients return the same features. A name that is both a feature name and an API feature name, such as `heating.circuits.0.name`, selects both matches. The request therefore carries the whole device feature set even when only a few names are requested; the number of API calls does not change.
+*   **Default filter**: Because `only_available` defaults to `True`, a targeted read
+    with `feature_names` returns no disabled or not-ready feature unless the
+    caller passes `only_available=False`.
 
-### `refresh_device(device: Device, only_enabled: bool = True) -> Device`
+### `refresh_device(device: Device, only_available: bool = True) -> Device`
 Refreshes a specific device by refetching all its features.
 
 *   **Parameters**:
     *   `device`: The `Device` object to refresh.
-    *   `only_enabled`: if `True`, only returns enabled and ready features (default `True`).
+    *   `only_available`: if `True` (default), only returns enabled and ready features.
 *   **Returns**: A refreshed device snapshot with features from an API read response.
 *   **Best for**: Efficient polling. Use this instead of re-discovering the entire installation hierarchy if you already have a `Device` object.
 
@@ -205,8 +219,8 @@ as `device_1` stay with the consuming application.
 ### `refresh_gateway_devices(devices: list[Device]) -> GatewayDeviceRefreshResult`
 
 Refreshes known devices belonging to one installation and gateway. The normal
-path uses one POST feature-filter request and retrieves enabled and ready
-features only.
+path uses one POST feature-filter request and retrieves available features
+only.
 
 *   **Parameters**:
     *   `devices`: Existing devices from exactly one installation and gateway. Device IDs must be unique.
@@ -216,11 +230,11 @@ features only.
     *   `ValueError` for mixed installations, mixed gateways, or duplicate device IDs.
     *   `ViResponseError` for malformed successful responses.
     *   The applicable `ViError` subclass for global authentication, rate-limit, connection, server, or unknown API failures.
-*   **Boundary behavior**: Empty input returns an empty complete result without I/O. Failed original devices are not returned in `updated_devices`.
+*   **Boundary behavior**: Empty input returns an empty complete result without I/O. Failed original devices are not returned in `refreshed_devices`.
 
 ```python
 result = await client.refresh_gateway_devices(devices)
-for device in result.updated_devices:
+for device in result.refreshed_devices:
     use_current_state(device)
 
 for device_id, error in result.errors_by_device_id.items():

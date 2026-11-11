@@ -104,24 +104,19 @@ class ViClient:
         return gateways
 
     async def get_devices(
-        self,
-        installation_id: str,
-        gateway_serial: str,
-        include_features: bool = False,
-        only_enabled: bool = False,
+        self, installation_id: str, gateway_serial: str
     ) -> list[Device]:
         """Return the devices behind one gateway.
+
+        The devices carry no features; load them with `refresh_device` or
+        `get_full_installation_status`.
 
         Args:
             installation_id: ID of the installation.
             gateway_serial: Serial number of the gateway.
-            include_features: Whether to automatically fetch features for all devices.
-            only_enabled: If include_features is True, fetch only enabled and ready
-                features.
 
         Returns:
-            Device snapshots. When requested, device feature hydration produces
-            new snapshots from the feature responses.
+            Device snapshots without features.
 
         Raises:
             ViResponseError: If a successful response violates the API contract.
@@ -134,23 +129,12 @@ class ViClient:
             for device_data in self._response_items(response, resource="Device")
         ]
 
-        if include_features:
-            _LOGGER.debug(
-                "Hydrating %s devices with features (only_enabled=%s)",
-                len(devices),
-                only_enabled,
-            )
-            return [
-                await self.refresh_device(device, only_enabled=only_enabled)
-                for device in devices
-            ]
-
         return devices
 
     async def get_features(
         self,
         device: Device,
-        only_enabled: bool = False,
+        only_available: bool = True,
         feature_names: list[str] | None = None,
     ) -> list[Feature]:
         """Return a device's features.
@@ -160,9 +144,13 @@ class ViClient:
         server-side name filter is not used: it selects API features, while
         callers mostly address the flat features parsed from them.
 
+        Because ``only_available`` defaults to ``True``, a targeted read with
+        ``feature_names`` returns no disabled or not-ready feature unless the
+        caller passes ``only_available=False``.
+
         Args:
             device: The device to fetch features for.
-            only_enabled: If True, only return enabled/ready features.
+            only_available: If True, only return enabled and ready features.
             feature_names: Optional feature names or API feature names to
                 return. An API feature name selects every feature parsed from
                 that API feature. Unknown names select nothing.
@@ -175,26 +163,22 @@ class ViClient:
                 features contain duplicate names.
         """
         payload = {
-            "skipDisabled": only_enabled,
-            "skipNotReady": only_enabled,
+            "skipDisabled": only_available,
+            "skipNotReady": only_available,
         }
 
         _LOGGER.debug(
-            "Fetching features for device %s (enabled=%s)",
+            "Fetching features for device %s (available=%s)",
             device.id,
-            only_enabled,
+            only_available,
         )
         response = await self._discovery_adapter.get_features(device, payload)
         api_features = self._response_items(response, resource="Feature")
 
         features = self._api_features_to_flat_features(api_features, feature_names)
         self._reject_duplicate_feature_names(features)
-        if only_enabled:
-            features = [
-                feature
-                for feature in features
-                if feature.is_enabled and feature.is_ready
-            ]
+        if only_available:
+            features = [feature for feature in features if feature.is_available]
 
         _LOGGER.debug(
             "Fetched %s API features -> %s features", len(api_features), len(features)
@@ -202,13 +186,14 @@ class ViClient:
         return features
 
     async def get_full_installation_status(
-        self, installation_id: str, only_enabled: bool = True
+        self, installation_id: str, only_available: bool = True
     ) -> list[Device]:
         """Return all devices of an installation with their features.
 
         Args:
             installation_id: ID of the installation to scan.
-            only_enabled: Whether to skip disabled features (default: True).
+            only_available: Whether to skip disabled and not-ready features
+                (default: True).
 
         Returns:
             List of Devices with their `features` list populated.
@@ -223,13 +208,11 @@ class ViClient:
             if gateway.installation_id != installation_id:
                 continue
 
-            devices = await self.get_devices(
-                installation_id,
-                gateway.serial,
-                include_features=True,
-                only_enabled=only_enabled,
-            )
-            all_devices.extend(devices)
+            devices = await self.get_devices(installation_id, gateway.serial)
+            for device in devices:
+                all_devices.append(
+                    await self.refresh_device(device, only_available=only_available)
+                )
 
         return all_devices
 
@@ -292,12 +275,15 @@ class ViClient:
             self._response_object(response, resource="Event history")
         )
 
-    async def refresh_device(self, device: Device, only_enabled: bool = True) -> Device:
+    async def refresh_device(
+        self, device: Device, only_available: bool = True
+    ) -> Device:
         """Return a refreshed device snapshot from an API feature read.
 
         Args:
             device: The device object to refresh.
-            only_enabled: Whether to fetch only enabled features.
+            only_available: Whether to fetch only available features (enabled
+                and ready).
 
         Returns:
             A refreshed device snapshot with features from the API response.
@@ -306,7 +292,7 @@ class ViClient:
             ViResponseError: If the API response is malformed or contains
                 duplicate feature names.
         """
-        features = await self.get_features(device, only_enabled=only_enabled)
+        features = await self.get_features(device, only_available=only_available)
         return replace(device, features=features)
 
     async def export_device_fixture(self, device: Device) -> dict[str, JsonValue]:
@@ -348,7 +334,7 @@ class ViClient:
     async def refresh_gateway_devices(
         self, devices: list[Device]
     ) -> GatewayDeviceRefreshResult:
-        """Refresh enabled and ready features for devices on one gateway.
+        """Refresh available features for devices on one gateway.
 
         Args:
             devices: Existing devices belonging to one installation and gateway.
@@ -394,7 +380,7 @@ class ViClient:
         )
 
         missing_devices: list[Device] = []
-        updated_devices_by_id: dict[str, Device] = {}
+        refreshed_devices_by_id: dict[str, Device] = {}
         for device in devices:
             api_features = api_features_by_device_id.get(device.id)
             if api_features is None:
@@ -402,7 +388,7 @@ class ViClient:
                 continue
             features = self._api_features_to_flat_features(api_features)
             self._reject_duplicate_feature_names(features)
-            updated_devices_by_id[device.id] = replace(device, features=features)
+            refreshed_devices_by_id[device.id] = replace(device, features=features)
 
         if missing_devices:
             _LOGGER.debug(
@@ -411,19 +397,19 @@ class ViClient:
                 len(missing_devices),
             )
         fallback_result = await self._refresh_devices_individually(missing_devices)
-        updated_devices_by_id.update(
-            (device.id, device) for device in fallback_result.updated_devices
+        refreshed_devices_by_id.update(
+            (device.id, device) for device in fallback_result.refreshed_devices
         )
 
         # Keep the caller's device order across both refresh paths.
-        updated_devices = [
-            updated_devices_by_id[device.id]
+        refreshed_devices = [
+            refreshed_devices_by_id[device.id]
             for device in devices
-            if device.id in updated_devices_by_id
+            if device.id in refreshed_devices_by_id
         ]
 
         return GatewayDeviceRefreshResult(
-            updated_devices, fallback_result.errors_by_device_id
+            refreshed_devices, fallback_result.errors_by_device_id
         )
 
     async def set_feature(
@@ -497,7 +483,7 @@ class ViClient:
         """Execute an explicit available-feature command without changing parameters.
 
         Args:
-            feature: A writable, enabled, and ready feature identifying the command.
+            feature: A writable and available feature identifying the command.
             parameters: Complete command parameters to send exactly as supplied;
                 every parameter value must be within the JSON value contract.
 
@@ -670,12 +656,12 @@ class ViClient:
         self, devices: list[Device]
     ) -> GatewayDeviceRefreshResult:
         """Refresh devices individually and isolate known device failures."""
-        updated_devices: list[Device] = []
+        refreshed_devices: list[Device] = []
         errors_by_device_id: dict[str, ViError] = {}
 
         for device in devices:
             try:
-                updated_device = await self.refresh_device(device, only_enabled=True)
+                refreshed_device = await self.refresh_device(device)
             except ViError as error:
                 if error.error_type not in _DEVICE_SPECIFIC_ERROR_TYPES:
                     raise
@@ -684,9 +670,9 @@ class ViClient:
                     "Individual refresh failed for device %s: %s", device.id, error
                 )
             else:
-                updated_devices.append(updated_device)
+                refreshed_devices.append(refreshed_device)
 
-        return GatewayDeviceRefreshResult(updated_devices, errors_by_device_id)
+        return GatewayDeviceRefreshResult(refreshed_devices, errors_by_device_id)
 
     # Feature commands: check availability, build and validate the payload, send it.
 

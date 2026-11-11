@@ -1,6 +1,7 @@
 """Public workflow tests for the fixture-backed client."""
 
 import logging
+from typing import Any
 
 import pytest
 
@@ -64,6 +65,41 @@ async def test_fixture_refresh_device_returns_hydrated_copy_without_mutating_inp
     assert refreshed_device.features
 
 
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_full_installation_status_reads_one_gateway_and_one_device_at_a_time(
+    monkeypatch,
+):
+    """Full status resolves features through one feature read per device."""
+    # Arrange: Count every adapter-level read of the fixture workflow.
+    client = FixtureViClient("Vitodens200W")
+    adapter = client._discovery_adapter
+    calls: list[str] = []
+    for method_name in ("get_gateways", "get_devices", "get_features"):
+        bound_read: Any = getattr(adapter, method_name)
+
+        async def counted_read(
+            *args: Any,
+            _read: Any = bound_read,
+            _name: str = method_name,
+            **kwargs: Any,
+        ) -> Any:
+            calls.append(_name)
+            return await _read(*args, **kwargs)
+
+        monkeypatch.setattr(adapter, method_name, counted_read)
+
+    # Act: Scan the fixture installation with the public workflow.
+    devices = await client.get_full_installation_status("99999")
+
+    # Assert: Gateways and the device list are each read once, and every
+    # device gets exactly one feature read, so the composed workflow issues
+    # no additional requests compared to discovery plus per-device refreshes.
+    assert calls == ["get_gateways", "get_devices", "get_features"]
+    assert len(devices) == 1
+    hydrated = await client.refresh_device(devices[0])
+    assert hydrated.features == devices[0].features
+
+
 @pytest.mark.parametrize(
     ("requested_name", "expected_names"),
     [
@@ -94,7 +130,10 @@ async def test_fixture_feature_names_match_feature_and_api_feature_names(
     client = FixtureViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
 
-    features = await client.get_features(device, feature_names=[requested_name])
+    # Act: Request features by one name, including unavailable ones.
+    features = await client.get_features(
+        device, only_available=False, feature_names=[requested_name]
+    )
 
     assert sorted(feature.name for feature in features) == expected_names
 
@@ -108,7 +147,7 @@ async def test_fixture_feature_filters_apply_shared_enabled_and_name_semantics()
     # Act: Request enabled and ready features by explicit names.
     features = await client.get_features(
         device,
-        only_enabled=True,
+        only_available=True,
         feature_names=[
             "heating.burners.0",
             "device.serial",
@@ -162,13 +201,13 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     assert "Executing fixture command 'setCurve'" in caplog.text
 
 
+@pytest.mark.usefixtures("no_http_requests")
 async def test_fixture_comfort_temperature_is_written_with_set_temperature():
     """Comfort temperature should use setTemperature, not the program switch."""
     # Arrange: Load a fixture that also offers activate(temperature).
     client = FixtureViClient("Vitocal200S")
-    (device,) = await client.get_devices(
-        "99999", "MOCK_GATEWAY_SERIAL", include_features=True
-    )
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device)
 
     # Act: Read the comfort temperature feature.
     feature = device.get_feature(
@@ -186,9 +225,8 @@ async def test_fixture_schedule_value_is_the_plan_and_renders_compactly():
     """A read schedule should be the plan itself and format per day."""
     # Arrange: Load a fixture device with a heating circuit schedule.
     client = FixtureViClient("Vitocal250A")
-    (device,) = await client.get_devices(
-        "99999", "MOCK_GATEWAY_SERIAL", include_features=True
-    )
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device)
 
     # Act: Read the schedule and its status flag.
     schedule = device.get_feature("heating.circuits.0.heating.schedule")
