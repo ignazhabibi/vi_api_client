@@ -71,11 +71,44 @@ A `Feature` object in this library represents a single property.
 | `unit` | Unit of measurement, if any (`celsius`, `bar`, `percent`) |
 | `is_writable` | `True` if the API offers a command that changes this value; writing also needs `is_enabled` and `is_ready` |
 | `constraints` | (Optional) `FeatureConstraints` rules for writing this feature's value |
+| `deprecation` | (Optional) `FeatureDeprecation` removal notice the API reports for the feature's API feature |
 
 Responses are validated at the client's trust boundary: known malformed
 fields raise `ViResponseError`, while unknown additional fields from newer API
 versions remain allowed. See the [Models Reference](04_models_reference.md)
 for the full value contract.
+
+### Removal notices
+
+Viessmann announces the removal of an API feature in the feature response
+itself, as a `deprecated` object next to `properties` and `commands`:
+
+```json
+"deprecated": {
+  "removalDate": "2024-09-15",
+  "info": "replaced by heating.dhw.sensors.temperature.dhwCylinder"
+}
+```
+
+Every flat feature parsed from such an API feature carries the notice as
+`feature.deprecation` (`FeatureDeprecation` with `removal_date` and `info`);
+other features carry `None`:
+
+```python
+feature = device.get_feature("heating.dhw.sensors.temperature.hotWaterStorage")
+if feature.deprecation is not None:
+    print(feature.deprecation.removal_date)  # datetime.date(2024, 9, 15)
+    print(feature.deprecation.info)  # "replaced by heating.dhw.sensors..."
+```
+
+The library only reports the notice. It does not act on it: a deprecated
+feature is read, written, and listed like any other, also after its removal
+date, and no warning is logged. `info` is the API's free text, passed on
+verbatim; the library does not read the replacement name out of it and does
+not map old feature names to new ones. The removal date is an announcement,
+not a guarantee: devices still report features whose date has passed. A
+deprecated API feature without properties produces no flat feature, so its
+notice is not visible.
 
 ### Constraints and reported commands
 

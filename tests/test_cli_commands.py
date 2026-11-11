@@ -7,6 +7,7 @@ import sys
 from argparse import Namespace
 from collections.abc import Iterator
 from dataclasses import replace
+from datetime import date
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -21,6 +22,7 @@ from builders import (
 
 from vi_api_client import (
     EventHistoryWindow,
+    FeatureDeprecation,
     FeatureValue,
     FixtureViClient,
     InstallationEvent,
@@ -30,6 +32,8 @@ from vi_api_client import (
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     CLIContext,
+    _deprecation_document,
+    _deprecation_text,
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
@@ -2286,3 +2290,73 @@ async def test_run_cli_set_points_a_non_setter_feature_to_exec(run_cli):
     assert "Feature 'heating.operating.programs.holiday.start' is read-only" in out
     assert "reports the commands changeEndDate, schedule, unschedule" in out
     assert "vi-client exec heating.operating.programs.holiday" in out
+
+
+async def test_run_cli_get_feature_prints_the_removal_notice(run_cli):
+    """get-feature prints the removal date and info text of a deprecated feature."""
+    # Act: Read a deprecated fixture feature and its replacement.
+    _, deprecated_out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.dhw.sensors.temperature.hotWaterStorage",
+    )
+    exit_status, regular_out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.dhw.sensors.temperature.dhwCylinder",
+    )
+
+    # Assert: Only the deprecated feature shows the notice line.
+    assert exit_status == 0
+    assert (
+        "  Deprecated: removal announced for 2024-09-15 "
+        "(replaced by heating.dhw.sensors.temperature.dhwCylinder)" in deprecated_out
+    )
+    assert "Deprecated" not in regular_out
+
+
+async def test_run_cli_get_feature_json_prints_the_removal_notice(run_cli):
+    """get-feature --json carries the deprecation key for every feature."""
+    # Act: Read a deprecated fixture feature and its replacement as JSON.
+    _, deprecated_out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "--json",
+        "heating.dhw.temperature.levels.min",
+    )
+    exit_status, regular_out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "--json",
+        "heating.dhw.sensors.temperature.dhwCylinder",
+    )
+
+    # Assert: The notice is an object with an ISO date, and null otherwise.
+    assert exit_status == 0
+    assert json.loads(deprecated_out)["deprecation"] == {
+        "removal_date": "2027-03-31",
+        "info": "Not used anymore",
+    }
+    # The replacement name matches two features: the value and its status.
+    assert [document["deprecation"] for document in json.loads(regular_out)] == [
+        None,
+        None,
+    ]
+
+
+def test_removal_notice_text_handles_missing_fields():
+    """A notice without a date or info still prints one readable line."""
+    assert _deprecation_text(FeatureDeprecation(None, "Not used anymore")) == (
+        "removal announced without a date (Not used anymore)"
+    )
+    assert _deprecation_text(FeatureDeprecation(date(2027, 3, 31), None)) == (
+        "removal announced for 2027-03-31"
+    )
+    assert _deprecation_document(FeatureDeprecation(None, None)) == {
+        "removal_date": None,
+        "info": None,
+    }

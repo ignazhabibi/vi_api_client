@@ -27,6 +27,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "EventHistoryWindow",
         "Feature",
         "FeatureConstraints",
+        "FeatureDeprecation",
         "FeatureValue",
         "Gateway",
         "GatewayDeviceRefreshResult",

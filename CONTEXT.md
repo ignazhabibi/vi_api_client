@@ -103,6 +103,13 @@ The library's explicit pair table decides which pairs make a feature writable;
 reported executability does not.
 _Avoid_: Toggle command, switch command
 
+**Removal notice**:
+The `FeatureDeprecation` on `Feature.deprecation`: the removal date and free
+info text the API reports in an API feature's `deprecated` object, carried by
+every flat feature of that API feature. The library only reports it; it
+neither acts on it nor maps old feature names to new ones.
+_Avoid_: Deprecation warning, replacement mapping
+
 **Feature constraints**:
 The `FeatureConstraints` rules the API reports for writing one feature value
 (ranges, step, options, lengths, pattern, value type, schedule rules) on

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import MappingProxyType
 from typing import cast
 
@@ -130,6 +130,25 @@ class DeviceCommand:
 
 
 @dataclass(frozen=True)
+class FeatureDeprecation:
+    """The removal notice the API reports for an API feature.
+
+    The library attaches no behavior to it: a deprecated feature is read,
+    written, and listed like any other, also after its removal date.
+
+    Attributes:
+        removal_date: The date the API announces for the removal, if any. It
+            is an announcement, not a guarantee; a feature can still be
+            reported after it.
+        info: The API's free text about the removal, verbatim, such as
+            ``replaced by heating.dhw.sensors.temperature.dhwCylinder``.
+    """
+
+    removal_date: date | None = None
+    info: str | None = None
+
+
+@dataclass(frozen=True)
 class Feature:
     """One flat Viessmann feature with its current value.
 
@@ -141,6 +160,8 @@ class Feature:
         is_ready: Whether the feature is ready for interaction.
         constraints: Optional `FeatureConstraints` rules for writing the
             value of a writable feature.
+        deprecation: The `FeatureDeprecation` notice of the feature's API
+            feature, if the API announces its removal.
     """
 
     name: str
@@ -156,6 +177,7 @@ class Feature:
     # hand-built features are read-only. It is kept out of the repr because
     # the URI carries installation, gateway, and device identifiers.
     write_binding: WriteBinding | None = field(default=None, repr=False)
+    deprecation: FeatureDeprecation | None = None
 
     @property
     def is_writable(self) -> bool:
