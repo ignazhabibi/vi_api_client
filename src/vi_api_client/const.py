@@ -13,6 +13,8 @@ ENDPOINT_INSTALLATIONS: str = "/iot/v2/equipment/installations"
 ENDPOINT_EVENT_HISTORY: str = "/iot/v2/events-history/installations"
 
 EVENT_HISTORY_MAX_LIMIT: int = 1000
+# Safety limit on the pages one event history window traversal fetches.
+DEFAULT_EVENT_HISTORY_MAX_PAGES: int = 50
 
 # Scopes
 SCOPE_IOT_USER: str = "IoT User"

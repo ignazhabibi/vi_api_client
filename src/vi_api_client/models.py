@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from types import MappingProxyType
+from typing import cast
 
 from ._types import FeatureValue, JsonValue
 from .exceptions import ViError
@@ -367,3 +369,73 @@ class EventHistoryPage:
     def __post_init__(self) -> None:
         """Store caller-owned event collections as immutable snapshots."""
         object.__setattr__(self, "events", tuple(self.events))
+
+
+@dataclass(frozen=True)
+class EventHistoryWindow:
+    """The events of one lookback window, collected across its pages.
+
+    Attributes:
+        events: Every event collected, in the order the pages returned them.
+        next_cursor: The opaque continuation cursor that remained when the
+            traversal stopped at its page safety limit. ``None`` means the
+            provider reported no further page, so the window is complete.
+        pages_fetched: The number of pages the traversal requested.
+    """
+
+    events: Sequence[InstallationEvent]
+    next_cursor: str | None = None
+    pages_fetched: int = 0
+
+    def __post_init__(self) -> None:
+        """Store caller-owned event collections as immutable snapshots."""
+        object.__setattr__(self, "events", tuple(self.events))
+
+    @property
+    def earliest_timestamp(self) -> str | None:
+        """Return the earliest event timestamp, or None without events.
+
+        Timestamps are compared as points in time, so differing ISO-8601
+        offsets or precision still order correctly.
+        """
+        return self._extreme_timestamps()[0]
+
+    @property
+    def latest_timestamp(self) -> str | None:
+        """Return the latest event timestamp, or None without events.
+
+        Timestamps are compared as points in time, so differing ISO-8601
+        offsets or precision still order correctly.
+        """
+        return self._extreme_timestamps()[1]
+
+    def _extreme_timestamps(self) -> tuple[str | None, str | None]:
+        """Return the earliest and latest event timestamps as time points.
+
+        An unparsable provider timestamp falls back to a lexical comparison
+        for the whole window rather than mixing the two orderings.
+        """
+        timestamps = [event.event_timestamp for event in self.events]
+        if not timestamps:
+            return None, None
+        parsed = [parse_instant(timestamp) for timestamp in timestamps]
+        if all(instant is not None for instant in parsed):
+            instants = cast("list[datetime]", parsed)
+            earliest = min(zip(instants, timestamps, strict=True))[1]
+            latest = max(zip(instants, timestamps, strict=True))[1]
+            return earliest, latest
+        return min(timestamps), max(timestamps)
+
+
+def parse_instant(timestamp: str) -> datetime | None:
+    """Return one event timestamp as a point in time, or None when unparsable.
+
+    Naive timestamps are read as UTC so they compare with aware ones.
+    """
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed

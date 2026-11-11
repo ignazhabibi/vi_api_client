@@ -110,10 +110,9 @@ Fetches one page of an installation's event history.
     *   The applicable `ViError` subclass for authentication, rate-limit,
         connection, server, or unknown API failures.
 
-This is a one-page read. Traversing a full window is deliberately out of
-scope here; callers request further pages by passing `next_cursor` as
-`cursor`. The `list-events` CLI command is one such consumer and follows
-cursors up to a configurable page safety limit.
+This is a one-page read. Callers request further pages by passing
+`next_cursor` as `cursor`; `get_event_history_window` does that for a whole
+lookback window.
 
 **Example**:
 ```python
@@ -126,7 +125,49 @@ if page.next_cursor:
     )
 ```
 
-**Endpoint note**: the request targets
+### `get_event_history_window(installation_id: str, days: int, *, limit: int | None = None, max_pages: int = 50) -> EventHistoryWindow`
+
+Collects an installation's event history across one lookback window by
+following the continuation cursor.
+
+*   **Parameters**:
+    *   `installation_id`: Installation ID (string).
+    *   `days`: Rolling lookback window in days.
+    *   `limit`: Optional page size between 1 and the documented maximum of
+        1000, applied to every request. When omitted, the provider default
+        applies.
+    *   `max_pages`: Safety limit on the number of pages fetched (default 50).
+*   **Returns**: An `EventHistoryWindow` with every collected event, the
+    number of pages fetched, and the remaining `next_cursor` when the
+    traversal stopped at the safety limit. `next_cursor` is `None` when the
+    provider reported no further page.
+*   **Raises**:
+    *   `ValueError` when the installation ID is empty, the lookback or the
+        page safety limit is not positive, or the limit is out of range.
+        These raise before any request is sent.
+    *   `ViResponseError` for malformed successful responses.
+    *   The applicable `ViError` subclass for authentication, rate-limit,
+        connection, server, or unknown API failures. An error on a later page
+        raises and returns no partial window.
+
+The first request uses the lookback; every following request passes only the
+continuation cursor, so the lookback is never restarted. Pages are requested
+one after the other. Each page is one API request, so a long window with a
+small `limit` costs many requests; `max_pages` bounds that.
+
+**Example**:
+```python
+window = await client.get_event_history_window(installation_id, 7, limit=100)
+for event in window.events:
+    use_event(event.event_type, event.body)
+if window.next_cursor is not None:
+    # The safety limit stopped the traversal; the window is incomplete.
+    more = await client.get_event_history(
+        installation_id, cursor=window.next_cursor, limit=100
+    )
+```
+
+**Endpoint note**: the requests target
 `GET /iot/v2/events-history/installations/{installationId}/events`, the
 spelling from Viessmann's 2023 endpoint announcement. The current
 developer-portal OpenAPI export spells the route `eventhistory`, but a

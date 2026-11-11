@@ -162,7 +162,8 @@ opaque continuation cursor for the next page, when the provider reported one.
 _Avoid_: Event list snapshot
 
 **Event history window**:
-The complete traversal result for one bounded lookback request: every event
+The `EventHistoryWindow` returned by `get_event_history_window`: the
+complete traversal result for one bounded lookback request, with every event
 collected while following the continuation cursor up to the page safety
 limit, plus the remaining cursor when the traversal stopped there. A completed
 window traversal reports exhausted pagination, not proven provider retention

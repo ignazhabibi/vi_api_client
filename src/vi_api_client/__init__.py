@@ -22,6 +22,7 @@ from .fixture_client import FixtureViClient
 from .models import (
     Device,
     EventHistoryPage,
+    EventHistoryWindow,
     Feature,
     FeatureConstraints,
     Gateway,
@@ -45,6 +46,7 @@ __all__ = [
     "AbstractAuth",
     "Device",
     "EventHistoryPage",
+    "EventHistoryWindow",
     "Feature",
     "FeatureConstraints",
     "FeatureValue",

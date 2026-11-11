@@ -24,6 +24,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ENDPOINT_AUTHORIZE",
         "ENDPOINT_TOKEN",
         "EventHistoryPage",
+        "EventHistoryWindow",
         "Feature",
         "FeatureConstraints",
         "FeatureValue",

@@ -11,10 +11,10 @@ import textwrap
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC
 from functools import wraps
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import Any
 
 import aiohttp
 
@@ -29,17 +29,20 @@ from vi_api_client import (
 
 from ._feature_diff import diff_features, feature_entries, format_feature_diff
 from ._types import JsonValue
+from .const import DEFAULT_EVENT_HISTORY_MAX_PAGES
 from .credentials import CredentialDocument
 from .models import (
     CommandPairWriteBinding,
     CommandParameter,
     Device,
+    EventHistoryWindow,
     Feature,
     FeatureConstraints,
     Gateway,
     InstallationEvent,
     ScheduleConstraints,
     WriteBinding,
+    parse_instant,
 )
 from .utils import format_feature, parse_cli_params
 
@@ -47,7 +50,6 @@ DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 # Tokens and the OAuth client configuration are stored together in this file.
 DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
 # Default safety limit on pages fetched for one event history window.
-DEFAULT_EVENT_HISTORY_MAX_PAGES = 50
 # diff-features sources besides file paths.
 _LIVE_SOURCE = "live"
 _FIXTURE_SOURCE_PREFIX = "fixture:"
@@ -853,8 +855,8 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
             installation_id = installations[0].id
             _print_diagnostic(args, f"Auto-selected installation: {installation_id}")
 
-        window = await _collect_event_history(
-            context.client, installation_id, days, limit, max_pages
+        window = await context.client.get_event_history_window(
+            installation_id, days, limit=limit, max_pages=max_pages
         )
 
     if args.json:
@@ -874,108 +876,6 @@ async def cmd_list_events(args: argparse.Namespace) -> bool:
         _print_event_summary(window, installation_id, days, max_pages)
 
     return True
-
-
-class EventHistoryWindow(NamedTuple):
-    """The events and pagination state of one bounded traversal."""
-
-    events: list[InstallationEvent]
-    next_cursor: str | None
-    pages_fetched: int
-
-    @property
-    def earliest_timestamp(self) -> str | None:
-        """Return the earliest event timestamp, or None without events.
-
-        Timestamps are compared as points in time, so differing ISO-8601
-        offsets or precision still order correctly.
-        """
-        return self._extreme_timestamps()[0]
-
-    @property
-    def latest_timestamp(self) -> str | None:
-        """Return the latest event timestamp, or None without events.
-
-        Timestamps are compared as points in time, so differing ISO-8601
-        offsets or precision still order correctly.
-        """
-        return self._extreme_timestamps()[1]
-
-    def _extreme_timestamps(self) -> tuple[str | None, str | None]:
-        """Return the earliest and latest event timestamps as time points.
-
-        An unparsable provider timestamp falls back to a lexical comparison
-        for the whole window rather than mixing the two orderings.
-        """
-        timestamps = [event.event_timestamp for event in self.events]
-        if not timestamps:
-            return None, None
-        parsed = [_parse_instant(timestamp) for timestamp in timestamps]
-        if all(instant is not None for instant in parsed):
-            instants = cast("list[datetime]", parsed)
-            earliest = min(zip(instants, timestamps, strict=True))[1]
-            latest = max(zip(instants, timestamps, strict=True))[1]
-            return earliest, latest
-        return min(timestamps), max(timestamps)
-
-
-def _parse_instant(timestamp: str) -> datetime | None:
-    """Return one event timestamp as a point in time, or None when unparsable.
-
-    Naive timestamps are read as UTC so they compare with aware ones.
-    """
-    try:
-        parsed = datetime.fromisoformat(timestamp)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed
-
-
-async def _collect_event_history(
-    client: ViClient | FixtureViClient,
-    installation_id: str,
-    days: int,
-    limit: int | None,
-    max_pages: int,
-) -> EventHistoryWindow:
-    """Follow the continuation cursor across event history pages.
-
-    The first request uses the rolling lookback window; every subsequent
-    request passes only the opaque continuation cursor so the lookback is
-    never restarted.
-
-    Args:
-        client: The client serving the event history reads.
-        installation_id: ID of the installation to read.
-        days: Rolling lookback window in days for the first request.
-        limit: Optional per-page size applied to every request.
-        max_pages: Safety limit on the number of pages fetched.
-
-    Returns:
-        The traversal result. A remaining cursor of None means the provider
-        reported no further page; otherwise the safety limit stopped the
-        traversal and the result is incomplete.
-    """
-    events: list[InstallationEvent] = []
-    next_cursor: str | None = None
-    pages_fetched = 0
-    while pages_fetched < max_pages:
-        if next_cursor is None:
-            page = await client.get_event_history(
-                installation_id, days=days, limit=limit
-            )
-        else:
-            page = await client.get_event_history(
-                installation_id, cursor=next_cursor, limit=limit
-            )
-        pages_fetched += 1
-        events.extend(page.events)
-        next_cursor = page.next_cursor
-        if next_cursor is None:
-            return EventHistoryWindow(events, None, pages_fetched)
-    return EventHistoryWindow(events, next_cursor, pages_fetched)
 
 
 # Readable event lines wrap long details instead of truncating them.
@@ -1034,7 +934,7 @@ def _event_date_label(timestamp: str) -> str:
     A missing or unparsable timestamp groups under an explicit unknown
     label instead of an invented date.
     """
-    instant = _parse_instant(timestamp)
+    instant = parse_instant(timestamp)
     if instant is None:
         return "Unknown date"
     return f"{instant.astimezone(UTC):%Y-%m-%d} (UTC)"
@@ -1048,7 +948,7 @@ def _event_time_label(timestamp: str) -> str:
     """
     if not timestamp:
         return "time unknown"
-    instant = _parse_instant(timestamp)
+    instant = parse_instant(timestamp)
     if instant is None:
         return timestamp
     return f"{instant.astimezone(UTC):%H:%M:%S} UTC"

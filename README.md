@@ -30,6 +30,7 @@ from vi_api_client import (
     ENDPOINT_AUTHORIZE,
     ENDPOINT_TOKEN,
     EventHistoryPage,
+    EventHistoryWindow,
     Feature,
     FeatureConstraints,
     FeatureValue,

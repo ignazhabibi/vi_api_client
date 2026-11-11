@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 from ._adapter import CommandAdapter, DiscoveryAdapter, LiveAdapter
 from ._types import FeatureValue, JsonValue
 from .auth import AbstractAuth
-from .const import EVENT_HISTORY_MAX_LIMIT
+from .const import DEFAULT_EVENT_HISTORY_MAX_PAGES, EVENT_HISTORY_MAX_LIMIT
 from .exceptions import (
     ViCommandRejectedError,
     ViDeviceCommunicationError,
@@ -25,11 +25,13 @@ from .models import (
     Device,
     DeviceCommand,
     EventHistoryPage,
+    EventHistoryWindow,
     Feature,
     FeatureConstraints,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    InstallationEvent,
     ParameterWriteBinding,
     ScheduleConstraints,
     WriteBinding,
@@ -281,6 +283,71 @@ class ViClient:
         return parse_event_history_page(
             self._response_object(response, resource="Event history")
         )
+
+    async def get_event_history_window(
+        self,
+        installation_id: str,
+        days: int,
+        *,
+        limit: int | None = None,
+        max_pages: int = DEFAULT_EVENT_HISTORY_MAX_PAGES,
+    ) -> EventHistoryWindow:
+        """Collect an installation's event history across one lookback window.
+
+        The first request uses the rolling lookback; every following request
+        passes only the continuation cursor the previous page reported, so
+        the lookback is never restarted. Pages are requested one after the
+        other, and the traversal stops at the first page without a cursor or
+        at the page safety limit.
+
+        Args:
+            installation_id: ID of the installation.
+            days: Rolling lookback window in days.
+            limit: Optional page size between 1 and the documented maximum,
+                applied to every request. When omitted, the provider default
+                applies.
+            max_pages: Safety limit on the number of pages fetched.
+
+        Returns:
+            The event history window with every collected event and the
+            number of pages fetched. Its ``next_cursor`` is ``None`` when the
+            provider reported no further page; otherwise the safety limit
+            stopped the traversal and the window is incomplete.
+
+        Raises:
+            ValueError: If the installation ID is empty, the lookback or the
+                page safety limit is not positive, or the limit is outside
+                the documented range.
+            ViResponseError: If a successful response violates the API
+                contract.
+        """
+        if not installation_id:
+            raise ValueError("Installation ID must be a non-empty string")
+        if days <= 0:
+            raise ValueError("'days' must be a positive lookback window")
+        if limit is not None and not 1 <= limit <= EVENT_HISTORY_MAX_LIMIT:
+            raise ValueError(f"'limit' must be between 1 and {EVENT_HISTORY_MAX_LIMIT}")
+        if max_pages <= 0:
+            raise ValueError("'max_pages' must be a positive page safety limit")
+
+        events: list[InstallationEvent] = []
+        next_cursor: str | None = None
+        pages_fetched = 0
+        while pages_fetched < max_pages:
+            if next_cursor is None:
+                page = await self.get_event_history(
+                    installation_id, days=days, limit=limit
+                )
+            else:
+                page = await self.get_event_history(
+                    installation_id, cursor=next_cursor, limit=limit
+                )
+            pages_fetched += 1
+            events.extend(page.events)
+            next_cursor = page.next_cursor
+            if next_cursor is None:
+                break
+        return EventHistoryWindow(events, next_cursor, pages_fetched)
 
     async def refresh_device(
         self, device: Device, only_available: bool = True
