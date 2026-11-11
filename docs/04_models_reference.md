@@ -10,7 +10,7 @@ from vi_api_client import (
     Device,
     EventHistoryPage,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,
@@ -48,7 +48,7 @@ representations and are normalized to strings; malformed known fields raise
 Feature reads apply the same boundary rule before flattening: each response
 entry needs a non-empty feature name, JSON-object properties, object-shaped
 commands, and boolean enabled/ready flags. Known command and parameter metadata
-is validated before `FeatureControl` construction; unknown additional fields
+is validated before the write binding and command list are built; unknown additional fields
 remain allowed. This behavior is identical for live and fixture-backed reads.
 
 Feature commands apply the same contract to their inputs: `set_feature`
@@ -95,19 +95,41 @@ feature response can validly be empty.
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
 | `features` | `Sequence[Feature]` | Read-only features supported by this device. | `(Feature(...),)` |
 
+### `get_command_names(feature_name: str) -> tuple[str, ...]`
 
+Returns the sorted names of every command the API feature of that name
+reported in the snapshot, or an empty tuple. `feature_name` is the API feature
+name, such as `heating.operating.programs.holiday`; unknown names return `()`.
+The list includes commands the parser binds to no feature and commands of API
+features without properties, and it never exposes whether a command is
+executable or deprecated: the library sends the command and lets the API
+decide.
+
+```python
+device.get_command_names("heating.operating.programs.holiday")
+# ("changeEndDate", "schedule", "unschedule")
+```
+
+The command list travels with each snapshot-building read: `refresh_device`,
+`refresh_gateway_devices` including its individual fallback, and
+`get_full_installation_status`.
 
 ## Feature
 
 A feature is one flat, addressable device property with its reported value and
-capabilities. A writable feature reports `is_writable=True` and has
-`FeatureControl` metadata describing how a feature command can target it.
+capabilities. A writable feature reports `is_writable=True` and carries
+`FeatureConstraints` rules describing how its value may be written.
 
 `is_writable` says that the API offers a command for the feature. It stays
 `True` while the feature is disabled or not ready, so a writable feature is a
 stable capability, not a promise that a write succeeds right now. Check
 `is_available` or `is_settable` before writing; `set_feature` raises
 `ValueError` otherwise.
+
+Which command the library sends for a writable feature is internal command
+knowledge, not public API: the feature carries an internal write binding, so
+consumers cannot construct writable features by hand. Consumers get writable
+features from a client read and may copy them with `dataclasses.replace`.
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
@@ -119,7 +141,7 @@ stable capability, not a promise that a write succeeds right now. Check
 | `is_available` | `bool` | `True` if the feature is enabled and ready. | `True` |
 | `is_writable` | `bool` | `True` if the API offers a command that changes this feature. | `True` |
 | `is_settable` | `bool` | `True` if the feature is writable and available, so `set_feature` would accept it in this snapshot. | `True` |
-| `control` | `FeatureControl \| None` | Metadata for writing to this feature. | `FeatureControl(...)` |
+| `constraints` | `FeatureConstraints \| None` | Rules for writing this feature's value; every writable feature has them. | `FeatureConstraints(min=0.2)` |
 
 ### Formatting Values
 
@@ -131,21 +153,14 @@ from vi_api_client import format_feature
 print(format_feature(feature))  # "25.5 celsius"
 ```
 
-## FeatureControl
+## FeatureConstraints
 
-If a `Feature` is writable (`is_writable=True`), it contains `FeatureControl`
-command metadata describing how a feature command can modify it. `FeatureControl`
-is not an executed command.
-
-This object abstracts away the complexity of Viessmann Commands. You rarely interact with it directly, but it's useful for introspection (e.g. building a UI).
+If a `Feature` is writable (`is_writable=True`), it carries `FeatureConstraints`
+with the rules the API reports for writing its value. Missing rules are `None`
+and are not checked client-side. Any field the API does not report is `None`.
 
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `command_name` | `str` | The internal command name. | `'setCurve'` |
-| `parameter_name` | `str` | The parameter name this feature maps to. | `'slope'` |
-| `required_parameters` | `Sequence[str]` | Read-only parameters marked required by the API (or with no marker); explicitly optional parameters are excluded. | `('slope', 'shift')` |
-| `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
-| `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
 | `min` | `float \| None` | Minimum allowed value (numeric). | `0.2` |
 | `max` | `float \| None` | Maximum allowed value (numeric). | `3.5` |
 | `step` | `float \| None` | Step increment (numeric). | `0.1` |

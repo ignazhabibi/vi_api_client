@@ -12,12 +12,14 @@ from builders import (
 )
 
 from vi_api_client import (
-    FeatureControl,
+    FeatureConstraints,
     FixtureViClient,
     redact_device,
     redact_feature,
     redact_sensitive,
 )
+from vi_api_client.models import ParameterWriteBinding
+from vi_api_client.parsing import parse_api_features
 
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
@@ -164,17 +166,21 @@ def test_redact_sensitive_restores_every_bundled_fixture_from_unmasked_data(
 
 
 def test_redact_feature_redacts_the_value_and_control():
-    # Arrange: A writable feature whose value and control carry identifiers.
-    control = FeatureControl(
+    # Arrange: A writable feature whose value and binding carry identifiers.
+    binding = ParameterWriteBinding(
+        api_feature_name="device.serial",
         command_name="setSerial",
         parameter_name="serial",
         required_parameters=["serial"],
-        parent_feature_name="device.serial",
         uri="https://api.example/installations/1234567/commands/setSerial",
-        options=["7630175843100101", {"access_token": "secret"}, "short"],
     )
     feature = build_feature(
-        name="device.serial", value="7630175843100101", control=control
+        name="device.serial",
+        value="7630175843100101",
+        binding=binding,
+        constraints=FeatureConstraints(
+            options=["7630175843100101", {"access_token": "secret"}, "short"]
+        ),
     )
 
     # Act: Redact the feature.
@@ -182,16 +188,17 @@ def test_redact_feature_redacts_the_value_and_control():
 
     # Assert: The value, URI, and options are redacted; the input is unchanged.
     assert redacted.value == "################"
-    assert redacted.control is not None
-    assert redacted.control.uri == (
+    assert redacted.write_binding is not None
+    assert redacted.write_binding.uri == (
         "https://api.example/installations/#######/commands/setSerial"
     )
-    assert redacted.control.options == (
+    assert redacted.constraints is not None
+    assert redacted.constraints.options == (
         "################",
         {"access_token": "**REDACTED**"},
         "short",
     )
-    assert redacted.control.command_name == "setSerial"
+    assert redacted.write_binding.command_name == "setSerial"
     assert feature.value == "7630175843100101"
 
 
@@ -211,7 +218,49 @@ def test_redact_feature_applies_the_rules_to_the_feature_name(name, value, expec
     redacted = redact_feature(build_feature(name=name, value=value))
 
     assert redacted.value == expected
-    assert redacted.control is None
+    assert redacted.write_binding is None
+
+
+def test_redact_device_redacts_option_values_in_the_command_list():
+    """Constraint options of command list parameters are redacted, too."""
+    # Arrange: Parse an API feature whose command parameter declares an enum
+    # with an identifier-like option value.
+    payload = [
+        {
+            "feature": "x.y",
+            "properties": {"mode": {"value": "on"}},
+            "commands": {
+                "setMode": {
+                    "uri": "/installations/1234567/commands/setMode",
+                    "params": {
+                        "mode": {
+                            "type": "string",
+                            "required": True,
+                            "constraints": {"enum": ["7571381573112225", "b"]},
+                        }
+                    },
+                }
+            },
+        }
+    ]
+    features, commands = parse_api_features(payload, only_available=False)
+    device = replace(
+        build_device("0"), features=features, commands_by_api_feature=commands
+    )
+
+    # Act: Redact the device.
+    redacted = redact_device(device)
+
+    # Assert: The command list options match the feature's own constraints.
+    feature = redacted.get_feature("x.y.mode")
+    assert feature is not None
+    assert feature.constraints is not None
+    assert feature.constraints.options == ("################", "b")
+    (command,) = redacted.commands_by_api_feature["x.y"]
+    (parameter,) = command.parameters
+    assert parameter.constraints is not None
+    assert parameter.constraints.options == feature.constraints.options
+    assert "1234567" not in command.uri
 
 
 def test_redact_device_redacts_identifiers_and_features():

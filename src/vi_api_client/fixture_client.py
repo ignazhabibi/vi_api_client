@@ -8,7 +8,7 @@ from typing import Any, TypedDict, cast
 from ._adapter import CommandAdapter, DiscoveryAdapter
 from ._types import JsonValue
 from .client import ViClient
-from .models import Device, FeatureControl
+from .models import Device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,16 +120,10 @@ class _FixtureCommandAdapter:
     """Return deterministic command responses without modifying fixtures."""
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, JsonValue]
+        self, uri: str, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]:
         """Return a successful fixture command response."""
-        _LOGGER.debug(
-            "Executing fixture command %r for feature %r (parameter %r) with values %s",
-            control.command_name,
-            control.parent_feature_name,
-            control.parameter_name,
-            parameters,
-        )
+        _LOGGER.debug("Executing fixture command at %s with values %s", uri, parameters)
         return {"data": {"success": True, "reason": "Fixture Execution Success"}}
 
 

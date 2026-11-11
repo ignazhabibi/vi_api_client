@@ -16,16 +16,19 @@ from .exceptions import ViError, ViResponseError, ViValidationError
 from .models import (
     CommandResponse,
     Device,
+    DeviceCommand,
     EventHistoryPage,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     Gateway,
     GatewayDeviceRefreshResult,
     Installation,
+    ParameterWriteBinding,
     ScheduleConstraints,
 )
 from .parsing import (
     api_feature_to_flat_features,
+    parse_api_features,
     parse_command_response,
     parse_device,
     parse_event_history_page,
@@ -170,19 +173,7 @@ class ViClient:
             ViResponseError: If the API response is malformed or the returned
                 features contain duplicate names.
         """
-        payload = {
-            "skipDisabled": only_available,
-            "skipNotReady": only_available,
-        }
-
-        _LOGGER.debug(
-            "Fetching features for device %s (available=%s)",
-            device.id,
-            only_available,
-        )
-        response = await self._discovery_adapter.get_features(device, payload)
-        api_features = self._response_items(response, resource="Feature")
-
+        api_features = await self._read_api_features(device, only_available)
         features = self._api_features_to_flat_features(api_features, feature_names)
         self._reject_duplicate_feature_names(features)
         if only_available:
@@ -288,6 +279,10 @@ class ViClient:
     ) -> Device:
         """Return a refreshed device snapshot from an API feature read.
 
+        The snapshot carries the device's reported commands per API feature,
+        needed by ``Device.get_command_names``; when ``only_available`` is
+        set, it carries the commands of enabled and ready API features.
+
         Args:
             device: The device object to refresh.
             only_available: Whether to fetch only available features (enabled
@@ -300,8 +295,46 @@ class ViClient:
             ViResponseError: If the API response is malformed or contains
                 duplicate feature names.
         """
-        features = await self.get_features(device, only_available=only_available)
-        return replace(device, features=features)
+        features, commands = await self._parse_device_features(device, only_available)
+        return replace(device, features=features, commands_by_api_feature=commands)
+
+    async def _parse_device_features(
+        self, device: Device, only_available: bool
+    ) -> tuple[list[Feature], dict[str, tuple[DeviceCommand, ...]]]:
+        """Return one feature read's flat features and reported commands.
+
+        Raises:
+            ViResponseError: If the API response is malformed or the returned
+                features contain duplicate names.
+        """
+        api_features = await self._read_api_features(device, only_available)
+        features, commands = parse_api_features(
+            api_features, only_available=only_available
+        )
+        self._reject_duplicate_feature_names(features)
+        if only_available:
+            features = [feature for feature in features if feature.is_available]
+        return features, commands
+
+    async def _read_api_features(
+        self, device: Device, only_available: bool
+    ) -> list[dict[str, Any]]:
+        """Return one device feature read's raw API feature entries.
+
+        Raises:
+            ViResponseError: If the response is malformed.
+        """
+        payload = {
+            "skipDisabled": only_available,
+            "skipNotReady": only_available,
+        }
+        _LOGGER.debug(
+            "Fetching features for device %s (available=%s)",
+            device.id,
+            only_available,
+        )
+        response = await self._discovery_adapter.get_features(device, payload)
+        return self._response_items(response, resource="Feature")
 
     async def export_device_fixture(self, device: Device) -> dict[str, JsonValue]:
         """Return a device's raw API features as an anonymized fixture document.
@@ -394,9 +427,11 @@ class ViClient:
             if api_features is None:
                 missing_devices.append(device)
                 continue
-            features = self._api_features_to_flat_features(api_features)
+            features, commands = parse_api_features(api_features, only_available=True)
             self._reject_duplicate_feature_names(features)
-            refreshed_devices_by_id[device.id] = replace(device, features=features)
+            refreshed_devices_by_id[device.id] = replace(
+                device, features=features, commands_by_api_feature=commands
+            )
 
         if missing_devices:
             _LOGGER.debug(
@@ -451,19 +486,20 @@ class ViClient:
         if current_feature is None:
             raise ValueError(f"Feature '{feature.name}' is not present on the device.")
 
-        control = self._require_command_control(current_feature)
+        binding = self._require_command_binding(current_feature)
         _LOGGER.debug(
             "Setting %s to %s via %s",
             current_feature.name,
             target_value,
-            control.command_name,
+            binding.command_name,
         )
 
-        payload = self._resolve_command_payload(device, control, target_value)
+        payload = self._resolve_command_payload(device, binding, target_value)
         self._reject_non_json_parameters(payload)
-        self._validate_constraints(control, target_value)
+        constraints = self._require_constraints(current_feature)
+        self._validate_constraints(constraints, binding.command_name, target_value)
 
-        response = await self._send_command(control, payload)
+        response = await self._send_command(binding.uri, payload)
 
         if response.success:
             # Preserve all other feature values from the input snapshot.
@@ -480,10 +516,19 @@ class ViClient:
         _LOGGER.warning(
             "Setting %s via %s failed (reason: %s)",
             current_feature.name,
-            control.command_name,
+            binding.command_name,
             response.reason,
         )
         return response, device
+
+    @staticmethod
+    def _require_constraints(feature: Feature) -> FeatureConstraints:
+        """Return the constraint rules a writable feature always carries.
+
+        A writable feature is created only by the parser, which attaches
+        constraints with the write binding; the default keeps the check total.
+        """
+        return feature.constraints or FeatureConstraints()
 
     async def execute_command(
         self, feature: Feature, parameters: dict[str, JsonValue]
@@ -505,11 +550,11 @@ class ViClient:
             ViResponseError: If the command URI is outside the Vi API or the
                 successful command response violates the API contract.
         """
-        control = self._require_command_control(feature)
+        control = self._require_command_binding(feature)
         self._reject_missing_parameters(control, parameters)
         self._reject_non_json_parameters(parameters)
         _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
-        return await self._send_command(control, parameters)
+        return await self._send_command(control.uri, parameters)
 
     # Reads: unpack API responses and parse API features into flat features.
 
@@ -685,8 +730,10 @@ class ViClient:
     # Feature commands: check availability, build and validate the payload, send it.
 
     @staticmethod
-    def _require_command_control(feature: Feature) -> FeatureControl:
-        """Validate a feature's command availability and return its control.
+    def _require_command_binding(feature: Feature) -> ParameterWriteBinding:
+        """Validate a feature's command availability and return its binding.
+
+        A hand-built feature has no write binding, so it is read-only.
 
         Raises:
             ValueError: If the feature cannot currently execute a command.
@@ -698,35 +745,35 @@ class ViClient:
         if not feature.is_ready:
             raise ValueError(f"Feature '{feature.name}' is not ready.")
 
-        control = feature.control
-        # is_writable means a control exists; the assert only narrows the type.
-        assert control is not None  # noqa: S101
-        return control
+        binding = feature.write_binding
+        # is_writable means a binding exists; the assert only narrows the type.
+        assert binding is not None  # noqa: S101
+        return binding
 
     @staticmethod
     def _reject_missing_parameters(
-        control: FeatureControl, parameters: dict[str, JsonValue]
+        binding: ParameterWriteBinding, parameters: dict[str, JsonValue]
     ) -> None:
         """Reject an explicit command payload that lacks a required parameter.
 
         Raises:
             ValueError: If the target or a required parameter is absent.
         """
-        if control.parameter_name not in parameters:
+        if binding.parameter_name not in parameters:
             raise ValueError(
-                f"Command '{control.command_name}' is missing target parameter "
-                f"'{control.parameter_name}'."
+                f"Command '{binding.command_name}' is missing target parameter "
+                f"'{binding.parameter_name}'."
             )
-        for parameter in control.required_parameters:
+        for parameter in binding.required_parameters:
             if parameter not in parameters:
                 raise ValueError(
-                    f"Command '{control.command_name}' is missing required parameter "
+                    f"Command '{binding.command_name}' is missing required parameter "
                     f"'{parameter}'."
                 )
 
     @staticmethod
     def _resolve_command_payload(
-        device: Device, control: FeatureControl, target_value: FeatureValue
+        device: Device, binding: ParameterWriteBinding, target_value: FeatureValue
     ) -> dict[str, JsonValue]:
         """Resolve all parameters required for a command.
 
@@ -734,7 +781,7 @@ class ViClient:
 
         Args:
             device: The device object for dependency lookup.
-            control: The feature control definition.
+            binding: The internal write binding of the feature being set.
             target_value: The main value to set.
 
         Returns:
@@ -744,19 +791,19 @@ class ViClient:
             ValueError: If a required sibling feature is absent, disabled, not
                 ready, or has no value.
         """
-        payload = {control.parameter_name: target_value}
+        payload = {binding.parameter_name: target_value}
 
-        for parameter in control.required_parameters:
-            if parameter == control.parameter_name:
+        for parameter in binding.required_parameters:
+            if parameter == binding.parameter_name:
                 continue
 
             # Other required parameters come from sibling features, e.g. the
             # current 'shift' when setting a heating curve's 'slope'.
-            sibling_name = f"{control.parent_feature_name}.{parameter}"
+            sibling_name = f"{binding.api_feature_name}.{parameter}"
             sibling = device.get_feature(sibling_name)
             dependency_label = (
                 f"Required dependency '{sibling_name}' for command "
-                f"'{control.command_name}'"
+                f"'{binding.command_name}'"
             )
             if sibling is None:
                 raise ValueError(f"{dependency_label} is not present on the device.")
@@ -790,74 +837,77 @@ class ViClient:
             raise ValueError(str(error)) from error
 
     def _validate_constraints(
-        self, control: FeatureControl, value: FeatureValue
+        self, constraints: FeatureConstraints, command_name: str, value: FeatureValue
     ) -> None:
         """Validate value against all constraints using type-based dispatch.
 
         Args:
-            control: The feature control definition containing constraints.
+            constraints: The constraint rules of the feature being written.
+            command_name: The bound command, only for error wording.
             value: The JSON value to check.
 
         Raises:
             ValueError: If value has the wrong type for the command parameter
                 or violates any constraints.
         """
-        if not _matches_value_type(control.value_type, value):
+        if not _matches_value_type(constraints.value_type, value):
             raise ValueError(
-                f"Value {value!r} is not of type '{control.value_type}' "
-                f"expected by command '{control.command_name}'"
+                f"Value {value!r} is not of type '{constraints.value_type}' "
+                f"expected by command '{command_name}'"
             )
-        if control.options and value not in control.options:
+        if constraints.options and value not in constraints.options:
             raise ValueError(
-                f"Value {value} is not in allowed options: {control.options}"
+                f"Value {value} is not in allowed options: {constraints.options}"
             )
 
-        if control.value_type == "Schedule":
-            self._validate_schedule(control.schedule, value)
+        if constraints.value_type == "Schedule":
+            self._validate_schedule(constraints.schedule, value)
         elif isinstance(value, int | float):
-            self._validate_numeric_constraints(control, value)
+            self._validate_numeric_constraints(constraints, value)
         elif isinstance(value, str):
-            self._validate_string_constraints(control, value)
+            self._validate_string_constraints(constraints, value)
 
     @staticmethod
     def _validate_numeric_constraints(
-        control: FeatureControl, value: int | float
+        constraints: FeatureConstraints, value: int | float
     ) -> None:
         """Validate numeric bounds and step."""
-        if control.min is not None and value < control.min:
-            raise ValueError(f"Value {value} < min ({control.min})")
-        if control.max is not None and value > control.max:
-            raise ValueError(f"Value {value} > max ({control.max})")
+        if constraints.min is not None and value < constraints.min:
+            raise ValueError(f"Value {value} < min ({constraints.min})")
+        if constraints.max is not None and value > constraints.max:
+            raise ValueError(f"Value {value} > max ({constraints.max})")
 
-        if control.step is not None and control.step > 0:
-            base = control.min if control.min is not None else 0
+        if constraints.step is not None and constraints.step > 0:
+            base = constraints.min if constraints.min is not None else 0
             offset = value - base
-            remainder = offset % control.step
+            remainder = offset % constraints.step
             is_aligned = (
                 remainder < _STEP_TOLERANCE
-                or abs(remainder - control.step) < _STEP_TOLERANCE
+                or abs(remainder - constraints.step) < _STEP_TOLERANCE
             )
 
             if not is_aligned:
                 raise ValueError(
-                    f"Value {value} does not align with step {control.step} "
+                    f"Value {value} does not align with step {constraints.step} "
                     f"(starting from {base})"
                 )
 
     @staticmethod
-    def _validate_string_constraints(control: FeatureControl, value: str) -> None:
+    def _validate_string_constraints(
+        constraints: FeatureConstraints, value: str
+    ) -> None:
         """Validate string length and pattern."""
-        if control.min_length is not None and len(value) < control.min_length:
+        if constraints.min_length is not None and len(value) < constraints.min_length:
             raise ValueError(
-                f"Value length {len(value)} < min_length ({control.min_length})"
+                f"Value length {len(value)} < min_length ({constraints.min_length})"
             )
-        if control.max_length is not None and len(value) > control.max_length:
+        if constraints.max_length is not None and len(value) > constraints.max_length:
             raise ValueError(
-                f"Value length {len(value)} > max_length ({control.max_length})"
+                f"Value length {len(value)} > max_length ({constraints.max_length})"
             )
-        if control.pattern and not re.fullmatch(control.pattern, value):
+        if constraints.pattern and not re.fullmatch(constraints.pattern, value):
             raise ValueError(
-                f"Value '{value}' does not match pattern '{control.pattern}'"
+                f"Value '{value}' does not match pattern '{constraints.pattern}'"
             )
 
     @staticmethod
@@ -905,12 +955,12 @@ class ViClient:
             )
 
     async def _send_command(
-        self, control: FeatureControl, payload: dict[str, JsonValue]
+        self, uri: str, payload: dict[str, JsonValue]
     ) -> CommandResponse:
         """Send a prepared command payload and parse the command response.
 
         Args:
-            control: The feature control describing the command endpoint.
+            uri: The API URI of the bound command.
             payload: The validated command parameters to send.
 
         Returns:
@@ -919,7 +969,7 @@ class ViClient:
         Raises:
             ViResponseError: If the command response violates the API contract.
         """
-        response = await self._command_adapter.execute_command(control, payload)
+        response = await self._command_adapter.execute_command(uri, payload)
         return parse_command_response(
             self._response_object(response, resource="Command")
         )

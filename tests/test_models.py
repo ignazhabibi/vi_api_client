@@ -9,26 +9,29 @@ from vi_api_client.exceptions import ViError
 from vi_api_client.models import (
     Device,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     GatewayDeviceRefreshResult,
     Installation,
+    ParameterWriteBinding,
 )
 
 
-def test_feature_without_control_is_read_only():
-    """A feature without command metadata reports that it cannot be written."""
-    # Act: Create a feature without command metadata.
+def test_built_feature_without_write_binding_is_read_only():
+    """A hand-built feature reports that it cannot be written."""
+    # Act: Create a feature without a write binding.
     feature = Feature(
         name="test.feature", value=10, unit="C", is_enabled=True, is_ready=True
     )
 
-    # Assert: Without a control the feature cannot be written.
-    assert feature.control is None
+    # Assert: Without a binding the feature cannot be written and carries
+    # no command knowledge on its public model.
+    assert feature.constraints is None
     assert feature.is_writable is False
+    assert feature.write_binding is None
 
 
 @pytest.mark.parametrize(
-    ("is_enabled", "is_ready", "has_control", "expect_available", "expect_settable"),
+    ("is_enabled", "is_ready", "has_binding", "expect_available", "expect_settable"),
     [
         pytest.param(False, False, False, False, False, id="disabled-not-ready"),
         pytest.param(False, True, False, False, False, id="disabled-ready"),
@@ -43,7 +46,7 @@ def test_feature_without_control_is_read_only():
 def test_feature_reports_availability_and_settability(
     is_enabled: bool,
     is_ready: bool,
-    has_control: bool,
+    has_binding: bool,
     expect_available: bool,
     expect_settable: bool,
 ):
@@ -55,14 +58,14 @@ def test_feature_reports_availability_and_settability(
         unit=None,
         is_enabled=is_enabled,
         is_ready=is_ready,
-        control=FeatureControl(
+        write_binding=ParameterWriteBinding(
+            api_feature_name="test.api.feature",
             command_name="setValue",
             parameter_name="value",
             required_parameters=[],
-            parent_feature_name="test.api.feature",
             uri="/features/test.api.feature/commands/setValue",
         )
-        if has_control
+        if has_binding
         else None,
     )
 
@@ -141,18 +144,18 @@ def test_device_rejects_duplicate_feature_names():
 
 
 def test_other_model_collections_are_immutable_snapshots():
-    """Controls, refresh results, and installations copy caller collections."""
+    """Bindings, refresh results, and installations copy caller collections."""
     # Arrange: Create models from caller-owned mutable collections.
     required_parameters = ["target"]
     options = ["eco"]
-    control = FeatureControl(
+    binding = ParameterWriteBinding(
+        api_feature_name="parent",
         command_name="set",
         parameter_name="target",
         required_parameters=required_parameters,
-        parent_feature_name="parent",
         uri="url",
-        options=options,
     )
+    constraints = FeatureConstraints(options=options)
     refreshed_devices = []
     errors_by_device_id = {"device-1": ViError("unavailable")}
     result = GatewayDeviceRefreshResult(refreshed_devices, errors_by_device_id)
@@ -167,8 +170,8 @@ def test_other_model_collections_are_immutable_snapshots():
     address["street"] = "Example Street"
 
     # Assert: Each public collection is an immutable defensive copy.
-    assert control.required_parameters == ("target",)
-    assert control.options == ("eco",)
+    assert binding.required_parameters == ("target",)
+    assert constraints.options == ("eco",)
     assert result.refreshed_devices == ()
     assert list(result.errors_by_device_id) == ["device-1"]
     assert installation.address == {"city": "Berlin"}

@@ -43,8 +43,8 @@ async def test_gas_boiler_fixture_exposes_writable_curve_and_outside_temperature
     # and the outside temperature is a numeric reading in Celsius.
     slope = features["heating.circuits.0.heating.curve.slope"]
     assert slope.value is not None
-    assert slope.control is not None
-    assert (slope.control.min, slope.control.max) == (0.2, 3.5)
+    assert slope.constraints is not None
+    assert (slope.constraints.min, slope.constraints.max) == (0.2, 3.5)
     outside_temperature = features["heating.sensors.temperature.outside"]
     assert isinstance(outside_temperature.value, (int, float))
     assert outside_temperature.unit == "celsius"

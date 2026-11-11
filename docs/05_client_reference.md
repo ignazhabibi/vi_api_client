@@ -203,7 +203,7 @@ and the type of numbers, so a redacted feature document still parses as a
 fixture.
 
 *   `redact_sensitive(value, *, placeholder="<redacted>")`: returns redacted log text for a `str` and a redacted copy for any other JSON value.
-*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, control URI, and control options are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
+*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, the option values in constraints, and the URI of its internal write binding are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
 *   `redact_device(device, *, placeholder=...)`: returns a `Device` whose ID, gateway serial, installation ID, and features are redacted.
 
 ```python
@@ -318,6 +318,6 @@ response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

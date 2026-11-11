@@ -9,14 +9,17 @@ from typing import Any, NamedTuple, cast
 from ._types import JsonValue
 from .exceptions import ViResponseError
 from .models import (
+    CommandParameter,
     CommandResponse,
     Device,
+    DeviceCommand,
     EventHistoryPage,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     Gateway,
     Installation,
     InstallationEvent,
+    ParameterWriteBinding,
     ScheduleConstraints,
 )
 from .validation import validate_json_value
@@ -72,6 +75,13 @@ class ValidatedApiFeature(NamedTuple):
     is_ready: bool
 
 
+class _CommandWrite(NamedTuple):
+    """The internal write binding and public rules of one writable feature."""
+
+    binding: ParameterWriteBinding
+    constraints: FeatureConstraints
+
+
 def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
     """Parse one API feature into its flat features.
 
@@ -92,6 +102,11 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
         ViResponseError: If a known feature response field violates the API contract.
     """
     entry = validate_feature_entry(api_feature)
+    return _entry_to_flat_features(entry)
+
+
+def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
+    """Return the flat features of one already validated API feature."""
     api_feature_name, properties = entry.name, entry.properties
 
     schedule_entries = properties.get("entries")
@@ -99,13 +114,15 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
         isinstance(schedule_entries, dict)
         and schedule_entries.get("type") == "Schedule"
     ):
+        schedule_write = _find_complex_write(api_feature_name, entry.commands)
         schedule_feature = Feature(
             name=api_feature_name,
             value=schedule_entries.get("value"),
             unit=None,
             is_enabled=entry.is_enabled,
             is_ready=entry.is_ready,
-            control=_find_control_for_complex_feature(api_feature_name, entry.commands),
+            constraints=schedule_write.constraints if schedule_write else None,
+            write_binding=schedule_write.binding if schedule_write else None,
         )
         other_properties = {
             key: value for key, value in properties.items() if key != "entries"
@@ -113,7 +130,7 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
         return [schedule_feature, *_flat_property_features(entry, other_properties)]
 
     if not set(properties).isdisjoint(COMPLEX_DATA_INDICATORS):
-        control = _find_control_for_complex_feature(api_feature_name, entry.commands)
+        write = _find_complex_write(api_feature_name, entry.commands)
         features = [
             Feature(
                 name=api_feature_name,
@@ -121,7 +138,8 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
                 unit=None,
                 is_enabled=entry.is_enabled,
                 is_ready=entry.is_ready,
-                control=control,
+                constraints=write.constraints if write else None,
+                write_binding=write.binding if write else None,
             )
         ]
         features.extend(
@@ -135,6 +153,102 @@ def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
         return features
 
     return _flat_property_features(entry, properties)
+
+
+def parse_api_features(
+    api_features: list[dict[str, Any]], *, only_available: bool
+) -> tuple[list[Feature], dict[str, tuple[DeviceCommand, ...]]]:
+    """Parse one device feature response into flat features and commands.
+
+    Every API feature is validated once. The command list keeps commands the
+    parser binds to no feature and commands of API features without
+    properties; when ``only_available`` is set, both features and commands
+    keep only enabled and ready API features. The commands store neither
+    ``isExecutable`` nor ``isDeprecated``.
+
+    Args:
+        api_features: The raw JSON objects of one device's API features.
+        only_available: Whether unavailable API features and commands are
+            filtered out locally, mirroring the read's skip hints.
+
+    Returns:
+        The flat features and the reported commands keyed by API feature name.
+
+    Raises:
+        ViResponseError: If an API feature is malformed or the same command
+            name is reported twice for one API feature.
+    """
+    features: list[Feature] = []
+    commands_by_api_feature: dict[str, tuple[DeviceCommand, ...]] = {}
+    available_api_features: set[str] = set()
+    for api_feature in api_features:
+        entry = validate_feature_entry(api_feature)
+        features.extend(_entry_to_flat_features(entry))
+        device_commands = _entry_commands(entry)
+        if entry.name in commands_by_api_feature:
+            existing = commands_by_api_feature[entry.name]
+            duplicates = sorted(
+                {command.name for command in existing}
+                & {command.name for command in device_commands}
+            )
+            if duplicates:
+                raise ViResponseError(
+                    f"Duplicate API feature command: {entry.name}.{duplicates[0]}"
+                )
+            device_commands = existing + device_commands
+        commands_by_api_feature[entry.name] = device_commands
+        if entry.is_enabled and entry.is_ready:
+            available_api_features.add(entry.name)
+
+    if only_available:
+        commands_by_api_feature = {
+            api_feature_name: commands
+            for api_feature_name, commands in commands_by_api_feature.items()
+            if api_feature_name in available_api_features
+        }
+    return features, commands_by_api_feature
+
+
+def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
+    """Return the internal metadata of every command of one API feature."""
+    commands: list[DeviceCommand] = []
+    for command_name, command in entry.commands.items():
+        # Parameter containers were validated by validate_feature_entry.
+        params = cast("dict[str, Any]", command.get("params", {}))
+        parameters = tuple(
+            CommandParameter(
+                name=parameter_name,
+                required=parameter.get("required"),
+                value_type=parameter.get("type"),
+                constraints=_parameter_constraints(parameter),
+            )
+            for parameter_name, parameter in params.items()
+        )
+        commands.append(
+            DeviceCommand(
+                name=command_name, uri=command.get("uri", ""), parameters=parameters
+            )
+        )
+    return tuple(commands)
+
+
+def _parameter_constraints(parameter: dict[str, Any]) -> FeatureConstraints | None:
+    """Return the constraint rules of one command parameter, if any."""
+    # The constraint shapes were validated by validate_feature_entry.
+    constraints = cast("dict[str, Any]", parameter.get("constraints", {}))
+    built = FeatureConstraints(
+        min=constraints.get("min"),
+        max=constraints.get("max"),
+        step=constraints.get("step", constraints.get("stepping")),
+        options=constraints.get("enum"),
+        min_length=constraints.get("minLength"),
+        max_length=constraints.get("maxLength"),
+        pattern=constraints.get("pattern", constraints.get("regEx")),
+        schedule=_build_schedule_constraints(constraints),
+    )
+    if built == FeatureConstraints():
+        return None
+    return built
 
 
 def _flat_property_features(
@@ -151,7 +265,7 @@ def _flat_property_features(
         # The "value" property carries the API feature's own value.
         feature_name = entry.name if key == "value" else f"{entry.name}.{key}"
         value, unit = _extract_value_and_unit(property_data, default_unit)
-        control = _find_control(key, entry.commands, entry.name, property_data)
+        write = _find_write(key, entry.commands, entry.name, property_data)
         features.append(
             Feature(
                 name=feature_name,
@@ -159,7 +273,8 @@ def _flat_property_features(
                 unit=unit,
                 is_enabled=entry.is_enabled,
                 is_ready=entry.is_ready,
-                control=control,
+                constraints=write.constraints if write else None,
+                write_binding=write.binding if write else None,
             )
         )
 
@@ -233,6 +348,9 @@ def _validate_commands(commands: dict[str, Any]) -> None:
         executable = command.get("isExecutable")
         if executable is not None and not isinstance(executable, bool):
             raise ViResponseError("Feature command isExecutable must be a boolean")
+        deprecated = command.get("isDeprecated")
+        if deprecated is not None and not isinstance(deprecated, bool):
+            raise ViResponseError("Feature command isDeprecated must be a boolean")
         raw_params = command.get("params", {})
         if not isinstance(raw_params, dict):
             raise ViResponseError("Feature command params must be an object")
@@ -372,7 +490,6 @@ def _build_consumption_alias_features(
                 unit=source.get("unit"),
                 is_enabled=is_enabled,
                 is_ready=is_ready,
-                control=None,
             )
         )
 
@@ -399,12 +516,12 @@ def _extract_value_and_unit(
     return property_data, default_unit
 
 
-def _find_control(
+def _find_write(
     property_key: str,
     commands: dict[str, Any],
     api_feature_name: str,
     property_data: Any = None,
-) -> FeatureControl | None:
+) -> _CommandWrite | None:
     """Find the executable command whose parameter writes the given property.
 
     Args:
@@ -414,12 +531,13 @@ def _find_control(
         property_data: Optional property metadata for constraint fallback.
 
     Returns:
-        FeatureControl command metadata if a matching command is found, else None.
+        The command's internal write binding and its constraint rules, if a
+        matching command is found, else None.
     """
     # A command whose matching parameter is optional only writes the value on
     # the side, e.g. 'activate(temperature)' switches a program on; a command
     # that requires the parameter, such as 'setTemperature', is preferred.
-    optional_parameter_control: FeatureControl | None = None
+    optional_parameter_write: _CommandWrite | None = None
     for command_name, command in commands.items():
         if not command.get("isExecutable", True):
             continue
@@ -427,24 +545,24 @@ def _find_control(
         params = command.get("params", {})
         target_param = _match_parameter(property_key, params, command_name)
         if target_param:
-            control = _build_control(
+            write = _build_write(
                 command_name, command, target_param, api_feature_name, property_data
             )
             if params[target_param].get("required") is not False:
-                return control
-            optional_parameter_control = optional_parameter_control or control
+                return write
+            optional_parameter_write = optional_parameter_write or write
 
-    return optional_parameter_control
+    return optional_parameter_write
 
 
-def _build_control(
+def _build_write(
     command_name: str,
     command: dict[str, Any],
     target_param: str,
     api_feature_name: str,
     property_data: Any,
-) -> FeatureControl:
-    """Construct FeatureControl command metadata from one command."""
+) -> _CommandWrite:
+    """Build the write binding and constraint rules of one command."""
     # Command and parameter containers were validated by
     # validate_feature_entry before flattening.
     params = cast("dict[str, Any]", command.get("params", {}))
@@ -466,12 +584,14 @@ def _build_control(
         property_constraints,
     ]
 
-    return FeatureControl(
+    binding = ParameterWriteBinding(
+        api_feature_name=api_feature_name,
         command_name=command_name,
         parameter_name=target_param,
         required_parameters=_get_required_parameters(params),
-        parent_feature_name=api_feature_name,
         uri=command.get("uri", ""),
+    )
+    constraints = FeatureConstraints(
         min=_resolve_constraint(["min"], sources),
         max=_resolve_constraint(["max"], sources),
         step=_resolve_constraint(["step", "stepping"], sources),
@@ -481,6 +601,7 @@ def _build_control(
         max_length=_resolve_constraint(["maxLength"], sources),
         pattern=_resolve_constraint(["pattern", "regEx"], sources),
     )
+    return _CommandWrite(binding, constraints)
 
 
 def _get_required_parameters(params: dict[str, Any]) -> list[str]:
@@ -544,17 +665,17 @@ def _resolve_constraint(keys: list[str], sources: list[dict[str, Any]]) -> Any |
     return None
 
 
-def _find_control_for_complex_feature(
+def _find_complex_write(
     api_feature_name: str, commands: dict[str, Any]
-) -> FeatureControl | None:
-    """Heuristic to find control for a complex feature (e.g. schedule).
+) -> _CommandWrite | None:
+    """Heuristic to find the write of a complex feature (e.g. schedule).
 
     Args:
         api_feature_name: The name of the API feature.
         commands: The API feature's commands.
 
     Returns:
-        FeatureControl if a likely command is found.
+        The write binding and constraint rules if a likely command is found.
     """
     for command_name, command in commands.items():
         if not command.get("isExecutable", True):
@@ -572,17 +693,20 @@ def _find_control_for_complex_feature(
         )
         if target_param:
             parameter = params[target_param]
-            return FeatureControl(
+            binding = ParameterWriteBinding(
+                api_feature_name=api_feature_name,
                 command_name=command_name,
                 parameter_name=target_param,
                 required_parameters=_get_required_parameters(params),
-                parent_feature_name=api_feature_name,
                 uri=command.get("uri", ""),
+            )
+            constraints = FeatureConstraints(
                 value_type=parameter.get("type"),
                 # A schedule is written as one object, so the scalar
                 # constraints (min, max, step, options) do not apply.
                 schedule=_build_schedule_constraints(parameter.get("constraints", {})),
             )
+            return _CommandWrite(binding, constraints)
     return None
 
 

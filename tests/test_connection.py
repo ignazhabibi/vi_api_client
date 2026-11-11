@@ -26,7 +26,6 @@ from vi_api_client.exceptions import (
     ViServerInternalError,
     ViValidationError,
 )
-from vi_api_client.models import FeatureControl
 
 INSTALLATIONS_URL = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
 COMMAND_URL = f"{API_BASE_URL}/iot/v2/features/commands/setMode"
@@ -86,17 +85,6 @@ async def _dropped_body() -> AsyncIterator[bytes]:
     """Send the start of a JSON body, then drop the connection."""
     yield b'{"data": ['
     raise ConnectionResetError("connection dropped mid-body")
-
-
-def _command_control(uri: str) -> FeatureControl:
-    """Build a command control targeting the given URI."""
-    return FeatureControl(
-        command_name="setMode",
-        parameter_name="mode",
-        required_parameters=["mode"],
-        parent_feature_name="heating.mode",
-        uri=uri,
-    )
 
 
 async def test_live_adapter_preserves_external_oauth_error() -> None:
@@ -439,9 +427,7 @@ async def test_live_adapter_sends_commands_to_vi_api_uris(
     mock_responses.post(COMMAND_URL, payload={"data": {"success": True}})
 
     # Act: Execute a command whose URI uses the given spelling.
-    response = await live_adapter.execute_command(
-        _command_control(command_uri), {"mode": "dhw"}
-    )
+    response = await live_adapter.execute_command(command_uri, {"mode": "dhw"})
 
     # Assert: The command reached the Vi API URL.
     assert response == {"data": {"success": True}}
@@ -469,9 +455,7 @@ async def test_live_adapter_refuses_command_uris_outside_vi_api(
     """Command URIs from API responses must not receive the bearer token."""
 
     with pytest.raises(ViResponseError, match="outside the Vi API"):
-        await live_adapter.execute_command(
-            _command_control(command_uri), {"mode": "dhw"}
-        )
+        await live_adapter.execute_command(command_uri, {"mode": "dhw"})
 
 
 async def test_live_adapter_maps_non_json_error_bodies(

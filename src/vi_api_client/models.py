@@ -35,22 +35,15 @@ class ScheduleConstraints:
 
 
 @dataclass(frozen=True)
-class FeatureControl:
-    """Command metadata for a writable feature, not an executed command.
+class FeatureConstraints:
+    """Rules the API reports for writing one feature value.
 
     Attributes:
-        command_name: Name of the feature command (e.g. 'setCurve').
-        parameter_name: Name of the parameter mapping to this feature (e.g. 'slope').
-        required_parameters: Read-only parameter names required by this command.
-            Used for dependency resolution (e.g. ['slope', 'shift']).
-        parent_feature_name: Name of the parent feature in the API.
-            Used to find sibling features during dependency resolution.
-        uri: The API URI to POST the command to.
+        value_type: Viessmann command parameter type, such as ``number`` or
+            ``boolean``.
         min: Minimum value (numeric constraint).
         max: Maximum value (numeric constraint).
         step: Step size (numeric constraint).
-        value_type: Viessmann command parameter type, such as ``number`` or
-            ``boolean``.
         options: Read-only allowed values (enum constraint).
         min_length: Minimum length of string value.
         max_length: Maximum length of string value.
@@ -58,15 +51,10 @@ class FeatureControl:
         schedule: Rules for writing a schedule, if the API reports them.
     """
 
-    command_name: str
-    parameter_name: str
-    required_parameters: Sequence[str]
-    parent_feature_name: str
-    uri: str
+    value_type: str | None = None
     min: float | None = None
     max: float | None = None
     step: float | None = None
-    value_type: str | None = None
     options: Sequence[JsonValue] | None = None
     min_length: int | None = None
     max_length: int | None = None
@@ -74,10 +62,55 @@ class FeatureControl:
     schedule: ScheduleConstraints | None = None
 
     def __post_init__(self) -> None:
-        """Store caller-owned sequences as immutable snapshots."""
-        object.__setattr__(self, "required_parameters", tuple(self.required_parameters))
+        """Store caller-owned option values as immutable snapshots."""
         if self.options is not None:
             object.__setattr__(self, "options", tuple(self.options))
+
+
+@dataclass(frozen=True)
+class ParameterWriteBinding:
+    """Internal knowledge of the command that writes one feature.
+
+    Not part of the public API and not exported from the package root: it
+    records how the library sends a command (name, parameter, required
+    parameter names, URI of the command's API feature) so consumers cannot
+    construct writable features by hand. A later revision adds a second
+    binding kind carrying an on and an off command instead of one parameter
+    command; ``Feature`` accepts any write binding.
+    """
+
+    api_feature_name: str
+    command_name: str
+    parameter_name: str
+    required_parameters: Sequence[str]
+    uri: str
+
+    def __post_init__(self) -> None:
+        """Store caller-owned parameter names as immutable snapshots."""
+        object.__setattr__(self, "required_parameters", tuple(self.required_parameters))
+
+
+# The write bindings a feature can carry; one kind exists today.
+WriteBinding = ParameterWriteBinding
+
+
+@dataclass(frozen=True)
+class CommandParameter:
+    """Internal metadata of one command parameter, not public API."""
+
+    name: str
+    required: bool | None = None
+    value_type: str | None = None
+    constraints: FeatureConstraints | None = None
+
+
+@dataclass(frozen=True)
+class DeviceCommand:
+    """Internal metadata of one command an API feature reports."""
+
+    name: str
+    uri: str
+    parameters: tuple[CommandParameter, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -90,8 +123,8 @@ class Feature:
         unit: Optional unit string (e.g. 'celsius').
         is_enabled: Whether the feature is currently enabled on the device.
         is_ready: Whether the feature is ready for interaction.
-        control: Optional `FeatureControl` command metadata if the feature is
-            writable.
+        constraints: Optional `FeatureConstraints` rules for writing the
+            value of a writable feature.
     """
 
     name: str
@@ -99,12 +132,19 @@ class Feature:
     unit: str | None
     is_enabled: bool
     is_ready: bool
-    control: FeatureControl | None = None
+    constraints: FeatureConstraints | None = None
+    # Internal command knowledge: how the library sends the value's command.
+    # The name carries no underscore so package modules can read and maintain
+    # the binding under pyright strict, but the field is deliberately internal
+    # and not exported from the package root; only the parser attaches it, so
+    # hand-built features are read-only. It is kept out of the repr because
+    # the URI carries installation, gateway, and device identifiers.
+    write_binding: WriteBinding | None = field(default=None, repr=False)
 
     @property
     def is_writable(self) -> bool:
-        """Return whether the feature has a command that can change it."""
-        return self.control is not None
+        """Return whether the feature carries an internal write binding."""
+        return self.write_binding is not None
 
     @property
     def is_available(self) -> bool:
@@ -144,6 +184,14 @@ class Device:
     device_type: str
     status: str
     features: Sequence[Feature] = field(default_factory=tuple)
+    # Internal command knowledge: the name carries no underscore so package
+    # modules can maintain it under pyright strict, but the field is not part
+    # of the public compatibility contract. It is kept out of the repr because
+    # command URIs carry installation, gateway, and device IDs.
+    commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]] = field(
+        default_factory=dict[str, tuple[DeviceCommand, ...]],
+        repr=False,
+    )
 
     # Name index derived from `features`, so it is left out of comparisons.
     _features_by_name: Mapping[str, Feature] = field(
@@ -167,6 +215,11 @@ class Device:
             feature_map[feature.name] = feature
         object.__setattr__(self, "features", features)
         object.__setattr__(self, "_features_by_name", MappingProxyType(feature_map))
+        object.__setattr__(
+            self,
+            "commands_by_api_feature",
+            MappingProxyType(dict(self.commands_by_api_feature)),
+        )
 
     def get_feature(self, name: str) -> Feature | None:
         """Return the feature with this exact name, or None.
@@ -178,6 +231,20 @@ class Device:
             The feature object if found, otherwise None.
         """
         return self._features_by_name.get(name)
+
+    def get_command_names(self, feature_name: str) -> tuple[str, ...]:
+        """Return the sorted command names one API feature reports, or ().
+
+        Args:
+            feature_name: The name of the API feature, such as
+                ``heating.operating.programs.holiday``.
+
+        Returns:
+            The names of every command the API feature reported in the
+            snapshot this device was built from, in sorted order.
+        """
+        commands = self.commands_by_api_feature.get(feature_name, ())
+        return tuple(sorted(command.name for command in commands))
 
 
 @dataclass(frozen=True)

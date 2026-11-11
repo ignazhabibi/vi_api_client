@@ -175,14 +175,17 @@ async def test_get_feature_json_serializes_writable_and_structured_features(
             "get-feature", feature.name, "--json", "--fixture-device", fixture_device
         )
 
-        # Assert: The document for this feature carries its value and control.
+        # Assert: The document for this feature carries its value, its
+        # constraint rules, and its bound command without a URI.
         assert exit_status == 0, feature.name
         documents = json.loads(out)
         documents = documents if isinstance(documents, list) else [documents]
         document = next((doc for doc in documents if doc["name"] == feature.name), None)
         assert document is not None, feature.name
         assert document["value"] == feature.value
-        assert (document["control"] is not None) == feature.is_writable
+        assert (document["constraints"] is not None) == feature.is_writable
+        assert (document["command"] is not None) == feature.is_writable
+        assert "uri" not in document["command"] if document["command"] else True
 
 
 def _cli_text(value: object) -> str:
@@ -220,12 +223,12 @@ async def test_set_rejects_an_empty_current_value_by_its_constraint(
     """Empty fixture values violate their length or pattern constraint."""
     # Arrange: Name the constraint the empty value violates; fixtures pair
     # empty strings with either a minimum length or a date pattern.
-    control = feature.control
-    assert control is not None
+    constraints = feature.constraints
+    assert constraints is not None
     violation = (
-        f"Value length 0 < min_length ({control.min_length})"
-        if control.min_length
-        else f"Value '' does not match pattern '{control.pattern}'"
+        f"Value length 0 < min_length ({constraints.min_length})"
+        if constraints.min_length
+        else f"Value '' does not match pattern '{constraints.pattern}'"
     )
 
     # Act: Set the feature to its empty current value.
