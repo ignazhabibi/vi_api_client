@@ -223,8 +223,9 @@ def test_redact_feature_applies_the_rules_to_the_feature_name(name, value, expec
 
 def test_redact_device_redacts_option_values_in_the_command_list():
     """Constraint options of command list parameters are redacted, too."""
-    # Arrange: Parse an API feature whose command parameter declares an enum
-    # with an identifier-like option value.
+    # Arrange: Parse an API feature whose command declares one parameter
+    # with an enum constraint holding an identifier-like option value and
+    # one parameter without constraints.
     payload = [
         {
             "feature": "x.y",
@@ -237,7 +238,8 @@ def test_redact_device_redacts_option_values_in_the_command_list():
                             "type": "string",
                             "required": True,
                             "constraints": {"enum": ["7571381573112225", "b"]},
-                        }
+                        },
+                        "enabled": {"type": "boolean", "required": False},
                     },
                 }
             },
@@ -251,15 +253,18 @@ def test_redact_device_redacts_option_values_in_the_command_list():
     # Act: Redact the device.
     redacted = redact_device(device)
 
-    # Assert: The command list options match the feature's own constraints.
+    # Assert: The command list options match the feature's own constraints,
+    # and the constraint-less parameter stays usable.
     feature = redacted.get_feature("x.y.mode")
     assert feature is not None
     assert feature.constraints is not None
     assert feature.constraints.options == ("################", "b")
     (command,) = redacted.commands_by_api_feature["x.y"]
-    (parameter,) = command.parameters
-    assert parameter.constraints is not None
-    assert parameter.constraints.options == feature.constraints.options
+    mode_parameter, enabled_parameter = command.parameters
+    assert mode_parameter.constraints is not None
+    assert mode_parameter.constraints.options == feature.constraints.options
+    assert enabled_parameter.constraints is None
+    assert enabled_parameter.name == "enabled"
     assert "1234567" not in command.uri
 
 

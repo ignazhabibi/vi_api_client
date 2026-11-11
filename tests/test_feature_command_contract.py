@@ -487,6 +487,32 @@ async def test_run_command_rejects_non_json_parameter_values_without_adapter_io(
     assert adapter.calls == []
 
 
+async def test_run_command_reports_non_json_values_before_their_constraints():
+    """The JSON contract rejects a value before its constraints are applied."""
+    # Arrange: One stepped parameter receives a value the JSON contract
+    # excludes, which the constraint check also cannot classify.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    device = _mode_device(
+        [],
+        parameters=[
+            _parameter(
+                "target",
+                value_type="number",
+                constraints=FeatureConstraints(min=0.2, step=0.1),
+            )
+        ],
+    )
+
+    # Act and assert: The rejection names the JSON contract, not a step
+    # alignment.
+    with pytest.raises(ValueError, match="finite"):
+        await client.run_command(
+            device, "heating.mode", "setMode", {"target": float("nan")}
+        )
+    assert adapter.calls == []
+
+
 @pytest.mark.parametrize(
     ("device", "parameters", "error"),
     [
@@ -507,6 +533,12 @@ async def test_run_command_rejects_non_json_parameter_values_without_adapter_io(
             {"target": "new"},
             "API features with commands: heating.mode.program",
             id="parent-name-points-into-reported-api-features",
+        ),
+        pytest.param(
+            _device([], {"heating.mode": ()}),
+            {"target": "new"},
+            "API feature 'heating.mode' reports no commands",
+            id="commandless-api-feature",
         ),
         pytest.param(
             _mode_device([], command_name="reset"),

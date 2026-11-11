@@ -309,7 +309,7 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
         ),
         pytest.param(
             ["get-feature", "heating.curve.slope"],
-            ("refresh_device", "fetching feature"),
+            ("get_features", "fetching feature"),
             id="get-feature",
         ),
         pytest.param(
@@ -437,7 +437,8 @@ async def test_cmd_get_feature_prints_value_control_details_and_commands(
     mock_cli_context, capsys
 ):
     """A writable feature should print its value, command details, and commands."""
-    # Arrange: Return one constrained writable feature with a reported command.
+    # Arrange: Return one constrained writable feature and the snapshot with
+    # the reported command.
     args = _cli_args("get-feature", "heating.curve.slope")
     feature = build_feature(
         "heating.curve.slope",
@@ -448,6 +449,7 @@ async def test_cmd_get_feature_prints_value_control_details_and_commands(
         ),
         unit="celsius",
     )
+    mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
@@ -471,10 +473,11 @@ async def test_cmd_get_feature_prints_read_only_values_without_commands(
     mock_cli_context, capsys
 ):
     """A read-only feature outside any command list prints only its value."""
-    # Arrange: Return one read-only feature the snapshot's API features do
-    # not own.
+    # Arrange: Return one read-only feature no command-reporting API feature
+    # owns.
     args = _cli_args("get-feature", "heating.status")
     feature = build_feature("heating.status", "ready")
+    mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
@@ -484,6 +487,28 @@ async def test_cmd_get_feature_prints_read_only_values_without_commands(
     captured = capsys.readouterr()
     assert "- heating.status: ready" in captured.out
     assert "Writable via command" not in captured.out
+    assert "Commands of" not in captured.out
+
+
+async def test_cmd_get_feature_omits_the_section_for_commandless_api_features(
+    mock_cli_context, capsys
+):
+    """An API feature that reports no commands adds no command section."""
+    # Arrange: Return one read-only feature whose API feature is in the
+    # snapshot's command list with an empty command tuple.
+    args = _cli_args("get-feature", "heating.status")
+    feature = build_feature("heating.status", "ready")
+    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        feature, commands={"heating.status": ()}
+    )
+
+    # Act: Read the feature through the CLI.
+    assert await cmd_get_feature(args) is True
+
+    # Assert: The feature prints and no empty command section appears.
+    captured = capsys.readouterr()
+    assert "- heating.status: ready" in captured.out
     assert "Commands of" not in captured.out
 
 
@@ -507,6 +532,7 @@ async def test_cmd_get_feature_prints_only_present_control_details(
         constraints=_constraints(**constraint_overrides),
         unit="celsius",
     )
+    mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
@@ -525,7 +551,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     # Arrange: Return one writable feature with a unit for the requested name.
     args = _cli_args("get-feature", "heating.curve.slope", "--json")
     feature = build_feature("heating.curve.slope", 1.4, _binding(), unit="celsius")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
+    mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: Read the feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -564,17 +590,17 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_command(
     """Read-only features have no constraints or command in the JSON document."""
     # Arrange: Return one read-only feature.
     args = _cli_args("get-feature", "heating.curve.slope", "--json")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        build_feature()
-    )
+    mock_cli_context.client.get_features.return_value = [build_feature()]
 
     # Act: Read the feature in JSON mode.
     assert await cmd_get_feature(args) is True
 
-    # Assert: The command and constraints are JSON null, not absent keys.
+    # Assert: The command and constraints are JSON null, not absent keys, and
+    # the JSON mode reads no snapshot for the command list.
     document = json.loads(capsys.readouterr().out)
     assert document["command"] is None
     assert document["constraints"] is None
+    mock_cli_context.client.refresh_device.assert_not_called()
 
 
 async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
@@ -583,6 +609,7 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     """An API feature name should print every feature parsed from it."""
     # Arrange: Return both features of the requested API feature.
     args = _cli_args("get-feature", "heating.curve")
+    mock_cli_context.client.get_features.return_value = _curve_features()
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(
         *_curve_features()
     )
@@ -603,9 +630,7 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     """Several JSON matches should print one JSON array document."""
     # Arrange: Return both features of the requested API feature.
     args = _cli_args("get-feature", "heating.curve", "--json")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        *_curve_features()
-    )
+    mock_cli_context.client.get_features.return_value = _curve_features()
 
     # Act: Read the API feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -621,11 +646,12 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
     """An unknown name fails the read rather than printing an empty result."""
     args = _cli_args("get-feature", "missing.feature")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device()
+    mock_cli_context.client.get_features.return_value = []
 
     assert await cmd_get_feature(args) is False
 
     assert "Feature 'missing.feature' not found." in capsys.readouterr().out
+    mock_cli_context.client.refresh_device.assert_not_called()
 
 
 async def test_cmd_login_uses_environment_config_and_persists_it(
@@ -942,15 +968,15 @@ async def test_run_cli_exec_rejects_flat_feature_names(run_cli):
         "slope=1.4",
     )
 
-    # Assert: The failure names the similar API features reporting commands,
-    # from the outermost to the direct parent.
+    # Assert: The failure names the similar API features reporting commands;
+    # API features without commands stay off the list.
     assert exit_status == 1
     assert (
         "API feature 'heating.circuits.0.heating.curve.slope' reports no commands"
         in err
     )
     assert (
-        "API features with commands: heating.circuits, heating.circuits.0, "
+        "API features with commands: heating.circuits.0, "
         "heating.circuits.0.heating.curve" in err
     )
 

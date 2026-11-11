@@ -389,9 +389,10 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     """Get a specific feature.
 
     Fetches and displays every feature matching a feature name or an API
-    feature name; an API feature name can match several features. Below the
-    matching features, every command their API features report is listed
-    with its parameter names, required markers, and constraints.
+    feature name; an API feature name can match several features. In text
+    mode, every command the matching features' API features report is listed
+    with its parameter names, required markers, and constraints, read from
+    one refreshed device snapshot.
 
     Args:
         args: Parsed command line arguments including feature_name and json flag.
@@ -399,43 +400,42 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     feature_name: str = args.feature_name
     async with setup_client_context(args) as context:
         device = _transient_device(context)
-        # The command listing reads the snapshot's internal command list, so
-        # the read is a full refresh; a full refresh skips no feature or
-        # command the device reports.
-        snapshot = await context.client.refresh_device(device, only_available=False)
-    features = [
-        feature
-        for feature in snapshot.features
-        if feature.name == feature_name or feature.name.startswith(f"{feature_name}.")
-    ]
-    if not features:
-        print(f"Feature '{feature_name}' not found.")
-        return False
+        features = await context.client.get_features(
+            device, only_available=False, feature_names=[feature_name]
+        )
+        if not features:
+            print(f"Feature '{feature_name}' not found.")
+            return False
 
-    if args.json:
-        documents = [
-            {
-                "name": feature.name,
-                "value": feature.value,
-                "unit": feature.unit,
-                "constraints": (
-                    asdict(feature.constraints) if feature.constraints else None
-                ),
-                "command": (
-                    {
-                        "name": feature.write_binding.command_name,
-                        "parameter": feature.write_binding.parameter_name,
-                    }
-                    if feature.write_binding
-                    else None
-                ),
-            }
-            for feature in features
-        ]
-        # One match keeps the single-object document; several matches
-        # print one JSON array so the output stays one JSON document.
-        _print_json(documents[0] if len(documents) == 1 else documents)
-        return True
+        if args.json:
+            documents = [
+                {
+                    "name": feature.name,
+                    "value": feature.value,
+                    "unit": feature.unit,
+                    "constraints": (
+                        asdict(feature.constraints) if feature.constraints else None
+                    ),
+                    "command": (
+                        {
+                            "name": feature.write_binding.command_name,
+                            "parameter": feature.write_binding.parameter_name,
+                        }
+                        if feature.write_binding
+                        else None
+                    ),
+                }
+                for feature in features
+            ]
+            # One match keeps the single-object document; several matches
+            # print one JSON array so the output stays one JSON document.
+            _print_json(documents[0] if len(documents) == 1 else documents)
+            return True
+
+        # The command listing reads the snapshot's internal command list, so
+        # the text mode refreshes the device once after the selection; the
+        # feature selection above keeps the client's name matching.
+        snapshot = await context.client.refresh_device(device, only_available=False)
 
     api_feature_sections: list[str] = []
     for feature in features:

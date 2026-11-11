@@ -590,7 +590,6 @@ class ViClient:
             )
         _LOGGER.debug("Running %s of %s", command_name, feature_name)
         self._validate_command_parameters(command, payload)
-        self._reject_non_json_parameters(payload)
         await self._send_command(command.uri, payload)
 
     @staticmethod
@@ -601,16 +600,23 @@ class ViClient:
     ) -> ValueError:
         """Return the error for a name the snapshot does not resolve.
 
-        An unknown command names its API feature's available commands. An
-        unknown API feature names the API features that report commands with
-        a similar name, so a flat feature name points to its API feature.
+        An API feature without reported commands and an unknown name raise
+        the same message: the snapshot lists every API feature, including
+        the ones reporting none. An unknown command names its API feature's
+        reported commands, and a name that resolves to no API feature names
+        the API features that report commands with a similar name, so a
+        flat feature name points to its API feature.
         """
-        if feature_name not in commands_by_api_feature:
+        reported_commands = commands_by_api_feature.get(feature_name, ())
+        if not reported_commands:
             similar = sorted(
                 name
-                for name in commands_by_api_feature
-                if feature_name.startswith(f"{name}.")
-                or name.startswith(f"{feature_name}.")
+                for name, commands in commands_by_api_feature.items()
+                if commands
+                and (
+                    feature_name.startswith(f"{name}.")
+                    or name.startswith(f"{feature_name}.")
+                )
             )
             detail = (
                 f"; API features with commands: {', '.join(similar)}" if similar else ""
@@ -619,7 +625,7 @@ class ViClient:
                 f"API feature '{feature_name}' reports no commands{detail}"
             )
         available_commands = ", ".join(
-            sorted(reported.name for reported in commands_by_api_feature[feature_name])
+            sorted(command.name for command in reported_commands)
         )
         return ValueError(
             f"API feature '{feature_name}' reports no command '{command_name}'; "
@@ -631,10 +637,13 @@ class ViClient:
     ) -> None:
         """Check supplied parameter names and their values against the report.
 
+        The JSON value contract is checked before the constraints, so a
+        value JSON cannot represent never produces a constraint message.
+
         Raises:
             ValueError: If a parameter name is not reported, a required
-                parameter is missing, or a value violates the parameter's
-                reported type or constraints.
+                parameter is missing, a value is not a JSON value, or a
+                value violates the parameter's reported type or constraints.
         """
         reported_by_name = {
             parameter.name: parameter for parameter in command.parameters
@@ -651,6 +660,7 @@ class ViClient:
                     f"Command '{command.name}' is missing required parameter "
                     f"'{reported.name}'."
                 )
+        self._reject_non_json_parameters(parameters)
         for parameter_name, value in parameters.items():
             parameter = reported_by_name[parameter_name]
             self._validate_constraints(

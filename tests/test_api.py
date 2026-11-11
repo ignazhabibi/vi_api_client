@@ -453,6 +453,36 @@ async def test_refresh_gateway_devices_propagates_global_gateway_errors(
         await vi_client.refresh_gateway_devices([device])
 
 
+async def test_refresh_gateway_devices_falls_back_for_communication_errors_of_any_status(
+    vi_client, mock_responses
+):
+    # Arrange: Answer the gateway read with a 502 device communication error
+    # and serve the device through its individual read.
+    device = build_device("0")
+
+    mock_responses.post(
+        _gateway_features_url(device),
+        status=502,
+        payload={
+            "message": "Device communication error",
+            "errorType": "DEVICE_COMMUNICATION_ERROR",
+            "extendedPayload": {"reason": "GATEWAY_OFFLINE"},
+        },
+    )
+    mock_responses.post(
+        _device_features_url(device),
+        payload=load_fixture_json("refresh_device_response.json"),
+    )
+
+    # Act: Refresh through the public gateway operation.
+    result = await vi_client.refresh_gateway_devices([device])
+
+    # Assert: The error type, whatever its status, triggers the per-device
+    # fallback, which finds the responsive device behind the outage.
+    assert result.is_complete
+    assert [refreshed.id for refreshed in result.refreshed_devices] == ["0"]
+
+
 async def test_refresh_gateway_devices_propagates_connection_errors(vi_client):
 
     with pytest.raises(ViConnectionError, match="Network error"):

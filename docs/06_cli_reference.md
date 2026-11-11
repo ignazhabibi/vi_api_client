@@ -58,9 +58,7 @@ and warnings are written to standard error.
 
 ## 4. Fetch Feature Details
 Get the current value of a specific feature. The name may be a feature name or
-an API feature name; an API feature name prints every matching feature named
-within it. Below the matching features, the commands their API features report
-are listed once per API feature.
+an API feature name; an API feature name prints every feature parsed from it.
 
 ```bash
 vi-client get-feature "heating.sensors.temperature.outside"
@@ -77,11 +75,13 @@ With `--json`, each document carries `name`, `value`, and `unit`, plus
 `constraints` with the `FeatureConstraints` rules (or `null`) and `command`
 with `{"name": ..., "parameter": ...}` (or `null`) for a writable feature. The
 command URI is not printed because it contains installation, gateway, and
-device IDs.
+device IDs. The JSON mode does not print the command list; it selects the
+same features with one feature read.
 
 In text mode, the matched features are followed by the commands their API
 features report, with their parameter names, required markers (`*`), and the
-parameter constraints the device reports:
+parameter constraints the device reports; the listing reads the device
+snapshot once after the selection:
 
 ```text
 - heating.circuits.0.heating.curve.slope: 0.6
