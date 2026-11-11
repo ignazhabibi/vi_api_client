@@ -49,9 +49,35 @@ vi-client list-features --enabled --values
 
 # Output as JSON
 vi-client list-features --json
+
+# List only features whose removal Viessmann has announced
+vi-client list-features --deprecated
 ```
 JSON output writes one parseable document to standard output; setup diagnostics
 and warnings are written to standard error.
+
+`--deprecated` lists only features that carry a removal notice and appends the
+notice to each line, the removal date first and the API's info text after it.
+The header counts the listed features. The option combines with `--enabled`,
+`--values`, and `--json`:
+
+```text
+Found 29 Features for device 0:
+- heating.scop.total (removal 2024-09-15: replaced by heating.spf.total)
+- heating.dhw.temperature.levels.min (removal 2027-03-31: Not used anymore)
+```
+
+With `--values` the notice follows the value; a missing date or info text is
+left out. `--deprecated --json` prints the filtered feature names. With
+`--json --values`, every document carries the key `deprecation`, with and
+without `--deprecated`, in the shape `get-feature --json` uses: an object with
+`removal_date` and `info`, or `null` for a feature without a notice. A device
+without any notice prints a count of zero, or an empty JSON list, and exits
+successfully. Without `--deprecated` the text output is unchanged.
+
+A deprecated API feature that reports no properties has no flat feature and is
+therefore not listed; devices report retired features that way, usually as
+disabled.
 
 *Note: This auto-detects the first device. You can specify `--installation-id`, `--gateway-serial`, and `--device-id` if needed. A numeric installation ID matches the API's string identifier.*
 *Note: For `heating.power.consumption.{cooling,dhw,heating,total}`, the flattened feature list may include the synthetic aliases `...currentDay` and `...currentYear` per base feature, mirroring the first entry of the `day` and `year` series. `total.currentDay` passes the API value `total.day[0]` through unchanged; the API can let it lag behind `heating.currentDay` + `dhw.currentDay` for the running day. `currentMonth` aliases are not generated.*
@@ -107,7 +133,7 @@ line with the announced date and the API's info text:
 ```
 
 The CLI only shows the notice. It does not hide, block, or rename a deprecated
-feature, and `list-features` output is unchanged.
+feature. `list-features --deprecated` lists every feature with a notice.
 
 ## 5. List Installation Events
 Read the complete event history an installation returns for a rolling window
