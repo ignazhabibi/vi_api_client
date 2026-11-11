@@ -20,6 +20,7 @@ from .exceptions import (
     ViResponseError,
 )
 from .models import (
+    CommandPairWriteBinding,
     CommandParameter,
     Device,
     DeviceCommand,
@@ -31,6 +32,7 @@ from .models import (
     Installation,
     ParameterWriteBinding,
     ScheduleConstraints,
+    WriteBinding,
 )
 from .parsing import (
     api_feature_to_flat_features,
@@ -499,19 +501,33 @@ class ViClient:
             raise ValueError(f"Feature '{feature_name}' is not present on the device.")
 
         binding = self._require_command_binding(current_feature)
+        constraints = self._require_constraints(current_feature)
+        if isinstance(binding, CommandPairWriteBinding):
+            # The boolean type check is the pair's whole validation; which
+            # direction the device allows right now is the API's decision.
+            self._validate_constraints(
+                constraints,
+                f"{binding.on_command_name}/{binding.off_command_name}",
+                target_value,
+            )
+            is_on = target_value is True
+            command_name = (
+                binding.on_command_name if is_on else binding.off_command_name
+            )
+            uri = binding.on_uri if is_on else binding.off_uri
+            # A pair command is sent without parameters; an optional
+            # parameter of the on command is deliberately left out.
+            payload: dict[str, JsonValue] = {}
+        else:
+            command_name, uri = binding.command_name, binding.uri
+            payload = self._resolve_command_payload(device, binding, target_value)
+            self._reject_non_json_parameters(payload)
+            self._validate_constraints(constraints, command_name, target_value)
         _LOGGER.debug(
-            "Setting %s to %s via %s",
-            current_feature.name,
-            target_value,
-            binding.command_name,
+            "Setting %s to %s via %s", current_feature.name, target_value, command_name
         )
 
-        payload = self._resolve_command_payload(device, binding, target_value)
-        self._reject_non_json_parameters(payload)
-        constraints = self._require_constraints(current_feature)
-        self._validate_constraints(constraints, binding.command_name, target_value)
-
-        await self._send_command(binding.uri, payload)
+        await self._send_command(uri, payload)
 
         # Preserve all other feature values from the input snapshot.
         updated_feature = replace(current_feature, value=target_value)
@@ -854,7 +870,7 @@ class ViClient:
     # Feature commands: check availability, build and validate the payload, send it.
 
     @staticmethod
-    def _require_command_binding(feature: Feature) -> ParameterWriteBinding:
+    def _require_command_binding(feature: Feature) -> WriteBinding:
         """Validate a feature's command availability and return its binding.
 
         A hand-built feature has no write binding, so it is read-only.

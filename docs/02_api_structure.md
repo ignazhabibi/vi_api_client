@@ -95,6 +95,46 @@ is not part of the public model, and every command an API feature reports is
 listed on the device through
 `Device.get_command_names("heating.circuits.0.heating.curve")`.
 
+### Boolean features written through an on/off command pair
+
+Some devices change a boolean only through two commands without parameters,
+for example `enable` and `disable` for `heating.dhw.hygiene.enabled`, while
+other devices offer a parameter setter such as `setEnabled` for the same
+feature. The library hides the difference:
+`set_feature(device, "heating.dhw.hygiene.enabled", True)` works on both.
+
+Which command pairs count is an explicit table in the library, not a rule
+over command names:
+
+| API feature | Property | On command | Off command |
+| :--- | :--- | :--- | :--- |
+| `heating.dhw.oneTimeCharge` | `active` | `activate` | `deactivate` |
+| `heating.dhw.hygiene` | `enabled` | `enable` | `disable` |
+| `heating.circuits.<n>.operating.programs.comfort` | `active` | `activate` | `deactivate` |
+| `heating.circuits.<n>.operating.programs.eco` | `active` | `activate` | `deactivate` |
+| `heating.circuits.<n>.operating.programs.forcedLastFromSchedule` | `active` | `activate` | `deactivate` |
+| `ventilation.quickmodes.<name>` | `active` | `activate` | `deactivate` |
+
+A table entry makes the feature writable when all of these hold:
+
+1.  The property is reported with a boolean value.
+2.  Both commands are reported, and neither has a required parameter. An
+    optional parameter, such as `temperature` on the comfort program's
+    `activate`, does not count and is never sent.
+3.  No parameter setter writes the property. A setter always wins, so a
+    device that offers both is written through the setter.
+
+Such a feature has `FeatureConstraints(value_type="boolean")`. `True` sends
+the on command and `False` the off command, each with an empty JSON object.
+
+The `isExecutable` flags the API reports for the two commands are not part of
+the rule. They follow the device state, so a rule based on them would let a
+feature change between writable and read-only from one refresh to the next.
+The library also does not check locally whether the device allows the
+requested direction right now: the API decides, and a command it does not
+allow raises `ViCommandRejectedError`. A device can report a pair it never
+allows; writing such a feature then fails on every attempt.
+
 ## 5. Usage Pattern
 
 Because of this flat design, usage is consistent:

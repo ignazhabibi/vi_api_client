@@ -188,7 +188,7 @@ def test_redact_feature_redacts_the_value_and_control():
 
     # Assert: The value, URI, and options are redacted; the input is unchanged.
     assert redacted.value == "################"
-    assert redacted.write_binding is not None
+    assert isinstance(redacted.write_binding, ParameterWriteBinding)
     assert redacted.write_binding.uri == (
         "https://api.example/installations/#######/commands/setSerial"
     )

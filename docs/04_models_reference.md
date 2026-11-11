@@ -130,6 +130,17 @@ knowledge, not public API: the feature carries an internal write binding, so
 consumers cannot construct writable features by hand. Consumers get writable
 features from a client read and may copy them with `dataclasses.replace`.
 
+A feature is writable in one of two ways. Usually a command parameter writes
+its value. A boolean feature without such a parameter setter is writable when
+its API feature reports one of the on/off command pairs in the library's
+table, for example `enable` and `disable` for `heating.dhw.hygiene.enabled`;
+it then carries `FeatureConstraints(value_type="boolean")`. The reported
+`isExecutable` flags of a pair do not decide writability, so the feature does
+not switch between writable and read-only as the device state changes; the
+API decides whether a write is allowed. See
+[Boolean features written through an on/off command pair](02_api_structure.md#boolean-features-written-through-an-onoff-command-pair)
+for the table and its rules.
+
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |

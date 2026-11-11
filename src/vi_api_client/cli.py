@@ -31,14 +31,15 @@ from ._feature_diff import diff_features, feature_entries, format_feature_diff
 from ._types import JsonValue
 from .credentials import CredentialDocument
 from .models import (
+    CommandPairWriteBinding,
     CommandParameter,
     Device,
     Feature,
     FeatureConstraints,
     Gateway,
     InstallationEvent,
-    ParameterWriteBinding,
     ScheduleConstraints,
+    WriteBinding,
 )
 from .utils import format_feature, parse_cli_params
 
@@ -416,14 +417,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
                     "constraints": (
                         asdict(feature.constraints) if feature.constraints else None
                     ),
-                    "command": (
-                        {
-                            "name": feature.write_binding.command_name,
-                            "parameter": feature.write_binding.parameter_name,
-                        }
-                        if feature.write_binding
-                        else None
-                    ),
+                    "command": _command_document(feature.write_binding),
                 }
                 for feature in features
             ]
@@ -444,8 +438,11 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         if binding is not None:
             api_feature_name: str | None = binding.api_feature_name
             constraints = feature.constraints or FeatureConstraints()
-            print(f"  Writable via command: {binding.command_name}")
-            print(f"  Target param: {binding.parameter_name}")
+            if isinstance(binding, CommandPairWriteBinding):
+                print(f"  Writable via commands: {_pair_commands_text(binding)}")
+            else:
+                print(f"  Writable via command: {binding.command_name}")
+                print(f"  Target param: {binding.parameter_name}")
             if constraints.min is not None:
                 print(
                     f"  Constraints: min={constraints.min}, max={constraints.max}, "
@@ -464,6 +461,24 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         _print_command_list(snapshot, api_feature)
 
     return True
+
+
+def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
+    """Return the JSON ``command`` entry of a feature's write binding.
+
+    A parameter command prints its name and parameter; an on/off command
+    pair prints both command names.
+    """
+    if binding is None:
+        return None
+    if isinstance(binding, CommandPairWriteBinding):
+        return {"on": binding.on_command_name, "off": binding.off_command_name}
+    return {"name": binding.command_name, "parameter": binding.parameter_name}
+
+
+def _pair_commands_text(binding: CommandPairWriteBinding) -> str:
+    """Return both commands of an on/off pair for text output."""
+    return f"{binding.on_command_name} (on), {binding.off_command_name} (off)"
 
 
 def _matching_api_feature_name(device: Device, feature_name: str) -> str | None:
@@ -534,7 +549,12 @@ async def cmd_set(args: argparse.Namespace) -> bool:
         device, feature, binding = target
 
         print(f"Setting '{feature.name}' to '{raw_value}'...")
-        print(f"  (Command: {binding.command_name}, Param: {binding.parameter_name})")
+        if isinstance(binding, CommandPairWriteBinding):
+            print(f"  (Commands: {_pair_commands_text(binding)})")
+        else:
+            print(
+                f"  (Command: {binding.command_name}, Param: {binding.parameter_name})"
+            )
 
         value = _parse_set_value(raw_value, feature)
         try:
@@ -672,7 +692,7 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
 
 async def _fetch_writable_feature(
     context: CLIContext, name: str
-) -> tuple[Device, Feature, ParameterWriteBinding] | None:
+) -> tuple[Device, Feature, WriteBinding] | None:
     """Fetch a writable feature together with its complete device snapshot.
 
     Prints the reason and returns None when the feature is missing or
@@ -741,7 +761,10 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     print(f"\nFound {len(writable_features)} writable features:\n")
     for feature, binding in writable_features:
         print(f"- {feature.name}")
-        print(f"    Param:   {binding.parameter_name} (via {binding.command_name})")
+        if isinstance(binding, CommandPairWriteBinding):
+            print(f"    Commands: {_pair_commands_text(binding)}")
+        else:
+            print(f"    Param:   {binding.parameter_name} (via {binding.command_name})")
         _print_feature_constraints(feature.constraints or FeatureConstraints())
         print("")
 

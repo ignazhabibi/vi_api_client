@@ -73,7 +73,10 @@ vi-client get-feature "heating.sensors.temperature.outside" --json
 
 With `--json`, each document carries `name`, `value`, and `unit`, plus
 `constraints` with the `FeatureConstraints` rules (or `null`) and `command`
-with `{"name": ..., "parameter": ...}` (or `null`) for a writable feature. The
+with `{"name": ..., "parameter": ...}` (or `null`) for a writable feature. A
+boolean feature written through an on/off command pair prints `command` as
+`{"on": ..., "off": ...}` with both command names, and the text mode prints
+`Writable via commands: enable (on), disable (off)`. The
 command URI is not printed because it contains installation, gateway, and
 device IDs. The JSON mode does not print the command list; it selects the
 same features with one feature read.
@@ -229,7 +232,13 @@ Example output:
 - heating.dhw.pumps.circulation.schedule
     Param:   newSchedule (via setSchedule)
     Schedule rules: max_entries: 4, modes: ('on',), resolution: 10, overlap_allowed: False, default_mode: off
+
+- heating.dhw.hygiene.enabled
+    Commands: enable (on), disable (off)
 ```
+
+A boolean feature that the device changes through an on/off command pair lists
+both commands instead of a parameter.
 
 `Schedule rules` lists only the rules the device reports for a schedule.
 
@@ -246,6 +255,13 @@ vi-client set heating.circuits.0.operating.modes.active heating
 The CLI converts values according to the feature's command type: numeric values
 become numbers, `true`/`false` become booleans, and text values such as `auto`
 or `01` remain strings. It then validates the value against the feature constraints.
+
+A boolean feature written through an on/off command pair takes `true` and
+`false` like any other boolean; the CLI then sends the on or the off command:
+
+```bash
+vi-client set heating.dhw.hygiene.enabled true
+```
 
 A schedule takes the whole weekly plan as one JSON object, in the same shape
 that `get-feature` reads. The plan must contain all seven days; a day without

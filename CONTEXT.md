@@ -90,10 +90,18 @@ _Avoid_: Validation error payload
 
 **Writable feature**:
 A feature that reports `is_writable=True` because the parser attached an
-internal write binding recording how its command writes the value. The binding
-travels with the feature, so copies stay writable and hand-built features are
-read-only.
+internal write binding recording how its command writes the value: a parameter
+command, or an on/off command pair for a boolean without a parameter setter.
+The binding travels with the feature, so copies stay writable and hand-built
+features are read-only.
 _Avoid_: Control block, command metadata object
+
+**On/off command pair**:
+Two commands without required parameters that switch one boolean property on
+and off, such as `enable` and `disable` for `heating.dhw.hygiene.enabled`.
+The library's explicit pair table decides which pairs make a feature writable;
+reported executability does not.
+_Avoid_: Toggle command, switch command
 
 **Feature constraints**:
 The `FeatureConstraints` rules the API reports for writing one feature value

@@ -10,6 +10,7 @@ from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import (
     CommandParameter,
     Device,
+    ParameterWriteBinding,
     ScheduleConstraints,
 )
 from vi_api_client.parsing import (
@@ -81,7 +82,7 @@ def test_control_requires_parameters_unless_marked_optional():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: Explicit false is optional while missing markers remain conservative.
-    assert feature.write_binding is not None
+    assert isinstance(feature.write_binding, ParameterWriteBinding)
     assert feature.write_binding.required_parameters == (
         "requiredSibling",
         "unspecifiedSibling",
@@ -263,7 +264,7 @@ def test_commands_become_controls_of_the_properties_they_write():
     feature_slope = next(
         feature for feature in features if feature.name.endswith(".slope")
     )
-    assert feature_slope.write_binding is not None
+    assert isinstance(feature_slope.write_binding, ParameterWriteBinding)
     assert feature_slope.write_binding.command_name == "setCurve"
     assert feature_slope.write_binding.parameter_name == "slope"
     assert feature_slope.constraints is not None
@@ -273,7 +274,7 @@ def test_commands_become_controls_of_the_properties_they_write():
     feature_shift = next(
         feature for feature in features if feature.name.endswith(".shift")
     )
-    assert feature_shift.write_binding is not None
+    assert isinstance(feature_shift.write_binding, ParameterWriteBinding)
     assert feature_shift.write_binding.command_name == "setCurve"
     assert feature_shift.write_binding.parameter_name == "shift"
 
@@ -289,7 +290,9 @@ def test_hysteresis_commands_create_writable_switch_point_features():
     # Assert: The base value and both switch points are writable with their commands.
     assert {
         feature.name: (
-            feature.write_binding.command_name if feature.write_binding else None
+            feature.write_binding.command_name
+            if isinstance(feature.write_binding, ParameterWriteBinding)
+            else None
         )
         for feature in features
     } == {
@@ -415,7 +418,7 @@ def test_temperature_property_binds_target_temperature_command():
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.dhw.temperature.main.temperature"
-    assert feature.write_binding is not None
+    assert isinstance(feature.write_binding, ParameterWriteBinding)
     assert feature.write_binding.command_name == "setTargetTemperature"
     assert feature.write_binding.parameter_name == "targetTemperature"
 
@@ -513,7 +516,7 @@ def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
     binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The control writes through the executable command.
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert (binding.command_name, binding.parameter_name) == ("setCurve", "slope")
     assert binding.uri == "/commands/setCurve"
 
@@ -603,7 +606,7 @@ def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
     assert active.write_binding is None
     binding = schedule.write_binding
     constraints = schedule.constraints
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert constraints is not None
     assert binding.command_name == "setSchedule"
     assert binding.parameter_name == "newSchedule"
@@ -717,7 +720,7 @@ def test_command_requiring_the_value_is_preferred_over_one_taking_it_optionally(
     binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The temperature is written through 'setTemperature'.
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert (binding.command_name, binding.parameter_name) == (
         "setTemperature",
         "targetTemperature",
@@ -738,7 +741,7 @@ def test_command_taking_the_value_optionally_is_used_when_it_is_the_only_one():
 
     binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert (binding.command_name, binding.parameter_name) == ("activate", "temperature")
 
 
@@ -781,7 +784,7 @@ def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
     binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The schedule control writes through the executable command.
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert (binding.command_name, binding.parameter_name) == (
         "setSchedule",
         "newSchedule",

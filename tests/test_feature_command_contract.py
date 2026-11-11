@@ -652,7 +652,7 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
 
     # Assert: The plan is sent and read back in the same shape.
     binding = schedule.write_binding
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
     updated_schedule = updated_device.get_feature("heating.dhw.schedule")
     assert updated_schedule is not None
@@ -734,7 +734,7 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
 
     # Assert: The plan is sent unchanged.
     binding = schedule.write_binding
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 
@@ -748,7 +748,7 @@ async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
     await client.set_feature(device, schedule, plan)
 
     binding = schedule.write_binding
-    assert binding is not None
+    assert isinstance(binding, ParameterWriteBinding)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 

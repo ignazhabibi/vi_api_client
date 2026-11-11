@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from math import isfinite
 from typing import Any, NamedTuple, cast
@@ -9,6 +10,7 @@ from typing import Any, NamedTuple, cast
 from ._types import JsonValue
 from .exceptions import ViResponseError
 from .models import (
+    CommandPairWriteBinding,
     CommandParameter,
     Device,
     DeviceCommand,
@@ -20,6 +22,7 @@ from .models import (
     InstallationEvent,
     ParameterWriteBinding,
     ScheduleConstraints,
+    WriteBinding,
 )
 from .validation import validate_json_value
 
@@ -64,6 +67,54 @@ _BOUND_PROPERTY_KEYS = frozenset({"min", "max"})
 _SCHEDULE_PARAMETER_NAMES = frozenset({"schedule", "entries", "newSchedule"})
 
 
+class _CommandPair(NamedTuple):
+    """One command family that switches a boolean property on and off."""
+
+    api_feature_pattern: re.Pattern[str]
+    property_key: str
+    on_command_name: str
+    off_command_name: str
+
+
+# Boolean properties some devices can only change through two commands
+# without parameters. The table is explicit because command names alone are
+# not reliable: 'heating.dhw.hygiene' reports 'activate' without a
+# counterpart, and other heating programs report an 'activate'/'deactivate'
+# pair that no device allows.
+_COMMAND_PAIRS = (
+    _CommandPair(
+        re.compile(r"heating\.dhw\.oneTimeCharge"), "active", "activate", "deactivate"
+    ),
+    _CommandPair(re.compile(r"heating\.dhw\.hygiene"), "enabled", "enable", "disable"),
+    _CommandPair(
+        re.compile(r"heating\.circuits\.\d+\.operating\.programs\.comfort"),
+        "active",
+        "activate",
+        "deactivate",
+    ),
+    _CommandPair(
+        re.compile(r"heating\.circuits\.\d+\.operating\.programs\.eco"),
+        "active",
+        "activate",
+        "deactivate",
+    ),
+    _CommandPair(
+        re.compile(
+            r"heating\.circuits\.\d+\.operating\.programs\.forcedLastFromSchedule"
+        ),
+        "active",
+        "activate",
+        "deactivate",
+    ),
+    _CommandPair(
+        re.compile(r"ventilation\.quickmodes\.[^.]+"),
+        "active",
+        "activate",
+        "deactivate",
+    ),
+)
+
+
 class ValidatedApiFeature(NamedTuple):
     """The known fields of one API feature after validation."""
 
@@ -77,7 +128,7 @@ class ValidatedApiFeature(NamedTuple):
 class _CommandWrite(NamedTuple):
     """The internal write binding and public rules of one writable feature."""
 
-    binding: ParameterWriteBinding
+    binding: WriteBinding
     constraints: FeatureConstraints
 
 
@@ -272,7 +323,9 @@ def _flat_property_features(
         # The "value" property carries the API feature's own value.
         feature_name = entry.name if key == "value" else f"{entry.name}.{key}"
         value, unit = _extract_value_and_unit(property_data, default_unit)
-        write = _find_write(key, entry.commands, entry.name, property_data)
+        write = _find_write(
+            key, entry.commands, entry.name, property_data
+        ) or _find_pair_write(key, value, entry)
         features.append(
             Feature(
                 name=feature_name,
@@ -560,6 +613,52 @@ def _find_write(
             optional_parameter_write = optional_parameter_write or write
 
     return optional_parameter_write
+
+
+def _find_pair_write(
+    property_key: str, value: JsonValue, entry: ValidatedApiFeature
+) -> _CommandWrite | None:
+    """Find the on/off command pair that writes a boolean property.
+
+    Only consulted when no parameter command writes the property, so a
+    setter such as ``setEnabled`` always wins. The reported ``isExecutable``
+    flags are not part of the rule: they follow the device state, and a
+    feature must not change between writable and read-only from one refresh
+    to the next. The API rejects a command the device does not allow.
+
+    Args:
+        property_key: The property key (e.g. 'active').
+        value: The property's reported value.
+        entry: The validated API feature owning the property.
+
+    Returns:
+        The pair's internal write binding with boolean constraint rules, if
+        a table entry applies, else None.
+    """
+    if not isinstance(value, bool):
+        return None
+    for pair in _COMMAND_PAIRS:
+        if pair.property_key != property_key or not (
+            pair.api_feature_pattern.fullmatch(entry.name)
+        ):
+            continue
+        on_command = entry.commands.get(pair.on_command_name)
+        off_command = entry.commands.get(pair.off_command_name)
+        if on_command is None or off_command is None:
+            return None
+        if _get_required_parameters(
+            on_command.get("params", {})
+        ) or _get_required_parameters(off_command.get("params", {})):
+            return None
+        binding = CommandPairWriteBinding(
+            api_feature_name=entry.name,
+            on_command_name=pair.on_command_name,
+            off_command_name=pair.off_command_name,
+            on_uri=on_command.get("uri", ""),
+            off_uri=off_command.get("uri", ""),
+        )
+        return _CommandWrite(binding, FeatureConstraints(value_type="boolean"))
+    return None
 
 
 def _build_write(

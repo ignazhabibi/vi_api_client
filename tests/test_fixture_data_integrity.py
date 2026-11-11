@@ -10,6 +10,7 @@ import pytest
 from builders import BUNDLED_FIXTURES_DIR, load_fixture_device, load_fixture_features
 
 from vi_api_client import FixtureViClient
+from vi_api_client.models import ParameterWriteBinding
 
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
@@ -58,7 +59,11 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
     for name, binding, constraints in write_features:
         assert constraints is not None
         # Curve settings without bounds would let consumers send invalid values.
-        if "heating.curve" in name and binding.parameter_name in ("slope", "shift"):
+        if (
+            "heating.curve" in name
+            and isinstance(binding, ParameterWriteBinding)
+            and binding.parameter_name in ("slope", "shift")
+        ):
             assert constraints.min is not None, f"{name}: missing min constraint"
             assert constraints.max is not None, f"{name}: missing max constraint"
         if constraints.pattern:

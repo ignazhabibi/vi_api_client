@@ -74,9 +74,7 @@ class ParameterWriteBinding:
     Not part of the public API and not exported from the package root: it
     records how the library sends a command (name, parameter, required
     parameter names, URI of the command's API feature) so consumers cannot
-    construct writable features by hand. A later revision adds a second
-    binding kind carrying an on and an off command instead of one parameter
-    command; ``Feature`` accepts any write binding.
+    construct writable features by hand.
     """
 
     api_feature_name: str
@@ -90,8 +88,24 @@ class ParameterWriteBinding:
         object.__setattr__(self, "required_parameters", tuple(self.required_parameters))
 
 
-# The write bindings a feature can carry; one kind exists today.
-WriteBinding = ParameterWriteBinding
+@dataclass(frozen=True)
+class CommandPairWriteBinding:
+    """Internal knowledge of the on/off command pair that writes one feature.
+
+    Not part of the public API. A boolean feature without a parameter setter
+    is written by sending one of two commands without parameters: the on
+    command for ``True`` and the off command for ``False``.
+    """
+
+    api_feature_name: str
+    on_command_name: str
+    off_command_name: str
+    on_uri: str
+    off_uri: str
+
+
+# The write bindings a feature can carry.
+type WriteBinding = ParameterWriteBinding | CommandPairWriteBinding
 
 
 @dataclass(frozen=True)
