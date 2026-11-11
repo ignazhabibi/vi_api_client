@@ -92,7 +92,8 @@ the rules for writing its value:
 How a command is sent is internal to the library: a writable feature carries
 an internal write binding (command, parameter, required parameters, URI) that
 is not part of the public model, and every command an API feature reports is
-listed on the device through `Device.get_command_names("heating.curve")`.
+listed on the device through
+`Device.get_command_names("heating.circuits.0.heating.curve")`.
 
 ## 5. Usage Pattern
 

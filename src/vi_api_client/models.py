@@ -133,8 +133,12 @@ class Feature:
     is_enabled: bool
     is_ready: bool
     constraints: FeatureConstraints | None = None
-    # Internal write binding; kept out of the repr because it carries URIs
-    # of unredacted API responses.
+    # Internal command knowledge: how the library sends the value's command.
+    # The name carries no underscore so package modules can read and maintain
+    # the binding under pyright strict, but the field is deliberately internal
+    # and not exported from the package root; only the parser attaches it, so
+    # hand-built features are read-only. It is kept out of the repr because
+    # the URI carries installation, gateway, and device identifiers.
     write_binding: WriteBinding | None = field(default=None, repr=False)
 
     @property
@@ -180,12 +184,13 @@ class Device:
     device_type: str
     status: str
     features: Sequence[Feature] = field(default_factory=tuple)
-    # Internal per-API-feature reported commands; kept out of the repr
-    # because command URIs carry installation, gateway, and device IDs.
+    # Internal command knowledge: the name carries no underscore so package
+    # modules can maintain it under pyright strict, but the field is not part
+    # of the public compatibility contract. It is kept out of the repr because
+    # command URIs carry installation, gateway, and device IDs.
     commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]] = field(
         default_factory=dict[str, tuple[DeviceCommand, ...]],
         repr=False,
-        compare=False,
     )
 
     # Name index derived from `features`, so it is left out of comparisons.

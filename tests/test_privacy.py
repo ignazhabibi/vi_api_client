@@ -19,6 +19,7 @@ from vi_api_client import (
     redact_sensitive,
 )
 from vi_api_client.models import ParameterWriteBinding
+from vi_api_client.parsing import parse_api_features
 
 FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
@@ -218,6 +219,48 @@ def test_redact_feature_applies_the_rules_to_the_feature_name(name, value, expec
 
     assert redacted.value == expected
     assert redacted.write_binding is None
+
+
+def test_redact_device_redacts_option_values_in_the_command_list():
+    """Constraint options of command list parameters are redacted, too."""
+    # Arrange: Parse an API feature whose command parameter declares an enum
+    # with an identifier-like option value.
+    payload = [
+        {
+            "feature": "x.y",
+            "properties": {"mode": {"value": "on"}},
+            "commands": {
+                "setMode": {
+                    "uri": "/installations/1234567/commands/setMode",
+                    "params": {
+                        "mode": {
+                            "type": "string",
+                            "required": True,
+                            "constraints": {"enum": ["7571381573112225", "b"]},
+                        }
+                    },
+                }
+            },
+        }
+    ]
+    features, commands = parse_api_features(payload, only_available=False)
+    device = replace(
+        build_device("0"), features=features, commands_by_api_feature=commands
+    )
+
+    # Act: Redact the device.
+    redacted = redact_device(device)
+
+    # Assert: The command list options match the feature's own constraints.
+    feature = redacted.get_feature("x.y.mode")
+    assert feature is not None
+    assert feature.constraints is not None
+    assert feature.constraints.options == ("################", "b")
+    (command,) = redacted.commands_by_api_feature["x.y"]
+    (parameter,) = command.parameters
+    assert parameter.constraints is not None
+    assert parameter.constraints.options == feature.constraints.options
+    assert "1234567" not in command.uri
 
 
 def test_redact_device_redacts_identifiers_and_features():

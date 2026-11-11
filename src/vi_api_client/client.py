@@ -173,19 +173,7 @@ class ViClient:
             ViResponseError: If the API response is malformed or the returned
                 features contain duplicate names.
         """
-        payload = {
-            "skipDisabled": only_available,
-            "skipNotReady": only_available,
-        }
-
-        _LOGGER.debug(
-            "Fetching features for device %s (available=%s)",
-            device.id,
-            only_available,
-        )
-        response = await self._discovery_adapter.get_features(device, payload)
-        api_features = self._response_items(response, resource="Feature")
-
+        api_features = await self._read_api_features(device, only_available)
         features = self._api_features_to_flat_features(api_features, feature_names)
         self._reject_duplicate_feature_names(features)
         if only_available:
@@ -319,6 +307,23 @@ class ViClient:
             ViResponseError: If the API response is malformed or the returned
                 features contain duplicate names.
         """
+        api_features = await self._read_api_features(device, only_available)
+        features, commands = parse_api_features(
+            api_features, only_available=only_available
+        )
+        self._reject_duplicate_feature_names(features)
+        if only_available:
+            features = [feature for feature in features if feature.is_available]
+        return features, commands
+
+    async def _read_api_features(
+        self, device: Device, only_available: bool
+    ) -> list[dict[str, Any]]:
+        """Return one device feature read's raw API feature entries.
+
+        Raises:
+            ViResponseError: If the response is malformed.
+        """
         payload = {
             "skipDisabled": only_available,
             "skipNotReady": only_available,
@@ -329,17 +334,7 @@ class ViClient:
             only_available,
         )
         response = await self._discovery_adapter.get_features(device, payload)
-        api_features = self._response_items(response, resource="Feature")
-        features, commands = parse_api_features(
-            api_features, only_available=only_available
-        )
-        self._reject_duplicate_feature_names(features)
-        if only_available:
-            features = [feature for feature in features if feature.is_available]
-        _LOGGER.debug(
-            "Fetched %s API features -> %s features", len(api_features), len(features)
-        )
-        return features, commands
+        return self._response_items(response, resource="Feature")
 
     async def export_device_fixture(self, device: Device) -> dict[str, JsonValue]:
         """Return a device's raw API features as an anonymized fixture document.

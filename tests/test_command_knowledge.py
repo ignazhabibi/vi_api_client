@@ -222,6 +222,10 @@ async def test_is_executable_only_differences_keep_snapshots_equal(monkeypatch):
         "unschedule",
     )
 
+    # The command list itself is part of the snapshot, so a stale snapshot
+    # without it no longer compares equal.
+    assert replace(unchanged, commands_by_api_feature={}) != unchanged
+
 
 async def test_copied_features_stay_writable_with_the_same_command():
     """replace keeps the write binding, so copies stay writable."""
@@ -267,7 +271,15 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         name="setSerial",
         uri="/iot/v2/features/installations/1234567/gateways/"
         "7630175843100101/devices/7654321/features/device.serial/commands/setSerial",
-        parameters=(CommandParameter(name="serial", required=True),),
+        parameters=(
+            CommandParameter(
+                name="serial",
+                required=True,
+                constraints=FeatureConstraints(
+                    options=["7630175843100101", {"access_token": "secret"}]
+                ),
+            ),
+        ),
     )
     device = Device(
         id="7654321",
@@ -297,4 +309,10 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
     (redacted_command,) = redacted.commands_by_api_feature["device.serial"]
     assert "7654321" not in redacted_command.uri
     assert "#" in redacted_command.uri
-    assert redacted_command.parameters == command.parameters
+    (redacted_parameter,) = redacted_command.parameters
+    assert redacted_parameter.constraints is not None
+    assert redacted_parameter.constraints.options == (
+        "################",
+        {"access_token": "<redacted>"},
+    )
+    assert redacted_parameter.name == "serial"
