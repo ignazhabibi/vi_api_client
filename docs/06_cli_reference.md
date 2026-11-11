@@ -78,7 +78,9 @@ boolean feature written through an on/off command pair prints `command` as
 `{"on": ..., "off": ...}` with both command names, and the text mode prints
 `Writable via commands: enable (on), disable (off)`. The
 command URI is not printed because it contains installation, gateway, and
-device IDs. The JSON mode does not print the command list; it selects the
+device IDs. Every document also carries `deprecation`: `null`, or for a
+feature whose API feature reports a removal notice an object with
+`removal_date` (ISO date or `null`) and `info` (the API's text or `null`). The JSON mode does not print the command list; it selects the
 same features with one feature read.
 
 In text mode, the matched features are followed by the commands their API
@@ -95,6 +97,17 @@ snapshot once after the selection:
       slope: number, min: 0.2, max: 3.5, step: 0.1
       shift: number, min: -13, max: 40, step: 1
 ```
+
+A feature whose API feature reports a removal notice prints it on its own
+line with the announced date and the API's info text:
+
+```text
+- heating.dhw.sensors.temperature.hotWaterStorage: 48.8 celsius
+  Deprecated: removal announced for 2024-09-15 (replaced by heating.dhw.sensors.temperature.dhwCylinder)
+```
+
+The CLI only shows the notice. It does not hide, block, or rename a deprecated
+feature, and `list-features` output is unchanged.
 
 ## 5. List Installation Events
 Read the complete event history an installation returns for a rolling window

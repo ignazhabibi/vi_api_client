@@ -33,6 +33,7 @@ from vi_api_client import (
     EventHistoryWindow,
     Feature,
     FeatureConstraints,
+    FeatureDeprecation,
     FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,

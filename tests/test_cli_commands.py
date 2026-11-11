@@ -7,6 +7,7 @@ import sys
 from argparse import Namespace
 from collections.abc import Iterator
 from dataclasses import replace
+from datetime import date
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,10 +18,12 @@ from builders import (
     build_gateway,
     build_installation,
     load_fixture_device,
+    load_fixture_json,
 )
 
 from vi_api_client import (
     EventHistoryWindow,
+    FeatureDeprecation,
     FeatureValue,
     FixtureViClient,
     InstallationEvent,
@@ -30,6 +33,8 @@ from vi_api_client import (
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     CLIContext,
+    _deprecation_document,
+    _deprecation_text,
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
@@ -61,6 +66,7 @@ from vi_api_client.models import (
     ParameterWriteBinding,
     ScheduleConstraints,
 )
+from vi_api_client.parsing import api_feature_to_flat_features
 
 
 def _cli_args(*argv: str) -> Namespace:
@@ -2286,3 +2292,91 @@ async def test_run_cli_set_points_a_non_setter_feature_to_exec(run_cli):
     assert "Feature 'heating.operating.programs.holiday.start' is read-only" in out
     assert "reports the commands changeEndDate, schedule, unschedule" in out
     assert "vi-client exec heating.operating.programs.holiday" in out
+
+
+def _recorded_deprecated_features(api_feature_name: str) -> list[Feature]:
+    """Parse one recorded API feature of the deprecation test responses."""
+    return next(
+        api_feature_to_flat_features(api_feature)
+        for api_feature in load_fixture_json("deprecated_features.json")
+        if api_feature["feature"] == api_feature_name
+    )
+
+
+@pytest.mark.parametrize(
+    ("api_feature_name", "expected_line"),
+    [
+        pytest.param(
+            "heating.dhw.sensors.temperature.hotWaterStorage",
+            "  Deprecated: removal announced for 2024-09-15 "
+            "(replaced by heating.dhw.sensors.temperature.dhwCylinder)",
+            id="deprecated",
+        ),
+        pytest.param("heating.dhw.sensors.temperature.dhwCylinder", None, id="regular"),
+    ],
+)
+async def test_run_cli_get_feature_prints_the_removal_notice(
+    run_cli, mock_cli_context, api_feature_name, expected_line
+):
+    """get-feature prints the removal date and info text of a deprecated feature."""
+    # Arrange: Serve one recorded API feature for the selection and the
+    # snapshot read.
+    features = _recorded_deprecated_features(api_feature_name)
+    mock_cli_context.client.get_features.return_value = features
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(*features)
+
+    # Act: Read the feature through the full CLI dispatch.
+    exit_status, out, _ = await run_cli("get-feature", api_feature_name)
+
+    # Assert: Only a deprecated feature shows the notice line, once per
+    # flat feature.
+    assert exit_status == 0
+    if expected_line is None:
+        assert "Deprecated" not in out
+    else:
+        assert out.count(expected_line) == len(features)
+
+
+@pytest.mark.parametrize(
+    ("api_feature_name", "expected_notice"),
+    [
+        pytest.param(
+            "heating.dhw.temperature.levels",
+            {"removal_date": "2027-03-31", "info": "Not used anymore"},
+            id="deprecated",
+        ),
+        pytest.param("heating.dhw.sensors.temperature.dhwCylinder", None, id="regular"),
+    ],
+)
+async def test_run_cli_get_feature_json_prints_the_removal_notice(
+    run_cli, mock_cli_context, api_feature_name, expected_notice
+):
+    """get-feature --json carries the deprecation key for every feature."""
+    # Arrange: Serve one recorded API feature for the selection.
+    features = _recorded_deprecated_features(api_feature_name)
+    mock_cli_context.client.get_features.return_value = features
+
+    # Act: Read the feature as JSON through the full CLI dispatch.
+    exit_status, out, _ = await run_cli("get-feature", "--json", api_feature_name)
+
+    # Assert: Every document carries the notice with an ISO date, or null.
+    assert exit_status == 0
+    documents = json.loads(out)
+    assert len(documents) == len(features)
+    assert [document["deprecation"] for document in documents] == [
+        expected_notice
+    ] * len(features)
+
+
+def test_removal_notice_text_handles_missing_fields():
+    """A notice without a date or info still prints one readable line."""
+    assert _deprecation_text(FeatureDeprecation(None, "Not used anymore")) == (
+        "removal announced without a date (Not used anymore)"
+    )
+    assert _deprecation_text(FeatureDeprecation(date(2027, 3, 31), None)) == (
+        "removal announced for 2027-03-31"
+    )
+    assert _deprecation_document(FeatureDeprecation(None, None)) == {
+        "removal_date": None,
+        "info": None,
+    }

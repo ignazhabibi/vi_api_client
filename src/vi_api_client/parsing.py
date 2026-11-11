@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from datetime import date
 from math import isfinite
 from typing import Any, NamedTuple, cast
 
@@ -17,6 +18,7 @@ from .models import (
     EventHistoryPage,
     Feature,
     FeatureConstraints,
+    FeatureDeprecation,
     Gateway,
     Installation,
     InstallationEvent,
@@ -123,6 +125,7 @@ class ValidatedApiFeature(NamedTuple):
     commands: dict[str, Any]
     is_enabled: bool
     is_ready: bool
+    deprecation: FeatureDeprecation | None = None
 
 
 class _CommandWrite(NamedTuple):
@@ -181,6 +184,7 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
             is_ready=entry.is_ready,
             constraints=schedule_write.constraints if schedule_write else None,
             write_binding=schedule_write.binding if schedule_write else None,
+            deprecation=entry.deprecation,
         )
         other_properties = {
             key: value for key, value in properties.items() if key != "entries"
@@ -198,6 +202,7 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
                 is_ready=entry.is_ready,
                 constraints=write.constraints if write else None,
                 write_binding=write.binding if write else None,
+                deprecation=entry.deprecation,
             )
         ]
         features.extend(
@@ -206,6 +211,7 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
                 properties=properties,
                 is_enabled=entry.is_enabled,
                 is_ready=entry.is_ready,
+                deprecation=entry.deprecation,
             )
         )
         return features
@@ -335,6 +341,7 @@ def _flat_property_features(
                 is_ready=entry.is_ready,
                 constraints=write.constraints if write else None,
                 write_binding=write.binding if write else None,
+                deprecation=entry.deprecation,
             )
         )
 
@@ -356,7 +363,7 @@ def validate_feature_entry(api_feature: dict[str, Any]) -> ValidatedApiFeature:
 
     Raises:
         ViResponseError: If the name, properties, commands, enabled and ready
-            flags, or unit violate the API contract.
+            flags, unit, or deprecation notice violate the API contract.
     """
     api_feature_name = api_feature.get("feature")
     if not isinstance(api_feature_name, str) or not api_feature_name:
@@ -388,8 +395,53 @@ def validate_feature_entry(api_feature: dict[str, Any]) -> ValidatedApiFeature:
     if unit is not None and not isinstance(unit, str):
         raise ViResponseError("Feature unit must be a string")
     return ValidatedApiFeature(
-        api_feature_name, properties, commands, is_enabled, is_ready
+        api_feature_name,
+        properties,
+        commands,
+        is_enabled,
+        is_ready,
+        _parse_deprecation(api_feature.get("deprecated")),
     )
+
+
+# The removal date of a deprecation notice: a plain calendar date.
+_ISO_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _parse_deprecation(value: object) -> FeatureDeprecation | None:
+    """Return the removal notice of one API feature, if it reports one.
+
+    The info text is passed on verbatim; the library neither reads a
+    replacement name out of it nor maps old feature names to new ones.
+
+    Raises:
+        ViResponseError: If the notice is not an object, a known field is not
+            a string, or the removal date is not an ISO calendar date.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ViResponseError("Feature deprecated must be an object")
+    # Runtime-checked container; the two known fields are validated below
+    # and unknown additional keys stay allowed.
+    notice = cast("dict[str, Any]", value)
+    removal_date_text = notice.get("removalDate")
+    info = notice.get("info")
+    if removal_date_text is not None and not isinstance(removal_date_text, str):
+        raise ViResponseError("Feature deprecated.removalDate must be a string")
+    if info is not None and not isinstance(info, str):
+        raise ViResponseError("Feature deprecated.info must be a string")
+    removal_date: date | None = None
+    if removal_date_text is not None:
+        try:
+            if not _ISO_DATE_PATTERN.fullmatch(removal_date_text):
+                raise ValueError(removal_date_text)
+            removal_date = date.fromisoformat(removal_date_text)
+        except ValueError as error:
+            raise ViResponseError(
+                "Feature deprecated.removalDate must be an ISO date (YYYY-MM-DD)"
+            ) from error
+    return FeatureDeprecation(removal_date=removal_date, info=info)
 
 
 def _validate_commands(commands: dict[str, Any]) -> None:
@@ -510,6 +562,7 @@ def _build_consumption_alias_features(
     properties: dict[str, Any],
     is_enabled: bool,
     is_ready: bool,
+    deprecation: FeatureDeprecation | None,
 ) -> list[Feature]:
     """Build synthetic currentDay and currentYear aliases for consumption metrics.
 
@@ -521,6 +574,7 @@ def _build_consumption_alias_features(
         properties: The raw properties dictionary of the feature.
         is_enabled: Whether the feature is enabled.
         is_ready: Whether the feature is ready.
+        deprecation: The removal notice of the source API feature, if any.
 
     Returns:
         List of synthetic alias features.
@@ -550,6 +604,7 @@ def _build_consumption_alias_features(
                 unit=source.get("unit"),
                 is_enabled=is_enabled,
                 is_ready=is_ready,
+                deprecation=deprecation,
             )
         )
 

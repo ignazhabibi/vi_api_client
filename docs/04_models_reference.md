@@ -11,6 +11,7 @@ from vi_api_client import (
     EventHistoryWindow,
     Feature,
     FeatureConstraints,
+    FeatureDeprecation,
     FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,
@@ -153,6 +154,7 @@ for the table and its rules.
 | `is_writable` | `bool` | `True` if the API offers a command that changes this feature. | `True` |
 | `is_settable` | `bool` | `True` if the feature is writable and available, so `set_feature` would accept it in this snapshot. | `True` |
 | `constraints` | `FeatureConstraints \| None` | Rules for writing this feature's value; every writable feature has them. | `FeatureConstraints(min=0.2)` |
+| `deprecation` | `FeatureDeprecation \| None` | Removal notice the API reports for the feature's API feature. | `FeatureDeprecation(date(2024, 9, 15), 'replaced by ...')` |
 
 ### Formatting Values
 
@@ -163,6 +165,33 @@ from vi_api_client import format_feature
 
 print(format_feature(feature))  # "25.5 celsius"
 ```
+
+## FeatureDeprecation
+
+Frozen dataclass for the removal notice the API reports for an API feature in
+its `deprecated` object. Every flat feature parsed from that API feature
+carries it as `Feature.deprecation`, including the single feature of a
+schedule or time series and the synthetic consumption aliases.
+
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `removal_date` | `datetime.date \| None` | The announced removal date, from `removalDate`. | `date(2024, 9, 15)` |
+| `info` | `str \| None` | The API's free text about the removal, verbatim. | `'replaced by heating.dhw.sensors.temperature.dhwCylinder'` |
+
+The notice is information only. The library neither acts on it nor maps
+names: a deprecated feature is read, written, and listed like any other, also
+after its removal date, no warning is logged, and the replacement name is not
+read out of `info`. Devices still report features whose removal date has
+passed, so treat the date as an announcement. The notice takes part in
+`Feature` equality and `repr`, survives `dataclasses.replace` and the
+command-updated snapshot of `set_feature`, and is not redacted because it
+carries no installation, gateway, or device identifier.
+
+When present, `deprecated` must be an object, `removalDate` an ISO calendar
+date string (`YYYY-MM-DD`), and `info` a string; a violation raises
+`ViResponseError`. A missing field becomes `None`, and unknown additional
+keys are ignored. The command flag `isDeprecated` is validated but neither
+stored nor exposed.
 
 ## FeatureConstraints
 

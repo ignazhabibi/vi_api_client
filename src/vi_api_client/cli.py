@@ -38,6 +38,7 @@ from .models import (
     EventHistoryWindow,
     Feature,
     FeatureConstraints,
+    FeatureDeprecation,
     Gateway,
     InstallationEvent,
     ScheduleConstraints,
@@ -420,6 +421,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
                         asdict(feature.constraints) if feature.constraints else None
                     ),
                     "command": _command_document(feature.write_binding),
+                    "deprecation": _deprecation_document(feature.deprecation),
                 }
                 for feature in features
             ]
@@ -436,6 +438,8 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     api_feature_sections: list[str] = []
     for feature in features:
         print(f"- {feature.name}: {format_feature(feature)}")
+        if feature.deprecation is not None:
+            print(f"  Deprecated: {_deprecation_text(feature.deprecation)}")
         binding = feature.write_binding
         if binding is not None:
             api_feature_name: str | None = binding.api_feature_name
@@ -463,6 +467,29 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         _print_command_list(snapshot, api_feature)
 
     return True
+
+
+def _deprecation_document(
+    deprecation: FeatureDeprecation | None,
+) -> dict[str, str | None] | None:
+    """Return the JSON ``deprecation`` entry of a feature's removal notice."""
+    if deprecation is None:
+        return None
+    removal_date = deprecation.removal_date
+    return {
+        "removal_date": removal_date.isoformat() if removal_date else None,
+        "info": deprecation.info,
+    }
+
+
+def _deprecation_text(deprecation: FeatureDeprecation) -> str:
+    """Return a removal notice as one line with its date and info text."""
+    removal = (
+        f"removal announced for {deprecation.removal_date.isoformat()}"
+        if deprecation.removal_date
+        else "removal announced without a date"
+    )
+    return f"{removal} ({deprecation.info})" if deprecation.info else removal
 
 
 def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
