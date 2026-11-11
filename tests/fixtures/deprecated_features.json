@@ -1,0 +1,67 @@
+[
+  {
+    "feature": "heating.dhw.sensors.temperature.dhwCylinder",
+    "isEnabled": true,
+    "isReady": true,
+    "properties": {
+      "value": {
+        "type": "number",
+        "value": 48.8,
+        "unit": "celsius"
+      },
+      "status": {
+        "type": "string",
+        "value": "connected"
+      }
+    },
+    "commands": {}
+  },
+  {
+    "feature": "heating.dhw.sensors.temperature.hotWaterStorage",
+    "isEnabled": true,
+    "isReady": true,
+    "properties": {
+      "value": {
+        "type": "number",
+        "value": 48.8,
+        "unit": "celsius"
+      },
+      "status": {
+        "type": "string",
+        "value": "connected"
+      }
+    },
+    "commands": {},
+    "deprecated": {
+      "removalDate": "2024-09-15",
+      "info": "replaced by heating.dhw.sensors.temperature.dhwCylinder"
+    }
+  },
+  {
+    "feature": "heating.dhw.temperature.levels",
+    "isEnabled": true,
+    "isReady": true,
+    "properties": {
+      "min": {
+        "type": "number",
+        "value": 10,
+        "unit": "celsius"
+      },
+      "max": {
+        "type": "number",
+        "value": 10,
+        "unit": "celsius"
+      },
+      "default": {
+        "type": "number",
+        "value": 50,
+        "unit": "celsius"
+      }
+    },
+    "commands": {},
+    "deprecated": {
+      "removalDate": "2027-03-31",
+      "info": "Not used anymore"
+    }
+  }
+]

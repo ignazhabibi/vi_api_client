@@ -5,26 +5,21 @@ from datetime import date
 from typing import Any
 
 import pytest
-from builders import build_device, load_fixture_device, load_fixture_features
+from builders import build_device, load_fixture_device, load_fixture_json
 from yarl import URL
 
-from vi_api_client import FeatureDeprecation, redact_device, redact_feature
+from vi_api_client import (
+    Feature,
+    FeatureDeprecation,
+    FixtureViClient,
+    redact_device,
+    redact_feature,
+)
 from vi_api_client.const import API_BASE_URL, ENDPOINT_FEATURES
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.parsing import api_feature_to_flat_features
 
-# Per bundled fixture: the API features that report a removal notice, and
-# how many of them have no properties. The latter produce no flat feature,
-# so their notice is not visible in the flat model.
-DEPRECATED_API_FEATURES = {
-    "Vitocal200S": (7, 5),
-    "Vitocal222S": (17, 10),
-    "Vitocal250A": (26, 6),
-    "Vitocal333G-with-Vitovent300F": (7, 2),
-    "Vitocharge03": (0, 0),
-    "Vitodens200W": (8, 5),
-    "Vitopure350": (2, 0),
-}
+FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
 _NOTICE = {"removalDate": "2024-09-15", "info": "replaced by heating.new.feature"}
 _COMMAND_URL = (
@@ -48,11 +43,22 @@ def _api_feature(deprecated: object = None, **overrides: Any) -> dict[str, Any]:
     return api_feature
 
 
-def test_deprecated_fixture_features_carry_the_notice_of_their_api_feature():
-    # Act: Parse the Vitocal250A fixture.
-    features = {
-        feature.name: feature for feature in load_fixture_features("Vitocal250A")
-    }
+def _recorded_features() -> list[Feature]:
+    """Parse the recorded API features: two deprecated ones and a replacement.
+
+    The responses are stored under ``tests/fixtures`` so these tests do not
+    depend on which notices a bundled device fixture currently reports.
+    """
+    return [
+        feature
+        for api_feature in load_fixture_json("deprecated_features.json")
+        for feature in api_feature_to_flat_features(api_feature)
+    ]
+
+
+def test_recorded_deprecated_features_carry_the_notice_of_their_api_feature():
+    # Act: Parse the recorded API features.
+    features = {feature.name: feature for feature in _recorded_features()}
 
     # Assert: Every flat feature of a deprecated API feature carries its
     # notice, and the replacement carries none.
@@ -71,40 +77,40 @@ def test_deprecated_fixture_features_carry_the_notice_of_their_api_feature():
     )
 
 
-@pytest.mark.parametrize(
-    "fixture_device",
-    sorted(DEPRECATED_API_FEATURES),
-    ids=sorted(DEPRECATED_API_FEATURES),
-)
+@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
 def test_every_fixture_notice_reaches_all_flat_features_of_its_api_feature(
     fixture_device,
 ):
-    # Arrange: Load the raw API features of one bundled fixture.
+    # Arrange: Load the raw API features of one bundled fixture. The test
+    # reads the notices from the fixture itself, so it holds for whatever a
+    # refreshed fixture reports.
     api_features = load_fixture_device(fixture_device)["data"]
 
-    # Act: Parse each API feature on its own to keep the link to its notice.
-    deprecated_count = 0
-    without_flat_features = 0
     for api_feature in api_features:
+        # Act: Parse each API feature on its own to keep the link to its notice.
         features = api_feature_to_flat_features(api_feature)
+
+        # Assert: Every flat feature carries exactly the reported notice, and
+        # a regular API feature yields none.
         notice = api_feature.get("deprecated")
-        if notice is None:
-            # Assert: A regular API feature yields no notice.
-            assert all(feature.deprecation is None for feature in features)
-            continue
-        deprecated_count += 1
-        without_flat_features += not features
-        # Assert: Every flat feature carries exactly the reported notice.
-        expected = FeatureDeprecation(
-            removal_date=date.fromisoformat(notice["removalDate"]),
-            info=notice["info"],
+        expected = (
+            None
+            if notice is None
+            else FeatureDeprecation(
+                removal_date=date.fromisoformat(notice["removalDate"]),
+                info=notice["info"],
+            )
         )
         assert all(feature.deprecation == expected for feature in features)
 
-    # Assert: The fixture reports the expected number of notices.
-    assert (deprecated_count, without_flat_features) == (
-        DEPRECATED_API_FEATURES[fixture_device]
-    )
+
+def test_deprecated_api_feature_without_properties_yields_no_flat_feature():
+    # Arrange: A disabled deprecated API feature that reports no properties,
+    # as devices do for features they no longer serve.
+    api_feature = _api_feature(_NOTICE, isEnabled=False, properties={})
+
+    # Act and assert: There is no flat feature to carry the notice.
+    assert api_feature_to_flat_features(api_feature) == []
 
 
 @pytest.mark.parametrize(
@@ -282,13 +288,9 @@ async def test_deprecated_feature_is_written_like_any_other_and_keeps_its_notice
 
 
 def test_redaction_keeps_the_notice_unchanged():
-    # Arrange: A deprecated fixture feature and its device.
-    features = load_fixture_features("Vitocal250A")
-    feature = next(
-        feature
-        for feature in features
-        if feature.name == "heating.dhw.sensors.temperature.hotWaterStorage"
-    )
+    # Arrange: The recorded features, two of them deprecated, on one device.
+    features = _recorded_features()
+    feature = next(feature for feature in features if feature.deprecation is not None)
     device = replace(build_device("7654321"), features=features)
 
     # Act: Redact the feature and the device.
