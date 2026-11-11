@@ -193,6 +193,22 @@ class Feature:
         """Return whether the feature has a command that can change it."""
         return self.control is not None
 
+    @property
+    def is_available(self) -> bool:
+        """Return whether the feature is enabled and ready on the device."""
+        return self.is_enabled and self.is_ready
+
+    @property
+    def is_settable(self) -> bool:
+        """Return whether `set_feature` would accept a write in this snapshot.
+
+        ``is_writable`` only says that the API offers a way to change the
+        value; ``is_settable`` additionally requires the feature to be
+        available. `set_feature` keeps its own checks with more specific
+        error messages.
+        """
+        return self.is_writable and self.is_available
+
 
 @dataclass(frozen=True)
 class Device:
@@ -282,16 +298,16 @@ class GatewayDeviceRefreshResult:
     """Result of refreshing devices through one gateway-scoped request.
 
     Attributes:
-        updated_devices: Devices whose enabled and ready features were refreshed.
+        refreshed_devices: Devices whose available features were refreshed.
         errors_by_device_id: Device-specific failures keyed by device ID.
     """
 
-    updated_devices: Sequence[Device]
+    refreshed_devices: Sequence[Device]
     errors_by_device_id: Mapping[str, ViError]
 
     def __post_init__(self) -> None:
         """Store caller-owned collections as immutable snapshots."""
-        object.__setattr__(self, "updated_devices", tuple(self.updated_devices))
+        object.__setattr__(self, "refreshed_devices", tuple(self.refreshed_devices))
         object.__setattr__(
             self,
             "errors_by_device_id",

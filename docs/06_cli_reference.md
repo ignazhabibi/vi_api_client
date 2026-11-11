@@ -329,8 +329,8 @@ vi-client list-features --fixture-device Vitocal250A --verbose
 ```
 
 Without the flag, the CLI logs informational messages only. With `--verbose`,
-debug output from the library workflows (feature fetches, hydration, token
-refreshes, fallback strategies) is printed as well. Library log records use the
+debug output from the library workflows (feature fetches, device refreshes,
+token refreshes, fallback strategies) is printed as well. Library log records use the
 `vi_api_client` logger namespace, so embedding applications can filter or
 configure them independently of the CLI.
 

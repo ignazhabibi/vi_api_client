@@ -106,7 +106,7 @@ capabilities. A writable feature reports `is_writable=True` and has
 `is_writable` says that the API offers a command for the feature. It stays
 `True` while the feature is disabled or not ready, so a writable feature is a
 stable capability, not a promise that a write succeeds right now. Check
-`is_enabled` and `is_ready` too before writing; `set_feature` raises
+`is_available` or `is_settable` before writing; `set_feature` raises
 `ValueError` otherwise.
 
 | Property | Type | Description | Example |
@@ -116,7 +116,9 @@ stable capability, not a promise that a write succeeds right now. Check
 | `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
+| `is_available` | `bool` | `True` if the feature is enabled and ready. | `True` |
 | `is_writable` | `bool` | `True` if the API offers a command that changes this feature. | `True` |
+| `is_settable` | `bool` | `True` if the feature is writable and available, so `set_feature` would accept it in this snapshot. | `True` |
 | `control` | `FeatureControl \| None` | Metadata for writing to this feature. | `FeatureControl(...)` |
 
 ### Formatting Values
@@ -214,8 +216,8 @@ attributes are immutable snapshots.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `updated_devices` | `Sequence[Device]` | Read-only new device instances that refreshed successfully, in their relative input order. |
-| `errors_by_device_id` | `Mapping[str, ViError]` | Read-only recognized device-specific failures keyed by device ID. Failed original devices are not included in `updated_devices`. |
+| `refreshed_devices` | `Sequence[Device]` | Read-only new device instances that refreshed successfully, in their relative input order. |
+| `errors_by_device_id` | `Mapping[str, ViError]` | Read-only recognized device-specific failures keyed by device ID. Failed original devices are not included in `refreshed_devices`. |
 | `is_complete` | `bool` | `True` when no device-specific failures occurred. |
 
 ## InstallationEvent

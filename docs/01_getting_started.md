@@ -81,18 +81,15 @@ async def main():
         print(f"Using Gateway: {gateway.serial}")
 
         # Pick the heating device (usually id="0")
-        # include_features=True ensures we get the full data immediately
-        devices = await client.get_devices(
-            installation.id,
-            gateway.serial,
-            include_features=True,
-        )
+        # refresh_device loads the features into a new device snapshot
+        devices = await client.get_devices(installation.id, gateway.serial)
 
         if not devices:
             print("No devices found.")
             return
 
         device = next((d for d in devices if d.id == "0"), devices[0])
+        device = await client.refresh_device(device)
         print(f"Using Device: {device.id} ({device.model_id})")
         print(f"Features: {len(device.features)}")
 
@@ -124,8 +121,8 @@ async def set_heating_mode(client, device):
         print("Feature not found")
         return
 
-    # 2. Check that it is writable and currently available
-    if feature.is_writable and feature.is_enabled and feature.is_ready:
+    # 2. Check that it can be set in this snapshot
+    if feature.is_settable:
         print(f"Setting mode to 'heating'...")
 
         # 3. Execute High-Level Set

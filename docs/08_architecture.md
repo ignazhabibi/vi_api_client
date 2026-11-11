@@ -341,8 +341,9 @@ domain response shape. The parser constructs models. This assigns each failure t
 boundary that can describe it correctly.
 
 Discovery proceeds through installations, gateways, devices, and features.
-`get_devices(..., include_features=True)` combines discovery and hydration;
-`get_full_installation_status()` traverses the hierarchy. These workflows are
+`get_devices()` discovers devices without features; `refresh_device()` loads
+them; `get_full_installation_status()` traverses the hierarchy and refreshes
+every device. These workflows are
 currently conservative and sequential, but exact ordering is not a public
 compatibility contract.
 
@@ -389,7 +390,7 @@ flowchart TD
     Partial --> Result
 ```
 
-`updated_devices` contains successful snapshots;
+`refreshed_devices` contains successful snapshots;
 `errors_by_device_id` contains known device-specific failures. Consumers can
 adopt successful devices while marking only affected devices unavailable.
 Authentication, rate-limit, server, and connection failures remain global.

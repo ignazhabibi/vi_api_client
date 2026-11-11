@@ -72,15 +72,15 @@ async def test_refresh_gateway_devices_refreshes_multiple_devices_with_one_reque
 
     # Assert: Both devices are refreshed in input order by one bulk request.
     assert result.is_complete
-    assert [device.id for device in result.updated_devices] == ["10", "0"]
-    assert result.updated_devices[0].model_id == "model-10"
-    supply_temperature = result.updated_devices[0].get_feature(
+    assert [device.id for device in result.refreshed_devices] == ["10", "0"]
+    assert result.refreshed_devices[0].model_id == "model-10"
+    supply_temperature = result.refreshed_devices[0].get_feature(
         "heating.sensors.temperature.supply"
     )
-    outside_temperature = result.updated_devices[1].get_feature(
+    outside_temperature = result.refreshed_devices[1].get_feature(
         "heating.sensors.temperature.outside"
     )
-    heating_curve_slope = result.updated_devices[1].get_feature(
+    heating_curve_slope = result.refreshed_devices[1].get_feature(
         "heating.circuits.0.heating.curve.slope"
     )
     assert supply_temperature is not None
@@ -133,9 +133,9 @@ async def test_refresh_gateway_devices_falls_back_only_for_omitted_devices_in_in
     }
     assert len(mock_responses.requests[("POST", URL(gateway_url))]) == 1
     assert result.is_complete
-    assert [device.id for device in result.updated_devices] == ["10", "0"]
-    assert result.updated_devices[0].model_id == "model-10"
-    assert result.updated_devices[1].features == ()
+    assert [device.id for device in result.refreshed_devices] == ["10", "0"]
+    assert result.refreshed_devices[0].model_id == "model-10"
+    assert result.refreshed_devices[1].features == ()
 
 
 async def test_refresh_gateway_devices_ignores_gateway_owned_and_unrelated_device_features(
@@ -173,7 +173,7 @@ async def test_refresh_gateway_devices_ignores_gateway_owned_and_unrelated_devic
     # Assert: Only the requested device's feature is exposed, and the bulk
     # request was enough, so no individual fallback read happened.
     assert list(mock_responses.requests) == [("POST", URL(url))]
-    assert [feature.name for feature in result.updated_devices[0].features] == [
+    assert [feature.name for feature in result.refreshed_devices[0].features] == [
         "heating.status"
     ]
 
@@ -229,8 +229,8 @@ async def test_refresh_gateway_devices_decodes_complete_device_uri_segments(
 
     # Assert: The decoded complete segment maps to the requested device.
     assert result.is_complete
-    assert result.updated_devices[0].id == "device/0"
-    heating_status = result.updated_devices[0].get_feature("heating.status")
+    assert result.refreshed_devices[0].id == "device/0"
+    heating_status = result.refreshed_devices[0].get_feature("heating.status")
     assert heating_status is not None
     assert heating_status.value == "ready"
 
@@ -240,7 +240,7 @@ async def test_refresh_gateway_devices_accepts_empty_input_without_request(vi_cl
     result = await vi_client.refresh_gateway_devices([])
 
     assert result.is_complete
-    assert result.updated_devices == ()
+    assert result.refreshed_devices == ()
     assert result.errors_by_device_id == {}
 
 
@@ -384,7 +384,7 @@ async def test_refresh_gateway_devices_captures_device_specific_fallback_errors(
 
     # Assert: Successful devices and per-device errors remain independent.
     assert not result.is_complete
-    assert [device.id for device in result.updated_devices] == ["10"]
+    assert [device.id for device in result.refreshed_devices] == ["10"]
     assert set(result.errors_by_device_id) == {"0"}
     assert result.errors_by_device_id["0"].error_type == error_type
 
@@ -774,7 +774,7 @@ async def test_get_features_applies_enabled_ready_and_name_filters_after_respons
     # Act: Ask for a specific enabled and ready feature.
     features = await vi_client.get_features(
         device,
-        only_enabled=True,
+        only_available=True,
         feature_names=["heating.circuits.0.active", "test.notReady.active"],
     )
 
@@ -814,8 +814,10 @@ async def test_get_features_matches_feature_and_api_feature_names_locally(
     url = _device_features_url(device)
     mock_responses.post(url, payload=load_fixture_device("Vitocal250A"))
 
-    # Act: Request features by one name.
-    features = await vi_client.get_features(device, feature_names=[requested_name])
+    # Act: Request features by one name, including unavailable ones.
+    features = await vi_client.get_features(
+        device, only_available=False, feature_names=[requested_name]
+    )
 
     # Assert: Matching is local, so the request carries no server-side name filter.
     assert sorted(feature.name for feature in features) == expected_names
@@ -872,13 +874,27 @@ async def test_refresh_device_rejects_malformed_feature_responses(
         await vi_client.refresh_device(device)
 
 
-async def test_get_devices_hydrates_each_device_with_its_own_features(
+async def test_get_full_installation_status_hydrates_each_device_with_its_own_features(
     vi_client, mock_responses
 ):
-    # Arrange: Discover two devices and give each its own feature response, so
-    # a device hydrated from the other's read would be detected.
+    # Arrange: Discover one gateway with two devices and give each device its
+    # own feature response, so a device hydrated from the other's read would
+    # be detected.
     devices_data = load_fixture_json("devices_heating.json")
 
+    mock_responses.get(
+        f"{API_BASE_URL}{ENDPOINT_GATEWAYS}",
+        payload={
+            "data": [
+                {
+                    "installationId": "installation-1",
+                    "serial": "gateway-1",
+                    "status": "connected",
+                    "version": "1.0.0",
+                }
+            ]
+        },
+    )
     mock_responses.get(
         _devices_url("installation-1", "gateway-1"), payload=devices_data
     )
@@ -891,10 +907,8 @@ async def test_get_devices_hydrates_each_device_with_its_own_features(
         payload=load_fixture_json("refresh_device_response.json"),
     )
 
-    # Act: Fetch devices with hydration enabled.
-    devices = await vi_client.get_devices(
-        "installation-1", "gateway-1", include_features=True
-    )
+    # Act: Scan the installation, which hydrates every discovered device.
+    devices = await vi_client.get_full_installation_status("installation-1")
 
     # Assert: Every discovered device carries the features of its own read.
     assert {
@@ -1070,33 +1084,33 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
     [
         pytest.param(
             lambda client, device: client.get_features(device),
-            False,
+            True,
             id="get-features-default",
         ),
         pytest.param(
-            lambda client, device: client.get_features(device, only_enabled=True),
-            True,
-            id="get-features-enabled",
+            lambda client, device: client.get_features(device, only_available=False),
+            False,
+            id="get-features-all",
         ),
         pytest.param(
             lambda client, device: client.refresh_device(device),
             True,
-            id="update-device-default",
+            id="refresh-device-default",
         ),
         pytest.param(
-            lambda client, device: client.refresh_device(device, only_enabled=False),
+            lambda client, device: client.refresh_device(device, only_available=False),
             False,
-            id="update-device-all",
+            id="refresh-device-all",
         ),
     ],
 )
-async def test_feature_reads_send_the_enabled_filter_hint(
+async def test_feature_reads_send_the_availability_filter_hint(
     vi_client, mock_responses, read, expected_hint: bool
 ):
     """Feature reads tell the API whether to skip disabled and not-ready features.
 
-    ``get_features`` asks for all features by default, while ``refresh_device``
-    asks the API to skip disabled and not-ready ones unless told otherwise.
+    Both public reads ask for available features by default; callers request
+    disabled or not-ready features explicitly.
     """
     # Arrange: Answer the device feature read with an empty collection.
     device = build_device("0")
@@ -1115,41 +1129,27 @@ async def test_feature_reads_send_the_enabled_filter_hint(
     }
 
 
-@pytest.mark.parametrize(
-    "only_enabled",
-    [
-        pytest.param(True, id="active-only"),
-        pytest.param(False, id="all-features"),
-    ],
-)
-async def test_get_devices_passes_the_feature_filter_to_hydration(
-    vi_client, mock_responses, only_enabled: bool
+async def test_get_devices_returns_devices_without_feature_reads(
+    vi_client, mock_responses
 ):
-    # Arrange: Discover one device and answer its feature read.
-    device = build_device("0")
+    """Device discovery reads the device list only, never features."""
+    # Arrange: Discover one device and mock no feature responses.
     devices_url = _devices_url("installation-1", "gateway-1")
-    features_url = _device_features_url(device)
 
     mock_responses.get(
         devices_url,
         payload={"data": [{"id": "0", "modelId": "m", "deviceType": "heating"}]},
     )
-    mock_responses.post(features_url, payload={"data": []})
 
-    # Act: Discover and hydrate the devices.
-    await vi_client.get_devices(
-        "installation-1",
-        "gateway-1",
-        include_features=True,
-        only_enabled=only_enabled,
-    )
+    # Act: Fetch the devices of the gateway.
+    devices = await vi_client.get_devices("installation-1", "gateway-1")
 
-    # Assert: The hydration request carries the caller's filter.
-    (request,) = mock_responses.requests[("POST", URL(features_url))]
-    assert await request.json() == {
-        "skipDisabled": only_enabled,
-        "skipNotReady": only_enabled,
-    }
+    # Assert: One discovery request answers the call, and the devices carry
+    # no features.
+    requested = [str(url) for _method, url in mock_responses.requests]
+    assert requested == [devices_url]
+    assert [device.id for device in devices] == ["0"]
+    assert devices[0].features == ()
 
 
 async def test_refresh_gateway_devices_fallback_reraises_non_device_errors(

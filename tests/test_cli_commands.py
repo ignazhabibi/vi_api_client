@@ -808,7 +808,9 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     command_device = mock_cli_context.client.set_feature.call_args.args[0]
     assert command_device.get_feature("heating.curve.slope") is slope
     assert command_device.get_feature("heating.curve.shift") is shift
-    assert mock_cli_context.client.get_features.call_args.kwargs == {}
+    assert mock_cli_context.client.get_features.call_args.kwargs == {
+        "only_available": False
+    }
 
 
 async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, capsys):
@@ -853,7 +855,7 @@ async def test_cmd_list_features_json_values_print_value_documents(
     ]
 
 
-async def test_cmd_list_features_enabled_requests_only_enabled_features(
+async def test_cmd_list_features_enabled_requests_only_available_features(
     mock_cli_context,
 ):
     """--enabled delegates the filter to the client read for the context device."""
@@ -869,7 +871,7 @@ async def test_cmd_list_features_enabled_requests_only_enabled_features(
     # Assert: The read requests the enabled filter for the context device.
     call_args = mock_cli_context.client.get_features.call_args
     assert call_args.args[0].id == "DEV1"
-    assert call_args.kwargs["only_enabled"] is True
+    assert call_args.kwargs["only_available"] is True
 
 
 async def test_cmd_list_features_values_prints_table_with_writable_marks(

@@ -185,9 +185,9 @@ async def main():
         refresh = await client.refresh_gateway_devices(devices)
         for device_id, error in refresh.errors_by_device_id.items():
             print(f"Device {device_id} could not be refreshed: {error}")
-        if not refresh.updated_devices:
+        if not refresh.refreshed_devices:
             return
-        device = refresh.updated_devices[0]
+        device = refresh.refreshed_devices[0]
         print(f"Device: {device.model_id} ({device.status})")
 
         # 3. Iterate Features (Flat List)

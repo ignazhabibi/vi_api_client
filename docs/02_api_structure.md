@@ -125,7 +125,7 @@ The library handles the "magic" of mapping your simple `1.6` value back to the c
 ## 6. Gateway-Scoped Device Refresh
 
 When several known devices belong to the same installation and gateway,
-`refresh_gateway_devices(devices)` refreshes their enabled and ready features
+`refresh_gateway_devices(devices)` refreshes their available features
 with one gateway-scoped bulk feature fetch in the normal case. Returned feature
 URIs are matched to complete, URL-decoded device-ID path segments. Gateway-owned
 features and features for devices outside the requested set are not added to a

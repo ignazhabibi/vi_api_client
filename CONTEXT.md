@@ -6,7 +6,7 @@ their feature data within the client library.
 ## Language
 
 **Gateway-scoped device refresh**:
-A coordinated refresh of the enabled and ready features of known devices
+A coordinated refresh of the available features of known devices
 belonging to one gateway.
 _Avoid_: Gateway service, gateway feature snapshot
 
@@ -24,6 +24,17 @@ _Avoid_: Gateway feature fetch
 A device feature that is both enabled by the device configuration and ready for
 interaction at the time it is retrieved.
 _Avoid_: Active feature
+
+**Available feature**:
+A device feature that is enabled and ready, reported by `Feature.is_available`.
+Reads default to available features; callers request disabled or not-ready
+features explicitly.
+_Avoid_: Active feature
+
+**Settable feature**:
+A writable, available feature, reported by `Feature.is_settable`: `set_feature`
+would accept it in this snapshot.
+_Avoid_: Enabled-for-write
 
 **Device snapshot**:
 The immutable representation of a device and the features known when that

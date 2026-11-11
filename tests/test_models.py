@@ -28,6 +28,50 @@ def test_feature_without_control_is_read_only():
     assert feature.is_writable is False
 
 
+@pytest.mark.parametrize(
+    ("is_enabled", "is_ready", "has_control", "expect_available", "expect_settable"),
+    [
+        pytest.param(False, False, False, False, False, id="disabled-not-ready"),
+        pytest.param(False, True, False, False, False, id="disabled-ready"),
+        pytest.param(True, False, False, False, False, id="enabled-not-ready"),
+        pytest.param(True, True, False, True, False, id="enabled-ready-readonly"),
+        pytest.param(False, False, True, False, False, id="writable-unavailable"),
+        pytest.param(False, True, True, False, False, id="writable-disabled"),
+        pytest.param(True, False, True, False, False, id="writable-not-ready"),
+        pytest.param(True, True, True, True, True, id="writable-available"),
+    ],
+)
+def test_feature_reports_availability_and_settability(
+    is_enabled: bool,
+    is_ready: bool,
+    has_control: bool,
+    expect_available: bool,
+    expect_settable: bool,
+):
+    """Availability needs enabled and ready; settability adds writability."""
+    # Arrange: Build one feature for every flag combination.
+    feature = Feature(
+        name="test.feature",
+        value=1,
+        unit=None,
+        is_enabled=is_enabled,
+        is_ready=is_ready,
+        control=FeatureControl(
+            command_name="setValue",
+            parameter_name="value",
+            required_parameters=[],
+            parent_feature_name="test.api.feature",
+            uri="/features/test.api.feature/commands/setValue",
+        )
+        if has_control
+        else None,
+    )
+
+    # Assert: The derived flags compose the input flags exactly.
+    assert feature.is_available is expect_available
+    assert feature.is_settable is expect_settable
+
+
 def test_feature_value_is_not_recursively_frozen():
     """Feature values keep the caller's JSON objects instead of frozen copies."""
     # Arrange: Create a feature with a caller-owned arbitrary payload.
@@ -126,7 +170,7 @@ def test_other_model_collections_are_immutable_snapshots():
     # Assert: Each public collection is an immutable defensive copy.
     assert control.required_parameters == ("target",)
     assert control.options == ("eco",)
-    assert result.updated_devices == ()
+    assert result.refreshed_devices == ()
     assert list(result.errors_by_device_id) == ["device-1"]
     assert installation.address == {"city": "Berlin"}
     for collection in (result.errors_by_device_id, installation.address):
@@ -174,10 +218,10 @@ def test_gateway_device_refresh_result_reports_completeness():
 
     # Act: Build complete and partial gateway device refresh results.
     complete_result = GatewayDeviceRefreshResult(
-        updated_devices=[refreshed_device], errors_by_device_id={}
+        refreshed_devices=[refreshed_device], errors_by_device_id={}
     )
     partial_result = GatewayDeviceRefreshResult(
-        updated_devices=[refreshed_device],
+        refreshed_devices=[refreshed_device],
         errors_by_device_id={"device-1": error},
     )
 

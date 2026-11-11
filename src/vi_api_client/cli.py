@@ -345,7 +345,9 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
-        features = await context.client.get_features(device, only_enabled=args.enabled)
+        features = await context.client.get_features(
+            device, only_available=args.enabled
+        )
 
     if args.json and args.values:
         _print_json(
@@ -393,7 +395,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
-            device, feature_names=[feature_name]
+            device, only_available=False, feature_names=[feature_name]
         )
     if not features:
         print(f"Feature '{feature_name}' not found.")
@@ -592,7 +594,8 @@ async def _fetch_writable_feature(
     read-only.
     """
     device = _transient_device(context)
-    features = await context.client.get_features(device)
+    # The CLI resolves writability itself, so unavailable features are shown.
+    features = await context.client.get_features(device, only_available=False)
     device_snapshot = replace(device, features=features)
     feature = device_snapshot.get_feature(name)
     if feature is None:
@@ -645,7 +648,8 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
-        features = await context.client.get_features(device)
+        # The CLI resolves writability itself, so unavailable features are shown.
+        features = await context.client.get_features(device, only_available=False)
 
     writable_features = [
         (feature, feature.control)
