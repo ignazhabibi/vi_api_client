@@ -21,7 +21,9 @@ from .const import (
 )
 from .exceptions import (
     ViAuthError,
+    ViCommandRejectedError,
     ViConnectionError,
+    ViDeviceCommunicationError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -141,7 +143,7 @@ class LiveAdapter:
         self, uri: str, parameters: dict[str, JsonValue]
     ) -> object:
         """Return the raw command API response."""
-        return await self._request("POST", uri, json=parameters)
+        return await self._request("POST", uri, json=parameters, is_command=True)
 
     async def _request(
         self,
@@ -150,6 +152,7 @@ class LiveAdapter:
         *,
         params: Mapping[str, int | str] | None = None,
         json: Mapping[str, object] | None = None,
+        is_command: bool = False,
     ) -> object:
         """Return the decoded JSON body of a successful response.
 
@@ -165,7 +168,7 @@ class LiveAdapter:
         async with await self._auth.request(
             method, full_url, params=params, json=json
         ) as response:
-            await _raise_for_status(response)
+            await _raise_for_status(response, is_command=is_command)
             try:
                 return await response.json()
             except _BODY_READ_ERRORS as error:
@@ -193,10 +196,16 @@ def _api_url(url: str) -> str:
     return full_url
 
 
-async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
+async def _raise_for_status(
+    response: aiohttp.ClientResponse, *, is_command: bool = False
+) -> None:
     """Raise the matching library error for an unsuccessful API response.
 
-    The HTTP status decides the exception class. The JSON error body only
+    The API's ``errorType`` decides the class before the HTTP status does:
+    an unreachable device is not a caller mistake, so every response
+    classified as ``DEVICE_COMMUNICATION_ERROR`` raises
+    ``ViDeviceCommunicationError`` whatever its status. For other error
+    types the HTTP status selects the class; the JSON error body only
     enriches it, so a missing or non-JSON body (such as a proxy error page)
     falls back to HTTP-level defaults instead of masking the status.
 
@@ -206,6 +215,11 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         ViRateLimitError: For 429, with parsed Retry-After guidance.
         ViValidationError: For 400 and 422, with validated details.
         ViServerInternalError: For 5xx.
+        ViDeviceCommunicationError: For every ``DEVICE_COMMUNICATION_ERROR``
+            error type, whatever the status.
+        ViCommandRejectedError: For a command request answered with
+            ``DEVICE_COMMUNICATION_ERROR`` and the rejection reason
+            ``COMMAND_NOT_EXECUTABLE``.
         ViError: For any other unsuccessful status.
     """
     status = response.status
@@ -216,6 +230,10 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     vi_error_id: str | None = None
     error_type: str | None = None
     validation_details: list[ValidationDetail] = []
+    # The API documents extendedPayload as debugging information; the
+    # rejection reason is the only field read for logic, and only on
+    # command requests. Its text is appended to other error messages.
+    rejection_reason: str | None = None
     try:
         data = await response.json()
     except TimeoutError, aiohttp.ClientError, ValueError:
@@ -227,11 +245,14 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         vi_error_id = _text_or_none(error_body.get("viErrorId"))
         error_type = _text_or_none(error_body.get("errorType"))
         message = _text_or_none(error_body.get("message"))
-        if message is not None:
+        # An empty message, like the gateway-offline body's, keeps the
+        # HTTP-level default so the text still names what happened.
+        if message:
             error_message = message
         validation_details = _parse_validation_details(
             error_body.get("validationErrors")
         )
+        rejection_reason = _extended_payload_reason(error_body.get("extendedPayload"))
 
     # The raised library exception carries all error details, so the log
     # stays at debug level to avoid double-reporting normal control flow.
@@ -242,30 +263,75 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
         error_message,
         vi_error_id,
     )
+    if (
+        is_command
+        and error_type == "DEVICE_COMMUNICATION_ERROR"
+        and rejection_reason == "COMMAND_NOT_EXECUTABLE"
+    ):
+        raise ViCommandRejectedError(
+            error_message, rejection_reason, vi_error_id, error_type
+        )
+    if error_type == "DEVICE_COMMUNICATION_ERROR":
+        raise ViDeviceCommunicationError(
+            _with_reason(error_message, rejection_reason), vi_error_id, error_type
+        )
     if status in (401, 403):
         description = "Unauthorized" if status == 401 else "Forbidden"
-        raise ViAuthError(f"{description}: {error_message}", vi_error_id, error_type)
+        raise ViAuthError(
+            _with_reason(f"{description}: {error_message}", rejection_reason),
+            vi_error_id,
+            error_type,
+        )
     if status == 404:
-        raise ViNotFoundError(f"Not Found: {error_message}", vi_error_id, error_type)
+        raise ViNotFoundError(
+            _with_reason(f"Not Found: {error_message}", rejection_reason),
+            vi_error_id,
+            error_type,
+        )
     if status == 429:
         raise ViRateLimitError(
-            "Rate Limit Exceeded",
+            _with_reason("Rate Limit Exceeded", rejection_reason),
             vi_error_id,
             error_type,
             retry_after=_parse_retry_after(response.headers.get("Retry-After")),
         )
-    # Vi reports unreachable devices as 400 DEVICE_COMMUNICATION_ERROR;
-    # ViClient.refresh_gateway_devices relies on this mapping for its
-    # per-device fallback.
     if status in (400, 422):
         raise ViValidationError(
-            error_message, vi_error_id, validation_details, error_type
+            _with_reason(error_message, rejection_reason),
+            vi_error_id,
+            validation_details,
+            error_type,
         )
     if status >= 500:
         raise ViServerInternalError(
-            f"Server Error {status}: {error_message}", vi_error_id, error_type
+            _with_reason(f"Server Error {status}: {error_message}", rejection_reason),
+            vi_error_id,
+            error_type,
         )
-    raise ViError(f"Unknown Error {status}: {error_message}", vi_error_id, error_type)
+    raise ViError(
+        _with_reason(f"Unknown Error {status}: {error_message}", rejection_reason),
+        vi_error_id,
+        error_type,
+    )
+
+
+def _with_reason(message: str, reason: str | None) -> str:
+    """Return the error message with a reported `extendedPayload.reason`."""
+    return f"{message} (reason: {reason})" if reason else message
+
+
+def _extended_payload_reason(value: object) -> str | None:
+    """Return the only `extendedPayload` field the library reads.
+
+    A missing or non-object ``extendedPayload`` degrades to no reason, so
+    the response keeps the error class its error type and status suggest.
+    """
+    if isinstance(value, dict):
+        # Runtime-checked container; an unknown extendedPayload shape is
+        # ignored rather than validated, because it is debugging data.
+        payload = cast("dict[str, Any]", value)
+        return _text_or_none(payload.get("reason"))
+    return None
 
 
 def _text_or_none(value: object) -> str | None:

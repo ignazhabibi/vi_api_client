@@ -275,21 +275,6 @@ class GatewayDeviceRefreshResult:
 
 
 @dataclass(frozen=True)
-class CommandResponse:
-    """Response from a command execution.
-
-    Attributes:
-        success: Whether the command was accepted by the API.
-        message: Optional success/error message.
-        reason: Optional failure reason/code.
-    """
-
-    success: bool
-    message: str | None = None
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
 class Installation:
     """Representation of an installation.
 

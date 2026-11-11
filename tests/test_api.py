@@ -1,5 +1,6 @@
 """Tests for the ViClient public workflows (Flat Architecture)."""
 
+import re
 from copy import deepcopy
 from dataclasses import replace
 
@@ -16,7 +17,9 @@ from vi_api_client.const import (
 )
 from vi_api_client.exceptions import (
     ViAuthError,
+    ViCommandRejectedError,
     ViConnectionError,
+    ViDeviceCommunicationError,
     ViRateLimitError,
     ViResponseError,
     ViServerInternalError,
@@ -29,6 +32,12 @@ from vi_api_client.models import Device
 CURVE_COMMAND_URL = (
     f"{API_BASE_URL}{ENDPOINT_FEATURES}/123/gateways/GW123/devices/0/"
     "features/heating.circuits.0.heating.curve/commands/setCurve"
+)
+
+# The holiday fixture names its commands by these absolute URIs.
+HOLIDAY_COMMAND_URL = (
+    f"{API_BASE_URL}{ENDPOINT_FEATURES}/123/gateways/GW123/devices/0/"
+    "features/heating.operating.programs.holiday/commands/{command_name}"
 )
 
 
@@ -442,6 +451,36 @@ async def test_refresh_gateway_devices_propagates_global_gateway_errors(
     # Act and assert: Global failures abort the entire refresh.
     with pytest.raises(expected_error, match=message):
         await vi_client.refresh_gateway_devices([device])
+
+
+async def test_refresh_gateway_devices_falls_back_for_communication_errors_of_any_status(
+    vi_client, mock_responses
+):
+    # Arrange: Answer the gateway read with a 502 device communication error
+    # and serve the device through its individual read.
+    device = build_device("0")
+
+    mock_responses.post(
+        _gateway_features_url(device),
+        status=502,
+        payload={
+            "message": "Device communication error",
+            "errorType": "DEVICE_COMMUNICATION_ERROR",
+            "extendedPayload": {"reason": "GATEWAY_OFFLINE"},
+        },
+    )
+    mock_responses.post(
+        _device_features_url(device),
+        payload=load_fixture_json("refresh_device_response.json"),
+    )
+
+    # Act: Refresh through the public gateway operation.
+    result = await vi_client.refresh_gateway_devices([device])
+
+    # Assert: The error type, whatever its status, triggers the per-device
+    # fallback, which finds the responsive device behind the outage.
+    assert result.is_complete
+    assert [refreshed.id for refreshed in result.refreshed_devices] == ["0"]
 
 
 async def test_refresh_gateway_devices_propagates_connection_errors(vi_client):
@@ -935,10 +974,9 @@ async def test_set_feature_sends_the_current_value_of_a_required_sibling(
     assert slope_feature is not None
 
     # Act: Set only the slope.
-    response, _updated_device = await vi_client.set_feature(device, slope_feature, 1.2)
+    await vi_client.set_feature(device, slope_feature, 1.2)
 
     # Assert: The command also carries the fixture's current shift of 4.
-    assert response.success
     (request,) = mock_responses.requests[("POST", URL(CURVE_COMMAND_URL))]
     assert await request.json() == {"slope": 1.2, "shift": 4}
 
@@ -953,72 +991,237 @@ async def test_set_feature_returns_a_new_device_with_the_written_value(
         _device_features_url(device),
         payload={"data": load_fixture_json("feature_heating_curve.json")},
     )
-    mock_responses.post(CURVE_COMMAND_URL, payload={"data": {"success": True}})
+    mock_responses.post(
+        CURVE_COMMAND_URL,
+        payload={"data": {"success": True}},
+        repeat=True,
+    )
     device = replace(device, features=await vi_client.get_features(device))
     slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
     assert slope_feature is not None
 
-    # Act: Set the slope to a new value.
-    response, updated_device = await vi_client.set_feature(device, slope_feature, 0.7)
-
-    # Assert: The returned device has the new slope, while the input snapshot
-    # keeps its value because devices are never mutated in place.
-    assert response.success
-    assert updated_device is not device
-    updated_slope_feature = updated_device.get_feature(
-        "heating.circuits.0.heating.curve.slope"
+    # Act: Set the slope to a new value, addressed by feature and by name.
+    named_device = await vi_client.set_feature(device, slope_feature, 0.7)
+    by_name_device = await vi_client.set_feature(
+        device, "heating.circuits.0.heating.curve.slope", 0.7
     )
-    assert updated_slope_feature is not None
-    assert updated_slope_feature.value == 0.7
+
+    # Assert: Both argument forms return the new slope, while the input
+    # snapshot keeps its value because devices are never mutated in place.
+    for updated_device in (named_device, by_name_device):
+        assert updated_device is not device
+        updated_slope_feature = updated_device.get_feature(
+            "heating.circuits.0.heating.curve.slope"
+        )
+        assert updated_slope_feature is not None
+        assert updated_slope_feature.value == 0.7
     input_slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
     assert input_slope_feature is not None
     assert input_slope_feature.value == 0.6
 
 
-async def test_execute_command_preserves_explicit_parameters(vi_client, mock_responses):
-    # Arrange: Read a writable feature and accept its command.
+async def test_run_command_sends_a_command_without_parameters(
+    vi_client, mock_responses
+):
+    # Arrange: Refresh the holiday API feature, whose unschedule command
+    # reports no parameters.
     device = build_device("0")
-    parameters: dict[str, JsonValue] = {"slope": 0.7, "shift": 7.0}
+    unschedule_url = HOLIDAY_COMMAND_URL.format(command_name="unschedule")
+    schedule_url = HOLIDAY_COMMAND_URL.format(command_name="changeEndDate")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("holiday_program.json")},
+    )
+    mock_responses.post(unschedule_url, payload={"data": {"success": True}})
+    device = await vi_client.refresh_device(device)
+
+    # Act: Run the parameter-less command through the public operation.
+    await vi_client.run_command(
+        device, "heating.operating.programs.holiday", "unschedule"
+    )
+
+    # Assert: The command reached its reported URI with an empty payload.
+    assert schedule_url != unschedule_url
+    (request,) = mock_responses.requests[("POST", URL(unschedule_url))]
+    assert await request.json() == {}
+
+
+async def test_run_command_sends_a_multi_parameter_command(vi_client, mock_responses):
+    # Arrange: Refresh the heating curve, whose setCurve requires slope and
+    # shift.
+    device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
         payload={"data": load_fixture_json("feature_heating_curve.json")},
     )
     mock_responses.post(CURVE_COMMAND_URL, payload={"data": {"success": True}})
-    device = replace(device, features=await vi_client.get_features(device))
-    slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
-    assert slope_feature is not None
+    device = await vi_client.refresh_device(device)
 
-    # Act: Submit the caller's complete parameter set.
-    response = await vi_client.execute_command(slope_feature, parameters)
+    # Act: Submit both parameters explicitly.
+    await vi_client.run_command(
+        device,
+        "heating.circuits.0.heating.curve",
+        "setCurve",
+        {"slope": 1.2, "shift": 7.0},
+    )
 
-    # Assert: The adapter sends the supplied parameters unchanged.
-    assert response.success
+    # Assert: The supplied parameters reach the reported command URI.
     (request,) = mock_responses.requests[("POST", URL(CURVE_COMMAND_URL))]
-    assert await request.json() == parameters
+    assert await request.json() == {"slope": 1.2, "shift": 7.0}
 
 
-async def test_execute_command_rejects_malformed_success_response(
+async def test_run_command_sends_a_command_reported_as_not_executable(
     vi_client, mock_responses
 ):
-    # Arrange: Return a valid JSON value that violates the command response contract.
+    # Arrange: Refresh the holiday API feature, which reports changeEndDate
+    # as not currently executable.
+    device = build_device("0")
+    change_end_url = HOLIDAY_COMMAND_URL.format(command_name="changeEndDate")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("holiday_program.json")},
+    )
+    mock_responses.post(change_end_url, payload={"data": {"success": True}})
+    device = await vi_client.refresh_device(device)
+
+    # Act: Run the reported command the device marked non-executable.
+    await vi_client.run_command(
+        device,
+        "heating.operating.programs.holiday",
+        "changeEndDate",
+        {"end": "2026-12-24"},
+    )
+
+    # Assert: The library never gates on the executability report, and the
+    # API decides.
+    assert change_end_url in {
+        str(request_url) for (_, request_url) in mock_responses.requests
+    }
+
+
+@pytest.mark.parametrize(
+    ("feature_name", "command_name", "parameters", "error"),
+    [
+        pytest.param(
+            "heating.operating.programs.summer",
+            "unschedule",
+            None,
+            "API feature 'heating.operating.programs.summer' reports no commands",
+            id="unknown-api-feature",
+        ),
+        pytest.param(
+            "heating.operating.programs.holiday.week",
+            "unschedule",
+            None,
+            "API features with commands: heating.operating.programs.holiday",
+            id="flat-feature-name-points-to-its-api-feature",
+        ),
+        pytest.param(
+            "heating.operating.programs.holiday",
+            "unwind",
+            None,
+            "available commands: changeEndDate, schedule, unschedule",
+            id="unknown-command",
+        ),
+        pytest.param(
+            "heating.operating.programs.holiday",
+            "schedule",
+            {"start": "2026-12-23", "cancel": "yes"},
+            "does not report parameter 'cancel'",
+            id="unknown-parameter",
+        ),
+        pytest.param(
+            "heating.operating.programs.holiday",
+            "schedule",
+            {"start": "2026-12-23"},
+            "is missing required parameter 'end'",
+            id="missing-required-parameter",
+        ),
+        pytest.param(
+            "heating.operating.programs.holiday",
+            "schedule",
+            {"start": "2026-12-23", "end": "24.12.2026"},
+            "does not match pattern",
+            id="constraint-violation",
+        ),
+    ],
+)
+async def test_run_command_rejects_invalid_names_and_values_without_a_request(
+    vi_client,
+    mock_responses,
+    feature_name: str,
+    command_name: str,
+    parameters: dict[str, JsonValue] | None,
+    error: str,
+):
+    # Arrange: Refresh the holiday API feature; no command mock is registered
+    # because none of these runs may send a request.
     device = build_device("0")
 
     mock_responses.post(
         _device_features_url(device),
-        payload={"data": load_fixture_json("feature_heating_curve.json")},
+        payload={"data": load_fixture_json("holiday_program.json")},
     )
-    mock_responses.post(CURVE_COMMAND_URL, payload=["unexpected"])
+    device = await vi_client.refresh_device(device)
+
+    # Act and assert: Every invalid run rejects locally without a request.
+    with pytest.raises(ValueError, match=re.escape(error)):
+        await vi_client.run_command(device, feature_name, command_name, parameters)
+    assert mock_responses.requests.keys() == {
+        ("POST", URL(_device_features_url(device)))
+    }
+
+
+async def test_run_command_requires_a_refreshed_device_snapshot(
+    vi_client, mock_responses
+):
+    # Arrange: Assemble a device snapshot from a plain feature read; it
+    # carries no command list.
+    device = build_device("0")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("holiday_program.json")},
+    )
     device = replace(device, features=await vi_client.get_features(device))
-    slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
-    assert slope_feature is not None
+
+    # Act and assert: The snapshot explains how to obtain commands.
+    with pytest.raises(ValueError, match="has no commands"):
+        await vi_client.run_command(
+            device, "heating.operating.programs.holiday", "unschedule"
+        )
+    assert mock_responses.requests.keys() == {
+        ("POST", URL(_device_features_url(device)))
+    }
+
+
+async def test_run_command_rejects_malformed_success_response(
+    vi_client, mock_responses
+):
+    # Arrange: Return a valid JSON value that violates the command response
+    # contract.
+    device = build_device("0")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("holiday_program.json")},
+    )
+    mock_responses.post(
+        HOLIDAY_COMMAND_URL.format(command_name="unschedule"), payload=["unexpected"]
+    )
+    device = await vi_client.refresh_device(device)
 
     # Act and assert: The public client exposes a library exception.
     with pytest.raises(ViResponseError, match="Command response must be an object"):
-        await vi_client.execute_command(slope_feature, {"slope": 0.7, "shift": 4})
+        await vi_client.run_command(
+            device, "heating.operating.programs.holiday", "unschedule"
+        )
 
 
-async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_write(
+async def test_set_feature_raises_when_the_api_rejects_the_write(
     vi_client, mock_responses
 ):
     # Arrange: Read the curve and let the API reject the command.
@@ -1036,19 +1239,122 @@ async def test_set_feature_returns_the_original_device_when_the_api_rejects_the_
     slope_feature = device.get_feature("heating.circuits.0.heating.curve.slope")
     assert slope_feature is not None
 
-    # Act: Try to set a value the API then rejects.
-    response, updated_device = await vi_client.set_feature(device, slope_feature, 0.7)
+    # Act and assert: The rejection raises and no snapshot is created.
+    with pytest.raises(ViCommandRejectedError) as raised_error:
+        await vi_client.set_feature(device, slope_feature, 0.7)
+    assert raised_error.value.reason == "Device unavailable"
+    slope_after = device.get_feature("heating.circuits.0.heating.curve.slope")
+    assert slope_after is not None
+    assert slope_after.value == 0.6
 
-    # Assert: The rejection reason is exposed and no new snapshot is created.
-    assert not response.success
-    assert response.reason == "Device unavailable"
-    assert updated_device is device
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        pytest.param(
+            lambda client, device, feature: client.set_feature(device, feature, 0.7),
+            id="set-feature",
+        ),
+        pytest.param(
+            lambda client, device, _feature: client.run_command(
+                device,
+                "heating.circuits.0.heating.curve",
+                "setCurve",
+                {"slope": 0.7, "shift": 4},
+            ),
+            id="run-command",
+        ),
+    ],
+)
+async def test_writes_report_non_executable_commands_as_rejections(
+    vi_client, mock_responses, write
+):
+    # Arrange: Read the curve and answer the command with the recorded
+    # response of a non-executable command.
+    device = build_device("0")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("feature_heating_curve.json")},
+    )
+    mock_responses.post(
+        CURVE_COMMAND_URL,
+        payload=load_fixture_json("command_not_executable_response.json"),
+        status=400,
+    )
+    refreshed = await vi_client.refresh_device(device)
+    slope_feature = refreshed.get_feature("heating.circuits.0.heating.curve.slope")
+    assert slope_feature is not None
+
+    # Act and assert: Both write operations surface the one rejection.
+    with pytest.raises(ViCommandRejectedError) as raised_error:
+        await write(vi_client, refreshed, slope_feature)
+    error = raised_error.value
+    assert error.reason == "COMMAND_NOT_EXECUTABLE"
+    assert error.message == "Device communication error"
+    assert error.error_type == "DEVICE_COMMUNICATION_ERROR"
+
+
+async def test_run_command_raises_when_the_api_rejects_the_run(
+    vi_client, mock_responses
+):
+    # Arrange: Refresh the curve and have the API answer the command with a
+    # rejected command response.
+    device = build_device("0")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload={"data": load_fixture_json("feature_heating_curve.json")},
+    )
+    mock_responses.post(
+        CURVE_COMMAND_URL,
+        payload={
+            "data": {"success": False, "message": "Not applicable", "reason": "OFF"}
+        },
+    )
+    device = await vi_client.refresh_device(device)
+
+    # Act and assert: The rejection carries the response's details.
+    with pytest.raises(ViCommandRejectedError) as raised_error:
+        await vi_client.run_command(
+            device,
+            "heating.circuits.0.heating.curve",
+            "setCurve",
+            {"slope": 0.7, "shift": 4},
+        )
+    assert raised_error.value.message == "Not applicable"
+    assert raised_error.value.reason == "OFF"
+
+
+@pytest.mark.parametrize(
+    "status", [pytest.param(400, id="bad-request"), pytest.param(502, id="bad-gateway")]
+)
+async def test_device_reads_report_communication_errors_for_any_status(
+    vi_client, mock_responses, status: int
+):
+    # Arrange: Answer a device refresh with the recorded offline-device body.
+    device = build_device("0")
+
+    mock_responses.post(
+        _device_features_url(device),
+        payload=load_fixture_json("device_offline_error.json"),
+        status=status,
+    )
+
+    # Act: Refresh the device while it is unreachable.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await vi_client.refresh_device(device)
+
+    # Assert: The documented error type decides the class and keeps its data.
+    assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
+    assert "(reason: DEVICE_OFFLINE)" in str(raised_error.value)
 
 
 async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
     vi_client, mock_responses
 ):
-    # Arrange: Read the curve with slope 0.6 and shift 4, and accept every write.
+    # Arrange: Read the curve with slope 0.6 and shift 4, and accept every
+    # write.
     device = build_device("0")
 
     mock_responses.post(
@@ -1066,13 +1372,11 @@ async def test_set_feature_sends_the_optimistic_value_of_a_previous_write(
 
     # Act: Write the slope, then the shift on the device the first write
     # returned, without re-reading the features in between.
-    slope_response, device = await vi_client.set_feature(device, slope_feature, 0.7)
-    shift_response, device = await vi_client.set_feature(device, shift_feature, 7.0)
+    device = await vi_client.set_feature(device, slope_feature, 0.7)
+    device = await vi_client.set_feature(device, shift_feature, 7.0)
 
-    # Assert: The second command carries the slope of the first write, not the
-    # 0.6 originally read.
-    assert slope_response.success
-    assert shift_response.success
+    # Assert: The second command carries the slope of the first write, not
+    # the 0.6 originally read.
     _slope_request, shift_request = mock_responses.requests[
         ("POST", URL(CURVE_COMMAND_URL))
     ]

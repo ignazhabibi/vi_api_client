@@ -19,8 +19,9 @@ from vi_api_client import ViClient
 `ViClient` exposes typed discovery, refresh, and write operations rather than a
 generic HTTP interface. Use `set_feature(device, feature, value)` for a safe
 single-feature write with dependency resolution, or
-`execute_command(feature, parameters)` when the complete command payload is
-already known.
+`run_command(device, feature_name, command_name, parameters)` for any command
+an API feature reports. Both operations report a rejected command through
+`ViCommandRejectedError`, so success always means that no exception was raised.
 
 An application that supplies `OAuth(websession=session)` owns and closes that
 session. An `AbstractAuth` provider closes only a session it created itself.
@@ -245,33 +246,39 @@ for device_id, error in result.errors_by_device_id.items():
 `get_full_installation_status` use their single-device request and error
 semantics rather than this gateway-scoped partial-result contract.
 
-### `set_feature(device: Device, feature: Feature, target_value: FeatureValue) -> tuple[CommandResponse, Device]`
+### `set_feature(device: Device, feature: Feature | str, target_value: FeatureValue) -> Device`
 Sends a feature command for the feature with the same name in the supplied
-current device snapshot and returns a command-updated device snapshot after a
-successful command response, without an API read-back.
+current device snapshot and returns a command-updated device snapshot, without
+an API read-back.
 
 *   **Parameters**:
     *   `device`: The `Device` object.
-    *   `feature`: A `Feature` whose name is present in `device`; the current
-        device feature must be writable, enabled, and ready.
+    *   `feature`: A `Feature` or a feature name present in `device`; the
+        current device feature must be writable, enabled, and ready. A supplied
+        `Feature` is only a name reference: stale values and constraints from
+        the object are ignored.
     *   `target_value`: The new value to set; any `JsonValue` (null, boolean,
         number, string, list, or string-keyed object).
-*   **Returns**: Tuple of `(CommandResponse, Device)`:
-    *   `CommandResponse`: Object with `success`, `message`, and `reason` fields.
-    *   `Device`: Command-updated device snapshot with the feature value set
-        locally on success, or the original snapshot on failure.
+*   **Returns**: The command-updated `Device` snapshot with the feature value
+    set locally. A rejected command raises `ViCommandRejectedError`, so the
+    caller keeps its previous snapshot.
 *   **Raises**:
     *   `ValueError` if the feature is absent from the device, unavailable,
         missing a required enabled and ready sibling value, has a different
         type than the command parameter reports (`number`, `integer`,
         `string`, or `boolean`; a boolean never counts as a number), violates
-        client-side constraints, or a command parameter value is not a JSON
-        value.
-    *   `ViValidationError` if the API rejects the generated command payload.
+        client-side constraints, or the value is not a JSON value. These
+        raise before any request is sent.
+    *   `ViCommandRejectedError` if the API rejects the command: a command
+        response with `success` false, or the recorded status 400
+        `DEVICE_COMMUNICATION_ERROR` rejection with
+        `extendedPayload.reason` `COMMAND_NOT_EXECUTABLE`.
     *   `ViResponseError` if the command URI is outside the Vi API or the
         successful command response violates the API contract; no request is
         sent to a URI outside the Vi API.
     *   `ViConnectionError` if the API call fails.
+    *   Other `ViError` subclasses for authentication, rate-limit, server, or
+        device communication failures.
 *   **Magic**: This method uses the current device feature's command metadata,
     always includes its target parameter, and resolves each other required
     parameter from an enabled, ready sibling feature with a non-`None` value.
@@ -283,34 +290,48 @@ successful command response, without an API read-back.
 **Example**:
 ```python
 # Set heating curve slope
-response, device = await client.set_feature(device, slope_feature, 0.7)
-if response.success:
-    # Use updated device for next operation
-    response, device = await client.set_feature(device, shift_feature, 7.0)
+device = await client.set_feature(device, slope_feature, 0.7)
+# Use the same updated snapshot for the next operation
+device = await client.set_feature(device, shift_feature, 7.0)
 ```
 
-### `execute_command(feature: Feature, parameters: dict[str, JsonValue]) -> CommandResponse`
+### `run_command(device: Device, feature_name: str, command_name: str, parameters: dict[str, JsonValue] | None = None) -> None`
 
-Executes an explicit command parameter set for a writable feature. Unlike
-`set_feature`, this operation does not resolve dependencies, validate against
-the feature's single-value constraints, or update a `Device`: every supplied
-parameter is sent unchanged.
+Runs one reported command of a device's API feature, addressed by names, and
+returns nothing. Use it when the caller knows the command to run, such as an
+advanced integration writing both heating-curve values at once or planning a
+holiday with `schedule` and cancelling it with `unschedule`.
 
-Use it only when the caller already has the complete command payload, such as
-an advanced integration writing both heating-curve values at once.
+The command is resolved from the internal command list of the snapshot, so the
+`device` must come from `refresh_device`, `refresh_gateway_devices`, or
+`get_full_installation_status`; a snapshot assembled from `get_features`
+carries no command list, and `run_command` raises a `ValueError` saying the
+snapshot has no commands and must come from a device refresh. The command does
+not need to be the one bound to a feature, and reported executability and
+deprecation are not checked: a command the API reported as non-executable is
+sent like any other, and the API decides. No snapshot is changed.
 
-The feature must be writable, enabled, and ready. The supplied payload must
-contain the target parameter and every required parameter; additional
-parameters are allowed and the mapping is sent unchanged. Every parameter
-value must be within the JSON value contract; a non-JSON value raises
-`ValueError` before any request is sent. The method raises `ValueError` for
-local contract violations. API and connection failures use the corresponding
-`ViError` subclasses, and a successful command response that violates the
-response contract raises `ViResponseError`. A command URI outside the Vi API
-also raises `ViResponseError`, before the access token is sent anywhere.
+Every required parameter must be supplied; a parameter name the command does not
+report raises `ValueError`, and so does a missing required parameter. Each
+supplied value is checked against the parameter's reported type and constraints
+with the same rules `set_feature` applies to its value (type, options, range,
+step, text length, pattern, schedule rules), and every value must satisfy the
+JSON value contract. These checks raise `ValueError` before any request is sent.
+A rejected command raises `ViCommandRejectedError`; a command URI outside the
+Vi API and a successful response that violates the response contract raise
+`ViResponseError`, and other failures use the corresponding `ViError`
+subclasses.
 
 ```python
-response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7.0})
+# Run the two-parameter curve command in one call
+await client.run_command(
+    device,
+    "heating.circuits.0.heating.curve",
+    "setCurve",
+    {"slope": 0.7, "shift": 7.0},
+)
+# Cancel a holiday program without parameters
+await client.run_command(device, "heating.operating.programs.holiday", "unschedule")
 ```
 
 ## Next Steps
@@ -318,6 +339,6 @@ response = await client.execute_command(slope_feature, {"slope": 0.7, "shift": 7
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

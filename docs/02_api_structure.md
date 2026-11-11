@@ -114,10 +114,9 @@ print(features[0].value)
 ```python
 # Set a feature value directly
 feature = features[0]
-response, device = await client.set_feature(device, feature, 1.6)
-if response.success:
-    # Use updated device for next operation
-    pass
+device = await client.set_feature(device, feature, 1.6)
+# No exception means the API accepted the write; use the updated device for
+# the next operation.
 ```
 
 The library handles the "magic" of mapping your simple `1.6` value back to the complex JSON structure required by the API.
@@ -148,7 +147,7 @@ consumer owns polling cadence and stale-state policy.
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

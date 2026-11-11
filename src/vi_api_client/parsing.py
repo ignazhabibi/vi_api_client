@@ -10,7 +10,6 @@ from ._types import JsonValue
 from .exceptions import ViResponseError
 from .models import (
     CommandParameter,
-    CommandResponse,
     Device,
     DeviceCommand,
     EventHistoryPage,
@@ -80,6 +79,14 @@ class _CommandWrite(NamedTuple):
 
     binding: ParameterWriteBinding
     constraints: FeatureConstraints
+
+
+class CommandOutcome(NamedTuple):
+    """The validated outcome of one command response, internal to the library."""
+
+    success: bool
+    message: str | None
+    reason: str | None
 
 
 def api_feature_to_flat_features(api_feature: dict[str, Any]) -> list[Feature]:
@@ -865,15 +872,15 @@ def _parse_command_success(value: object) -> bool:
     )
 
 
-def parse_command_response(data: dict[str, Any]) -> CommandResponse:
-    """Create CommandResponse from API data.
+def parse_command_outcome(data: dict[str, Any]) -> CommandOutcome:
+    """Return the validated outcome of one command response.
 
     Args:
         data: The JSON response dictionary from the API, either as the
             root object or wrapped in a ``data`` object.
 
     Returns:
-        A CommandResponse instance indicating success/failure.
+        The command outcome indicating success and its reported details.
 
     Raises:
         ViResponseError: If a known command response field violates the
@@ -885,7 +892,7 @@ def parse_command_response(data: dict[str, Any]) -> CommandResponse:
     # The container shape was runtime-checked; every known field is
     # validated individually below.
     command_data = cast("dict[str, Any]", root)
-    return CommandResponse(
+    return CommandOutcome(
         success=_parse_command_success(command_data.get("success")),
         message=_optional_text(command_data, "message", "Command response"),
         reason=_optional_text(command_data, "reason", "Command response"),

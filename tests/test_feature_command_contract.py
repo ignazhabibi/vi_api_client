@@ -1,15 +1,18 @@
 """Feature command contracts of the client behind its command adapter."""
 
+import re
 from dataclasses import replace
 from typing import Any, cast
 
 import pytest
 from builders import StaticTokenAuth, build_feature
 
-from vi_api_client import FeatureValue, JsonValue
+from vi_api_client import FeatureValue, JsonValue, ViCommandRejectedError
 from vi_api_client.client import ViClient
 from vi_api_client.models import (
+    CommandParameter,
     Device,
+    DeviceCommand,
     Feature,
     FeatureConstraints,
     ParameterWriteBinding,
@@ -20,16 +23,21 @@ from vi_api_client.models import (
 class _RecordingCommandAdapter:
     """Record command adapter calls and return a configurable response."""
 
-    def __init__(self, success: bool = True) -> None:
-        """Initialize a successful or rejected command response."""
+    def __init__(
+        self, success: bool = True, response: dict[str, Any] | None = None
+    ) -> None:
+        """Initialize a successful, rejected, or custom command response."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.success = success
+        self.response = response
 
     async def execute_command(
         self, uri: str, parameters: dict[str, Any]
     ) -> dict[str, Any]:
         """Record the command and return its configured response."""
         self.calls.append((uri, parameters))
+        if self.response is not None:
+            return self.response
         return {"data": {"success": self.success}}
 
 
@@ -40,8 +48,11 @@ def _create_client(adapter: _RecordingCommandAdapter) -> ViClient:
     return client
 
 
-def _device(features: list[Feature]) -> Device:
-    """Build a device snapshot containing the provided features."""
+def _device(
+    features: list[Feature],
+    commands: dict[str, tuple[DeviceCommand, ...]] | None = None,
+) -> Device:
+    """Build a device snapshot with the provided features and commands."""
     return Device(
         id="device-1",
         gateway_serial="gateway-1",
@@ -50,6 +61,46 @@ def _device(features: list[Feature]) -> Device:
         device_type="heating",
         status="connected",
         features=features,
+        commands_by_api_feature=commands or {},
+    )
+
+
+def _parameter(
+    name: str,
+    *,
+    required: bool | None = True,
+    value_type: str | None = None,
+    constraints: FeatureConstraints | None = None,
+) -> CommandParameter:
+    """Build one reported command parameter."""
+    return CommandParameter(
+        name=name, required=required, value_type=value_type, constraints=constraints
+    )
+
+
+def _mode_command(
+    parameters: list[CommandParameter] | None = None,
+    *,
+    command_name: str = "setMode",
+) -> DeviceCommand:
+    """Build the reported setMode command of the ``heating.mode`` API feature."""
+    if parameters is None:
+        parameters = [_parameter("target"), _parameter("dependency")]
+    return DeviceCommand(
+        name=command_name, uri="/commands/setMode", parameters=tuple(parameters)
+    )
+
+
+def _mode_device(
+    features: list[Feature],
+    parameters: list[CommandParameter] | None = None,
+    *,
+    command_name: str = "setMode",
+) -> Device:
+    """Build a device snapshot over one reported command of ``heating.mode``."""
+    return _device(
+        features,
+        {"heating.mode": (_mode_command(parameters, command_name=command_name),)},
     )
 
 
@@ -88,10 +139,9 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
     stale = build_feature("heating.mode.target", "stale")
 
     # Act: Set through the stale object using its canonical name.
-    response, updated_device = await client.set_feature(device, stale, "new")
+    updated_device = await client.set_feature(device, stale, "new")
 
     # Assert: Current metadata and falsey required sibling values are used.
-    assert response.success
     assert adapter.calls == [
         (
             canonical_control.uri,
@@ -239,10 +289,9 @@ async def test_set_feature_accepts_declared_option_values(
     device = _device([target])
 
     # Act: Write one of the declared option values.
-    response, updated_device = await client.set_feature(device, target, written_value)
+    updated_device = await client.set_feature(device, target, written_value)
 
     # Assert: The payload carries the option value and the snapshot updates.
-    assert response.success
     assert adapter.calls == [(control.uri, {"target": written_value})]
     updated = updated_device.get_feature("heating.mode.target")
     assert updated is not None
@@ -302,22 +351,20 @@ async def test_set_feature_rejects_values_outside_canonical_constraints(
     assert adapter.calls == []
 
 
-async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device():
-    """Only required dependencies are sent and API rejection retains the snapshot."""
-    # Arrange: The optional sibling is available but must not be sent automatically.
+async def test_set_feature_omits_optional_siblings_and_raises_on_rejection():
+    """Only required siblings are sent and a rejection returns no snapshot."""
+    # Arrange: The optional sibling is available but must not be sent
+    # automatically.
     adapter = _RecordingCommandAdapter(success=False)
     client = _create_client(adapter)
     control = _control(required_parameters=[])
     canonical = build_feature("heating.mode.target", "old", control)
     device = _device([canonical, build_feature("heating.mode.optional", "present")])
 
-    # Act: The command adapter rejects the generated command.
-    response, returned_device = await client.set_feature(device, canonical, "new")
-
-    # Assert: Optional state is absent and the exact original snapshot returns.
-    assert not response.success
+    # Act and assert: The rejected command raises, and no snapshot returns.
+    with pytest.raises(ViCommandRejectedError):
+        await client.set_feature(device, canonical, "new")
     assert adapter.calls == [(control.uri, {"target": "new"})]
-    assert returned_device is device
 
 
 async def test_set_feature_rejects_hand_built_features_without_adapter_io():
@@ -335,21 +382,31 @@ async def test_set_feature_rejects_hand_built_features_without_adapter_io():
     assert adapter.calls == []
 
 
-async def test_execute_command_requires_complete_available_command_without_mutation():
-    """Explicit commands require complete payloads but preserve additional parameters."""
-    # Arrange: The complete payload includes an allowed extra parameter.
+async def test_run_command_sends_the_supplied_parameters_without_mutation():
+    """Reported parameters reach the adapter exactly as supplied."""
+    # Arrange: The device reports a command with a required and an optional
+    # parameter beyond the target.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = _control(required_parameters=["target", "dependency"])
-    feature = build_feature("heating.mode.target", "old", control)
-    parameters = {"target": "new", "dependency": None, "extra": "kept"}
+    device = _mode_device(
+        [],
+        parameters=[
+            _parameter("target"),
+            _parameter("dependency"),
+            _parameter("extra", required=False),
+        ],
+    )
+    parameters: dict[str, JsonValue] = {
+        "target": "new",
+        "dependency": None,
+        "extra": "kept",
+    }
 
-    # Act: Submit the explicit payload without high-level augmentation.
-    response = await client.execute_command(feature, parameters)
+    # Act: Submit the complete reported parameter set without augmentation.
+    await client.run_command(device, "heating.mode", "setMode", parameters)
 
     # Assert: The adapter receives the original mapping unchanged.
-    assert response.success
-    assert adapter.calls == [(control.uri, parameters)]
+    assert adapter.calls == [("/commands/setMode", parameters)]
     assert parameters == {"target": "new", "dependency": None, "extra": "kept"}
 
 
@@ -364,10 +421,9 @@ async def test_set_feature_accepts_json_object_target_value():
     target_value: FeatureValue = {"entries": [1, "two", None]}
 
     # Act: Write the structured JSON value.
-    response, updated_device = await client.set_feature(device, target, target_value)
+    updated_device = await client.set_feature(device, target, target_value)
 
     # Assert: The payload carries the exact JSON value and the snapshot updates.
-    assert response.success
     assert adapter.calls == [(control.uri, {"target": target_value})]
     updated = updated_device.get_feature("heating.mode.target")
     assert updated == replace(target, value=target_value)
@@ -417,70 +473,133 @@ async def test_set_feature_rejects_non_json_required_dependency_value_without_ad
     assert adapter.calls == []
 
 
-async def test_execute_command_rejects_non_json_parameter_values_without_adapter_io():
+async def test_run_command_rejects_non_json_parameter_values_without_adapter_io():
     """Parameter values outside the JSON value contract reject before I/O."""
-    # Arrange: One explicit parameter value is outside the JSON value contract.
+    # Arrange: One supplied parameter value is outside the JSON value contract.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    feature = build_feature("heating.mode.target", "old", _control())
-    parameters: dict[str, JsonValue] = {"target": float("nan")}
+    device = _mode_device([])
+    parameters: dict[str, JsonValue] = {"target": float("nan"), "dependency": "on"}
 
     # Act and assert: The invalid parameter never reaches the adapter.
     with pytest.raises(ValueError, match="finite"):
-        await client.execute_command(feature, parameters)
+        await client.run_command(device, "heating.mode", "setMode", parameters)
+    assert adapter.calls == []
+
+
+async def test_run_command_reports_non_json_values_before_their_constraints():
+    """The JSON contract rejects a value before its constraints are applied."""
+    # Arrange: One stepped parameter receives a value the JSON contract
+    # excludes, which the constraint check also cannot classify.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    device = _mode_device(
+        [],
+        parameters=[
+            _parameter(
+                "target",
+                value_type="number",
+                constraints=FeatureConstraints(min=0.2, step=0.1),
+            )
+        ],
+    )
+
+    # Act and assert: The rejection names the JSON contract, not a step
+    # alignment.
+    with pytest.raises(ValueError, match="finite"):
+        await client.run_command(
+            device, "heating.mode", "setMode", {"target": float("nan")}
+        )
     assert adapter.calls == []
 
 
 @pytest.mark.parametrize(
-    ("feature", "parameters", "error"),
+    ("device", "parameters", "error"),
     [
         pytest.param(
-            build_feature("target", "old"),
+            _device([]),
             {"target": "new"},
-            "read-only",
-            id="read-only-feature",
+            "has no commands",
+            id="snapshot-without-commands",
         ),
         pytest.param(
-            build_feature("target", "old", _control(), is_enabled=False),
+            _device([], {"heating.holiday": (_mode_command(),)}),
             {"target": "new"},
-            "disabled",
-            id="disabled-feature",
+            "API feature 'heating.mode' reports no commands",
+            id="unknown-api-feature",
         ),
         pytest.param(
-            build_feature("target", "old", _control(), is_ready=False),
+            _device([], {"heating.mode.program": (_mode_command(),)}),
             {"target": "new"},
-            "not ready",
-            id="not-ready-feature",
+            "API features with commands: heating.mode.program",
+            id="parent-name-points-into-reported-api-features",
         ),
         pytest.param(
-            build_feature("target", "old", _control()),
-            {},
-            "target parameter",
-            id="missing-target-parameter",
+            _device([], {"heating.mode": ()}),
+            {"target": "new"},
+            "API feature 'heating.mode' reports no commands",
+            id="commandless-api-feature",
         ),
         pytest.param(
-            build_feature(
-                "target", "old", _control(required_parameters=["target", "other"])
+            _mode_device([], command_name="reset"),
+            {"target": "new"},
+            "available commands: reset",
+            id="unknown-command",
+        ),
+        pytest.param(
+            _mode_device([]),
+            {"target": "new", "other": 1},
+            "does not report parameter 'other'",
+            id="unknown-parameter",
+        ),
+        pytest.param(
+            _mode_device(
+                [],
+                parameters=[
+                    _parameter("target"),
+                    _parameter("dependency", required=False),
+                ],
             ),
-            {"target": "new"},
-            "required parameter",
+            {"dependency": None},
+            "is missing required parameter 'target'",
             id="missing-required-parameter",
+        ),
+        pytest.param(
+            _mode_device(
+                [],
+                parameters=[
+                    _parameter(
+                        "target",
+                        value_type="number",
+                        constraints=FeatureConstraints(max=10),
+                    )
+                ],
+            ),
+            {"target": 11},
+            "> max",
+            id="constraint-violation",
+        ),
+        pytest.param(
+            _mode_device([], parameters=[_parameter("target", value_type="boolean")]),
+            {"target": "new"},
+            "not of type 'boolean'",
+            id="type-violation",
         ),
     ],
 )
-async def test_execute_command_rejects_invalid_local_contract_without_adapter_io(
-    feature: Feature,
-    parameters: dict[str, Any],
+async def test_run_command_rejects_invalid_local_contract_without_adapter_io(
+    device: Device,
+    parameters: dict[str, JsonValue],
     error: str,
 ):
-    """Explicit-command preconditions reject before adapter I/O."""
-    # Arrange: Each feature or payload violates the low-level command contract.
+    """Every invalid command run rejects locally, before any adapter I/O."""
+    # Arrange: Each scenario supplies an invalid command contract.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
 
     # Act and assert: Local invalidity leaves the adapter untouched.
-    with pytest.raises(ValueError, match=error):
-        await client.execute_command(feature, parameters)
+    with pytest.raises(ValueError, match=re.escape(error)):
+        await client.run_command(device, "heating.mode", "setMode", parameters)
     assert adapter.calls == []
 
 
@@ -529,12 +648,11 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     plan: FeatureValue = _week(mon=[_slot("05:30", "09:00"), _slot("18:30", "24:00")])
 
     # Act: Write the plan.
-    response, updated_device = await client.set_feature(device, schedule, plan)
+    updated_device = await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent and read back in the same shape.
     binding = schedule.write_binding
     assert binding is not None
-    assert response.success
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
     updated_schedule = updated_device.get_feature("heating.dhw.schedule")
     assert updated_schedule is not None
@@ -612,12 +730,11 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
     )
 
     # Act: Write the plan.
-    response, _ = await client.set_feature(device, schedule, plan)
+    await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent unchanged.
     binding = schedule.write_binding
     assert binding is not None
-    assert response.success
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 
@@ -628,9 +745,11 @@ async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
     device = _device([schedule])
     plan: FeatureValue = _week(mon=[_slot("06:00", "08:00"), _slot("08:00", "09:00")])
 
-    response, _ = await client.set_feature(device, schedule, plan)
+    await client.set_feature(device, schedule, plan)
 
-    assert response.success
+    binding = schedule.write_binding
+    assert binding is not None
+    assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 
 @pytest.mark.parametrize(
@@ -697,8 +816,7 @@ async def test_set_feature_sends_values_of_the_reported_parameter_type(
     device = _device([target])
 
     # Act: Write the value.
-    response, _ = await client.set_feature(device, target, target_value)
+    await client.set_feature(device, target, target_value)
 
     # Assert: The command is sent with the value.
-    assert response.success
     assert adapter.calls == [(control.uri, {"target": target_value})]

@@ -1,0 +1,70 @@
+[
+ {
+  "feature": "heating.operating.programs.holiday",
+  "gatewayId": "GW123",
+  "deviceId": "0",
+  "timestamp": "2025-10-05T05:14:04.320Z",
+  "isEnabled": true,
+  "isReady": true,
+  "apiVersion": 1,
+  "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.operating.programs.holiday",
+  "properties": {
+   "active": {
+    "type": "boolean",
+    "value": false
+   },
+   "start": {
+    "type": "string",
+    "value": "2000-01-01"
+   },
+   "end": {
+    "type": "string",
+    "value": "2000-01-01"
+   }
+  },
+  "commands": {
+   "changeEndDate": {
+    "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.operating.programs.holiday/commands/changeEndDate",
+    "name": "changeEndDate",
+    "isExecutable": false,
+    "params": {
+     "end": {
+      "type": "string",
+      "required": true,
+      "constraints": {
+       "regEx": "^[\\d]{4}-[\\d]{2}-[\\d]{2}$",
+       "sameDayAllowed": true
+      }
+     }
+    }
+   },
+   "schedule": {
+    "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.operating.programs.holiday/commands/schedule",
+    "name": "schedule",
+    "isExecutable": true,
+    "params": {
+     "start": {
+      "type": "string",
+      "required": true,
+      "constraints": {
+       "regEx": "^[\\d]{4}-[\\d]{2}-[\\d]{2}$"
+      }
+     },
+     "end": {
+      "type": "string",
+      "required": true,
+      "constraints": {
+       "regEx": "^[\\d]{4}-[\\d]{2}-[\\d]{2}$"
+      }
+     }
+    }
+   },
+   "unschedule": {
+    "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/123/gateways/GW123/devices/0/features/heating.operating.programs.holiday/commands/unschedule",
+    "name": "unschedule",
+    "isExecutable": true,
+    "params": {}
+   }
+  }
+ }
+]

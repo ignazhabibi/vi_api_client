@@ -112,6 +112,16 @@ The API operation that sends command parameters for a writable feature. How
 the library sends it is internal command knowledge; it is not the executed
 command.
 
+**Command rejection**:
+The API's refusal of a sent command, reported by `ViCommandRejectedError` with
+a `message` and a `reason`. A successful write raises nothing, so success
+always means that no exception was raised.
+
+**Device communication error**:
+An error response the API classifies as `DEVICE_COMMUNICATION_ERROR`,
+reported by `ViDeviceCommunicationError` whatever its HTTP status: an
+unreachable device or gateway is not a mistake in the request.
+
 **Live client**:
 `ViClient` configured with authentication that reads from the Viessmann API.
 
