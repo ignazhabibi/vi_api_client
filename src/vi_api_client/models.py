@@ -5,96 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, cast
 
 from ._types import FeatureValue, JsonValue
-from .exceptions import ViError, ViResponseError
-from .validation import validate_json_value
-
-
-def _require_identifier(data: dict[str, Any], field_name: str, resource: str) -> str:
-    """Return a required string or integer API identifier as text."""
-    value = data.get(field_name)
-    if isinstance(value, bool) or not isinstance(value, (str, int)) or value == "":
-        raise ViResponseError(f"{resource} {field_name} must be a string or integer")
-    return str(value)
-
-
-def _require_string(data: dict[str, Any], field_name: str, resource: str) -> str:
-    """Return a required non-empty text API field."""
-    value = data.get(field_name)
-    if not isinstance(value, str) or not value:
-        raise ViResponseError(f"{resource} {field_name} must be a non-empty string")
-    return value
-
-
-def _optional_string(data: dict[str, Any], field_name: str, resource: str) -> str:
-    """Return an optional text API field while rejecting malformed values."""
-    value = data.get(field_name, "")
-    if not isinstance(value, str):
-        raise ViResponseError(f"{resource} {field_name} must be a string")
-    return value
-
-
-def _optional_text(
-    data: Mapping[str, object], field_name: str, resource: str
-) -> str | None:
-    """Return an optional text API field; an absent or null field is `None`.
-
-    Raises:
-        ViResponseError: If a supplied value is not a string.
-    """
-    value = data.get(field_name)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ViResponseError(f"{resource} {field_name} must be a string")
-    return value
-
-
-def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
-    """Return an optional installation address as a validated JSON object."""
-    address = validate_json_value(data.get("address", {}), path="Installation address")
-    if not isinstance(address, dict):
-        raise ViResponseError("Installation address must be an object")
-    return address
-
-
-def _parse_command_success(value: object) -> bool:
-    """Return a normalized command success flag.
-
-    The API reports success as a JSON boolean or one of the documented
-    case-insensitive boolean string representations.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.lower()
-        if normalized == "true":
-            return True
-        if normalized == "false":
-            return False
-    raise ViResponseError(
-        "Command response success must be a boolean or a 'true'/'false' string"
-    )
-
-
-def _parse_next_cursor(data: dict[str, Any]) -> str | None:
-    """Return the event history continuation cursor, if another page exists.
-
-    Raises:
-        ViResponseError: If the cursor object or its ``next`` value is malformed.
-    """
-    cursor = data.get("cursor")
-    if cursor is None:
-        return None
-    if not isinstance(cursor, dict):
-        raise ViResponseError("Event history cursor must be an object")
-    next_cursor = cast("dict[str, Any]", cursor).get("next")
-    if next_cursor is not None and not isinstance(next_cursor, str):
-        raise ViResponseError("Event history cursor next must be a string")
-    # The provider reports the final page with an empty string.
-    return next_cursor or None
+from .exceptions import ViError
 
 
 @dataclass(frozen=True)
@@ -266,32 +179,6 @@ class Device:
         """
         return self._features_by_name.get(name)
 
-    @classmethod
-    def from_api(
-        cls, data: dict[str, Any], gateway_serial: str, installation_id: str
-    ) -> Device:
-        """Create Device from API data.
-
-        Args:
-            data: The dictionary returned by the API for a device.
-            gateway_serial: Serial number of the gateway this device belongs to.
-            installation_id: ID of the installation this device belongs to.
-
-        Returns:
-            A new Device instance.
-
-        Raises:
-            ViResponseError: If a known device identity or text field is malformed.
-        """
-        return cls(
-            id=_require_identifier(data, "id", "Device"),
-            gateway_serial=gateway_serial,
-            installation_id=installation_id,
-            model_id=_require_string(data, "modelId", "Device"),
-            device_type=_require_string(data, "deviceType", "Device"),
-            status=_optional_string(data, "status", "Device"),
-        )
-
 
 @dataclass(frozen=True)
 class GatewayDeviceRefreshResult:
@@ -334,33 +221,6 @@ class CommandResponse:
     message: str | None = None
     reason: str | None = None
 
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> CommandResponse:
-        """Create from API response.
-
-        Args:
-            data: The JSON response dictionary from the API, either as the
-                root object or wrapped in a ``data`` object.
-
-        Returns:
-            A CommandResponse instance indicating success/failure.
-
-        Raises:
-            ViResponseError: If a known command response field violates the
-                API contract.
-        """
-        root = data.get("data", data)
-        if not isinstance(root, dict):
-            raise ViResponseError("Command response data must be an object")
-        # The container shape was runtime-checked; every known field is
-        # validated individually below.
-        command_data = cast("dict[str, Any]", root)
-        return cls(
-            success=_parse_command_success(command_data.get("success")),
-            message=_optional_text(command_data, "message", "Command response"),
-            reason=_optional_text(command_data, "reason", "Command response"),
-        )
-
 
 @dataclass(frozen=True)
 class Installation:
@@ -382,26 +242,6 @@ class Installation:
         """Store caller-owned address data as an immutable snapshot."""
         object.__setattr__(self, "address", MappingProxyType(dict(self.address)))
 
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> Installation:
-        """Create Installation from API data.
-
-        Args:
-            data: The JSON dictionary representing an installation.
-
-        Returns:
-            A new Installation instance.
-
-        Raises:
-            ViResponseError: If a known installation field or address is malformed.
-        """
-        return cls(
-            id=_require_identifier(data, "id", "Installation"),
-            description=_optional_string(data, "description", "Installation"),
-            alias=_optional_string(data, "alias", "Installation"),
-            address=_parse_address(data),
-        )
-
 
 @dataclass(frozen=True)
 class Gateway:
@@ -418,26 +258,6 @@ class Gateway:
     version: str
     status: str
     installation_id: str
-
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> Gateway:
-        """Create Gateway from API data.
-
-        Args:
-            data: The JSON dictionary representing a gateway.
-
-        Returns:
-            A new Gateway instance.
-
-        Raises:
-            ViResponseError: If a known gateway identity or text field is malformed.
-        """
-        return cls(
-            serial=_require_string(data, "serial", "Gateway"),
-            version=_optional_string(data, "version", "Gateway"),
-            status=_optional_string(data, "status", "Gateway"),
-            installation_id=_require_identifier(data, "installationId", "Gateway"),
-        )
 
 
 @dataclass(frozen=True)
@@ -464,48 +284,6 @@ class InstallationEvent:
         """Store the complete event mapping as an immutable snapshot."""
         object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
 
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> InstallationEvent:
-        """Create InstallationEvent from API data.
-
-        The complete event is validated against the JSON value contract and
-        unknown fields remain available through ``fields``. The ``body`` is
-        kept exactly as reported because its structure depends on the event
-        type; the provider's narrow schema examples must not reject valid
-        event data.
-
-        Args:
-            data: The JSON dictionary representing one event.
-
-        Returns:
-            A new InstallationEvent instance.
-
-        Raises:
-            ViResponseError: If the event contains non-JSON data or a known
-                event field is malformed.
-        """
-        fields = validate_json_value(data, path="Event")
-        if not isinstance(fields, dict):
-            raise ViResponseError("Event must be an object")
-        # Documented contract fields without a model attribute are only
-        # validated; their values stay available through ``fields``.
-        for field_name in ("editedBy", "origin"):
-            _optional_text(fields, field_name, "Event")
-        audiences = fields.get("audiences")
-        if audiences is not None and (
-            not isinstance(audiences, list)
-            or not all(isinstance(audience, str) for audience in audiences)
-        ):
-            raise ViResponseError("Event audiences must be a list of strings")
-        return cls(
-            event_type=_require_string(fields, "eventType", "Event"),
-            created_at=_require_string(fields, "createdAt", "Event"),
-            event_timestamp=_require_string(fields, "eventTimestamp", "Event"),
-            gateway_serial=_optional_text(fields, "gatewaySerial", "Event"),
-            body=fields.get("body"),
-            fields=fields,
-        )
-
 
 @dataclass(frozen=True)
 class EventHistoryPage:
@@ -523,30 +301,3 @@ class EventHistoryPage:
     def __post_init__(self) -> None:
         """Store caller-owned event collections as immutable snapshots."""
         object.__setattr__(self, "events", tuple(self.events))
-
-    @classmethod
-    def from_api(cls, data: dict[str, Any]) -> EventHistoryPage:
-        """Create EventHistoryPage from the event history API response.
-
-        Args:
-            data: The JSON dictionary returned by the event history endpoint,
-                with a ``data`` list and an optional ``cursor`` object.
-
-        Returns:
-            A new EventHistoryPage instance.
-
-        Raises:
-            ViResponseError: If the response, an event, or the cursor violates
-                the API contract.
-        """
-        events_data = data.get("data")
-        if not isinstance(events_data, list):
-            raise ViResponseError("Event history response data must be a list")
-        # Runtime-checked containers from the transport boundary; every entry
-        # is re-validated field by field by the event parser.
-        events: list[InstallationEvent] = []
-        for entry in cast("list[object]", events_data):
-            if not isinstance(entry, dict):
-                raise ViResponseError("Event history data entries must be objects")
-            events.append(InstallationEvent.from_api(cast("dict[str, Any]", entry)))
-        return cls(events=events, next_cursor=_parse_next_cursor(data))

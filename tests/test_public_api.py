@@ -68,6 +68,12 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "SCOPE_IOT_USER",
         "SCOPE_OFFLINE_ACCESS",
         "parse_cli_params",
+        "parse_command_response",
+        "parse_device",
+        "parse_event_history_page",
+        "parse_gateway",
+        "parse_installation",
+        "parse_installation_event",
         "api_feature_to_flat_features",
     }
 
@@ -75,3 +81,18 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
     utils = importlib.import_module("vi_api_client.utils")
     assert hasattr(utils, "parse_cli_params")
+
+
+def test_exported_models_have_no_api_constructor():
+    """API parsing stays internal; exported classes are plain data models."""
+    # Arrange: Inspect every exported object that is a class.
+    exported_classes = [
+        exported
+        for exported in (getattr(vi_api_client, name) for name in vi_api_client.__all__)
+        if isinstance(exported, type)
+    ]
+
+    # Assert: The package exports models, none of which carries a from_api
+    # constructor.
+    assert exported_classes
+    assert all(not hasattr(model, "from_api") for model in exported_classes)

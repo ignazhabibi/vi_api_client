@@ -24,7 +24,15 @@ from .models import (
     Installation,
     ScheduleConstraints,
 )
-from .parsing import api_feature_to_flat_features, validate_feature_entry
+from .parsing import (
+    api_feature_to_flat_features,
+    parse_command_response,
+    parse_device,
+    parse_event_history_page,
+    parse_gateway,
+    parse_installation,
+    validate_feature_entry,
+)
 from .privacy import redact_sensitive
 from .validation import validate_json_value
 
@@ -77,7 +85,7 @@ class ViClient:
         _LOGGER.debug("Fetching installations")
         response = await self._discovery_adapter.get_installations()
         installations = [
-            Installation.from_api(installation_data)
+            parse_installation(installation_data)
             for installation_data in self._response_items(
                 response, resource="Installation"
             )
@@ -97,7 +105,7 @@ class ViClient:
         _LOGGER.debug("Fetching gateways")
         response = await self._discovery_adapter.get_gateways()
         gateways = [
-            Gateway.from_api(gateway_data)
+            parse_gateway(gateway_data)
             for gateway_data in self._response_items(response, resource="Gateway")
         ]
         _LOGGER.debug("Found %s gateways", len(gateways))
@@ -125,7 +133,7 @@ class ViClient:
             installation_id, gateway_serial
         )
         devices = [
-            Device.from_api(device_data, gateway_serial, installation_id)
+            parse_device(device_data, gateway_serial, installation_id)
             for device_data in self._response_items(response, resource="Device")
         ]
 
@@ -271,7 +279,7 @@ class ViClient:
         response = await self._discovery_adapter.get_event_history(
             installation_id, params
         )
-        return EventHistoryPage.from_api(
+        return parse_event_history_page(
             self._response_object(response, resource="Event history")
         )
 
@@ -912,7 +920,7 @@ class ViClient:
             ViResponseError: If the command response violates the API contract.
         """
         response = await self._command_adapter.execute_command(control, payload)
-        return CommandResponse.from_api(
+        return parse_command_response(
             self._response_object(response, resource="Command")
         )
 

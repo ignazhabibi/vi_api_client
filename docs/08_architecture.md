@@ -358,12 +358,13 @@ This prevents a provider contract failure from appearing as an empty account.
 
 The installation event history is a separate installation-scoped read with
 the same seam: `get_event_history()` requests one page through the discovery
-adapter, and `EventHistoryPage.from_api()` validates the response and its
-events at the model boundary. The provider reports the final page with an
-empty `cursor.next` string, which the page model exposes as no continuation
-cursor. Traversing further pages with the cursor stays with consumers; the
-`list-events` CLI command is one such consumer and follows cursors up to a
-configurable page safety limit that marks truncated results incomplete.
+adapter, and the internal event history parser validates the response and its
+events before the `EventHistoryPage` model is built. The provider reports
+the final page with an empty `cursor.next` string, which the page model
+exposes as no continuation cursor. Traversing further pages with the cursor
+stays with consumers; the `list-events` CLI command is one such consumer and
+follows cursors up to a configurable page safety limit that marks truncated
+results incomplete.
 
 ## 9. Device refresh
 
