@@ -241,7 +241,7 @@ async def test_set_rejects_an_empty_current_value_by_its_constraint(
     assert f"Error setting feature: {violation}" in err
 
 
-_CURVE_SLOPE = "heating.circuits.0.heating.curve.slope"
+_CURVE_API_FEATURE = "heating.circuits.0.heating.curve"
 
 
 async def test_exec_succeeds_with_every_required_parameter(run_cli):
@@ -249,7 +249,7 @@ async def test_exec_succeeds_with_every_required_parameter(run_cli):
     # Act: Execute the two-parameter curve command with both parameters.
     exit_status, out, _ = await run_cli(
         "exec",
-        _CURVE_SLOPE,
+        _CURVE_API_FEATURE,
         "setCurve",
         json.dumps({"slope": 0.6, "shift": 4}),
         "--fixture-device",
@@ -266,7 +266,7 @@ async def test_exec_names_a_missing_required_parameter(run_cli):
     # Act: Execute the curve command without its 'shift' parameter.
     exit_status, _, err = await run_cli(
         "exec",
-        _CURVE_SLOPE,
+        _CURVE_API_FEATURE,
         "setCurve",
         json.dumps({"slope": 0.6}),
         "--fixture-device",

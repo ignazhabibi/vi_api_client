@@ -122,28 +122,25 @@ async def set_heating_mode(client, device):
         return
 
     # 2. Check that it can be set in this snapshot
-    if feature.is_settable:
-        print(f"Setting mode to 'heating'...")
-
-        # 3. Execute High-Level Set
-        # This handles validations, parameter resolving, and API calls automatically
-        # Returns tuple: (CommandResponse, Device)
-        response, device = await client.set_feature(device, feature, "heating")
-
-        if response.success:
-            print("Command executed successfully!")
-            # Use the updated device for subsequent calls
-        else:
-            print(f"Command failed: {response.reason}")
-    else:
+    if not feature.is_settable:
         print(f"Feature '{feature.name}' is read-only.")
+        return
+
+    # 3. Execute High-Level Set
+    # This handles validations, parameter resolving, and API calls automatically
+    # and returns the command-updated device snapshot.
+    print("Setting mode to 'heating'...")
+    device = await client.set_feature(device, feature, "heating")
+    print("Command executed successfully!")
+    # Use the updated device for subsequent calls; a rejected command raises
+    # ViCommandRejectedError, so reaching this line means the write was accepted.
 ```
 
 ## Next Steps
 
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

@@ -5,7 +5,7 @@ import logging
 from dataclasses import fields
 
 import vi_api_client
-from vi_api_client import Feature, FeatureConstraints
+from vi_api_client import Feature, FeatureConstraints, ViClient
 
 
 def test_package_logger_has_a_null_handler():
@@ -19,7 +19,6 @@ def test_package_root_exposes_only_the_documented_consumer_api():
     # Arrange: List the names consumers are allowed to import from the root.
     expected_exports = {
         "AbstractAuth",
-        "CommandResponse",
         "DEFAULT_SCOPES",
         "Device",
         "ENDPOINT_AUTHORIZE",
@@ -39,7 +38,9 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ValidationDetail",
         "ViAuthError",
         "ViClient",
+        "ViCommandRejectedError",
         "ViConnectionError",
+        "ViDeviceCommunicationError",
         "ViError",
         "ViNotFoundError",
         "ViRateLimitError",
@@ -61,6 +62,12 @@ def test_package_root_exposes_only_the_documented_consumer_api():
 def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
     """Technical helpers should stay in their existing modules, not the root API."""
     # Arrange: List helpers that consumers may only import from their modules.
+    # The write operations removed in the 7.0.0 rework stay absent.
+    removed_public_exports = {
+        "CommandResponse",
+        "execute_command",
+    }
+
     non_public_exports = {
         "API_BASE_URL",
         "AUTH_BASE_URL",
@@ -70,7 +77,7 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "SCOPE_IOT_USER",
         "SCOPE_OFFLINE_ACCESS",
         "parse_cli_params",
-        "parse_command_response",
+        "parse_command_outcome",
         "parse_device",
         "parse_event_history_page",
         "parse_gateway",
@@ -85,6 +92,8 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
 
     # Assert: The root hides the helpers while their module paths still provide them.
     assert all(not hasattr(vi_api_client, export) for export in non_public_exports)
+    assert all(not hasattr(vi_api_client, export) for export in removed_public_exports)
+    assert not any(hasattr(ViClient, export) for export in removed_public_exports)
     utils = importlib.import_module("vi_api_client.utils")
     assert hasattr(utils, "parse_cli_params")
 

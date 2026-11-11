@@ -20,12 +20,12 @@ from builders import (
 )
 
 from vi_api_client import (
-    CommandResponse,
     EventHistoryPage,
     FeatureValue,
     FixtureViClient,
     InstallationEvent,
     ViClient,
+    ViCommandRejectedError,
 )
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
@@ -54,7 +54,9 @@ from vi_api_client.exceptions import (
     ViValidationError,
 )
 from vi_api_client.models import (
+    CommandParameter,
     Device,
+    DeviceCommand,
     Feature,
     FeatureConstraints,
     ParameterWriteBinding,
@@ -85,9 +87,35 @@ def _constraints(**overrides: Any) -> FeatureConstraints:
     return FeatureConstraints(**overrides)
 
 
-def _snapshot_device(*features: Feature) -> Device:
+def _curve_command() -> DeviceCommand:
+    """Build the reported setCurve command of the ``heating.curve`` API feature."""
+    return DeviceCommand(
+        name="setCurve",
+        uri="uri",
+        parameters=(
+            CommandParameter(name="shift", required=True, value_type="number"),
+            CommandParameter(
+                name="slope",
+                required=True,
+                value_type="number",
+                constraints=FeatureConstraints(min=0.2, max=3.5, step=0.1),
+            ),
+        ),
+    )
+
+
+def _snapshot_device(
+    *features: Feature,
+    commands: dict[str, tuple[DeviceCommand, ...]] | None = None,
+) -> Device:
     """Build the refreshed device snapshot the CLI commands work on."""
-    return replace(build_device("DEV1"), features=features)
+    return replace(
+        build_device("DEV1"),
+        features=features,
+        commands_by_api_feature=commands
+        if commands is not None
+        else {"heating.curve": (_curve_command(),)},
+    )
 
 
 @pytest.fixture
@@ -99,11 +127,6 @@ def mock_cli_context() -> Iterator[CLIContext]:
         yield context
 
 
-def _successful_set_result() -> tuple[CommandResponse, MagicMock]:
-    """Return a mocked successful set_feature result pair."""
-    return CommandResponse(success=True), MagicMock(spec=Device)
-
-
 async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     """Successful writes should confirm the command, param, and result."""
     # Arrange: Provide a writable numeric feature and a successful write.
@@ -112,7 +135,6 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
         binding=_binding(), constraints=FeatureConstraints(value_type="number")
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
     # Act: Set the slope through the CLI.
     assert await cmd_set(args) is True
@@ -150,7 +172,6 @@ async def test_cmd_set_converts_typed_command_values(
         binding=_binding(), constraints=FeatureConstraints(value_type=value_type)
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
     # Act: Submit the raw command line value.
     assert await cmd_set(args) is True
@@ -212,7 +233,6 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(value=1.0, binding=_binding())
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
     # Act: Set a numeric current value through the CLI.
     assert await cmd_set(args) is True
@@ -222,22 +242,21 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
 
 
 async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
-    """Failed API writes should print the response message and reason."""
-    # Arrange: Make the write succeed at the boundary but fail at the API.
+    """Rejected API writes should print the rejection message and reason."""
+    # Arrange: Make the API reject the command with its details.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
         binding=_binding(), constraints=FeatureConstraints(value_type="number")
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.set_feature.return_value = (
-        CommandResponse(success=False, message="API rejected", reason="out of range"),
-        MagicMock(spec=Device),
+    mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError(
+        "API rejected", "out of range"
     )
 
     # Act: Attempt the write through the CLI.
     assert await cmd_set(args) is False
 
-    # Assert: The failure surfaces the response details.
+    # Assert: The failure surfaces the rejection details.
     captured = capsys.readouterr()
     assert "Failed!" in captured.out
     assert "Message: API rejected" in captured.out
@@ -245,17 +264,14 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
 
 
 async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, capsys):
-    """Absent response details must not print empty Message or Reason lines."""
-    # Arrange: Make the write fail without a message or reason.
+    """Absent rejection details must not print empty Message or Reason lines."""
+    # Arrange: Make the API reject the command without a message or reason.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
         binding=_binding(), constraints=FeatureConstraints(value_type="number")
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.set_feature.return_value = (
-        CommandResponse(success=False),
-        MagicMock(spec=Device),
-    )
+    mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError()
 
     # Act: Attempt the write through the CLI.
     assert await cmd_set(args) is False
@@ -279,7 +295,7 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
     # Assert: The command names the missing context and sends nothing.
     assert result is False
     assert "A device context is required" in caplog.text
-    mock_cli_context.client.get_features.assert_not_called()
+    mock_cli_context.client.refresh_device.assert_not_called()
     mock_cli_context.client.set_feature.assert_not_called()
 
 
@@ -293,12 +309,12 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
         ),
         pytest.param(
             ["get-feature", "heating.curve.slope"],
-            ("get_features", "fetching feature"),
+            ("refresh_device", "fetching feature"),
             id="get-feature",
         ),
         pytest.param(
-            ["exec", "heating.curve.slope", "setCurve", "slope=1.4"],
-            ("execute_command", "executing command"),
+            ["exec", "heating.curve", "setCurve", "slope=1.4"],
+            ("run_command", "executing command"),
             id="exec",
         ),
         pytest.param(
@@ -417,11 +433,11 @@ def test_infer_feature_value_type_uses_value_shape_and_constraints(
     assert _infer_feature_value_type(feature) == expected_type
 
 
-async def test_cmd_get_feature_prints_value_and_control_details(
+async def test_cmd_get_feature_prints_value_control_details_and_commands(
     mock_cli_context, capsys
 ):
-    """A writable feature should print its value, command, and constraints."""
-    # Arrange: Return one constrained writable feature for the requested name.
+    """A writable feature should print its value, command details, and commands."""
+    # Arrange: Return one constrained writable feature with a reported command.
     args = _cli_args("get-feature", "heating.curve.slope")
     feature = build_feature(
         "heating.curve.slope",
@@ -432,34 +448,43 @@ async def test_cmd_get_feature_prints_value_and_control_details(
         ),
         unit="celsius",
     )
-    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
     assert await cmd_get_feature(args) is True
 
-    # Assert: The output includes the formatted value and control details.
+    # Assert: The output includes the formatted value, control details, and
+    # the commands of the feature's API feature with parameter rules.
     captured = capsys.readouterr()
     assert "- heating.curve.slope: 1.4 celsius" in captured.out
     assert "Writable via command: setCurve" in captured.out
     assert "Target param: slope" in captured.out
     assert "Constraints: min=0.2, max=3.5, step=0.1" in captured.out
     assert "Options: ('low', 'high')" in captured.out
+    assert "  Commands of heating.curve:" in captured.out
+    assert "  - setCurve: shift*, slope*" in captured.out
+    assert "      shift: number" in captured.out
+    assert "      slope: number, min: 0.2, max: 3.5, step: 0.1" in captured.out
 
 
-async def test_cmd_get_feature_prints_read_only_values(mock_cli_context, capsys):
-    """A read-only feature should print its value without control details."""
-    # Arrange: Return one read-only feature for the requested name.
+async def test_cmd_get_feature_prints_read_only_values_without_commands(
+    mock_cli_context, capsys
+):
+    """A read-only feature outside any command list prints only its value."""
+    # Arrange: Return one read-only feature the snapshot's API features do
+    # not own.
     args = _cli_args("get-feature", "heating.status")
     feature = build_feature("heating.status", "ready")
-    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
     assert await cmd_get_feature(args) is True
 
-    # Assert: The value prints without any writable command details.
+    # Assert: The value prints without writable or command details.
     captured = capsys.readouterr()
     assert "- heating.status: ready" in captured.out
     assert "Writable via command" not in captured.out
+    assert "Commands of" not in captured.out
 
 
 @pytest.mark.parametrize(
@@ -482,7 +507,7 @@ async def test_cmd_get_feature_prints_only_present_control_details(
         constraints=_constraints(**constraint_overrides),
         unit="celsius",
     )
-    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature through the CLI.
     assert await cmd_get_feature(args) is True
@@ -500,7 +525,7 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     # Arrange: Return one writable feature with a unit for the requested name.
     args = _cli_args("get-feature", "heating.curve.slope", "--json")
     feature = build_feature("heating.curve.slope", 1.4, _binding(), unit="celsius")
-    mock_cli_context.client.get_features.return_value = [feature]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Read the feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -539,7 +564,9 @@ async def test_cmd_get_feature_json_marks_read_only_features_with_null_command(
     """Read-only features have no constraints or command in the JSON document."""
     # Arrange: Return one read-only feature.
     args = _cli_args("get-feature", "heating.curve.slope", "--json")
-    mock_cli_context.client.get_features.return_value = [build_feature()]
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        build_feature()
+    )
 
     # Act: Read the feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -556,15 +583,18 @@ async def test_cmd_get_feature_prints_every_feature_of_an_api_feature(
     """An API feature name should print every feature parsed from it."""
     # Arrange: Return both features of the requested API feature.
     args = _cli_args("get-feature", "heating.curve")
-    mock_cli_context.client.get_features.return_value = _curve_features()
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        *_curve_features()
+    )
 
     # Act: Read the API feature through the CLI.
     assert await cmd_get_feature(args) is True
 
-    # Assert: Both matching features print.
+    # Assert: Both matching features print, and the command list prints once.
     captured = capsys.readouterr()
     assert "- heating.curve.shift: 0" in captured.out
     assert "- heating.curve.slope: 1.4" in captured.out
+    assert captured.out.count("Commands of heating.curve:") == 1
 
 
 async def test_cmd_get_feature_json_prints_one_array_for_several_features(
@@ -573,7 +603,9 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
     """Several JSON matches should print one JSON array document."""
     # Arrange: Return both features of the requested API feature.
     args = _cli_args("get-feature", "heating.curve", "--json")
-    mock_cli_context.client.get_features.return_value = _curve_features()
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        *_curve_features()
+    )
 
     # Act: Read the API feature in JSON mode.
     assert await cmd_get_feature(args) is True
@@ -589,7 +621,7 @@ async def test_cmd_get_feature_json_prints_one_array_for_several_features(
 async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, capsys):
     """An unknown name fails the read rather than printing an empty result."""
     args = _cli_args("get-feature", "missing.feature")
-    mock_cli_context.client.get_features.return_value = []
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device()
 
     assert await cmd_get_feature(args) is False
 
@@ -731,30 +763,73 @@ async def test_async_main_rejects_malformed_credential_document(monkeypatch, tmp
     assert token_file.read_text(encoding="utf-8") == invalid_content
 
 
-async def test_cmd_exec_preserves_explicit_parameters(mock_cli_context, capsys):
-    """CLI executes every explicitly supplied advanced command parameter."""
-    # Arrange: Provide a writable feature and an explicit parameter set.
-    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=1.4", "shift=0")
+async def test_cmd_exec_runs_any_reported_command_of_an_api_feature(
+    mock_cli_context, capsys
+):
+    """CLI exec runs any command the API feature reports through run_command."""
+    # Arrange: Provide a refreshed snapshot that reports the setCurve command.
+    args = _cli_args("exec", "heating.curve", "setCurve", "slope=1.4", "shift=0")
     feature = build_feature(binding=_binding())
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
-    mock_cli_context.client.execute_command.return_value = CommandResponse(
-        success=True, message="OK", reason=None
-    )
+    snapshot = _snapshot_device(feature)
+    mock_cli_context.client.refresh_device.return_value = snapshot
 
     # Act: Execute the explicit command through the CLI.
     assert await cmd_exec(args) is True
 
-    # Assert: The client receives the hydrated device and exact parameters.
-    assert mock_cli_context.client.refresh_device.call_args.args[0].id == "DEV1"
-    mock_cli_context.client.execute_command.assert_awaited_once_with(
-        feature, {"slope": 1.4, "shift": 0}
+    # Assert: The client receives the refreshed device with its commands.
+    mock_cli_context.client.refresh_device.assert_awaited_once()
+    assert mock_cli_context.client.refresh_device.call_args.kwargs == {
+        "only_available": False
+    }
+    mock_cli_context.client.run_command.assert_awaited_once_with(
+        snapshot, "heating.curve", "setCurve", {"slope": 1.4, "shift": 0}
     )
     assert "Success!" in capsys.readouterr().out
 
 
+async def test_cmd_exec_reports_rejections(mock_cli_context, capsys):
+    """Rejected commands print the failure line with the rejection details."""
+    # Arrange: Make the API reject the command with its details.
+    args = _cli_args("exec", "heating.curve", "setCurve", "slope=1.4")
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        build_feature()
+    )
+    mock_cli_context.client.run_command.side_effect = ViCommandRejectedError(
+        "API rejected", "out of range"
+    )
+
+    # Act: Run the command through the CLI.
+    assert await cmd_exec(args) is False
+
+    # Assert: The failure surfaces the rejection details.
+    captured = capsys.readouterr()
+    assert "Failed!" in captured.out
+    assert "Message: API rejected" in captured.out
+    assert "Reason: out of range" in captured.out
+
+
+async def test_cmd_exec_reports_rejections_without_details(mock_cli_context, capsys):
+    """Absent rejection details print no empty Message or Reason lines."""
+    # Arrange: Make the API reject the command without details.
+    args = _cli_args("exec", "heating.curve", "setCurve")
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        build_feature()
+    )
+    mock_cli_context.client.run_command.side_effect = ViCommandRejectedError()
+
+    # Act: Run the command through the CLI.
+    assert await cmd_exec(args) is False
+
+    # Assert: The failure prints without message or reason lines.
+    captured = capsys.readouterr()
+    assert "Failed!" in captured.out
+    assert "Message:" not in captured.out
+    assert "Reason:" not in captured.out
+
+
 async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, capsys):
     """Unparseable parameter arguments should reject before any request."""
-    args = _cli_args("exec", "heating.curve.slope", "setCurve", "not-key-value")
+    args = _cli_args("exec", "heating.curve", "setCurve", "not-key-value")
 
     assert await cmd_exec(args) is False
 
@@ -762,61 +837,14 @@ async def test_cmd_exec_rejects_malformed_parameter_arguments(mock_cli_context, 
     mock_cli_context.client.refresh_device.assert_not_called()
 
 
-async def test_cmd_exec_rejects_read_only_features(mock_cli_context, capsys):
-    """Read-only features should reject explicit commands."""
-    # Arrange: Provide a feature without command metadata and no params argument.
-    args = _cli_args("exec", "heating.curve.slope", "setCurve")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        build_feature()
-    )
-
-    # Act: Attempt the explicit command.
-    assert await cmd_exec(args) is False
-
-    # Assert: The CLI explains the read-only state without executing.
-    assert "is read-only" in capsys.readouterr().out
-    mock_cli_context.client.execute_command.assert_not_called()
-
-
-async def test_cmd_exec_reports_missing_features(mock_cli_context, capsys):
-    """Unknown feature names should reject explicit commands."""
-    # Arrange: Return no features for the requested name.
-    args = _cli_args("exec", "missing.feature", "setCurve")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device()
-
-    # Act: Attempt the explicit command.
-    assert await cmd_exec(args) is False
-
-    # Assert: The CLI names the missing feature.
-    assert "Error: Feature 'missing.feature' not found." in capsys.readouterr().out
-    mock_cli_context.client.execute_command.assert_not_called()
-
-
-async def test_cmd_exec_rejects_foreign_command_names(mock_cli_context, capsys):
-    """Explicit commands should only run a feature's primary command."""
-    # Arrange: Request a command name the feature does not expose.
-    args = _cli_args("exec", "heating.curve.slope", "otherCommand", "slope=1.4")
-    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        build_feature(binding=_binding())
-    )
-
-    # Act: Attempt the foreign command.
-    assert await cmd_exec(args) is False
-
-    # Assert: The CLI names the expected command without executing.
-    captured = capsys.readouterr()
-    assert "only supports command 'setCurve', not 'otherCommand'" in captured.out
-    mock_cli_context.client.execute_command.assert_not_called()
-
-
 async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
     """Not-found explicit commands should surface the API message."""
     # Arrange: Make the explicit command fail with a not-found API error.
-    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=1.4")
+    args = _cli_args("exec", "heating.curve", "setCurve", "slope=1.4")
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        build_feature(binding=_binding())
+        build_feature()
     )
-    mock_cli_context.client.execute_command.side_effect = ViNotFoundError("device gone")
+    mock_cli_context.client.run_command.side_effect = ViNotFoundError("device gone")
 
     # Act: Execute the explicit command.
     assert await cmd_exec(args) is False
@@ -828,11 +856,11 @@ async def test_cmd_exec_reports_not_found_errors(mock_cli_context, capsys):
 async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
     """Validation errors from explicit commands should print their message."""
     # Arrange: Make the explicit command fail with a validation error.
-    args = _cli_args("exec", "heating.curve.slope", "setCurve", "slope=invalid")
+    args = _cli_args("exec", "heating.curve", "setCurve", "slope=invalid")
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(
-        build_feature(binding=_binding())
+        build_feature()
     )
-    mock_cli_context.client.execute_command.side_effect = ViValidationError(
+    mock_cli_context.client.run_command.side_effect = ViValidationError(
         "Simulated Validation Error"
     )
 
@@ -843,6 +871,115 @@ async def test_cmd_exec_reports_validation_errors(mock_cli_context, capsys):
     assert "Validation failed: Simulated Validation Error" in capsys.readouterr().out
 
 
+async def test_run_cli_set_writes_a_fixture_feature(run_cli):
+    """A fixture device write succeeds end-to-end through the CLI status."""
+    # Act: Set the slope of the fixture heating curve.
+    exit_status, out, _ = await run_cli(
+        "set",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve.slope",
+        "0.9",
+    )
+
+    # Assert: The write confirms the command and the parameter before
+    # reporting success.
+    assert exit_status == 0
+    assert "Setting 'heating.circuits.0.heating.curve.slope' to '0.9'..." in out
+    assert "(Command: setCurve, Param: slope)" in out
+    assert "✅ Success!" in out
+
+
+async def test_run_cli_set_fails_on_a_rejected_command(run_cli, mock_cli_context):
+    """A rejected CLI write exits non-zero with the rejection lines."""
+    # Arrange: Offer a writable slope and reject the write with details.
+    mock_cli_context.client.refresh_device.return_value = _snapshot_device(
+        build_feature(
+            binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        )
+    )
+    mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError(
+        "API rejected", "out of range"
+    )
+
+    # Act: Set the slope through the full CLI dispatch.
+    exit_status, out, _ = await run_cli("set", "heating.curve.slope", "1.4")
+
+    # Assert: The process fails and prints the failure lines.
+    assert exit_status == 1
+    assert "❌ Failed!" in out
+    assert "Message: API rejected" in out
+    assert "Reason: out of range" in out
+
+
+async def test_run_cli_exec_runs_a_command_without_parameters(run_cli):
+    """A fixture command without parameters runs end-to-end through the CLI."""
+    # Act: Unschedule a fixture holiday through the CLI.
+    exit_status, out, _ = await run_cli(
+        "exec",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.operating.programs.holiday",
+        "unschedule",
+    )
+
+    # Assert: The command runs and the CLI succeeds.
+    assert exit_status == 0
+    assert "Executing 'unschedule' on heating.operating.programs.holiday..." in out
+    assert "Using parameters: {}" in out
+    assert "✅ Success!" in out
+
+
+async def test_run_cli_exec_rejects_flat_feature_names(run_cli):
+    """A flat feature name is no API feature; the error points to its parent."""
+    # Act: Use a flat feature name as the API feature argument.
+    exit_status, _, err = await run_cli(
+        "exec",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve.slope",
+        "setCurve",
+        "slope=1.4",
+    )
+
+    # Assert: The failure names the similar API features reporting commands,
+    # from the outermost to the direct parent.
+    assert exit_status == 1
+    assert (
+        "API feature 'heating.circuits.0.heating.curve.slope' reports no commands"
+        in err
+    )
+    assert (
+        "API features with commands: heating.circuits, heating.circuits.0, "
+        "heating.circuits.0.heating.curve" in err
+    )
+
+
+async def test_run_cli_get_feature_lists_the_reported_commands(run_cli):
+    """get-feature prints the value alongside the reported commands."""
+    # Act: Read the fixture heating curve slope.
+    exit_status, out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve.slope",
+    )
+
+    # Assert: The output shows the value, the write binding, and one command
+    # list with parameter names, required markers, and constraints.
+    assert exit_status == 0
+    lines = out.splitlines()
+    assert any(
+        line.startswith("- heating.circuits.0.heating.curve.slope: 0.6")
+        for line in lines
+    )
+    assert "  Writable via command: setCurve" in lines
+    assert "  Commands of heating.circuits.0.heating.curve:" in lines
+    assert "  - setCurve: slope*, shift*" in lines
+    assert "      slope: number, min: 0.2, max: 3.5, step: 0.1" in lines
+    assert "      shift: number, min: -13, max: 40, step: 1" in lines
+
+
 async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     """CLI writes should provide sibling values required by a command."""
     # Arrange: Provide heating-curve features that share the setCurve command.
@@ -851,7 +988,6 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     slope = build_feature(binding=binding)
     shift = build_feature(name="heating.curve.shift", value=4.0, binding=binding)
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(slope, shift)
-    mock_cli_context.client.set_feature.return_value = _successful_set_result()
 
     # Act: Set the slope through the CLI command.
     assert await cmd_set(args) is True

@@ -22,6 +22,7 @@ from vi_api_client import (
     FixtureViClient,
     OAuth,
     ViClient,
+    ViCommandRejectedError,
     ViNotFoundError,
     ViValidationError,
 )
@@ -30,13 +31,14 @@ from ._feature_diff import diff_features, feature_entries, format_feature_diff
 from ._types import JsonValue
 from .credentials import CredentialDocument
 from .models import (
-    CommandResponse,
+    CommandParameter,
     Device,
     Feature,
     FeatureConstraints,
     Gateway,
     InstallationEvent,
     ParameterWriteBinding,
+    ScheduleConstraints,
 )
 from .utils import format_feature, parse_cli_params
 
@@ -387,7 +389,9 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     """Get a specific feature.
 
     Fetches and displays every feature matching a feature name or an API
-    feature name; an API feature name can match several features.
+    feature name; an API feature name can match several features. Below the
+    matching features, every command their API features report is listed
+    with its parameter names, required markers, and constraints.
 
     Args:
         args: Parsed command line arguments including feature_name and json flag.
@@ -395,9 +399,15 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
     feature_name: str = args.feature_name
     async with setup_client_context(args) as context:
         device = _transient_device(context)
-        features = await context.client.get_features(
-            device, only_available=False, feature_names=[feature_name]
-        )
+        # The command listing reads the snapshot's internal command list, so
+        # the read is a full refresh; a full refresh skips no feature or
+        # command the device reports.
+        snapshot = await context.client.refresh_device(device, only_available=False)
+    features = [
+        feature
+        for feature in snapshot.features
+        if feature.name == feature_name or feature.name.startswith(f"{feature_name}.")
+    ]
     if not features:
         print(f"Feature '{feature_name}' not found.")
         return False
@@ -427,23 +437,83 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         _print_json(documents[0] if len(documents) == 1 else documents)
         return True
 
+    api_feature_sections: list[str] = []
     for feature in features:
         print(f"- {feature.name}: {format_feature(feature)}")
         binding = feature.write_binding
-        if binding is None:
-            continue
-        constraints = feature.constraints or FeatureConstraints()
-        print(f"  Writable via command: {binding.command_name}")
-        print(f"  Target param: {binding.parameter_name}")
-        if constraints.min is not None:
-            print(
-                f"  Constraints: min={constraints.min}, max={constraints.max}, "
-                f"step={constraints.step}"
-            )
-        if constraints.options:
-            print(f"  Options: {constraints.options}")
+        if binding is not None:
+            api_feature_name: str | None = binding.api_feature_name
+            constraints = feature.constraints or FeatureConstraints()
+            print(f"  Writable via command: {binding.command_name}")
+            print(f"  Target param: {binding.parameter_name}")
+            if constraints.min is not None:
+                print(
+                    f"  Constraints: min={constraints.min}, max={constraints.max}, "
+                    f"step={constraints.step}"
+                )
+            if constraints.options:
+                print(f"  Options: {constraints.options}")
+        else:
+            api_feature_name = _matching_api_feature_name(snapshot, feature.name)
+        if api_feature_name is not None and (
+            api_feature_name not in api_feature_sections
+        ):
+            api_feature_sections.append(api_feature_name)
+
+    for api_feature in api_feature_sections:
+        _print_command_list(snapshot, api_feature)
 
     return True
+
+
+def _matching_api_feature_name(device: Device, feature_name: str) -> str | None:
+    """Return the API feature with commands that one feature belongs to.
+
+    The longest API feature name the feature name starts with owns the
+    feature; API features without commands cannot own one for this purpose
+    because they have nothing to list.
+    """
+    candidates = [
+        name
+        for name in device.commands_by_api_feature
+        if feature_name == name or feature_name.startswith(f"{name}.")
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
+
+
+def _print_command_list(device: Device, api_feature_name: str) -> None:
+    """Print the commands of one API feature with their parameter rules.
+
+    A ``*`` marks a required parameter.
+    """
+    commands = device.commands_by_api_feature.get(api_feature_name, ())
+
+    if not commands:
+        return
+    print(f"  Commands of {api_feature_name}:")
+    for command in commands:
+        parameter_labels = ", ".join(
+            f"{parameter.name}{'*' if parameter.required is not False else ''}"
+            for parameter in command.parameters
+        )
+        print(f"  - {command.name}: {parameter_labels or 'none'}")
+        for parameter in command.parameters:
+            _print_parameter_rules(parameter)
+
+
+def _print_parameter_rules(parameter: CommandParameter) -> None:
+    """Print a command parameter's reported type and constraint rules."""
+    details: list[str] = []
+    if parameter.value_type is not None:
+        details.append(parameter.value_type)
+    constraints = parameter.constraints
+    if constraints is not None:
+        details.extend(_constraint_rules_text(constraints))
+        details.extend(_schedule_rules_text(constraints.schedule))
+    if details:
+        print(f"      {parameter.name}: {', '.join(details)}")
 
 
 @_reports_errors("setting feature")
@@ -467,11 +537,14 @@ async def cmd_set(args: argparse.Namespace) -> bool:
         print(f"  (Command: {binding.command_name}, Param: {binding.parameter_name})")
 
         value = _parse_set_value(raw_value, feature)
-        result, _updated_device = await context.client.set_feature(
-            device, feature, value
-        )
+        try:
+            await context.client.set_feature(device, feature, value)
+        except ViCommandRejectedError as error:
+            _print_command_rejected(error)
+            return False
 
-    return _print_command_result(result)
+    print("✅ Success!")
+    return True
 
 
 def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
@@ -557,15 +630,16 @@ def _infer_feature_value_type(feature: Feature) -> str:
 
 @_reports_errors("executing command")
 async def cmd_exec(args: argparse.Namespace) -> bool:
-    """Execute a command (Advanced).
+    """Run a command of an API feature (Advanced).
 
-    Executes a raw command with parameters. For advanced users.
+    Runs any command the API feature reports, addressed by the API feature
+    name, with the explicitly supplied parameters. For advanced users.
 
     Args:
-        args: Parsed command line arguments including feature_name,
-            command_name, and params.
+        args: Parsed command line arguments including the API feature name,
+            command name, and params.
     """
-    feature_name: str = args.feature_name
+    api_feature_name: str = args.feature_name
     command_name: str = args.command_name
 
     try:
@@ -575,25 +649,25 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
         return False
 
     async with setup_client_context(args) as context:
-        target = await _fetch_writable_feature(context, feature_name)
-        if target is None:
-            return False
-        _device, feature, binding = target
+        device = _transient_device(context)
+        # Commands resolve on the device's command list, so the read is a
+        # full refresh; unavailable API features stay addressable.
+        device_snapshot = await context.client.refresh_device(
+            device, only_available=False
+        )
 
-        # Features expose only their primary control command.
-        if binding.command_name != command_name:
-            print(
-                f"Error: Feature '{feature.name}' only supports command "
-                f"'{binding.command_name}', not '{command_name}'."
+        print(f"Executing '{command_name}' on {api_feature_name}...")
+        print(f"Using parameters: {parameters}")
+        try:
+            await context.client.run_command(
+                device_snapshot, api_feature_name, command_name, parameters
             )
+        except ViCommandRejectedError as error:
+            _print_command_rejected(error)
             return False
 
-        print(f"Executing '{command_name}' on {feature.name}...")
-        # The explicitly supplied parameter set is sent unchanged.
-        print(f"Using execute_command with params: {parameters}")
-        result = await context.client.execute_command(feature, parameters)
-
-    return _print_command_result(result)
+    print("✅ Success!")
+    return True
 
 
 async def _fetch_writable_feature(
@@ -634,19 +708,13 @@ def _transient_device(context: CLIContext) -> Device:
     )
 
 
-def _print_command_result(result: CommandResponse) -> bool:
-    """Print the result of a command execution."""
-    if result.success:
-        print("✅ Success!")
-    else:
-        print("❌ Failed!")
-
-    if result.message:
-        print(f"Message: {result.message}")
-    if result.reason:
-        print(f"Reason: {result.reason}")
-
-    return result.success
+def _print_command_rejected(error: ViCommandRejectedError) -> None:
+    """Print the failure lines of a command the API rejected."""
+    print("❌ Failed!")
+    if error.message:
+        print(f"Message: {error.message}")
+    if error.reason:
+        print(f"Reason: {error.reason}")
 
 
 @_reports_errors("listing writable features")
@@ -682,6 +750,17 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
 
 def _print_feature_constraints(constraints: FeatureConstraints) -> None:
     """Print the numeric, option, and text constraints of a writable feature."""
+    printed = _constraint_rules_text(constraints)
+    if printed:
+        print(f"    Constraints: {', '.join(printed)}")
+
+    schedule_rules = _schedule_rules_text(constraints.schedule)
+    if schedule_rules:
+        print(f"    Schedule rules: {', '.join(schedule_rules)}")
+
+
+def _constraint_rules_text(constraints: FeatureConstraints) -> list[str]:
+    """Return one entry per reported numeric, option, and text rule."""
     printed: list[str] = []
     if constraints.min is not None:
         printed.append(f"min: {constraints.min}")
@@ -697,17 +776,18 @@ def _print_feature_constraints(constraints: FeatureConstraints) -> None:
         printed.append(f"max_length: {constraints.max_length}")
     if constraints.pattern is not None:
         printed.append(f"pattern: {constraints.pattern}")
+    return printed
 
-    if printed:
-        print(f"    Constraints: {', '.join(printed)}")
 
-    if constraints.schedule is not None:
-        schedule_rules = [
-            f"{name}: {value}"
-            for name, value in asdict(constraints.schedule).items()
-            if value is not None
-        ]
-        print(f"    Schedule rules: {', '.join(schedule_rules)}")
+def _schedule_rules_text(schedule: ScheduleConstraints | None) -> list[str]:
+    """Return one entry per reported schedule rule."""
+    if schedule is None:
+        return []
+    return [
+        f"{name}: {value}"
+        for name, value in asdict(schedule).items()
+        if value is not None
+    ]
 
 
 @_reports_errors("listing events")
@@ -1329,10 +1409,13 @@ def build_parser() -> argparse.ArgumentParser:
     # Exec Command (Advanced)
     parser_exec = subparsers.add_parser(
         "exec",
-        help="Execute a raw command (Advanced)",
+        help="Run a command of an API feature (Advanced)",
         parents=[common_parser, device_parser],
     )
-    parser_exec.add_argument("feature_name", help="Feature Name")
+    parser_exec.add_argument(
+        "feature_name",
+        help="API Feature Name (e.g. heating.circuits.0.heating.curve)",
+    )
     parser_exec.add_argument("command_name", help="Command Name")
     parser_exec.add_argument("params", nargs="*", help="Parameters (key=value)")
     parser_exec.set_defaults(handler=cmd_exec)

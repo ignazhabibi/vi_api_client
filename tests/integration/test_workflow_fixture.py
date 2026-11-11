@@ -79,11 +79,10 @@ async def test_fixture_set_feature_stays_offline():
     assert slope is not None
 
     # Act: Set the writable slope through the standard high-level client method.
-    response, updated_device = await client.set_feature(device, slope, 0.7)
+    updated_device = await client.set_feature(device, slope, 0.7)
 
-    # Assert: The command should succeed locally.
+    # Assert: The command should succeed locally and the old value stays.
     updated_slope = updated_device.get_feature(slope.name)
-    assert response.success is True
     assert updated_slope is not None
     assert updated_slope.value == 0.7
     assert slope.value != updated_slope.value
@@ -158,12 +157,9 @@ async def test_every_catalog_device_supports_the_standard_workflow(fixture_devic
     # Every bundled device exposes at least one writable feature; a catalog
     # addition without one must be reviewed instead of silently skipped.
     assert writable is not None
-    response, updated_device = await client.set_feature(
-        device, writable, writable.value
-    )
+    updated_device = await client.set_feature(device, writable, writable.value)
 
     # Assert: The write succeeds and the returned snapshot carries the value.
-    assert response.success
     updated = updated_device.get_feature(writable.name)
     assert updated is not None
     assert updated.value == writable.value

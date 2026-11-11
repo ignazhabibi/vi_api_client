@@ -73,6 +73,47 @@ class ViResponseError(ViError):
     pass
 
 
+class ViDeviceCommunicationError(ViError):
+    """The API could not communicate with a device or gateway.
+
+    Raised for every error response the API classifies as
+    ``DEVICE_COMMUNICATION_ERROR``, whatever its HTTP status, because an
+    unreachable device is not a mistake in the request. The
+    ``error_type`` attribute keeps the API classification so error-type
+    based fallbacks keep working.
+    """
+
+    pass
+
+
+class ViCommandRejectedError(ViError):
+    """A command the API or device rejected.
+
+    Attributes:
+        message: The rejection message the API reported, if any.
+        reason: The rejection reason the API reported, if any.
+    """
+
+    def __init__(
+        self,
+        message: str | None = None,
+        reason: str | None = None,
+        error_id: str | None = None,
+        error_type: str | None = None,
+    ) -> None:
+        """Initialize the rejection with the API's details.
+
+        Args:
+            message: The rejection message from the API.
+            reason: The rejection reason from the API.
+            error_id: Optional unique error identifier from the API.
+            error_type: Optional Viessmann API error classification.
+        """
+        super().__init__(message or "Command rejected", error_id, error_type)
+        self.message = message
+        self.reason = reason
+
+
 class ViValidationError(ViError):
     """400 Bad Request or 422 Validation Error."""
 

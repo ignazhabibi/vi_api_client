@@ -25,7 +25,6 @@ Import consumer-facing symbols from `vi_api_client`:
 ```python
 from vi_api_client import (
     AbstractAuth,
-    CommandResponse,
     DEFAULT_SCOPES,
     Device,
     ENDPOINT_AUTHORIZE,
@@ -45,7 +44,9 @@ from vi_api_client import (
     ValidationDetail,
     ViAuthError,
     ViClient,
+    ViCommandRejectedError,
     ViConnectionError,
+    ViDeviceCommunicationError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -202,10 +203,11 @@ async def main():
         )
         if slope:
             print(f"Setting slope to 1.4...")
-            response, device = await client.set_feature(device, slope, 1.4)
-            if response.success:
-                print("✅ Success! Device updated.")
-                # Use updated device for subsequent calls
+            device = await client.set_feature(device, slope, 1.4)
+            print("✅ Success! Device updated.")
+            # No exception means the API accepted the write; use the updated
+            # device for subsequent calls. A rejected command raises
+            # ViCommandRejectedError.
 
 
 if __name__ == "__main__":
@@ -219,7 +221,7 @@ The detailed documentation is available in the `docs/` directory:
 1.  **[Getting Started](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/01_getting_started.md)**: Installation and First Steps.
 2.  **[API Structure & Concepts](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/02_api_structure.md)**: Understanding the Flat Architecture.
 3.  **[Authentication & Connection](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
-4.  **[Models Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/04_models_reference.md)**: Devices, Features, and Controls.
+4.  **[Models Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/04_models_reference.md)**: Devices, Features, and Constraints.
 5.  **[Client Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/05_client_reference.md)**: The `ViClient` class methods.
 6.  **[CLI Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/06_cli_reference.md)**: Using the command line interface.
 7.  **[Exceptions Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/07_exceptions_reference.md)**: Handling errors.

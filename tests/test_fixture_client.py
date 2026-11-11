@@ -175,24 +175,27 @@ async def test_fixture_client_rejects_malformed_fixture_feature_responses(
 
 
 @pytest.mark.usefixtures("no_http_requests")
-async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
-    """Fixture command execution should not alter the loaded fixture features."""
+async def test_fixture_run_command_is_offline_and_stateless(capsys, caplog):
+    """Fixture command runs should not alter the loaded fixture features."""
     # Arrange: Load a writable fixture feature through the public workflow.
     caplog.set_level(logging.DEBUG, logger="vi_api_client.fixture_client")
     client = FixtureViClient("Vitocal250A")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
     device = await client.refresh_device(device)
-    feature = device.get_feature("heating.circuits.0.heating.curve.slope")
-    assert feature is not None
 
-    # Act: Execute a command with an explicit payload.
-    response = await client.execute_command(feature, {"slope": 0.7, "shift": 7.0})
+    # Act: Run a command with an explicit payload; a snapshot refresh keeps
+    # the feature so the run cannot depend on a feature reference.
+    await client.run_command(
+        device,
+        "heating.circuits.0.heating.curve",
+        "setCurve",
+        {"slope": 0.7, "shift": 7.0},
+    )
+    fresh_device = await client.refresh_device(device)
 
-    # Assert: The response is deterministic and a fresh read still shows the
-    # fixture value, so the command did not change the fixture state.
-    assert response.success
-    assert response.reason == "Fixture Execution Success"
-    refreshed_feature = (await client.refresh_device(device)).get_feature(
+    # Assert: A fresh read still shows the fixture value, so the command did
+    # not change the fixture state.
+    refreshed_feature = fresh_device.get_feature(
         "heating.circuits.0.heating.curve.slope"
     )
     assert refreshed_feature is not None
@@ -200,6 +203,33 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     assert capsys.readouterr().out == ""
     assert "Executing fixture command at" in caplog.text
     assert "commands/setCurve" in caplog.text
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_set_feature_accepts_every_valid_write():
+    """Fixture writes accept a value and update no fixture data."""
+    # Arrange: Load a fixture device with a writable feature.
+    client = FixtureViClient("Vitocal250A")
+    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
+    device = await client.refresh_device(device)
+
+    # Act: Write through the public high-level operation.
+    updated_device = await client.set_feature(
+        device, "heating.circuits.0.heating.curve.slope", 0.9
+    )
+
+    # Assert: The write returns the locally updated snapshot while the
+    # fixture state stays untouched.
+    updated_feature = updated_device.get_feature(
+        "heating.circuits.0.heating.curve.slope"
+    )
+    assert updated_feature is not None
+    assert updated_feature.value == 0.9
+    fresh_feature = (await client.refresh_device(device)).get_feature(
+        "heating.circuits.0.heating.curve.slope"
+    )
+    assert fresh_feature is not None
+    assert fresh_feature.value == 0.6
 
 
 @pytest.mark.usefixtures("no_http_requests")

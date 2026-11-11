@@ -8,7 +8,9 @@ from .client import ViClient
 from .const import DEFAULT_SCOPES, ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN
 from .exceptions import (
     ViAuthError,
+    ViCommandRejectedError,
     ViConnectionError,
+    ViDeviceCommunicationError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -18,7 +20,6 @@ from .exceptions import (
 )
 from .fixture_client import FixtureViClient
 from .models import (
-    CommandResponse,
     Device,
     EventHistoryPage,
     Feature,
@@ -42,7 +43,6 @@ __all__ = [
     "ENDPOINT_AUTHORIZE",
     "ENDPOINT_TOKEN",
     "AbstractAuth",
-    "CommandResponse",
     "Device",
     "EventHistoryPage",
     "Feature",
@@ -59,7 +59,9 @@ __all__ = [
     "ValidationDetail",
     "ViAuthError",
     "ViClient",
+    "ViCommandRejectedError",
     "ViConnectionError",
+    "ViDeviceCommunicationError",
     "ViError",
     "ViNotFoundError",
     "ViRateLimitError",

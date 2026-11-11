@@ -3,6 +3,7 @@
 import itertools
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -12,9 +13,14 @@ from ._adapter import CommandAdapter, DiscoveryAdapter, LiveAdapter
 from ._types import FeatureValue, JsonValue
 from .auth import AbstractAuth
 from .const import EVENT_HISTORY_MAX_LIMIT
-from .exceptions import ViError, ViResponseError, ViValidationError
+from .exceptions import (
+    ViCommandRejectedError,
+    ViDeviceCommunicationError,
+    ViError,
+    ViResponseError,
+)
 from .models import (
-    CommandResponse,
+    CommandParameter,
     Device,
     DeviceCommand,
     EventHistoryPage,
@@ -29,7 +35,7 @@ from .models import (
 from .parsing import (
     api_feature_to_flat_features,
     parse_api_features,
-    parse_command_response,
+    parse_command_outcome,
     parse_device,
     parse_event_history_page,
     parse_gateway,
@@ -405,15 +411,16 @@ class ViClient:
             response = await self._discovery_adapter.get_gateway_features(
                 installation_id, gateway_serial, payload
             )
-        except ViValidationError as error:
-            if error.error_type == "DEVICE_COMMUNICATION_ERROR":
-                _LOGGER.debug(
-                    "Gateway-wide feature fetch failed with %s; "
-                    "falling back to individual device refreshes",
-                    error.error_type,
-                )
-                return await self._refresh_devices_individually(devices)
-            raise
+        except ViDeviceCommunicationError:
+            # The API reports unreachable gateways and device outages as
+            # DEVICE_COMMUNICATION_ERROR; the per-device refreshes below
+            # find the devices that still answer.
+            _LOGGER.debug(
+                "Gateway-wide feature fetch failed with a device "
+                "communication error; falling back to individual device "
+                "refreshes"
+            )
+            return await self._refresh_devices_individually(devices)
 
         requested_device_ids = {device.id for device in devices}
         api_features_by_device_id = self._group_api_features_by_device(
@@ -456,35 +463,40 @@ class ViClient:
         )
 
     async def set_feature(
-        self, device: Device, feature: Feature, target_value: FeatureValue
-    ) -> tuple[CommandResponse, Device]:
-        """Set a current device feature and return a command-updated snapshot.
+        self, device: Device, feature: Feature | str, target_value: FeatureValue
+    ) -> Device:
+        """Set a current device feature and return the command-updated snapshot.
 
-        Resolves ``feature.name`` against ``device`` before validating its current
+        Resolves ``feature`` against ``device`` before validating its current
         command availability, constraints, and required sibling parameters.
+        The feature argument is only a name reference: a supplied ``Feature``
+        is resolved by its name in the current snapshot, and its stale value
+        or constraints do not participate.
 
         Args:
             device: The device allowing context lookup for dependencies.
-            feature: A feature whose name identifies the current device feature.
+            feature: A feature or feature name identifying the current device
+                feature to write.
             target_value: The JSON value to write.
 
         Returns:
-            Tuple of (command_response, updated_device).
-            - If successful: command-updated device snapshot with the feature
-              value set locally, without an API read-back.
-            - If failed: original device snapshot unchanged.
+            The command-updated device snapshot with the feature value set
+            locally, without an API read-back. A rejected command raises, so
+            the caller keeps its previous snapshot.
 
         Raises:
             ValueError: If the named feature is absent or unavailable, a
                 required sibling is absent, unavailable, or has no value, the
-                target value violates its constraints, or a command parameter
-                value is not a JSON value.
+                target value violates its constraints, or the target value is
+                not a JSON value.
+            ViCommandRejectedError: If the API rejects the command.
             ViResponseError: If the command URI is outside the Vi API or the
                 successful command response violates the API contract.
         """
-        current_feature = device.get_feature(feature.name)
+        feature_name = feature if isinstance(feature, str) else feature.name
+        current_feature = device.get_feature(feature_name)
         if current_feature is None:
-            raise ValueError(f"Feature '{feature.name}' is not present on the device.")
+            raise ValueError(f"Feature '{feature_name}' is not present on the device.")
 
         binding = self._require_command_binding(current_feature)
         _LOGGER.debug(
@@ -499,27 +511,17 @@ class ViClient:
         constraints = self._require_constraints(current_feature)
         self._validate_constraints(constraints, binding.command_name, target_value)
 
-        response = await self._send_command(binding.uri, payload)
+        await self._send_command(binding.uri, payload)
 
-        if response.success:
-            # Preserve all other feature values from the input snapshot.
-            updated_feature = replace(current_feature, value=target_value)
-            updated_features = [
-                updated_feature
-                if existing_feature.name == current_feature.name
-                else existing_feature
-                for existing_feature in device.features
-            ]
-            updated_device = replace(device, features=updated_features)
-            return response, updated_device
-
-        _LOGGER.warning(
-            "Setting %s via %s failed (reason: %s)",
-            current_feature.name,
-            binding.command_name,
-            response.reason,
-        )
-        return response, device
+        # Preserve all other feature values from the input snapshot.
+        updated_feature = replace(current_feature, value=target_value)
+        updated_features = [
+            updated_feature
+            if existing_feature.name == current_feature.name
+            else existing_feature
+            for existing_feature in device.features
+        ]
+        return replace(device, features=updated_features)
 
     @staticmethod
     def _require_constraints(feature: Feature) -> FeatureConstraints:
@@ -530,31 +532,143 @@ class ViClient:
         """
         return feature.constraints or FeatureConstraints()
 
-    async def execute_command(
-        self, feature: Feature, parameters: dict[str, JsonValue]
-    ) -> CommandResponse:
-        """Execute an explicit available-feature command without changing parameters.
+    async def run_command(
+        self,
+        device: Device,
+        feature_name: str,
+        command_name: str,
+        parameters: dict[str, JsonValue] | None = None,
+    ) -> None:
+        """Run one reported command of a device's API feature.
+
+        The command is resolved from the snapshot's internal command list, so
+        the device must come from `refresh_device`, `refresh_gateway_devices`,
+        or `get_full_installation_status`. Reported executability and
+        deprecation are not checked: a command reported as non-executable is
+        sent like any other, and the API decides. No snapshot is changed; a
+        successful run raises nothing.
 
         Args:
-            feature: A writable and available feature identifying the command.
-            parameters: Complete command parameters to send exactly as supplied;
-                every parameter value must be within the JSON value contract.
-
-        Returns:
-            The command response from the API.
+            device: The device snapshot carrying the API feature's commands.
+            feature_name: The API feature name, such as
+                ``heating.circuits.0.heating.curve``.
+            command_name: The command name the API feature reports.
+            parameters: The command parameters to send. Every required
+                parameter must be supplied; every supplied value is checked
+                against the parameter's reported type and constraints with
+                the same rules `set_feature` applies to its value.
 
         Raises:
-            ValueError: If the feature is unavailable, the payload omits its
-                target or a required parameter, or a parameter value is not a
-                JSON value.
+            ValueError: If the snapshot carries no commands, the API feature
+                or command is unknown, a parameter name is not reported, a
+                required parameter is missing, or a parameter value violates
+                the JSON value contract or the reported constraints.
+            ViCommandRejectedError: If the API rejects the command.
             ViResponseError: If the command URI is outside the Vi API or the
                 successful command response violates the API contract.
         """
-        control = self._require_command_binding(feature)
-        self._reject_missing_parameters(control, parameters)
-        self._reject_non_json_parameters(parameters)
-        _LOGGER.debug("Executing %s for %s", control.command_name, feature.name)
-        return await self._send_command(control.uri, parameters)
+        payload = dict(parameters or {})
+        commands_by_api_feature = device.commands_by_api_feature
+        if not commands_by_api_feature:
+            raise ValueError(
+                "The device snapshot has no commands; refresh the device with "
+                "refresh_device, refresh_gateway_devices, or "
+                "get_full_installation_status to obtain a snapshot with commands."
+            )
+        reported_commands = commands_by_api_feature.get(feature_name, ())
+        command = next(
+            (
+                reported
+                for reported in reported_commands
+                if reported.name == command_name
+            ),
+            None,
+        )
+        if command is None:
+            raise self._unknown_command_error(
+                feature_name, command_name, commands_by_api_feature
+            )
+        _LOGGER.debug("Running %s of %s", command_name, feature_name)
+        self._validate_command_parameters(command, payload)
+        self._reject_non_json_parameters(payload)
+        await self._send_command(command.uri, payload)
+
+    @staticmethod
+    def _unknown_command_error(
+        feature_name: str,
+        command_name: str,
+        commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]],
+    ) -> ValueError:
+        """Return the error for a name the snapshot does not resolve.
+
+        An unknown command names its API feature's available commands. An
+        unknown API feature names the API features that report commands with
+        a similar name, so a flat feature name points to its API feature.
+        """
+        if feature_name not in commands_by_api_feature:
+            similar = sorted(
+                name
+                for name in commands_by_api_feature
+                if feature_name.startswith(f"{name}.")
+                or name.startswith(f"{feature_name}.")
+            )
+            detail = (
+                f"; API features with commands: {', '.join(similar)}" if similar else ""
+            )
+            return ValueError(
+                f"API feature '{feature_name}' reports no commands{detail}"
+            )
+        available_commands = ", ".join(
+            sorted(reported.name for reported in commands_by_api_feature[feature_name])
+        )
+        return ValueError(
+            f"API feature '{feature_name}' reports no command '{command_name}'; "
+            f"available commands: {available_commands}"
+        )
+
+    def _validate_command_parameters(
+        self, command: DeviceCommand, parameters: dict[str, JsonValue]
+    ) -> None:
+        """Check supplied parameter names and their values against the report.
+
+        Raises:
+            ValueError: If a parameter name is not reported, a required
+                parameter is missing, or a value violates the parameter's
+                reported type or constraints.
+        """
+        reported_by_name = {
+            parameter.name: parameter for parameter in command.parameters
+        }
+        for parameter_name in parameters:
+            if parameter_name not in reported_by_name:
+                raise ValueError(
+                    f"Command '{command.name}' does not report parameter "
+                    f"'{parameter_name}'."
+                )
+        for reported in command.parameters:
+            if reported.required is not False and reported.name not in parameters:
+                raise ValueError(
+                    f"Command '{command.name}' is missing required parameter "
+                    f"'{reported.name}'."
+                )
+        for parameter_name, value in parameters.items():
+            parameter = reported_by_name[parameter_name]
+            self._validate_constraints(
+                self._command_parameter_constraints(parameter),
+                command.name,
+                value,
+            )
+
+    @staticmethod
+    def _command_parameter_constraints(
+        parameter: CommandParameter,
+    ) -> FeatureConstraints:
+        """Return the constraint rules of one reported command parameter."""
+        constraints = parameter.constraints or FeatureConstraints()
+        value_type = parameter.value_type or constraints.value_type
+        if value_type == constraints.value_type:
+            return constraints
+        return replace(constraints, value_type=value_type)
 
     # Reads: unpack API responses and parse API features into flat features.
 
@@ -751,27 +865,6 @@ class ViClient:
         return binding
 
     @staticmethod
-    def _reject_missing_parameters(
-        binding: ParameterWriteBinding, parameters: dict[str, JsonValue]
-    ) -> None:
-        """Reject an explicit command payload that lacks a required parameter.
-
-        Raises:
-            ValueError: If the target or a required parameter is absent.
-        """
-        if binding.parameter_name not in parameters:
-            raise ValueError(
-                f"Command '{binding.command_name}' is missing target parameter "
-                f"'{binding.parameter_name}'."
-            )
-        for parameter in binding.required_parameters:
-            if parameter not in parameters:
-                raise ValueError(
-                    f"Command '{binding.command_name}' is missing required parameter "
-                    f"'{parameter}'."
-                )
-
-    @staticmethod
     def _resolve_command_payload(
         device: Device, binding: ParameterWriteBinding, target_value: FeatureValue
     ) -> dict[str, JsonValue]:
@@ -954,25 +1047,30 @@ class ViClient:
                 f"{', '.join(missing_days)}"
             )
 
-    async def _send_command(
-        self, uri: str, payload: dict[str, JsonValue]
-    ) -> CommandResponse:
-        """Send a prepared command payload and parse the command response.
+    async def _send_command(self, uri: str, payload: dict[str, JsonValue]) -> None:
+        """Send a prepared command payload and raise on a rejected command.
 
         Args:
             uri: The API URI of the bound command.
             payload: The validated command parameters to send.
 
-        Returns:
-            The parsed command response.
-
         Raises:
+            ViCommandRejectedError: If the API answers with a rejected
+                command response.
             ViResponseError: If the command response violates the API contract.
         """
         response = await self._command_adapter.execute_command(uri, payload)
-        return parse_command_response(
+        outcome = parse_command_outcome(
             self._response_object(response, resource="Command")
         )
+        if outcome.success:
+            _LOGGER.debug(
+                "Command succeeded (reason: %s): %s",
+                outcome.reason,
+                outcome.message,
+            )
+            return
+        raise ViCommandRejectedError(outcome.message, outcome.reason)
 
 
 def _matches_value_type(value_type: str | None, value: FeatureValue) -> bool:

@@ -6,7 +6,6 @@ Import public models and helpers from the package root:
 
 ```python
 from vi_api_client import (
-    CommandResponse,
     Device,
     EventHistoryPage,
     Feature,
@@ -52,7 +51,7 @@ is validated before the write binding and command list are built; unknown additi
 remain allowed. This behavior is identical for live and fixture-backed reads.
 
 Feature commands apply the same contract to their inputs: `set_feature`
-target values and `execute_command` parameter values must be JSON values.
+target values and `run_command` parameter values must be JSON values.
 Non-JSON parameter values raise `ValueError` before any request is sent.
 
 ## Installation
@@ -196,32 +195,24 @@ plan; times must be `HH:MM` up to
 slot count, modes, and overlaps must follow the reported rules. A violation
 raises `ValueError` without a request.
 
-## CommandResponse
+## Command outcomes
 
-Result of a command execution. It is returned directly by `execute_command`
-and as the first element of the tuple returned by `set_feature`.
+A command is not answered with a model. `set_feature` returns the
+command-updated `Device` snapshot and `run_command` returns nothing; a
+command the API rejects raises `ViCommandRejectedError` with the rejection
+`message` and `reason`, so success always means that no exception was raised.
 
-| Property | Type | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `success` | `bool` | `True` if the command succeeded. | `True` |
-| `message` | `str \| None` | Optional message from the API. | `'Command accepted'` |
-| `reason` | `str \| None` | Optional failure reason or details. | `'Feature not ready'` |
-
-Command responses validate their known fields: `success` accepts the
-documented boolean representations — a JSON boolean or a case-insensitive
-`"true"`/`"false"` string — and normalizes them to a boolean. A missing or
-otherwise malformed `success`, or a supplied `message` or `reason` that is
-neither a string nor JSON `null`, raises `ViResponseError`; absent and
-explicitly null optional text fields become `None`. Unknown additional fields
-remain allowed. Responses may arrive as the root object or wrapped in a `data`
-object.
+Command responses validate their known fields at the response boundary:
+`success` accepts the documented boolean representations — a JSON boolean or
+a case-insensitive `"true"`/`"false"` string — and a missing or otherwise
+malformed `success`, or a supplied `message` or `reason` that is neither a
+string nor JSON `null`, raises `ViResponseError`. Responses may arrive as the
+root object or wrapped in a `data` object.
 
 **Usage**:
 ```python
-response, updated_device = await client.set_feature(device, feature, value)
-if response.success:
-    # Command succeeded; this is a command-updated device snapshot.
-    pass
+device = await client.set_feature(device, feature, value)
+# Reaching this line means the API accepted the command.
 ```
 
 ## GatewayDeviceRefreshResult

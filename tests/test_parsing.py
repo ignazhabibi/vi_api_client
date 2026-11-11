@@ -15,7 +15,7 @@ from vi_api_client.models import (
 from vi_api_client.parsing import (
     api_feature_to_flat_features,
     parse_api_features,
-    parse_command_response,
+    parse_command_outcome,
     parse_device,
 )
 
@@ -858,13 +858,13 @@ def test_parse_device_maps_fields_and_converts_integer_ids_to_text():
         ),
     ],
 )
-def test_parse_command_response_accepts_documented_payloads(
+def test_parse_command_outcome_accepts_documented_payloads(
     payload: dict[str, JsonValue], expected: tuple[bool, str | None, str | None]
 ):
-    """Documented success, message, and reason shapes parse to one response."""
-    response = parse_command_response(payload)
+    """Documented success, message, and reason shapes parse to one outcome."""
+    outcome = parse_command_outcome(payload)
 
-    assert (response.success, response.message, response.reason) == expected
+    assert (outcome.success, outcome.message, outcome.reason) == expected
 
 
 @pytest.mark.parametrize(
@@ -888,12 +888,12 @@ def test_parse_command_response_accepts_documented_payloads(
         pytest.param({"data": "unexpected"}, "object", id="data-not-object"),
     ],
 )
-def test_parse_command_response_rejects_malformed_payloads(
+def test_parse_command_outcome_rejects_malformed_payloads(
     payload: dict[str, JsonValue], message: str
 ):
     """Malformed known fields fail the command response contract."""
     with pytest.raises(ViResponseError, match=message):
-        parse_command_response(payload)
+        parse_command_outcome(payload)
 
 
 def _commanded_api_feature() -> dict[str, Any]:

@@ -432,17 +432,17 @@ sequenceDiagram
         Client->>Adapter: execute_command(uri, payload)
         Adapter->>API: send or simulate
         API-->>Adapter: command response
-        alt success
-            Client-->>App: response + command-updated snapshot
+        alt accepted
+            Client-->>App: command-updated snapshot
         else rejected
-            Client-->>App: response + original snapshot
+            Client-->>App: ViCommandRejectedError, no snapshot
         end
     end
 ```
 
-The supplied `Feature` acts as a name reference. The client resolves that name
-from the current `Device` to avoid combining stale command metadata with newer
-device state.
+The supplied `Feature` or feature name acts as a name reference. The client
+resolves that name from the current `Device` to avoid combining stale command
+metadata with newer device state.
 
 A command may require companion values:
 
@@ -463,26 +463,53 @@ input raises without sending a request.
 Command success is not read-back. The returned snapshot applies the requested
 value locally; a later refresh may confirm or replace it. Optimistic UI state,
 which may be displayed before command completion, belongs entirely to the
-consumer.
+consumer. A rejected command raises `ViCommandRejectedError`, so the caller
+keeps its previous snapshot; see `docs/adr/0005-keep-command-knowledge-in-the-library.md`.
 
-## 11. Explicit multi-parameter commands
+## 11. Running any reported command
 
-`execute_command(feature, parameters)` is the lower-level path for a consumer
-that already knows the complete payload. It validates feature state and required
-parameters, adds nothing, does not mutate the payload, permits additional
-explicit parameters, and does not update a `Device`.
+`run_command(device, feature_name, command_name, parameters)` is the second
+write path: it runs any command the API feature reports, addressed by names,
+and returns nothing. It resolves the command from the snapshot's internal
+command list, so the device must come from a device refresh; a snapshot without
+commands fails with a `ValueError` that says so.
 
 ```python
-response = await client.execute_command(
-    slope_feature,
+await client.run_command(
+    device,
+    "heating.circuits.0.heating.curve",
+    "setCurve",
     {"slope": 1.4, "shift": 0},
 )
 ```
 
-It complements rather than replaces `set_feature()`. Without a `Device`,
-the client cannot derive sibling values or return updated device state.
+Before any request, the core checks that every supplied parameter name is
+reported, every required parameter is supplied, each value is within the JSON
+value contract, and each value satisfies the reported type and constraints —
+the same shared validation `set_feature()` applies to its value. Reported
+executability and deprecation are not checked: the API decides.
 
-## 12. Live and fixture-backed clients
+It complements rather than replaces `set_feature()`. A command does not
+describe a single value — `unschedule` cancels a holiday, `setCurve` writes
+two properties at once — so there is no feature to update locally and no
+snapshot returns; the consumer's next refresh shows the effect.
+
+## 12. One error channel for both writes
+
+Both write operations raise `ViCommandRejectedError` when the API or device
+rejects a command, so success always means that no exception was raised. The
+rejection is recognized in two ways: a successful command response whose
+`success` flag is false, and the recorded status 400
+`DEVICE_COMMUNICATION_ERROR` command answer whose `extendedPayload.reason` is
+`COMMAND_NOT_EXECUTABLE`. The second check applies to command requests only
+and degrades safely: without that documented reason, the response raises
+`ViDeviceCommunicationError` like every other response of that error type,
+whatever its status code. For every other error response, a string
+`extendedPayload.reason` is appended to the exception message as text and
+nothing else from the debugging payload is used; no successful write logs or
+returns more than the debug level message and reason.
+
+## 13. Live and fixture-backed clients
 
 ```mermaid
 flowchart TB
@@ -513,7 +540,7 @@ Two complete client implementations would allow discovery, parsing, refresh,
 and command behavior to diverge. The adapter seam limits differences to external
 access.
 
-## 13. Authentication and session ownership
+## 14. Authentication and session ownership
 
 `AbstractAuth` defines three requirements: provide a valid token, perform an
 authenticated request, and close owned resources. This lets consumers such as
@@ -569,7 +596,7 @@ waiters receive the same result or failure, a later call may retry, and close
 allows an active refresh to finish. This guarantee applies to one `OAuth`
 instance in one event loop, not across instances, threads, or processes.
 
-## 14. Credential document
+## 15. Credential document
 
 ```mermaid
 flowchart TD
@@ -595,7 +622,7 @@ Atomic replacement ensures readers see either the complete old or complete new
 file, never a partial write. It does not coordinate in-memory tokens across
 processes.
 
-## 15. Exception architecture
+## 16. Exception architecture
 
 Expected provider and transport failures inherit from `ViError`.
 
@@ -605,8 +632,10 @@ Expected provider and transport failures inherit from `ViError`.
 | HTTP 401 or 403 | `ViAuthError` | Authentication or authorization failed |
 | HTTP 404 | `ViNotFoundError` | Resource does not exist |
 | HTTP 429 | `ViRateLimitError` | Rate limit; `retry_after` may exist |
-| HTTP 400 or 422 | `ViValidationError` | Provider rejected input |
-| HTTP 5xx | `ViServerInternalError` | Provider failure |
+| Error type `DEVICE_COMMUNICATION_ERROR`, any status | `ViDeviceCommunicationError` | Device or gateway unreachable |
+| Rejected command | `ViCommandRejectedError` | Device refused the command; `message` and `reason` explain why |
+| HTTP 400 or 422, other error types | `ViValidationError` | Provider rejected input |
+| HTTP 5xx, other error types | `ViServerInternalError` | Provider failure |
 | HTTP 2xx, invalid body | `ViResponseError` | Response violates the contract |
 | Invalid local usage | `ValueError` | Detected before I/O |
 
@@ -615,11 +644,12 @@ failure it may be unknown whether a command executed; automatic repetition
 could execute it twice. Consumers decide retry and backoff, using
 `ViRateLimitError.retry_after` when available.
 
-A transported command may still be rejected at domain level and return
-`CommandResponse(success=False)`. `set_feature()` then returns the original
-snapshot.
+A transported command may still be rejected at domain level. Both write
+operations then raise `ViCommandRejectedError` with the reported `message` and
+`reason`; `set_feature()` returns no snapshot, so the caller keeps its
+previous one.
 
-## 16. Concurrency ownership
+## 17. Concurrency ownership
 
 The library is asynchronous but does not own global concurrency policy:
 
@@ -634,7 +664,7 @@ consumer lock may serialize writes and refreshes, and Home Assistant's OAuth
 session may manage tokens. This permits each consumer to implement its own
 scheduling, availability, and rate-limit policy.
 
-## 17. Public and internal API
+## 18. Public and internal API
 
 Consumers import public symbols from the package root:
 
@@ -677,7 +707,7 @@ The package ships as a strictly typed PEP 561 package:
   defaults for commands without target or JSON options, and validates
   positive integers when parsing.
 
-## 18. CLI architecture
+## 19. CLI architecture
 
 ```mermaid
 flowchart LR
@@ -698,7 +728,7 @@ With `--json`, standard output remains machine-readable while diagnostics use
 standard error. Reusing client methods prevents alternative CLI-specific domain
 behavior.
 
-## 19. Fixtures and tests
+## 20. Fixtures and tests
 
 `src/vi_api_client/fixtures/` contains complete device responses for the
 public `FixtureViClient`. They are bundled product assets and represent real or
@@ -726,7 +756,7 @@ HTTP and OAuth tests use controlled responses. Offline workflows exercise the
 public API, and every CLI command runs against every bundled fixture device. Model, contract, public-API, and build tests protect invariants and
 ensure product fixtures are shipped.
 
-## 20. Why this is not over-engineered
+## 21. Why this is not over-engineered
 
 Each additional private component addresses an existing requirement:
 
@@ -743,7 +773,7 @@ universal JSON-schema framework, or cross-process OAuth locks.
 The design rule is to centralize a rule when multiple existing workflows depend
 on it. No framework is introduced solely for hypothetical future requirements.
 
-## 21. Locating future changes
+## 22. Locating future changes
 
 - **New public operation:** define its contract on `ViClient`, add only the
   necessary private port operation, implement both adapters, validate in the
@@ -760,7 +790,7 @@ on it. No framework is introduced solely for hypothetical future requirements.
 The reason for a change determines its module, rather than call order or
 implementation convenience.
 
-## 22. Common misconceptions
+## 23. Common misconceptions
 
 - **“Frozen means every nested value is immutable.”** No. Models protect their
   own containers; arbitrary complex `Feature.value` data is not recursively
@@ -777,7 +807,7 @@ implementation convenience.
   not conflicts among independent OAuth instances.
 - **“A seam is always public API.”** No. The main adapter seam is private.
 
-## 23. Consumer checklist
+## 24. Consumer checklist
 
 1. Create an external `aiohttp.ClientSession`, or use auth as a context manager.
 2. Create `OAuth` and `ViClient`.
@@ -797,7 +827,7 @@ Auth owns its token and session lifecycle.
 Models represent immutable state.
 ```
 
-## 24. Further documentation
+## 25. Further documentation
 
 - [Getting Started](01_getting_started.md)
 - [API Structure & Concepts](02_api_structure.md)

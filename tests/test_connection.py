@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import aiohttp
 import pytest
 from aiointercept import CallbackResult, aiointercept
-from builders import StaticTokenAuth
+from builders import StaticTokenAuth, load_fixture_json
 from yarl import URL
 
 from vi_api_client._adapter import LiveAdapter
@@ -18,7 +18,9 @@ from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS
 from vi_api_client.exceptions import (
     ViAuthError,
+    ViCommandRejectedError,
     ViConnectionError,
+    ViDeviceCommunicationError,
     ViError,
     ViNotFoundError,
     ViRateLimitError,
@@ -207,7 +209,7 @@ async def test_live_adapter_preserves_viessmann_error_type(
 ) -> None:
     # Arrange: Return a structured Viessmann error from the HTTP boundary.
     payload = {
-        "errorType": "DEVICE_COMMUNICATION_ERROR",
+        "errorType": "UNKNOWN_ERROR",
         "message": "Device communication failed",
         "viErrorId": "error-123",
     }
@@ -222,7 +224,228 @@ async def test_live_adapter_preserves_viessmann_error_type(
     # it, and the exception retains the API classification data.
     assert type(raised_error.value) is expected_error
     assert raised_error.value.error_id == "error-123"
+    assert raised_error.value.error_type == "UNKNOWN_ERROR"
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        pytest.param(400, id="bad-request"),
+        pytest.param(418, id="unmapped-status"),
+        pytest.param(502, id="bad-gateway"),
+    ],
+)
+async def test_live_adapter_maps_device_communication_error_by_error_type(
+    live_adapter, mock_responses, status: int
+) -> None:
+    # Arrange: Return the documented device communication error type with any
+    # HTTP status.
+    payload = {
+        "errorType": "DEVICE_COMMUNICATION_ERROR",
+        "message": "Device communication error",
+        "viErrorId": "error-123",
+    }
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=status)
+
+    # Act: Read installations while a device cannot be reached.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: The error type decides the class, whatever the status code.
+    assert type(raised_error.value) is ViDeviceCommunicationError
+    assert raised_error.value.error_id == "error-123"
     assert raised_error.value.error_type == "DEVICE_COMMUNICATION_ERROR"
+
+
+async def test_device_communication_error_appends_the_recorded_reason(
+    live_adapter, mock_responses
+) -> None:
+    """An unreachable device reports its cause in `extendedPayload.reason`."""
+    # Arrange: Return the recorded unreachable-device response.
+    payload = load_fixture_json("device_offline_error.json")
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
+
+    # Act: Read installations while the device is offline.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: The reason is appended as text and nothing else is exposed.
+    assert str(raised_error.value) == (
+        "Device communication error (reason: DEVICE_OFFLINE)"
+    )
+
+
+async def test_gateway_offline_error_names_the_http_status_with_its_reason(
+    live_adapter, mock_responses
+) -> None:
+    """The recorded gateway-offline body carries an empty top-level message."""
+    # Arrange: Return the recorded unreachable-gateway response.
+    payload = load_fixture_json("gateway_offline_error.json")
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
+
+    # Act: Read installations while the gateway is offline.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: The HTTP-level default fills the empty message and the reason
+    # is appended as text.
+    assert str(raised_error.value) == "HTTP 400 (reason: GATEWAY_OFFLINE)"
+
+
+@pytest.mark.parametrize(
+    ("extended_payload", "expected_message"),
+    [
+        pytest.param(None, "Device communication error", id="absent"),
+        pytest.param("offline", "Device communication error", id="text"),
+        pytest.param(["reason"], "Device communication error", id="list"),
+        pytest.param({"reason": 42}, "Device communication error", id="number"),
+        pytest.param(
+            {"reason": None},
+            "Device communication error",
+            id="null-reason",
+        ),
+        pytest.param(
+            {"reason": "DEVICE_OFFLINE"},
+            "Device communication error (reason: DEVICE_OFFLINE)",
+            id="other-reason",
+        ),
+    ],
+)
+async def test_live_adapter_appends_only_text_reasons(
+    live_adapter, mock_responses, extended_payload: JsonValue, expected_message: str
+) -> None:
+    """Only a string `extendedPayload.reason` reaches the error message."""
+    # Arrange: Return a device communication error with the given payload.
+    payload: dict[str, JsonValue] = {
+        "errorType": "DEVICE_COMMUNICATION_ERROR",
+        "message": "Device communication error",
+        "viErrorId": "error-123",
+    }
+    if extended_payload is not None:
+        payload["extendedPayload"] = extended_payload
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
+
+    # Act: Read installations while the device reports a debugging payload.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: A reason text is appended; every other shape degrades safely.
+    assert str(raised_error.value) == expected_message
+
+
+async def test_extended_payload_debugging_fields_stay_out_of_error_messages(
+    live_adapter, mock_responses
+) -> None:
+    """Fields besides `reason` can carry account data and are never exposed."""
+    # Arrange: Return a validation-shaped error with a rich debugging payload.
+    payload: dict[str, JsonValue] = {
+        "errorType": "OTHER_ERROR",
+        "message": "Request failed",
+        "viErrorId": "error-123",
+        "extendedPayload": {
+            "httpStatusCode": "Forbidden",
+            "code": "403",
+            "reason": "LOW_BATTERY",
+            "message": "account-4711@example.org",
+        },
+    }
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
+
+    # Act: Read installations while the API reports a debugging payload.
+    with pytest.raises(ViValidationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: The message appends the reason and nothing else from the payload.
+    assert str(raised_error.value) == "Request failed (reason: LOW_BATTERY)"
+
+
+async def test_command_requests_report_non_executable_commands_as_rejections(
+    live_adapter, mock_responses
+) -> None:
+    """A non-executable command is a rejection, not a communication outage."""
+    # Arrange: Return the recorded non-executable-command response.
+    payload = load_fixture_json("command_not_executable_response.json")
+
+    mock_responses.post(COMMAND_URL, payload=payload, status=400)
+
+    # Act: Send a command the device currently does not allow.
+    with pytest.raises(ViCommandRejectedError) as raised_error:
+        await live_adapter.execute_command(COMMAND_URL, {"mode": "dhw"})
+
+    # Assert: The rejection keeps the envelope's details and the reason.
+    error = raised_error.value
+    assert type(error) is ViCommandRejectedError
+    assert error.message == "Device communication error"
+    assert error.reason == "COMMAND_NOT_EXECUTABLE"
+    assert error.error_type == "DEVICE_COMMUNICATION_ERROR"
+
+
+async def test_read_requests_with_the_rejection_body_stay_communication_errors(
+    live_adapter, mock_responses
+) -> None:
+    """The rejection reason only counts for command requests."""
+    # Arrange: Return the recorded rejection body for a read request.
+    payload = load_fixture_json("command_not_executable_response.json")
+
+    mock_responses.get(INSTALLATIONS_URL, payload=payload, status=400)
+
+    # Act: Read installations while the API reports the rejection body.
+    with pytest.raises(ViDeviceCommunicationError) as raised_error:
+        await live_adapter.get_installations()
+
+    # Assert: A read keeps the device communication error class.
+    assert "(reason: COMMAND_NOT_EXECUTABLE)" in str(raised_error.value)
+
+
+@pytest.mark.parametrize(
+    ("extended_payload", "expected_error"),
+    [
+        pytest.param(None, ViDeviceCommunicationError, id="without-extended-payload"),
+        pytest.param("broken", ViDeviceCommunicationError, id="non-object"),
+        pytest.param(
+            {"reason": "DEVICE_OFFLINE"}, ViDeviceCommunicationError, id="other-reason"
+        ),
+        pytest.param(
+            {"reason": "COMMAND_NOT_EXECUTABLE"},
+            ViValidationError,
+            id="other-error-type",
+        ),
+    ],
+)
+async def test_command_requests_degrade_without_the_documented_rejection(
+    live_adapter,
+    mock_responses,
+    extended_payload: JsonValue,
+    expected_error: type[ViError],
+) -> None:
+    """A command rejection needs the error type and the one reason value."""
+    # Arrange: Answer a command with the given extended payload shape.
+    error_type = (
+        "OTHER_ERROR"
+        if extended_payload == {"reason": "COMMAND_NOT_EXECUTABLE"}
+        else "DEVICE_COMMUNICATION_ERROR"
+    )
+    payload: dict[str, JsonValue] = {
+        "errorType": error_type,
+        "message": "Device communication error",
+        "viErrorId": "error-123",
+    }
+    if extended_payload is not None:
+        payload["extendedPayload"] = extended_payload
+
+    mock_responses.post(COMMAND_URL, payload=payload, status=400)
+
+    # Act: Send a command whose response lacks the documented rejection.
+    with pytest.raises(ViError) as raised_error:
+        await live_adapter.execute_command(COMMAND_URL, {"mode": "dhw"})
+
+    # Assert: Without both documented markers the response keeps its class.
+    assert type(raised_error.value) is expected_error
 
 
 async def test_live_adapter_exposes_validated_validation_details(

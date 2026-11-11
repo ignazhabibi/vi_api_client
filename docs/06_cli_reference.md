@@ -58,7 +58,9 @@ and warnings are written to standard error.
 
 ## 4. Fetch Feature Details
 Get the current value of a specific feature. The name may be a feature name or
-an API feature name; an API feature name prints every feature parsed from it.
+an API feature name; an API feature name prints every matching feature named
+within it. Below the matching features, the commands their API features report
+are listed once per API feature.
 
 ```bash
 vi-client get-feature "heating.sensors.temperature.outside"
@@ -76,6 +78,20 @@ With `--json`, each document carries `name`, `value`, and `unit`, plus
 with `{"name": ..., "parameter": ...}` (or `null`) for a writable feature. The
 command URI is not printed because it contains installation, gateway, and
 device IDs.
+
+In text mode, the matched features are followed by the commands their API
+features report, with their parameter names, required markers (`*`), and the
+parameter constraints the device reports:
+
+```text
+- heating.circuits.0.heating.curve.slope: 0.6
+  Writable via command: setCurve
+  Target param: slope
+  Commands of heating.circuits.0.heating.curve:
+  - setCurve: slope*, shift*
+      slope: number, min: 0.2, max: 3.5, step: 0.1
+      shift: number, min: -13, max: 40, step: 1
+```
 
 ## 5. List Installation Events
 Read the complete event history an installation returns for a rolling window
@@ -244,16 +260,39 @@ vi-client set heating.dhw.pumps.circulation.schedule \
 The CLI checks the plan against the rules the device reports (slots per day,
 modes, time grid, overlaps) before sending it.
 
-## 8. Advanced: Execute an Explicit Command
-If you need to execute a command with multiple parameters at once (rare), you can use `exec`.
+On success, `set` prints the success line. When the API or device rejects the
+command, the CLI prints the failure line with the rejection details and exits
+non-zero:
+
+```text
+✅ Success!
+```
+
+```text
+❌ Failed!
+Message: Device communication error
+Reason: COMMAND_NOT_EXECUTABLE
+```
+
+## 8. Advanced: Run a Command of an API Feature
+If you need to run a command with multiple parameters at once (rare), you can use `exec`.
 
 ```bash
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 ```
 
-`exec` sends every supplied parameter as one explicit command. It does not add
-dependent values or create a command-updated device snapshot; use `set` for the normal
-single-feature workflow.
+The first argument is an API feature name, and `<command-name>` is any command
+that API feature reports — it does not have to be the command bound to a
+feature, and it does not have to be executable at the moment of the write;
+`exec` sends it and the API decides. A flat feature name such as
+`heating.circuits.0.heating.curve.slope` is not accepted: the error names the
+API features that report commands with a similar name.
+
+`exec` validates every supplied parameter against the command's reported
+parameters and constraints and sends them exactly as supplied. It does not add
+dependent values or update a device snapshot; use `set` for the normal
+single-feature workflow. A rejection prints the failure line with
+`Message:` and `Reason:` and exits non-zero, like `set`.
 
 ## 9. Fixture Devices (Offline Mode)
 The client includes sample data for various devices, allowing you to test integration logic without a real account.
@@ -362,6 +401,6 @@ explicitly disables verification and emits a warning.
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
