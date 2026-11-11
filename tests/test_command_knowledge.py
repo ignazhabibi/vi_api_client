@@ -38,7 +38,9 @@ async def test_every_fixture_keeps_its_writable_set_and_write_bindings(fixture_d
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
     refreshed = await client.refresh_device(device, only_available=False)
 
-    # Act: Collect every writable feature's binding.
+    # Act: Collect the binding of every feature a parameter command writes.
+    # Features written through an on/off command pair became writable later
+    # and are pinned in test_command_pairs.py.
     actual = {
         feature.name: {
             "command": binding.command_name,
@@ -48,7 +50,7 @@ async def test_every_fixture_keeps_its_writable_set_and_write_bindings(fixture_d
             "api_feature": binding.api_feature_name,
         }
         for feature in refreshed.features
-        if (binding := feature.write_binding) is not None
+        if isinstance(binding := feature.write_binding, ParameterWriteBinding)
     }
 
     # Assert: The writable set, commands, parameters, and URIs are unchanged.
@@ -298,7 +300,7 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
     # Assert: No identifier survives in any command surface.
     redacted_feature = redacted.get_feature("device.serial")
     assert redacted_feature is not None
-    assert redacted_feature.write_binding is not None
+    assert isinstance(redacted_feature.write_binding, ParameterWriteBinding)
     assert "1234567" not in redacted_feature.write_binding.uri
     assert "#" in redacted_feature.write_binding.uri
     assert redacted_feature.constraints is not None

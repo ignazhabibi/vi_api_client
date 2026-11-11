@@ -7,6 +7,7 @@ import pytest
 
 from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
+from vi_api_client.models import ParameterWriteBinding
 from vi_api_client.utils import format_feature
 
 # The bundled fixture devices and the device types their catalog entries declare.
@@ -247,7 +248,7 @@ async def test_fixture_comfort_temperature_is_written_with_set_temperature():
 
     # Assert: The write targets setTemperature and its targetTemperature.
     assert feature is not None
-    assert feature.write_binding is not None
+    assert isinstance(feature.write_binding, ParameterWriteBinding)
     assert feature.write_binding.command_name == "setTemperature"
     assert feature.write_binding.parameter_name == "targetTemperature"
 

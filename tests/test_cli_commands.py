@@ -2146,3 +2146,72 @@ def test_print_event_summary_labels_events_from_multiple_gateways(capsys):
     assert "- 10:15:30 UTC feature-changed gateway 1234567890123456" in output
     assert "- 10:15:30 UTC feature-changed gateway 9876543210987654" in output
     assert "- 10:15:30 UTC feature-changed gateway unknown" in output
+
+
+async def test_run_cli_get_feature_shows_both_commands_of_a_pair(run_cli):
+    """get-feature names the on and the off command of a pair-written feature."""
+    # Act: Read a fixture feature that only a command pair writes.
+    exit_status, out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal222S",
+        "heating.dhw.hygiene.enabled",
+    )
+
+    # Assert: Both commands are named, and no parameter is shown.
+    assert exit_status == 0
+    assert "  Writable via commands: enable (on), disable (off)" in out
+    assert "Target param" not in out
+
+
+async def test_run_cli_get_feature_json_prints_the_pair_commands(run_cli):
+    """get-feature --json prints a pair-written feature's on and off command."""
+    # Act: Read a pair-written fixture feature as JSON.
+    exit_status, out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal222S",
+        "--json",
+        "heating.dhw.hygiene.enabled",
+    )
+
+    # Assert: The command entry names both commands and the boolean rule.
+    assert exit_status == 0
+    document = json.loads(out)
+    assert document["command"] == {"on": "enable", "off": "disable"}
+    assert document["constraints"]["value_type"] == "boolean"
+
+
+async def test_run_cli_list_writable_shows_both_commands_of_a_pair(run_cli):
+    """list-writable names the on and the off command of a pair-written feature."""
+    # Act: List the writable features of a fixture with a pair-written one.
+    exit_status, out, _ = await run_cli(
+        "list-writable", "--fixture-device", "Vitocal222S"
+    )
+
+    # Assert: The pair-written feature lists both commands.
+    assert exit_status == 0
+    assert (
+        "- heating.dhw.hygiene.enabled\n    Commands: enable (on), disable (off)" in out
+    )
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [pytest.param("true", id="on"), pytest.param("false", id="off")],
+)
+async def test_run_cli_set_writes_a_pair_written_feature(run_cli, raw_value):
+    """set accepts true and false for a pair-written feature."""
+    # Act: Write the fixture hygiene function through the CLI.
+    exit_status, out, _ = await run_cli(
+        "set",
+        "--fixture-device",
+        "Vitocal222S",
+        "heating.dhw.hygiene.enabled",
+        raw_value,
+    )
+
+    # Assert: The write names both commands and succeeds.
+    assert exit_status == 0
+    assert "(Commands: enable (on), disable (off))" in out
+    assert "✅ Success!" in out

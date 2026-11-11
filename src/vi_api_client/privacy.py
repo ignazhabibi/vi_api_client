@@ -22,7 +22,7 @@ from dataclasses import replace
 from typing import overload
 
 from ._types import JsonValue
-from .models import CommandParameter, Device, Feature
+from .models import CommandPairWriteBinding, CommandParameter, Device, Feature
 
 _DEFAULT_PLACEHOLDER = "<redacted>"
 
@@ -109,7 +109,13 @@ def redact_feature(
             ),
         )
     binding = feature.write_binding
-    if binding is not None:
+    if isinstance(binding, CommandPairWriteBinding):
+        binding = replace(
+            binding,
+            on_uri=_redact_text(binding.on_uri, placeholder),
+            off_uri=_redact_text(binding.off_uri, placeholder),
+        )
+    elif binding is not None:
         binding = replace(binding, uri=_redact_text(binding.uri, placeholder))
     return replace(
         feature,

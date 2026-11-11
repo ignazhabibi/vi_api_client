@@ -97,9 +97,23 @@ API features can often be used without adding a dedicated client method.
 
 - `FeatureConstraints`, the public rules for writing its value: allowed ranges
   or option values, lengths, pattern, value type, and schedule rules, and
-- an internal, undocumented write binding — the API feature, command,
-  parameter, required parameters, and URI — that records how the library
-  sends the command.
+- an internal, undocumented write binding that records how the library sends
+  the command. It is either a parameter command (API feature, command,
+  parameter, required parameters, and URI) or, for a boolean feature without
+  a parameter setter, an on/off command pair (API feature, both command names,
+  and both URIs).
+
+Which on/off command pairs make a boolean feature writable is an explicit
+table of six command families in the parser: the one-time charge, hygiene, the
+heating programs `comfort`, `eco`, and `forcedLastFromSchedule`, and the
+ventilation quick modes. An entry applies when the property is a reported
+boolean, both commands are reported without a required parameter, and no
+parameter setter writes the property. The reported `isExecutable` flags of a
+pair are not part of the rule, because they follow the device state and a
+feature must not change between writable and read-only from one refresh to
+the next. `set_feature` sends the on command for `True` and the off command
+for `False` with an empty JSON object and does not check the direction
+locally; the API decides whether the write is allowed (ADR 0005).
 
 The `Device` additionally carries one internal command list per API feature
 with every reported command and its parameter metadata, read through

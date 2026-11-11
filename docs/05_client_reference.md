@@ -204,7 +204,7 @@ and the type of numbers, so a redacted feature document still parses as a
 fixture.
 
 *   `redact_sensitive(value, *, placeholder="<redacted>")`: returns redacted log text for a `str` and a redacted copy for any other JSON value.
-*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, the option values in constraints, and the URI of its internal write binding are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
+*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, the option values in constraints, and the URIs of its internal write binding (both URIs of an on/off command pair) are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
 *   `redact_device(device, *, placeholder=...)`: returns a `Device` whose ID, gateway serial, installation ID, and features are redacted.
 
 ```python
@@ -262,6 +262,18 @@ an API read-back.
 *   **Returns**: The command-updated `Device` snapshot with the feature value
     set locally. A rejected command raises `ViCommandRejectedError`, so the
     caller keeps its previous snapshot.
+*   **On/off command pairs**: A boolean feature that its device changes only
+    through two commands without parameters, such as
+    `heating.dhw.hygiene.enabled` with `enable` and `disable`, is written the
+    same way: `True` sends the on command and `False` the off command, each
+    with an empty JSON object, and any non-boolean value raises `ValueError`
+    before a request. An optional parameter of the on command is not sent.
+    Which pairs count is an explicit table; see
+    [Boolean features written through an on/off command pair](02_api_structure.md#boolean-features-written-through-an-onoff-command-pair).
+    The library does not check whether the device allows the requested
+    direction at the moment, because the reported `isExecutable` flags
+    describe the state before the write. The API decides, and a command it
+    does not allow raises `ViCommandRejectedError`.
 *   **Raises**:
     *   `ValueError` if the feature is absent from the device, unavailable,
         missing a required enabled and ready sibling value, has a different
