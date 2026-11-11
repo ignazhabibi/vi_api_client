@@ -5,7 +5,8 @@ from builders import load_fixture_device
 
 from vi_api_client.const import API_BASE_URL, ENDPOINT_EVENT_HISTORY
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.models import EventHistoryPage, InstallationEvent
+from vi_api_client.models import EventHistoryPage
+from vi_api_client.parsing import parse_installation_event
 
 INSTALLATION_ID = "99999"
 EVENTS_URL = f"{API_BASE_URL}{ENDPOINT_EVENT_HISTORY}/{INSTALLATION_ID}/events"
@@ -247,7 +248,7 @@ def test_installation_event_rejects_non_json_nested_values():
     """Event data outside the JSON value contract should reject publicly."""
     # Act and assert: A non-JSON nested value cannot be preserved.
     with pytest.raises(ViResponseError, match="non-JSON nested value"):
-        InstallationEvent.from_api(
+        parse_installation_event(
             {
                 "eventType": "device.error.raised",
                 "createdAt": "2026-09-18T08:02:11.000Z",
@@ -267,7 +268,7 @@ def test_event_history_page_stores_immutable_snapshots():
         "eventTimestamp": "2026-09-18T08:02:10.500Z",
         "body": body,
     }
-    event = InstallationEvent.from_api(raw_event)
+    event = parse_installation_event(raw_event)
     caller_events = [event]
     page = EventHistoryPage(events=caller_events, next_cursor="cursor-token")
 
@@ -285,4 +286,4 @@ def test_event_history_page_stores_immutable_snapshots():
 def test_installation_event_rejects_non_object_events():
     """An event must be a JSON object."""
     with pytest.raises(ViResponseError, match="Event must be an object"):
-        InstallationEvent.from_api(["not", "an", "event"])  # type: ignore[arg-type]
+        parse_installation_event(["not", "an", "event"])  # type: ignore[arg-type]

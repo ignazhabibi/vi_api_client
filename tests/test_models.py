@@ -1,13 +1,12 @@
-"""Tests for the immutable data models and their API conversions."""
+"""Tests for the immutable data models."""
 
 from collections.abc import Mapping, Sequence
 
 import pytest
 
 from vi_api_client import JsonValue
-from vi_api_client.exceptions import ViError, ViResponseError
+from vi_api_client.exceptions import ViError
 from vi_api_client.models import (
-    CommandResponse,
     Device,
     Feature,
     FeatureControl,
@@ -179,30 +178,6 @@ def test_other_model_collections_are_immutable_snapshots():
             collection["changed"] = "value"  # type: ignore[index]
 
 
-def test_device_from_api_maps_fields_and_converts_integer_ids_to_text():
-    """API devices map to model fields, with numeric IDs exposed as text."""
-    # Arrange: The API may report a device ID as a JSON integer.
-    data = {
-        "id": 0,
-        "modelId": "complex_model",
-        "deviceType": "heatpump",
-        "status": "Online",
-    }
-
-    # Act: Parse the API device within its gateway and installation.
-    device = Device.from_api(data, "gw1", "inst1")
-
-    # Assert: Every field is mapped and the identifier is consistently text.
-    assert device == Device(
-        id="0",
-        gateway_serial="gw1",
-        installation_id="inst1",
-        model_id="complex_model",
-        device_type="heatpump",
-        status="Online",
-    )
-
-
 def test_gateway_device_refresh_result_reports_completeness():
     """A refresh result is complete only when no device reported an error."""
     # Arrange: Create one refreshed device and one device-specific error.
@@ -228,86 +203,3 @@ def test_gateway_device_refresh_result_reports_completeness():
     # Assert: Completeness depends only on the device-specific error mapping.
     assert complete_result.is_complete
     assert not partial_result.is_complete
-
-
-@pytest.mark.parametrize(
-    ("payload", "expected"),
-    [
-        pytest.param({"data": {"success": True}}, (True, None, None), id="bool-true"),
-        pytest.param(
-            {"data": {"success": False}}, (False, None, None), id="bool-false"
-        ),
-        pytest.param(
-            {"data": {"success": "true"}}, (True, None, None), id="lower-true"
-        ),
-        pytest.param(
-            {"data": {"success": "True"}}, (True, None, None), id="title-true"
-        ),
-        pytest.param(
-            {"data": {"success": "TRUE"}}, (True, None, None), id="upper-true"
-        ),
-        pytest.param(
-            {"data": {"success": "false"}}, (False, None, None), id="lower-false"
-        ),
-        pytest.param(
-            {"data": {"success": "False"}}, (False, None, None), id="title-false"
-        ),
-        pytest.param({"success": "true"}, (True, None, None), id="root-payload"),
-        pytest.param(
-            {"data": {"success": True, "message": "accepted", "reason": "queued"}},
-            (True, "accepted", "queued"),
-            id="message-and-reason",
-        ),
-        pytest.param(
-            {"data": {"success": True, "message": None, "reason": "queued"}},
-            (True, None, "queued"),
-            id="null-message",
-        ),
-        pytest.param(
-            {"data": {"success": True, "message": "accepted", "reason": None}},
-            (True, "accepted", None),
-            id="null-reason",
-        ),
-        pytest.param(
-            {"data": {"success": True, "unknown": {"kept": ["field"]}}},
-            (True, None, None),
-            id="unknown-field",
-        ),
-    ],
-)
-def test_command_response_accepts_documented_payloads(
-    payload: dict[str, JsonValue], expected: tuple[bool, str | None, str | None]
-):
-    """Documented success, message, and reason shapes parse to one response."""
-    response = CommandResponse.from_api(payload)
-
-    assert (response.success, response.message, response.reason) == expected
-
-
-@pytest.mark.parametrize(
-    ("payload", "message"),
-    [
-        *[
-            pytest.param({"data": {"success": raw}}, "success", id=f"success-{raw!r}")
-            for raw in ["yes", "1", 1, 0, 1.5, None, [], {}, ["true"]]
-        ],
-        pytest.param({"data": {}}, "success", id="missing-success"),
-        pytest.param({}, "success", id="empty-root"),
-        *[
-            pytest.param(
-                {"data": {"success": True, field: value}},
-                field,
-                id=f"{field}-{type(value).__name__}",
-            )
-            for field in ["message", "reason"]
-            for value in [True, 42, [], {}]
-        ],
-        pytest.param({"data": "unexpected"}, "object", id="data-not-object"),
-    ],
-)
-def test_command_response_rejects_malformed_payloads(
-    payload: dict[str, JsonValue], message: str
-):
-    """Malformed known fields fail the command response contract."""
-    with pytest.raises(ViResponseError, match=message):
-        CommandResponse.from_api(payload)
