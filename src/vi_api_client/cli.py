@@ -348,13 +348,17 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     Supports filtering and formatting options.
 
     Args:
-        args: Parsed command line arguments including enabled, values, json flags.
+        args: Parsed command line arguments including the enabled, deprecated,
+            values, and json flags.
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
             device, only_available=args.enabled
         )
+    is_deprecated_listing: bool = args.deprecated
+    if is_deprecated_listing:
+        features = [feature for feature in features if feature.deprecation is not None]
 
     if args.json and args.values:
         _print_json(
@@ -365,6 +369,7 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
                     "unit": feature.unit,
                     "formatted": format_feature(feature),
                     "writable": feature.is_writable,
+                    "deprecation": _deprecation_document(feature.deprecation),
                 }
                 for feature in features
             ]
@@ -378,14 +383,33 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
             if len(formatted_value) > 80:
                 formatted_value = formatted_value[:77] + "..."
             writable_mark = "*" if feature.is_writable else " "
-            print(f"{writable_mark} {feature.name:<75}: {formatted_value}")
+            suffix = _removal_suffix(feature) if is_deprecated_listing else ""
+            print(f"{writable_mark} {feature.name:<75}: {formatted_value}{suffix}")
         print("(* = writable)")
     else:
         print(f"Found {len(features)} Features for device {device.id}:")
         for feature in features:
-            print(f"- {feature.name}")
+            suffix = _removal_suffix(feature) if is_deprecated_listing else ""
+            print(f"- {feature.name}{suffix}")
 
     return True
+
+
+def _removal_suffix(feature: Feature) -> str:
+    """Return a listed feature's removal notice as a line suffix.
+
+    The removal date comes first and the info text after it; a missing date
+    or info is left out.
+    """
+    deprecation = feature.deprecation
+    if deprecation is None:
+        return ""
+    notice = "removal"
+    if deprecation.removal_date is not None:
+        notice += f" {deprecation.removal_date.isoformat()}"
+    if deprecation.info:
+        notice += f": {deprecation.info}"
+    return f" ({notice})"
 
 
 @_reports_errors("fetching feature")
@@ -1267,6 +1291,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--enabled",
         action="store_true",
         help="List only enabled and ready features",
+    )
+    parser_features.add_argument(
+        "--deprecated",
+        action="store_true",
+        help="List only features with a removal notice, each with its notice",
     )
     parser_features.add_argument(
         "--values", action="store_true", help="Show feature values"

@@ -100,7 +100,14 @@ async def test_list_features_values_json_prints_value_documents(
     # Assert: Every element has exactly the value document fields.
     assert exit_status == 0
     for document in json.loads(out):
-        assert set(document) == {"formatted", "name", "unit", "value", "writable"}
+        assert set(document) == {
+            "deprecation",
+            "formatted",
+            "name",
+            "unit",
+            "value",
+            "writable",
+        }
 
 
 @_for_every_fixture_device

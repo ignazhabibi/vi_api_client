@@ -39,6 +39,7 @@ from vi_api_client.cli import (
     _event_detail_lines,
     _infer_feature_value_type,
     _print_event_summary,
+    _removal_suffix,
     async_main,
     build_parser,
     cmd_exec,
@@ -1051,7 +1052,7 @@ async def test_cmd_list_features_json_prints_feature_names(mock_cli_context, cap
 async def test_cmd_list_features_json_values_print_value_documents(
     mock_cli_context, capsys
 ):
-    """Value JSON carries the raw value, unit, formatted text, and writability."""
+    """Value JSON carries value, unit, formatted text, writability, and notice."""
     # Arrange: Provide one writable feature and request JSON value output.
     args = _cli_args("list-features", "--values", "--json")
     mock_cli_context.client.get_features.return_value = [
@@ -1070,6 +1071,7 @@ async def test_cmd_list_features_json_values_print_value_documents(
             "unit": None,
             "formatted": "1.4",
             "writable": True,
+            "deprecation": None,
         }
     ]
 
@@ -2380,3 +2382,225 @@ def test_removal_notice_text_handles_missing_fields():
         "removal_date": None,
         "info": None,
     }
+
+
+def _all_recorded_deprecation_features() -> list[Feature]:
+    """Parse every recorded API feature of the deprecation test responses.
+
+    Two API features carry a notice and one, the replacement, carries none.
+    """
+    return [
+        feature
+        for api_feature in load_fixture_json("deprecated_features.json")
+        for feature in api_feature_to_flat_features(api_feature)
+    ]
+
+
+async def test_run_cli_list_features_deprecated_lists_only_notices(
+    run_cli, mock_cli_context
+):
+    """list-features --deprecated lists each deprecated feature with its notice."""
+    # Arrange: Serve two deprecated API features and their replacement.
+    mock_cli_context.client.get_features.return_value = (
+        _all_recorded_deprecation_features()
+    )
+
+    # Act: List the deprecated features.
+    exit_status, out, _ = await run_cli("list-features", "--deprecated")
+
+    # Assert: Only features with a notice are listed, the header counts
+    # them, and each line ends with the removal date and the info text.
+    assert exit_status == 0
+    assert out.splitlines() == [
+        "Found 5 Features for device DEV1:",
+        "- heating.dhw.sensors.temperature.hotWaterStorage (removal 2024-09-15: "
+        "replaced by heating.dhw.sensors.temperature.dhwCylinder)",
+        "- heating.dhw.sensors.temperature.hotWaterStorage.status (removal "
+        "2024-09-15: replaced by heating.dhw.sensors.temperature.dhwCylinder)",
+        "- heating.dhw.temperature.levels.min (removal 2027-03-31: Not used anymore)",
+        "- heating.dhw.temperature.levels.max (removal 2027-03-31: Not used anymore)",
+        "- heating.dhw.temperature.levels.default (removal 2027-03-31: "
+        "Not used anymore)",
+    ]
+
+
+async def test_run_cli_list_features_deprecated_values_shows_value_and_notice(
+    run_cli, mock_cli_context
+):
+    """list-features --deprecated --values appends the notice to the value."""
+    # Arrange: Serve two deprecated API features and their replacement.
+    mock_cli_context.client.get_features.return_value = (
+        _all_recorded_deprecation_features()
+    )
+
+    # Act: List the deprecated features with their values.
+    exit_status, out, _ = await run_cli("list-features", "--deprecated", "--values")
+
+    # Assert: The value layout is kept and the notice follows the value.
+    assert exit_status == 0
+    lines = out.splitlines()
+    assert lines[0] == "Found 5 Features for device DEV1:"
+    assert lines[1] == (
+        f"  {'heating.dhw.sensors.temperature.hotWaterStorage':<75}: 48.8 celsius "
+        "(removal 2024-09-15: replaced by heating.dhw.sensors.temperature.dhwCylinder)"
+    )
+    assert lines[-1] == "(* = writable)"
+    assert not any("dhwCylinder " in line for line in lines)
+
+
+async def test_run_cli_list_features_deprecated_combines_with_enabled(
+    run_cli, mock_cli_context
+):
+    """--deprecated filters the features the --enabled read returns."""
+    # Arrange: The availability-filtered read returns one deprecated and one
+    # regular feature.
+    features = _all_recorded_deprecation_features()
+    mock_cli_context.client.get_features.return_value = [features[0], features[2]]
+
+    # Act: Combine both filters.
+    exit_status, out, _ = await run_cli("list-features", "--deprecated", "--enabled")
+
+    # Assert: The read was availability-filtered and only the deprecated
+    # feature is listed.
+    assert exit_status == 0
+    mock_cli_context.client.get_features.assert_awaited_once()
+    assert mock_cli_context.client.get_features.await_args.kwargs == {
+        "only_available": True
+    }
+    assert out.splitlines()[0] == "Found 1 Features for device DEV1:"
+    assert len(out.splitlines()) == 2
+
+
+async def test_run_cli_list_features_deprecated_json_prints_names_only(
+    run_cli, mock_cli_context
+):
+    """list-features --deprecated --json prints the filtered feature names."""
+    # Arrange: Serve two deprecated API features and their replacement.
+    mock_cli_context.client.get_features.return_value = (
+        _all_recorded_deprecation_features()
+    )
+
+    # Act: List the deprecated features as JSON.
+    exit_status, out, _ = await run_cli("list-features", "--deprecated", "--json")
+
+    # Assert: The document is a plain list of the deprecated feature names.
+    assert exit_status == 0
+    assert json.loads(out) == [
+        "heating.dhw.sensors.temperature.hotWaterStorage",
+        "heating.dhw.sensors.temperature.hotWaterStorage.status",
+        "heating.dhw.temperature.levels.min",
+        "heating.dhw.temperature.levels.max",
+        "heating.dhw.temperature.levels.default",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("options", "expected_count"),
+    [
+        pytest.param([], 7, id="all-features"),
+        pytest.param(["--deprecated"], 5, id="deprecated-only"),
+    ],
+)
+async def test_run_cli_list_features_json_values_always_carries_the_notice(
+    run_cli, mock_cli_context, options, expected_count
+):
+    """list-features --json --values prints the deprecation key for every feature."""
+    # Arrange: Serve two deprecated API features and their replacement.
+    mock_cli_context.client.get_features.return_value = (
+        _all_recorded_deprecation_features()
+    )
+
+    # Act: List the features with values as JSON.
+    exit_status, out, _ = await run_cli("list-features", "--json", "--values", *options)
+
+    # Assert: Every document has the key, in the shape get-feature uses:
+    # an object for a deprecated feature and null for a regular one.
+    assert exit_status == 0
+    documents = {document["name"]: document for document in json.loads(out)}
+    assert len(documents) == expected_count
+    assert all("deprecation" in document for document in documents.values())
+    assert documents["heating.dhw.sensors.temperature.hotWaterStorage"][
+        "deprecation"
+    ] == {
+        "removal_date": "2024-09-15",
+        "info": "replaced by heating.dhw.sensors.temperature.dhwCylinder",
+    }
+    if not options:
+        assert (
+            documents["heating.dhw.sensors.temperature.dhwCylinder"]["deprecation"]
+            is None
+        )
+
+
+@pytest.mark.parametrize(
+    ("options", "expected_out"),
+    [
+        pytest.param([], "Found 0 Features for device DEV1:\n", id="text"),
+        pytest.param(["--values"], None, id="values"),
+        pytest.param(["--json"], "[]\n", id="json"),
+        pytest.param(["--json", "--values"], "[]\n", id="json-values"),
+    ],
+)
+async def test_run_cli_list_features_deprecated_succeeds_without_notices(
+    run_cli, mock_cli_context, options, expected_out
+):
+    """A device without any notice lists nothing and exits successfully."""
+    # Arrange: Serve only the replacement feature, which carries no notice.
+    mock_cli_context.client.get_features.return_value = _recorded_deprecated_features(
+        "heating.dhw.sensors.temperature.dhwCylinder"
+    )
+
+    # Act: List the deprecated features.
+    exit_status, out, _ = await run_cli("list-features", "--deprecated", *options)
+
+    # Assert: The result is empty and the command succeeds.
+    assert exit_status == 0
+    if expected_out is None:
+        assert out == "Found 0 Features for device DEV1:\n(* = writable)\n"
+    else:
+        assert out == expected_out
+
+
+async def test_run_cli_list_features_without_the_option_prints_no_notice(
+    run_cli, mock_cli_context
+):
+    """Without --deprecated the text output carries no notice."""
+    # Arrange: Serve two deprecated API features and their replacement.
+    mock_cli_context.client.get_features.return_value = (
+        _all_recorded_deprecation_features()
+    )
+
+    # Act: List the features in both text layouts.
+    _, names_out, _ = await run_cli("list-features")
+    exit_status, values_out, _ = await run_cli("list-features", "--values")
+
+    # Assert: Every feature is listed and no line mentions a removal.
+    assert exit_status == 0
+    assert names_out.splitlines()[0] == "Found 7 Features for device DEV1:"
+    assert "- heating.dhw.sensors.temperature.hotWaterStorage\n" in names_out
+    assert "removal" not in names_out
+    assert "removal" not in values_out
+
+
+@pytest.mark.parametrize(
+    ("deprecation", "expected_suffix"),
+    [
+        pytest.param(
+            FeatureDeprecation(date(2027, 3, 31), None),
+            " (removal 2027-03-31)",
+            id="date-only",
+        ),
+        pytest.param(
+            FeatureDeprecation(None, "Not used anymore"),
+            " (removal: Not used anymore)",
+            id="info-only",
+        ),
+        pytest.param(FeatureDeprecation(None, None), " (removal)", id="empty-notice"),
+        pytest.param(None, "", id="no-notice"),
+    ],
+)
+def test_removal_suffix_leaves_out_missing_fields(deprecation, expected_suffix):
+    """A missing date or info is left out of the listing suffix."""
+    feature = replace(build_feature(), deprecation=deprecation)
+
+    assert _removal_suffix(feature) == expected_suffix
