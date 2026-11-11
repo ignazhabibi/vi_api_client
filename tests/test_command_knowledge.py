@@ -29,10 +29,77 @@ from vi_api_client.models import (
 
 BASELINE = load_fixture_json("command_knowledge_baseline.json")
 
+_DAYLIGHT_SAVING = [
+    "device.time.daylightSaving.begin",
+    "device.time.daylightSaving.end",
+]
+_HOLIDAY = [
+    "heating.operating.programs.holiday.end",
+    "heating.operating.programs.holiday.start",
+]
+_HOLIDAY_AT_HOME = [
+    "heating.operating.programs.holidayAtHome.end",
+    "heating.operating.programs.holidayAtHome.start",
+]
+
+# The baseline features that stopped being writable because only a command
+# whose name starts with "set" binds a value: they were written through
+# activate, schedule, or triggerDaily, which do more than store a value.
+NO_LONGER_WRITABLE = {
+    "Vitocal200S": [*_HOLIDAY],
+    "Vitocal222S": [*_DAYLIGHT_SAVING, *_HOLIDAY, *_HOLIDAY_AT_HOME],
+    # Vitocal250A keeps its daylight saving dates writable, see below.
+    "Vitocal250A": [*_HOLIDAY, *_HOLIDAY_AT_HOME],
+    "Vitocal333G-with-Vitovent300F": [
+        *_HOLIDAY,
+        "ventilation.quickmodes.holiday.end",
+        "ventilation.quickmodes.holiday.start",
+    ],
+    "Vitocharge03": [*_DAYLIGHT_SAVING],
+    "Vitodens200W": [
+        *_DAYLIGHT_SAVING,
+        "heating.dhw.hygiene.trigger.startHour",
+        "heating.dhw.hygiene.trigger.startMinute",
+        *_HOLIDAY,
+        *_HOLIDAY_AT_HOME,
+    ],
+    "Vitopure350": [],
+}
+
+# Vitocal250A reports the setter setActive(active, begin, end) next to
+# activate(begin, end), so its daylight saving dates stay writable and are
+# now written through the setter. No other fixture feature changed its command.
+REBOUND_TO_SETTER = {
+    "Vitocal250A": {
+        feature_name: {
+            "command": "setActive",
+            "parameter": feature_name.rsplit(".", 1)[-1],
+            "required": ["active", "begin", "end"],
+            "api_feature": "device.time.daylightSaving",
+        }
+        for feature_name in _DAYLIGHT_SAVING
+    }
+}
+
+
+def _expected_write_bindings(fixture_device: str) -> dict[str, dict[str, object]]:
+    """Return the baseline bindings after applying the setter rule."""
+    expected = dict(BASELINE[fixture_device]["write_bindings"])
+    for feature_name in NO_LONGER_WRITABLE[fixture_device]:
+        # Popping without a default proves the feature was writable before.
+        expected.pop(feature_name)
+    for feature_name, rebound in REBOUND_TO_SETTER.get(fixture_device, {}).items():
+        previous = expected[feature_name]
+        expected[feature_name] = {
+            **rebound,
+            "uri": previous["uri"].replace("/commands/activate", "/commands/setActive"),
+        }
+    return expected
+
 
 @pytest.mark.parametrize("fixture_device", sorted(BASELINE), ids=sorted(BASELINE))
 async def test_every_fixture_keeps_its_writable_set_and_write_bindings(fixture_device):
-    """The writable features and their commands stay exactly as before."""
+    """Only the setter rule changes the writable set; every other binding stays."""
     # Arrange: Refresh one bundled fixture without availability filtering.
     client = FixtureViClient(fixture_device)
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
@@ -54,7 +121,12 @@ async def test_every_fixture_keeps_its_writable_set_and_write_bindings(fixture_d
     }
 
     # Assert: The writable set, commands, parameters, and URIs are unchanged.
-    assert actual == BASELINE[fixture_device]["write_bindings"]
+    assert actual == _expected_write_bindings(fixture_device)
+    for feature_name in NO_LONGER_WRITABLE[fixture_device]:
+        feature = refreshed.get_feature(feature_name)
+        assert feature is not None
+        assert not feature.is_writable
+        assert feature.constraints is None
 
 
 @pytest.mark.parametrize("fixture_device", sorted(BASELINE), ids=sorted(BASELINE))

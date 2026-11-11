@@ -2215,3 +2215,67 @@ async def test_run_cli_set_writes_a_pair_written_feature(run_cli, raw_value):
     assert exit_status == 0
     assert "(Commands: enable (on), disable (off))" in out
     assert "✅ Success!" in out
+
+
+async def test_run_cli_list_writable_omits_features_without_a_setter(run_cli):
+    """list-writable lists no feature that only a non-setter command takes."""
+    # Act: List the writable features of a fixture with holiday, daylight
+    # saving, and hygiene trigger commands.
+    exit_status, out, _ = await run_cli(
+        "list-writable", "--fixture-device", "Vitodens200W"
+    )
+
+    # Assert: The features those commands take are not listed.
+    assert exit_status == 0
+    listed = {line[2:] for line in out.splitlines() if line.startswith("- ")}
+    assert "heating.circuits.0.heating.curve.slope" in listed
+    assert listed.isdisjoint(
+        {
+            "device.time.daylightSaving.begin",
+            "device.time.daylightSaving.end",
+            "heating.dhw.hygiene.trigger.startHour",
+            "heating.dhw.hygiene.trigger.startMinute",
+            "heating.operating.programs.holiday.start",
+            "heating.operating.programs.holiday.end",
+            "heating.operating.programs.holidayAtHome.start",
+            "heating.operating.programs.holidayAtHome.end",
+        }
+    )
+
+
+async def test_run_cli_exec_schedules_a_holiday(run_cli):
+    """exec plans a holiday through the schedule command."""
+    # Act: Plan a fixture holiday through the CLI.
+    exit_status, out, _ = await run_cli(
+        "exec",
+        "--fixture-device",
+        "Vitodens200W",
+        "heating.operating.programs.holiday",
+        "schedule",
+        "start=2026-12-24",
+        "end=2026-12-31",
+    )
+
+    # Assert: The command runs with both dates.
+    assert exit_status == 0
+    assert "Executing 'schedule' on heating.operating.programs.holiday..." in out
+    assert "Using parameters: {'start': '2026-12-24', 'end': '2026-12-31'}" in out
+    assert "✅ Success!" in out
+
+
+async def test_run_cli_set_points_a_non_setter_feature_to_exec(run_cli):
+    """set on a feature without a setter names the exec alternative."""
+    # Act: Try to set a holiday date through the CLI.
+    exit_status, out, _ = await run_cli(
+        "set",
+        "--fixture-device",
+        "Vitodens200W",
+        "heating.operating.programs.holiday.start",
+        "2026-12-24",
+    )
+
+    # Assert: The failure names the API feature's commands and exec.
+    assert exit_status == 1
+    assert "Feature 'heating.operating.programs.holiday.start' is read-only" in out
+    assert "reports the commands changeEndDate, schedule, unschedule" in out
+    assert "vi-client exec heating.operating.programs.holiday" in out

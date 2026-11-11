@@ -291,6 +291,12 @@ an API read-back.
     *   `ViConnectionError` if the API call fails.
     *   Other `ViError` subclasses for authentication, rate-limit, server, or
         device communication failures.
+*   **Setter commands only**: A value is written only through a command whose
+    name starts with `set`. A feature that only another command takes as a
+    parameter, such as `heating.operating.programs.holiday.start` with
+    `schedule`, is read-only; `set_feature` raises a `ValueError` that names
+    `run_command` and the commands the feature's API feature reports. See
+    [Only setter commands write a value](02_api_structure.md#only-setter-commands-write-a-value).
 *   **Magic**: This method uses the current device feature's command metadata,
     always includes its target parameter, and resolves each other required
     parameter from an enabled, ready sibling feature with a non-`None` value.
@@ -341,6 +347,14 @@ await client.run_command(
     "heating.circuits.0.heating.curve",
     "setCurve",
     {"slope": 0.7, "shift": 7.0},
+)
+# Plan a holiday: its dates are read-only features, because `schedule`
+# does more than store a value
+await client.run_command(
+    device,
+    "heating.operating.programs.holiday",
+    "schedule",
+    {"start": "2026-12-24", "end": "2026-12-31"},
 )
 # Cancel a holiday program without parameters
 await client.run_command(device, "heating.operating.programs.holiday", "unschedule")

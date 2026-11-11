@@ -698,51 +698,115 @@ def test_malformed_schedule_rules_are_rejected(constraints, error):
         api_feature_to_flat_features(raw_feature)
 
 
-def test_command_requiring_the_value_is_preferred_over_one_taking_it_optionally():
-    """'activate(temperature)' switches a program on, so 'setTemperature' writes it."""
-    # Arrange: 'activate' comes first and takes the temperature only optionally.
+@pytest.mark.parametrize(
+    "command_names",
+    [
+        pytest.param(("activate", "setActive"), id="other-command-first"),
+        pytest.param(("setActive", "activate"), id="setter-first"),
+    ],
+)
+def test_setter_binds_the_value_whatever_the_command_order(command_names):
+    """Only a command whose name starts with 'set' binds a value to a feature."""
+    # Arrange: Two commands take the same parameters; only one is a setter.
+    params = {
+        "begin": {"type": "string", "required": True},
+        "end": {"type": "string", "required": True},
+    }
     raw_feature = {
-        "feature": "heating.circuits.0.operating.programs.comfort",
-        "properties": {"temperature": {"type": "number", "value": 20}},
+        "feature": "device.time.daylightSaving",
+        "properties": {
+            "begin": {"type": "string", "value": "25-03"},
+            "end": {"type": "string", "value": "25-10"},
+        },
         "commands": {
-            "activate": {
-                "uri": "/commands/activate",
-                "params": {"temperature": {"type": "number", "required": False}},
-            },
-            "setTemperature": {
-                "uri": "/commands/setTemperature",
-                "params": {"targetTemperature": {"type": "number", "required": True}},
-            },
+            command_name: {"uri": f"/commands/{command_name}", "params": params}
+            for command_name in command_names
         },
     }
 
     # Act: Parse the API feature.
-    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
+    features = api_feature_to_flat_features(raw_feature)
 
-    # Assert: The temperature is written through 'setTemperature'.
-    assert isinstance(binding, ParameterWriteBinding)
-    assert (binding.command_name, binding.parameter_name) == (
-        "setTemperature",
-        "targetTemperature",
-    )
+    # Assert: Both values are written through the setter.
+    for feature in features:
+        binding = feature.write_binding
+        assert isinstance(binding, ParameterWriteBinding)
+        assert binding.command_name == "setActive"
+        assert binding.uri == "/commands/setActive"
 
 
-def test_command_taking_the_value_optionally_is_used_when_it_is_the_only_one():
-    raw_feature = {
-        "feature": "heating.circuits.0.operating.programs.comfort",
-        "properties": {"temperature": {"type": "number", "value": 20}},
-        "commands": {
-            "activate": {
-                "uri": "/commands/activate",
-                "params": {"temperature": {"type": "number", "required": False}},
+@pytest.mark.parametrize(
+    ("api_feature_name", "command_name", "params", "properties"),
+    [
+        pytest.param(
+            "heating.operating.programs.holiday",
+            "schedule",
+            {"start": {"type": "string"}, "end": {"type": "string"}},
+            {
+                "start": {"type": "string", "value": ""},
+                "end": {"type": "string", "value": ""},
             },
+            id="holiday-schedule",
+        ),
+        pytest.param(
+            "heating.dhw.hygiene.trigger",
+            "triggerDaily",
+            {"startHour": {"type": "number"}, "startMinute": {"type": "number"}},
+            {
+                "startHour": {"type": "number", "value": 23},
+                "startMinute": {"type": "number", "value": 30},
+            },
+            id="hygiene-trigger",
+        ),
+        pytest.param(
+            "heating.circuits.0.operating.programs.comfort",
+            "activate",
+            {"temperature": {"type": "number", "required": False}},
+            {"temperature": {"type": "number", "value": 20}},
+            id="optional-activate-parameter",
+        ),
+    ],
+)
+def test_commands_that_are_no_setters_bind_no_value(
+    api_feature_name, command_name, params, properties
+):
+    """A command that does more than store a value leaves its features read-only."""
+    # Arrange: The only command taking the properties' parameters is no setter.
+    raw_feature = {
+        "feature": api_feature_name,
+        "properties": properties,
+        "commands": {
+            command_name: {"uri": f"/commands/{command_name}", "params": params}
         },
     }
 
-    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
+    # Act: Parse the API feature.
+    features = api_feature_to_flat_features(raw_feature)
 
-    assert isinstance(binding, ParameterWriteBinding)
-    assert (binding.command_name, binding.parameter_name) == ("activate", "temperature")
+    # Assert: No feature is writable and none carries constraint rules.
+    assert features
+    for feature in features:
+        assert not feature.is_writable
+        assert feature.constraints is None
+
+
+def test_schedule_is_bound_only_through_a_setter():
+    """A schedule parameter on a command that is no setter binds nothing."""
+    # Arrange: The schedule parameter is offered by a command that is no setter.
+    raw_feature = _schedule_feature(
+        {
+            # A setter without a schedule parameter writes something else.
+            "setMode": {"params": {"mode": {"type": "string"}}},
+            "applySchedule": {"params": {"newSchedule": {"type": "Schedule"}}},
+        }
+    )
+
+    # Act: Parse the API feature.
+    schedule = api_feature_to_flat_features(raw_feature)[0]
+
+    # Assert: The schedule stays read-only.
+    assert not schedule.is_writable
+    assert schedule.constraints is None
 
 
 def test_non_executable_schedule_commands_do_not_make_schedules_writable():

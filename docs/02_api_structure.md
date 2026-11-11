@@ -95,6 +95,39 @@ is not part of the public model, and every command an API feature reports is
 listed on the device through
 `Device.get_command_names("heating.circuits.0.heating.curve")`.
 
+### Only setter commands write a value
+
+A command binds a value to a feature only when its name starts with `set`,
+such as `setCurve` or `setTemperature`. Other commands also take parameters
+that match properties, but they do more than store a value: `schedule` plans a
+holiday, `activate` on `device.time.daylightSaving` switches daylight saving
+on, and `triggerDaily` turns a weekly hygiene run into a daily one. Their
+features are read-only (`is_writable` is `False`, `constraints` is `None`),
+for example `heating.operating.programs.holiday.start` and `.end`,
+`device.time.daylightSaving.begin` and `.end` on devices without `setActive`,
+and `heating.dhw.hygiene.trigger.startHour` and `.startMinute`.
+
+These commands stay in the device command list and are sent with
+`run_command`, where the caller names the command and supplies every
+parameter:
+
+```python
+device.get_command_names("heating.operating.programs.holiday")
+# ('changeEndDate', 'schedule', 'unschedule')
+
+await client.run_command(
+    device,
+    "heating.operating.programs.holiday",
+    "schedule",
+    {"start": "2026-12-24", "end": "2026-12-31"},
+)
+```
+
+`set_feature` on such a feature raises `ValueError`; the message names
+`run_command` and the commands its API feature reports. The `set` prefix is
+the only place where a command name decides something; the on/off command
+pairs below come from an explicit table.
+
 ### Boolean features written through an on/off command pair
 
 Some devices change a boolean only through two commands without parameters,
