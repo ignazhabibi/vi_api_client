@@ -393,10 +393,13 @@ the same seam: `get_event_history()` requests one page through the discovery
 adapter, and the internal event history parser validates the response and its
 events before the `EventHistoryPage` model is built. The provider reports
 the final page with an empty `cursor.next` string, which the page model
-exposes as no continuation cursor. Traversing further pages with the cursor
-stays with consumers; the `list-events` CLI command is one such consumer and
-follows cursors up to a configurable page safety limit that marks truncated
-results incomplete.
+exposes as no continuation cursor. `get_event_history_window()` traverses a
+whole lookback window on top of that one-page read: the first request uses
+the lookback, every following request passes only the continuation cursor,
+and requests stay sequential (ADR 0002). It stops at the first page without
+a cursor or at a page safety limit and returns an `EventHistoryWindow`
+whose remaining cursor marks a truncated result as incomplete. The
+`list-events` CLI command prints that window.
 
 ## 9. Device refresh
 

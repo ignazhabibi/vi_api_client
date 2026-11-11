@@ -3,9 +3,10 @@
 import pytest
 from builders import load_fixture_device
 
+from vi_api_client import FixtureViClient
 from vi_api_client.const import API_BASE_URL, ENDPOINT_EVENT_HISTORY
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.models import EventHistoryPage
+from vi_api_client.models import EventHistoryPage, EventHistoryWindow, InstallationEvent
 from vi_api_client.parsing import parse_installation_event
 
 INSTALLATION_ID = "99999"
@@ -287,3 +288,197 @@ def test_installation_event_rejects_non_object_events():
     """An event must be a JSON object."""
     with pytest.raises(ViResponseError, match="Event must be an object"):
         parse_installation_event(["not", "an", "event"])  # type: ignore[arg-type]
+
+
+def _event(timestamp: str) -> dict[str, object]:
+    """Build one API event that occurred at the given time."""
+    return {
+        "eventType": "feature-changed",
+        "createdAt": timestamp,
+        "eventTimestamp": timestamp,
+        "gatewayId": "1234567890123456",
+        "body": {"featureName": "heating.dhw.temperature.main"},
+    }
+
+
+def _page(timestamps: list[str], cursor: str | None = None) -> dict[str, object]:
+    """Build one API event history page with an optional continuation cursor."""
+    page: dict[str, object] = {"data": [_event(timestamp) for timestamp in timestamps]}
+    if cursor is not None:
+        page["cursor"] = {"next": cursor}
+    return page
+
+
+async def test_get_event_history_window_follows_the_cursor_to_the_last_page(
+    vi_client, mock_responses
+):
+    # Arrange: Three pages; only the first request carries the lookback.
+    first_url = _page_url("lastNDays=7&limit=2")
+    second_url = _page_url("cursor=page-2&limit=2")
+    third_url = _page_url("cursor=page-3&limit=2")
+    mock_responses.get(
+        first_url,
+        payload=_page(["2026-09-20T10:00:00Z", "2026-09-19T10:00:00Z"], "page-2"),
+    )
+    mock_responses.get(
+        second_url,
+        payload=_page(["2026-09-18T10:00:00Z", "2026-09-17T10:00:00Z"], "page-3"),
+    )
+    mock_responses.get(third_url, payload=_page(["2026-09-16T10:00:00Z"]))
+
+    # Act: Collect the whole window.
+    window = await vi_client.get_event_history_window(INSTALLATION_ID, 7, limit=2)
+
+    # Assert: Every event is collected in page order and the window is
+    # complete; each page was requested exactly once.
+    assert isinstance(window, EventHistoryWindow)
+    assert [event.event_timestamp for event in window.events] == [
+        "2026-09-20T10:00:00Z",
+        "2026-09-19T10:00:00Z",
+        "2026-09-18T10:00:00Z",
+        "2026-09-17T10:00:00Z",
+        "2026-09-16T10:00:00Z",
+    ]
+    assert window.next_cursor is None
+    assert window.pages_fetched == 3
+    assert window.earliest_timestamp == "2026-09-16T10:00:00Z"
+    assert window.latest_timestamp == "2026-09-20T10:00:00Z"
+    assert [
+        (str(url), len(requests))
+        for (_, url), requests in mock_responses.requests.items()
+    ] == [(first_url, 1), (second_url, 1), (third_url, 1)]
+
+
+async def test_get_event_history_window_returns_an_empty_window(
+    vi_client, mock_responses
+):
+    # Arrange: The provider has no events and uses its default page size.
+    mock_responses.get(_page_url("lastNDays=365"), payload=_page([]))
+
+    # Act: Collect the window without a page size.
+    window = await vi_client.get_event_history_window(INSTALLATION_ID, 365)
+
+    # Assert: One page was read and the window is complete and empty.
+    assert window.events == ()
+    assert window.next_cursor is None
+    assert window.pages_fetched == 1
+    assert window.earliest_timestamp is None
+    assert window.latest_timestamp is None
+
+
+async def test_get_event_history_window_stops_at_the_page_safety_limit(
+    vi_client, mock_responses
+):
+    # Arrange: The provider keeps reporting a next page.
+    mock_responses.get(
+        _page_url("lastNDays=7"), payload=_page(["2026-09-20T10:00:00Z"], "page-2")
+    )
+    mock_responses.get(
+        _page_url("cursor=page-2"), payload=_page(["2026-09-19T10:00:00Z"], "page-3")
+    )
+
+    # Act: Collect at most two pages.
+    window = await vi_client.get_event_history_window(INSTALLATION_ID, 7, max_pages=2)
+
+    # Assert: The window is incomplete and keeps the cursor to continue with;
+    # the third page was never requested.
+    assert len(window.events) == 2
+    assert window.next_cursor == "page-3"
+    assert window.pages_fetched == 2
+    assert len(mock_responses.requests) == 2
+
+
+@pytest.mark.usefixtures("no_http_requests")
+@pytest.mark.parametrize(
+    ("arguments", "options"),
+    [
+        pytest.param(("", 7), {}, id="empty-installation-id"),
+        pytest.param((INSTALLATION_ID, 0), {}, id="zero-days"),
+        pytest.param((INSTALLATION_ID, -1), {}, id="negative-days"),
+        pytest.param((INSTALLATION_ID, 7), {"limit": 0}, id="zero-limit"),
+        pytest.param((INSTALLATION_ID, 7), {"limit": 1001}, id="limit-above-maximum"),
+        pytest.param((INSTALLATION_ID, 7), {"max_pages": 0}, id="zero-page-limit"),
+        pytest.param((INSTALLATION_ID, 7), {"max_pages": -3}, id="negative-page-limit"),
+    ],
+)
+async def test_get_event_history_window_rejects_invalid_arguments(
+    vi_client, arguments, options
+):
+    # Act and assert: Invalid arguments fail before any request.
+    with pytest.raises(ValueError):
+        await vi_client.get_event_history_window(*arguments, **options)
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_event_history_window_completes_after_two_pages():
+    # Arrange: The bundled fixtures model a first page and an empty final page.
+    client = FixtureViClient("Vitocal250A")
+
+    # Act: Collect the fixture window.
+    window = await client.get_event_history_window("99999", 7, limit=50)
+
+    # Assert: The window is complete after both pages.
+    assert len(window.events) == 3
+    assert window.next_cursor is None
+    assert window.pages_fetched == 2
+    assert window.earliest_timestamp == "2026-09-18T08:02:10.500Z"
+    assert window.latest_timestamp == "2026-09-20T10:15:30.000Z"
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_event_history_window_stops_at_the_page_safety_limit():
+    # Arrange: Use the bundled two-page window.
+    client = FixtureViClient("Vitocal250A")
+
+    # Act: Collect at most one page.
+    window = await client.get_event_history_window("99999", 7, max_pages=1)
+
+    # Assert: The window is incomplete and keeps the fixture cursor.
+    assert len(window.events) == 3
+    assert window.next_cursor is not None
+    assert window.pages_fetched == 1
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_event_history_window_can_be_empty(monkeypatch):
+    # Arrange: Serve the bundled empty final page for every request, as the
+    # provider does for a window without events.
+    client = FixtureViClient("Vitocal250A")
+    empty_page = load_fixture_device("event_history_final_page")
+
+    async def serve_empty_page(installation_id, params):
+        return empty_page
+
+    monkeypatch.setattr(
+        client._discovery_adapter, "get_event_history", serve_empty_page
+    )
+
+    # Act: Collect the window.
+    window = await client.get_event_history_window("99999", 7)
+
+    # Assert: The window is complete and empty after one page.
+    assert window.events == ()
+    assert window.next_cursor is None
+    assert window.pages_fetched == 1
+
+
+def test_event_history_window_stores_an_immutable_event_snapshot():
+    # Arrange: Build a window from a caller-owned list.
+    events = [
+        InstallationEvent(
+            event_type="feature-changed",
+            created_at="2026-09-20T10:00:00Z",
+            event_timestamp="2026-09-20T10:00:00Z",
+            gateway_serial=None,
+            body=None,
+        )
+    ]
+    window = EventHistoryWindow(events=events, next_cursor="page-2", pages_fetched=1)
+
+    # Act: Change the caller's list afterwards.
+    events.clear()
+
+    # Assert: The window keeps its events and is frozen.
+    assert len(window.events) == 1
+    with pytest.raises(AttributeError):
+        window.pages_fetched = 2  # type: ignore[misc]

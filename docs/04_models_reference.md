@@ -8,6 +8,7 @@ Import public models and helpers from the package root:
 from vi_api_client import (
     Device,
     EventHistoryPage,
+    EventHistoryWindow,
     Feature,
     FeatureConstraints,
     FeatureValue,
@@ -277,6 +278,27 @@ page with an empty `next` string, which this library exposes as a `None`
 other malformed response, event, or cursor. How far back the provider retains
 events is not verified by this library; callers should treat an exhausted or
 empty page as the end of the available window.
+
+## EventHistoryWindow
+
+Frozen dataclass for the events of one lookback window collected across its
+pages, as returned by `ViClient.get_event_history_window`.
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `events` | `Sequence[InstallationEvent]` | Read-only events of every fetched page, in the order the pages returned them. |
+| `next_cursor` | `str \| None` | The continuation cursor that remained when the traversal stopped at its page safety limit; `None` when the provider reported no further page. |
+| `pages_fetched` | `int` | Number of pages the traversal requested. |
+| `earliest_timestamp` | `str \| None` | Earliest `event_timestamp` in the window, or `None` without events. |
+| `latest_timestamp` | `str \| None` | Latest `event_timestamp` in the window, or `None` without events. |
+
+A window is complete when `next_cursor` is `None`. A remaining cursor means the
+safety limit stopped the traversal; pass it to `get_event_history` as `cursor`
+to continue. The two timestamp properties compare timestamps as points in
+time, so differing ISO-8601 offsets or precision still order correctly; if a
+provider timestamp cannot be parsed, the whole window falls back to a lexical
+comparison. A complete window reports exhausted pagination, not proven
+provider retention of the requested lookback.
 
 ## Next Steps
 

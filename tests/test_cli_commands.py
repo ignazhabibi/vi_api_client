@@ -20,7 +20,7 @@ from builders import (
 )
 
 from vi_api_client import (
-    EventHistoryPage,
+    EventHistoryWindow,
     FeatureValue,
     FixtureViClient,
     InstallationEvent,
@@ -30,7 +30,6 @@ from vi_api_client import (
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     CLIContext,
-    EventHistoryWindow,
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
@@ -332,7 +331,7 @@ async def test_cmd_set_reports_missing_device_context(mock_cli_context, caplog):
         ),
         pytest.param(
             ["list-events", "--days", "7"],
-            ("get_event_history", "listing events"),
+            ("get_event_history_window", "listing events"),
             id="list-events",
         ),
     ],
@@ -1441,14 +1440,16 @@ async def test_cmd_list_events_auto_selects_first_installation(
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
     ]
-    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
+    mock_cli_context.client.get_event_history_window.return_value = (
+        _empty_event_window()
+    )
 
     # Act: List events without an explicit installation ID.
     assert await cmd_list_events(args) is True
 
     # Assert: The first installation scopes the event history request.
-    mock_cli_context.client.get_event_history.assert_awaited_once_with(
-        "12345", days=7, limit=None
+    mock_cli_context.client.get_event_history_window.assert_awaited_once_with(
+        "12345", 7, limit=None, max_pages=50
     )
 
 
@@ -1462,7 +1463,9 @@ async def test_cmd_list_events_json_reports_auto_selection_on_stderr(
     mock_cli_context.client.get_installations.return_value = [
         build_installation("12345")
     ]
-    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
+    mock_cli_context.client.get_event_history_window.return_value = (
+        _empty_event_window()
+    )
 
     # Act: List events in JSON mode.
     assert await cmd_list_events(args) is True
@@ -1486,7 +1489,7 @@ async def test_cmd_list_events_fails_without_installations(mock_cli_context, cap
     # Assert: The command fails with the reason and reads no history.
     assert result is False
     assert "No installations found." in caplog.text
-    mock_cli_context.client.get_event_history.assert_not_called()
+    mock_cli_context.client.get_event_history_window.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -1565,16 +1568,18 @@ async def test_list_events_json_emits_complete_events_across_pages(run_cli):
     assert "Using Fixture Device: Vitodens200W" in err
 
 
-def _empty_event_page() -> EventHistoryPage:
-    """Return the page the provider sends for a window without events."""
-    return EventHistoryPage(events=[], next_cursor=None)
+def _empty_event_window() -> EventHistoryWindow:
+    """Return the window the client collects when the provider has no events."""
+    return EventHistoryWindow(events=[], next_cursor=None, pages_fetched=1)
 
 
 async def test_cmd_list_events_summarizes_an_empty_window(mock_cli_context, capsys):
     """An empty window completes and prints no event timestamps."""
     # Arrange: The provider returns no events for a one-year window.
     args = _cli_args("list-events", "--days", "365")
-    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
+    mock_cli_context.client.get_event_history_window.return_value = (
+        _empty_event_window()
+    )
 
     # Act: List the empty window as readable text.
     assert await cmd_list_events(args) is True
@@ -1590,7 +1595,9 @@ async def test_cmd_list_events_json_describes_an_empty_window(mock_cli_context, 
     """An empty window is one complete JSON document with null timestamps."""
     # Arrange: The provider returns no events for a one-year window.
     args = _cli_args("list-events", "--days", "365", "--json")
-    mock_cli_context.client.get_event_history.return_value = _empty_event_page()
+    mock_cli_context.client.get_event_history_window.return_value = (
+        _empty_event_window()
+    )
 
     # Act: List the empty window as JSON.
     assert await cmd_list_events(args) is True
