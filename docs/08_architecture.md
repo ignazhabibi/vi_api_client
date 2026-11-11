@@ -797,4 +797,5 @@ Models represent immutable state.
 - [ADR 0002: Request policy belongs to consumers](adr/0002-keep-request-policy-with-consumers.md)
 - [ADR 0003: Recursive JSON value contract](adr/0003-use-a-recursive-json-value-contract.md)
 - [ADR 0004: Match feature names locally](adr/0004-match-feature-names-locally.md)
+- [ADR 0005: Command knowledge stays in the library](adr/0005-keep-command-knowledge-in-the-library.md)
 - [Canonical domain language](../CONTEXT.md)
