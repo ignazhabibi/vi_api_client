@@ -89,13 +89,28 @@ string-keyed JSON data, carried by `ViValidationError` as `validation_errors`.
 _Avoid_: Validation error payload
 
 **Writable feature**:
-A feature that reports `is_writable=True` and has `FeatureControl` metadata
-describing how a feature command can target it.
+A feature that reports `is_writable=True` because the parser attached an
+internal write binding recording how its command writes the value. The binding
+travels with the feature, so copies stay writable and hand-built features are
+read-only.
+_Avoid_: Control block, command metadata object
+
+**Feature constraints**:
+The `FeatureConstraints` rules the API reports for writing one feature value
+(ranges, step, options, lengths, pattern, value type, schedule rules) on
+`Feature.constraints`.
+_Avoid_: Control metadata, command constraints bundle
+
+**Device command list**:
+The per-API-feature record of every reported command and its parameter
+metadata a device snapshot carries; `Device.get_command_names` reads it. It
+stores neither executability nor deprecation.
+_Avoid_: Command registry
 
 **Feature command**:
-The API operation that sends command parameters for a writable feature.
-`FeatureControl` is the existing Python class name for command metadata; it is
-not the executed command.
+The API operation that sends command parameters for a writable feature. How
+the library sends it is internal command knowledge; it is not the executed
+command.
 
 **Live client**:
 `ViClient` configured with authentication that reads from the Viessmann API.

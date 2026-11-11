@@ -2,8 +2,10 @@
 
 import importlib
 import logging
+from dataclasses import fields
 
 import vi_api_client
+from vi_api_client import Feature, FeatureConstraints
 
 
 def test_package_logger_has_a_null_handler():
@@ -24,7 +26,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
         "ENDPOINT_TOKEN",
         "EventHistoryPage",
         "Feature",
-        "FeatureControl",
+        "FeatureConstraints",
         "FeatureValue",
         "Gateway",
         "GatewayDeviceRefreshResult",
@@ -75,6 +77,10 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "parse_installation",
         "parse_installation_event",
         "api_feature_to_flat_features",
+        "ParameterWriteBinding",
+        "DeviceCommand",
+        "CommandParameter",
+        "FeatureControl",
     }
 
     # Assert: The root hides the helpers while their module paths still provide them.
@@ -96,3 +102,22 @@ def test_exported_models_have_no_api_constructor():
     # constructor.
     assert exported_classes
     assert all(not hasattr(model, "from_api") for model in exported_classes)
+
+
+def test_exported_feature_models_expose_no_command_details():
+    """Command knowledge is internal; public models expose constraint rules."""
+    # Arrange: The fields a consumer may read on the feature models.
+    forbidden_fields = {
+        "command_name",
+        "parameter_name",
+        "required_parameters",
+        "parent_feature_name",
+        "uri",
+    }
+    feature_fields = {field.name for field in fields(Feature)}
+    constraints_fields = {field.name for field in fields(FeatureConstraints)}
+
+    # Assert: No command detail appears on the public models.
+    assert feature_fields.isdisjoint(forbidden_fields)
+    assert constraints_fields.isdisjoint(forbidden_fields)
+    assert not hasattr(Feature, "control")

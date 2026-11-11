@@ -66,10 +66,16 @@ vi-client get-feature "heating.sensors.temperature.outside"
 # An API feature name prints both heating curve features (shift and slope)
 vi-client get-feature "heating.circuits.0.heating.curve"
 
-# Print the feature and its command metadata as JSON; several matches print
-# one JSON array, and setup messages go to standard error
+# Print the feature as JSON; several matches print one JSON array, and setup
+# messages go to standard error
 vi-client get-feature "heating.sensors.temperature.outside" --json
 ```
+
+With `--json`, each document carries `name`, `value`, and `unit`, plus
+`constraints` with the `FeatureConstraints` rules (or `null`) and `command`
+with `{"name": ..., "parameter": ...}` (or `null`) for a writable feature. The
+command URI is not printed because it contains installation, gateway, and
+device IDs.
 
 ## 5. List Installation Events
 Read the complete event history an installation returns for a rolling window
@@ -356,6 +362,6 @@ explicitly disables verification and emits a warning.
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

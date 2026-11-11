@@ -32,7 +32,7 @@ from vi_api_client import (
     ENDPOINT_TOKEN,
     EventHistoryPage,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     FeatureValue,
     Gateway,
     GatewayDeviceRefreshResult,

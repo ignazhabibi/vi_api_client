@@ -10,7 +10,7 @@ import sys
 import textwrap
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -33,9 +33,10 @@ from .models import (
     CommandResponse,
     Device,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
     Gateway,
     InstallationEvent,
+    ParameterWriteBinding,
 )
 from .utils import format_feature, parse_cli_params
 
@@ -407,7 +408,17 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
                 "name": feature.name,
                 "value": feature.value,
                 "unit": feature.unit,
-                "control": asdict(feature.control) if feature.control else None,
+                "constraints": (
+                    asdict(feature.constraints) if feature.constraints else None
+                ),
+                "command": (
+                    {
+                        "name": feature.write_binding.command_name,
+                        "parameter": feature.write_binding.parameter_name,
+                    }
+                    if feature.write_binding
+                    else None
+                ),
             }
             for feature in features
         ]
@@ -418,18 +429,19 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
 
     for feature in features:
         print(f"- {feature.name}: {format_feature(feature)}")
-        control = feature.control
-        if control is None:
+        binding = feature.write_binding
+        if binding is None:
             continue
-        print(f"  Writable via command: {control.command_name}")
-        print(f"  Target param: {control.parameter_name}")
-        if control.min is not None:
+        constraints = feature.constraints or FeatureConstraints()
+        print(f"  Writable via command: {binding.command_name}")
+        print(f"  Target param: {binding.parameter_name}")
+        if constraints.min is not None:
             print(
-                f"  Constraints: min={control.min}, max={control.max}, "
-                f"step={control.step}"
+                f"  Constraints: min={constraints.min}, max={constraints.max}, "
+                f"step={constraints.step}"
             )
-        if control.options:
-            print(f"  Options: {control.options}")
+        if constraints.options:
+            print(f"  Options: {constraints.options}")
 
     return True
 
@@ -449,12 +461,12 @@ async def cmd_set(args: argparse.Namespace) -> bool:
         target = await _fetch_writable_feature(context, feature_name)
         if target is None:
             return False
-        device, feature, control = target
+        device, feature, binding = target
 
         print(f"Setting '{feature.name}' to '{raw_value}'...")
-        print(f"  (Command: {control.command_name}, Param: {control.parameter_name})")
+        print(f"  (Command: {binding.command_name}, Param: {binding.parameter_name})")
 
-        value = _parse_set_value(raw_value, feature, control)
+        value = _parse_set_value(raw_value, feature)
         result, _updated_device = await context.client.set_feature(
             device, feature, value
         )
@@ -462,15 +474,12 @@ async def cmd_set(args: argparse.Namespace) -> bool:
     return _print_command_result(result)
 
 
-def _parse_set_value(
-    raw_value: str, feature: Feature, control: FeatureControl
-) -> JsonValue:
+def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
     """Convert a CLI value according to the target command parameter type.
 
     Args:
         raw_value: Value provided after the CLI ``set`` command.
         feature: Writable feature, named in validation errors.
-        control: Command metadata of the feature.
 
     Returns:
         The value in the type expected by the target command.
@@ -479,7 +488,8 @@ def _parse_set_value(
         ViValidationError: If a numeric, boolean, or schedule command value is
             malformed.
     """
-    value_type = control.value_type
+    constraints = feature.constraints or FeatureConstraints()
+    value_type = constraints.value_type
     if value_type is None:
         value_type = _infer_feature_value_type(feature)
 
@@ -532,12 +542,13 @@ def _infer_feature_value_type(feature: Feature) -> str:
         return "boolean"
     if isinstance(feature.value, int | float):
         return "number"
-    if feature.control and any(
+    constraints = feature.constraints
+    if constraints and any(
         constraint is not None
         for constraint in (
-            feature.control.min,
-            feature.control.max,
-            feature.control.step,
+            constraints.min,
+            constraints.max,
+            constraints.step,
         )
     ):
         return "number"
@@ -567,13 +578,13 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
         target = await _fetch_writable_feature(context, feature_name)
         if target is None:
             return False
-        _device, feature, control = target
+        _device, feature, binding = target
 
         # Features expose only their primary control command.
-        if control.command_name != command_name:
+        if binding.command_name != command_name:
             print(
                 f"Error: Feature '{feature.name}' only supports command "
-                f"'{control.command_name}', not '{command_name}'."
+                f"'{binding.command_name}', not '{command_name}'."
             )
             return False
 
@@ -587,24 +598,25 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
 
 async def _fetch_writable_feature(
     context: CLIContext, name: str
-) -> tuple[Device, Feature, FeatureControl] | None:
+) -> tuple[Device, Feature, ParameterWriteBinding] | None:
     """Fetch a writable feature together with its complete device snapshot.
 
     Prints the reason and returns None when the feature is missing or
-    read-only.
+    read-only. The snapshot is a full refresh so it carries the device's
+    command list.
     """
     device = _transient_device(context)
     # The CLI resolves writability itself, so unavailable features are shown.
-    features = await context.client.get_features(device, only_available=False)
-    device_snapshot = replace(device, features=features)
+    device_snapshot = await context.client.refresh_device(device, only_available=False)
     feature = device_snapshot.get_feature(name)
     if feature is None:
         print(f"Error: Feature '{name}' not found.")
         return None
-    if feature.control is None:
+    binding = feature.write_binding
+    if binding is None:
         print(f"Error: Feature '{feature.name}' is read-only (no control).")
         return None
-    return device_snapshot, feature, feature.control
+    return device_snapshot, feature, binding
 
 
 def _transient_device(context: CLIContext) -> Device:
@@ -648,49 +660,51 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
-        # The CLI resolves writability itself, so unavailable features are shown.
-        features = await context.client.get_features(device, only_available=False)
+        # The CLI resolves writability itself, so unavailable features are
+        # shown; a full refresh keeps the snapshot complete with its
+        # command list.
+        device = await context.client.refresh_device(device, only_available=False)
 
     writable_features = [
-        (feature, feature.control)
-        for feature in features
-        if feature.control is not None
+        (feature, binding)
+        for feature in device.features
+        if (binding := feature.write_binding) is not None
     ]
     print(f"\nFound {len(writable_features)} writable features:\n")
-    for feature, control in writable_features:
+    for feature, binding in writable_features:
         print(f"- {feature.name}")
-        print(f"    Param:   {control.parameter_name} (via {control.command_name})")
-        _print_feature_constraints(control)
+        print(f"    Param:   {binding.parameter_name} (via {binding.command_name})")
+        _print_feature_constraints(feature.constraints or FeatureConstraints())
         print("")
 
     return True
 
 
-def _print_feature_constraints(control: FeatureControl) -> None:
-    """Print the numeric, option, and text constraints of a feature control."""
-    constraints: list[str] = []
-    if control.min is not None:
-        constraints.append(f"min: {control.min}")
-    if control.max is not None:
-        constraints.append(f"max: {control.max}")
-    if control.step is not None:
-        constraints.append(f"step: {control.step}")
-    if control.options:
-        constraints.append(f"options: {control.options}")
-    if control.min_length is not None:
-        constraints.append(f"min_length: {control.min_length}")
-    if control.max_length is not None:
-        constraints.append(f"max_length: {control.max_length}")
-    if control.pattern is not None:
-        constraints.append(f"pattern: {control.pattern}")
+def _print_feature_constraints(constraints: FeatureConstraints) -> None:
+    """Print the numeric, option, and text constraints of a writable feature."""
+    printed: list[str] = []
+    if constraints.min is not None:
+        printed.append(f"min: {constraints.min}")
+    if constraints.max is not None:
+        printed.append(f"max: {constraints.max}")
+    if constraints.step is not None:
+        printed.append(f"step: {constraints.step}")
+    if constraints.options:
+        printed.append(f"options: {constraints.options}")
+    if constraints.min_length is not None:
+        printed.append(f"min_length: {constraints.min_length}")
+    if constraints.max_length is not None:
+        printed.append(f"max_length: {constraints.max_length}")
+    if constraints.pattern is not None:
+        printed.append(f"pattern: {constraints.pattern}")
 
-    if constraints:
-        print(f"    Constraints: {', '.join(constraints)}")
+    if printed:
+        print(f"    Constraints: {', '.join(printed)}")
 
-    if control.schedule is not None:
+    if constraints.schedule is not None:
         schedule_rules = [
             f"{name}: {value}"
-            for name, value in asdict(control.schedule).items()
+            for name, value in asdict(constraints.schedule).items()
             if value is not None
         ]
         print(f"    Schedule rules: {', '.join(schedule_rules)}")

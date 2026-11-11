@@ -11,7 +11,8 @@ from vi_api_client.client import ViClient
 from vi_api_client.models import (
     Device,
     Feature,
-    FeatureControl,
+    FeatureConstraints,
+    ParameterWriteBinding,
     ScheduleConstraints,
 )
 
@@ -21,14 +22,14 @@ class _RecordingCommandAdapter:
 
     def __init__(self, success: bool = True) -> None:
         """Initialize a successful or rejected command response."""
-        self.calls: list[tuple[FeatureControl, dict[str, Any]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
         self.success = success
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, Any]
+        self, uri: str, parameters: dict[str, Any]
     ) -> dict[str, Any]:
         """Record the command and return its configured response."""
-        self.calls.append((control, parameters))
+        self.calls.append((uri, parameters))
         return {"data": {"success": self.success}}
 
 
@@ -54,15 +55,15 @@ def _device(features: list[Feature]) -> Device:
 
 def _control(
     *, required_parameters: list[str] | None = None, parameter_name: str = "target"
-) -> FeatureControl:
-    """Build command metadata for a target under ``heating.mode``."""
-    return FeatureControl(
+) -> ParameterWriteBinding:
+    """Build an internal write binding for a target under ``heating.mode``."""
+    return ParameterWriteBinding(
+        api_feature_name="heating.mode",
         command_name="setMode",
         parameter_name=parameter_name,
         required_parameters=[parameter_name]
         if required_parameters is None
         else required_parameters,
-        parent_feature_name="heating.mode",
         uri="/commands/setMode",
     )
 
@@ -93,7 +94,7 @@ async def test_set_feature_uses_current_canonical_feature_and_updates_snapshot()
     assert response.success
     assert adapter.calls == [
         (
-            canonical_control,
+            canonical_control.uri,
             {"target": "new", "enabled": False, "count": 0, "label": ""},
         )
     ]
@@ -183,8 +184,10 @@ async def test_set_feature_rejects_unavailable_required_dependencies_before_cons
     # Arrange: Both the sibling and target constraint are invalid.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(required_parameters=["target", "other"]), max=10)
-    target = build_feature("heating.mode.target", "old", control)
+    control = _control(required_parameters=["target", "other"])
+    target = build_feature(
+        "heating.mode.target", "old", control, constraints=FeatureConstraints(max=10)
+    )
     device = _device([target, sibling])
 
     # Act and assert: The dependency error takes precedence over the target constraint.
@@ -198,7 +201,9 @@ async def test_set_feature_uses_canonical_constraints_before_adapter_io():
     # Arrange: The caller supplies stale permissive metadata for a constrained target.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    canonical = build_feature("heating.mode.target", 5, replace(_control(), max=10))
+    canonical = build_feature(
+        "heating.mode.target", 5, _control(), constraints=FeatureConstraints(max=10)
+    )
     stale = build_feature("heating.mode.target", 5, _control())
     device = _device([canonical])
 
@@ -224,8 +229,13 @@ async def test_set_feature_accepts_declared_option_values(
     # Arrange: The target declares a closed set of allowed values.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(), options=options)
-    target = build_feature("heating.mode.target", initial_value, control)
+    control = _control()
+    target = build_feature(
+        "heating.mode.target",
+        initial_value,
+        control,
+        constraints=FeatureConstraints(options=options),
+    )
     device = _device([target])
 
     # Act: Write one of the declared option values.
@@ -233,14 +243,14 @@ async def test_set_feature_accepts_declared_option_values(
 
     # Assert: The payload carries the option value and the snapshot updates.
     assert response.success
-    assert adapter.calls == [(control, {"target": written_value})]
+    assert adapter.calls == [(control.uri, {"target": written_value})]
     updated = updated_device.get_feature("heating.mode.target")
     assert updated is not None
     assert updated == replace(target, value=written_value)
 
 
 @pytest.mark.parametrize(
-    ("control_overrides", "target_value", "error"),
+    ("constraint_overrides", "target_value", "error"),
     [
         pytest.param({"min": 2.0}, 1, "< min", id="below-min"),
         pytest.param({"max": 3.5}, 5.0, "> max", id="above-max"),
@@ -270,15 +280,20 @@ async def test_set_feature_accepts_declared_option_values(
     ],
 )
 async def test_set_feature_rejects_values_outside_canonical_constraints(
-    control_overrides: dict[str, Any],
+    constraint_overrides: dict[str, Any],
     target_value: Any,
     error: str,
 ):
     # Arrange: The current device feature carries the violated constraint.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(), **control_overrides)
-    target = build_feature("heating.mode.target", "old", control)
+    control = _control()
+    target = build_feature(
+        "heating.mode.target",
+        "old",
+        control,
+        constraints=FeatureConstraints(**constraint_overrides),
+    )
     device = _device([target])
 
     # Act and assert: The constraint violation rejects before I/O.
@@ -301,8 +316,23 @@ async def test_set_feature_omits_optional_siblings_and_preserves_rejected_device
 
     # Assert: Optional state is absent and the exact original snapshot returns.
     assert not response.success
-    assert adapter.calls == [(control, {"target": "new"})]
+    assert adapter.calls == [(control.uri, {"target": "new"})]
     assert returned_device is device
+
+
+async def test_set_feature_rejects_hand_built_features_without_adapter_io():
+    """A hand-built feature has no write binding, so it rejects as read-only."""
+    # Arrange: Only the parser attaches write bindings; builders leave the
+    # feature read-only.
+    adapter = _RecordingCommandAdapter()
+    client = _create_client(adapter)
+    hand_built = build_feature("heating.mode.target", "old")
+    device = _device([hand_built])
+
+    # Act and assert: The read-only rejection happens before any request.
+    with pytest.raises(ValueError, match="read-only"):
+        await client.set_feature(device, hand_built, "new")
+    assert adapter.calls == []
 
 
 async def test_execute_command_requires_complete_available_command_without_mutation():
@@ -319,7 +349,7 @@ async def test_execute_command_requires_complete_available_command_without_mutat
 
     # Assert: The adapter receives the original mapping unchanged.
     assert response.success
-    assert adapter.calls == [(control, parameters)]
+    assert adapter.calls == [(control.uri, parameters)]
     assert parameters == {"target": "new", "dependency": None, "extra": "kept"}
 
 
@@ -338,7 +368,7 @@ async def test_set_feature_accepts_json_object_target_value():
 
     # Assert: The payload carries the exact JSON value and the snapshot updates.
     assert response.success
-    assert adapter.calls == [(control, {"target": target_value})]
+    assert adapter.calls == [(control.uri, {"target": target_value})]
     updated = updated_device.get_feature("heating.mode.target")
     assert updated == replace(target, value=target_value)
 
@@ -460,15 +490,18 @@ _SCHEDULE_RULES = ScheduleConstraints(
 
 
 def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
-    """Build command metadata for writing a whole schedule."""
-    return FeatureControl(
-        command_name="setSchedule",
-        parameter_name="newSchedule",
-        required_parameters=["newSchedule"],
-        parent_feature_name="heating.dhw.schedule",
-        uri="/commands/setSchedule",
-        value_type="Schedule",
-        schedule=rules,
+    """Build the feature of a schedule written through one binding."""
+    return build_feature(
+        "heating.dhw.schedule",
+        {"mon": []},
+        ParameterWriteBinding(
+            api_feature_name="heating.dhw.schedule",
+            command_name="setSchedule",
+            parameter_name="newSchedule",
+            required_parameters=["newSchedule"],
+            uri="/commands/setSchedule",
+        ),
+        constraints=FeatureConstraints(value_type="Schedule", schedule=rules),
     )
 
 
@@ -491,8 +524,7 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     # Arrange: A writable schedule and a plan within all reported rules.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = _schedule_control()
-    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    schedule = _schedule_control()
     device = _device([schedule])
     plan: FeatureValue = _week(mon=[_slot("05:30", "09:00"), _slot("18:30", "24:00")])
 
@@ -500,8 +532,10 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     response, updated_device = await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent and read back in the same shape.
+    binding = schedule.write_binding
+    assert binding is not None
     assert response.success
-    assert adapter.calls == [(control, {"newSchedule": plan})]
+    assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
     updated_schedule = updated_device.get_feature("heating.dhw.schedule")
     assert updated_schedule is not None
     assert updated_schedule.value == plan
@@ -557,7 +591,7 @@ async def test_set_feature_rejects_schedules_that_break_their_rules(plan, error)
     # Arrange: The schedule reports rules that the plan breaks.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    schedule = _schedule_control()
     device = _device([schedule])
 
     # Act and assert: The plan is rejected before any command is sent.
@@ -571,8 +605,7 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
     # Arrange: The schedule reports no rules at all.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = _schedule_control(rules=None)
-    schedule = build_feature("heating.dhw.schedule", {"mon": []}, control)
+    schedule = _schedule_control(rules=None)
     device = _device([schedule])
     plan: FeatureValue = _week(
         mon=[_slot("08:00", "10:00", "comfort"), _slot("09:05", "11:00", "x")]
@@ -582,14 +615,16 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
     response, _ = await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent unchanged.
+    binding = schedule.write_binding
+    assert binding is not None
     assert response.success
-    assert adapter.calls == [(control, {"newSchedule": plan})]
+    assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 
 async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    schedule = build_feature("heating.dhw.schedule", {"mon": []}, _schedule_control())
+    schedule = _schedule_control()
     device = _device([schedule])
     plan: FeatureValue = _week(mon=[_slot("06:00", "08:00"), _slot("08:00", "09:00")])
 
@@ -618,8 +653,13 @@ async def test_set_feature_rejects_values_of_the_wrong_parameter_type(
     # Arrange: The command reports the type of its parameter.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(), value_type=value_type)
-    target = build_feature("heating.mode.target", "old", control)
+    control = _control()
+    target = build_feature(
+        "heating.mode.target",
+        "old",
+        control,
+        constraints=FeatureConstraints(value_type=value_type),
+    )
     device = _device([target])
 
     # Act and assert: The type mismatch rejects before I/O.
@@ -647,8 +687,13 @@ async def test_set_feature_sends_values_of_the_reported_parameter_type(
     # Arrange: The command reports a type, an unchecked type, or none.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
-    control = replace(_control(), value_type=value_type)
-    target = build_feature("heating.mode.target", "old", control)
+    control = _control()
+    target = build_feature(
+        "heating.mode.target",
+        "old",
+        control,
+        constraints=FeatureConstraints(value_type=value_type),
+    )
     device = _device([target])
 
     # Act: Write the value.
@@ -656,4 +701,4 @@ async def test_set_feature_sends_values_of_the_reported_parameter_type(
 
     # Assert: The command is sent with the value.
     assert response.success
-    assert adapter.calls == [(control, {"target": target_value})]
+    assert adapter.calls == [(control.uri, {"target": target_value})]

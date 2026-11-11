@@ -1,0 +1,3054 @@
+{
+  "Vitocal200S": {
+    "api_feature_commands": {
+      "device.messages.errors.counter.d6": [],
+      "device.messages.logbook": [],
+      "device.serial": [],
+      "heating.boiler.sensors.temperature.commonSupply": [],
+      "heating.boiler.serial": [],
+      "heating.buffer.sensors.temperature.main": [],
+      "heating.buffer.sensors.temperature.top": [],
+      "heating.bufferCylinder.sensors.temperature.main": [],
+      "heating.bufferCylinder.sensors.temperature.top": [],
+      "heating.burners": [],
+      "heating.burners.0": [],
+      "heating.burners.0.modulation": [],
+      "heating.burners.0.statistics": [],
+      "heating.circuits": [],
+      "heating.circuits.0": [
+        "setName"
+      ],
+      "heating.circuits.0.circulation.pump": [],
+      "heating.circuits.0.frostprotection": [],
+      "heating.circuits.0.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.0.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.0.name": [
+        "setName"
+      ],
+      "heating.circuits.0.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.0.operating.modes.cooling": [],
+      "heating.circuits.0.operating.modes.dhw": [],
+      "heating.circuits.0.operating.modes.dhwAndHeating": [],
+      "heating.circuits.0.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.0.operating.modes.forcedNormal": [],
+      "heating.circuits.0.operating.modes.forcedReduced": [],
+      "heating.circuits.0.operating.modes.heating": [],
+      "heating.circuits.0.operating.modes.heatingCooling": [],
+      "heating.circuits.0.operating.modes.normalStandby": [],
+      "heating.circuits.0.operating.modes.standby": [],
+      "heating.circuits.0.operating.programs.active": [],
+      "heating.circuits.0.operating.programs.comfort": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.eco": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.0.operating.programs.fixed": [],
+      "heating.circuits.0.operating.programs.normal": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reduced": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.0.operating.programs.standby": [],
+      "heating.circuits.0.sensors.temperature.room": [],
+      "heating.circuits.0.sensors.temperature.supply": [],
+      "heating.circuits.0.temperature": [],
+      "heating.circuits.0.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.1": [
+        "setName"
+      ],
+      "heating.circuits.1.circulation.pump": [],
+      "heating.circuits.1.frostprotection": [],
+      "heating.circuits.1.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.1.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.1.name": [
+        "setName"
+      ],
+      "heating.circuits.1.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.1.operating.modes.cooling": [],
+      "heating.circuits.1.operating.modes.dhw": [],
+      "heating.circuits.1.operating.modes.dhwAndHeating": [],
+      "heating.circuits.1.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.1.operating.modes.forcedNormal": [],
+      "heating.circuits.1.operating.modes.forcedReduced": [],
+      "heating.circuits.1.operating.modes.heating": [],
+      "heating.circuits.1.operating.modes.heatingCooling": [],
+      "heating.circuits.1.operating.modes.normalStandby": [],
+      "heating.circuits.1.operating.modes.standby": [],
+      "heating.circuits.1.operating.programs.active": [],
+      "heating.circuits.1.operating.programs.comfort": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.eco": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.1.operating.programs.fixed": [],
+      "heating.circuits.1.operating.programs.normal": [
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.reduced": [
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.1.operating.programs.standby": [],
+      "heating.circuits.1.sensors.temperature.room": [],
+      "heating.circuits.1.sensors.temperature.supply": [],
+      "heating.circuits.1.temperature": [],
+      "heating.circuits.1.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.2": [],
+      "heating.circuits.2.circulation.pump": [],
+      "heating.circuits.2.frostprotection": [],
+      "heating.circuits.2.heating.curve": [],
+      "heating.circuits.2.heating.schedule": [],
+      "heating.circuits.2.operating.modes.active": [],
+      "heating.circuits.2.operating.modes.cooling": [],
+      "heating.circuits.2.operating.modes.dhw": [],
+      "heating.circuits.2.operating.modes.dhwAndHeating": [],
+      "heating.circuits.2.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.2.operating.modes.forcedNormal": [],
+      "heating.circuits.2.operating.modes.forcedReduced": [],
+      "heating.circuits.2.operating.modes.heating": [],
+      "heating.circuits.2.operating.modes.heatingCooling": [],
+      "heating.circuits.2.operating.modes.normalStandby": [],
+      "heating.circuits.2.operating.modes.standby": [],
+      "heating.circuits.2.operating.programs.active": [],
+      "heating.circuits.2.operating.programs.comfort": [],
+      "heating.circuits.2.operating.programs.eco": [],
+      "heating.circuits.2.operating.programs.fixed": [],
+      "heating.circuits.2.operating.programs.normal": [],
+      "heating.circuits.2.operating.programs.reduced": [],
+      "heating.circuits.2.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.2.operating.programs.standby": [],
+      "heating.circuits.2.sensors.temperature.room": [],
+      "heating.circuits.2.sensors.temperature.supply": [],
+      "heating.circuits.2.temperature": [],
+      "heating.circuits.2.temperature.levels": [],
+      "heating.compressors": [],
+      "heating.compressors.0": [
+        "setActive",
+        "setPhase"
+      ],
+      "heating.compressors.0.power": [],
+      "heating.compressors.0.sensors.power": [],
+      "heating.compressors.0.sensors.pressure.inlet": [],
+      "heating.compressors.0.sensors.temperature.ambient": [],
+      "heating.compressors.0.sensors.temperature.inlet": [],
+      "heating.compressors.0.sensors.temperature.outlet": [],
+      "heating.compressors.0.sensors.temperature.overheat": [],
+      "heating.compressors.0.statistics": [],
+      "heating.compressors.0.statistics.load": [],
+      "heating.compressors.1": [],
+      "heating.compressors.1.statistics": [],
+      "heating.compressors.1.statistics.load": [],
+      "heating.condensors.0.sensors.temperature.subcooling": [],
+      "heating.configuration.buffer.temperature.max": [],
+      "heating.configuration.dhw.temperature.dhwCylinder.max": [],
+      "heating.configuration.dhw.temperature.hotWaterStorage.max": [],
+      "heating.configuration.dhwHeater": [],
+      "heating.configuration.flow.temperature.max": [],
+      "heating.configuration.flow.temperature.min": [],
+      "heating.configuration.heatingRod.dhw": [],
+      "heating.configuration.heatingRod.heating": [],
+      "heating.configuration.smartGrid.heatingRod": [],
+      "heating.configuration.temperature.outside.DampingFactor": [],
+      "heating.controller.serial": [],
+      "heating.coolingCircuits.0.reverse": [],
+      "heating.coolingCircuits.0.type": [],
+      "heating.cop.cooling": [],
+      "heating.cop.dhw": [],
+      "heating.cop.green": [],
+      "heating.cop.heating": [],
+      "heating.cop.total": [],
+      "heating.device.mainECU": [],
+      "heating.device.time": [],
+      "heating.dhw": [],
+      "heating.dhw.charging": [],
+      "heating.dhw.configuration.temperature.dhwCylinder.max": [],
+      "heating.dhw.oneTimeCharge": [],
+      "heating.dhw.pumps.circulation": [],
+      "heating.dhw.pumps.circulation.schedule": [],
+      "heating.dhw.pumps.primary": [],
+      "heating.dhw.schedule": [],
+      "heating.dhw.sensors.temperature.dhwCylinder": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.bottom": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.top": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.bottom": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.top": [],
+      "heating.dhw.sensors.temperature.outlet": [],
+      "heating.dhw.temperature.hysteresis": [],
+      "heating.dhw.temperature.main": [],
+      "heating.dhw.temperature.temp2": [],
+      "heating.evaporators.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.sensors.temperature.overheat": [],
+      "heating.heatingRod.runtime": [],
+      "heating.operating.programs.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.primaryCircuit.sensors.rotation": [],
+      "heating.primaryCircuit.sensors.temperature.return": [],
+      "heating.primaryCircuit.sensors.temperature.supply": [],
+      "heating.secondaryCircuit.sensors.temperature.supply": [],
+      "heating.sensors.pressure.hotGas": [],
+      "heating.sensors.pressure.suctionGas": [],
+      "heating.sensors.temperature.hotGas": [],
+      "heating.sensors.temperature.liquidGas": [],
+      "heating.sensors.temperature.outside": [],
+      "heating.sensors.temperature.return": [],
+      "heating.sensors.temperature.suctionGas": [],
+      "heating.solar": [],
+      "heating.solar.power.cumulativeProduced": [],
+      "heating.solar.power.production": [],
+      "heating.solar.pumps.circuit": [],
+      "heating.solar.rechargeSuppression": [],
+      "heating.solar.sensors.temperature.collector": [],
+      "heating.solar.sensors.temperature.dhw": [],
+      "ventilation": [],
+      "ventilation.heatExchanger.frostprotection": [],
+      "ventilation.levels.levelFour": [],
+      "ventilation.levels.levelOne": [],
+      "ventilation.levels.levelThree": [],
+      "ventilation.levels.levelTwo": [],
+      "ventilation.operating.modes.active": [],
+      "ventilation.operating.modes.standard": [],
+      "ventilation.operating.modes.standby": [],
+      "ventilation.operating.modes.ventilation": [],
+      "ventilation.operating.programs.active": [],
+      "ventilation.operating.state": [],
+      "ventilation.quickmodes.comfort": [],
+      "ventilation.quickmodes.eco": [],
+      "ventilation.quickmodes.holiday": [],
+      "ventilation.schedule": [],
+      "ventilation.volumeFlow.current.input": [],
+      "ventilation.volumeFlow.current.output": []
+    },
+    "write_bindings": {
+      "heating.circuits.0.heating.curve.shift": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.curve.slope": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.schedule": {
+        "api_feature": "heating.circuits.0.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.0.name": {
+        "api_feature": "heating.circuits.0",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0/commands/setName"
+      },
+      "heating.circuits.0.name.name": {
+        "api_feature": "heating.circuits.0.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name/commands/setName"
+      },
+      "heating.circuits.0.operating.modes.active": {
+        "api_feature": "heating.circuits.0.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.0.operating.programs.comfort.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.normal.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.normal",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.normal/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.reduced.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.reduced",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reduced/commands/setTemperature"
+      },
+      "heating.circuits.0.temperature.levels.max": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.0.temperature.levels.min": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMin"
+      },
+      "heating.circuits.1.heating.curve.shift": {
+        "api_feature": "heating.circuits.1.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.1.heating.curve.slope": {
+        "api_feature": "heating.circuits.1.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.1.heating.schedule": {
+        "api_feature": "heating.circuits.1.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.1.name": {
+        "api_feature": "heating.circuits.1",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1/commands/setName"
+      },
+      "heating.circuits.1.name.name": {
+        "api_feature": "heating.circuits.1.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.name/commands/setName"
+      },
+      "heating.circuits.1.operating.modes.active": {
+        "api_feature": "heating.circuits.1.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.1.operating.programs.comfort.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.comfort",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.normal.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.normal",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.normal/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.reduced.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.reduced",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.reduced/commands/setTemperature"
+      },
+      "heating.circuits.1.temperature.levels.max": {
+        "api_feature": "heating.circuits.1.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.1.temperature.levels.min": {
+        "api_feature": "heating.circuits.1.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.temperature.levels/commands/setMin"
+      },
+      "heating.operating.programs.holiday.end": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holiday.start": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      }
+    }
+  },
+  "Vitocal222S": {
+    "api_feature_commands": {
+      "device.actorSensorTest": [],
+      "device.configuration.houseLocation": [],
+      "device.lock.external": [],
+      "device.lock.malfunction": [],
+      "device.messages.info.raw": [],
+      "device.messages.service.raw": [],
+      "device.messages.status.raw": [],
+      "device.parameterIdentification.version": [],
+      "device.power.consumption.limitation": [],
+      "device.power.statusReport.consumption": [],
+      "device.power.statusReport.production": [],
+      "device.productIdentification": [],
+      "device.productMatrix": [],
+      "device.remoteReset": [],
+      "device.serial": [],
+      "device.setDefaultValues": [],
+      "device.time.daylightSaving": [
+        "activate",
+        "deactivate"
+      ],
+      "device.type": [],
+      "device.variant": [],
+      "device.zigbee.active": [],
+      "device.zigbee.status": [],
+      "heating.boiler.pumps.internal": [],
+      "heating.boiler.pumps.internal.current": [],
+      "heating.boiler.pumps.internal.target": [],
+      "heating.boiler.sensors.temperature.commonSupply": [],
+      "heating.boiler.serial": [],
+      "heating.boiler.temperature.current": [],
+      "heating.buffer.sensors.temperature.main": [],
+      "heating.bufferCylinder.sensors.temperature.main": [],
+      "heating.circuits": [],
+      "heating.circuits.0": [
+        "setName"
+      ],
+      "heating.circuits.0.circulation.pump": [],
+      "heating.circuits.0.configuration.summerEco.absolute": [],
+      "heating.circuits.0.cooling.hysteresis": [],
+      "heating.circuits.0.cooling.hysteresis.switch": [],
+      "heating.circuits.0.frostprotection": [],
+      "heating.circuits.0.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.0.heating.hysteresis.switch": [],
+      "heating.circuits.0.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.0.name": [
+        "setName"
+      ],
+      "heating.circuits.0.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.0.operating.modes.cooling": [],
+      "heating.circuits.0.operating.modes.heating": [],
+      "heating.circuits.0.operating.modes.heatingCooling": [],
+      "heating.circuits.0.operating.modes.standby": [],
+      "heating.circuits.0.operating.programs.active": [],
+      "heating.circuits.0.operating.programs.comfortCooling": [],
+      "heating.circuits.0.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.0.operating.programs.comfortHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.fixed": [],
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.0.operating.programs.frostprotection": [],
+      "heating.circuits.0.operating.programs.normalCooling": [],
+      "heating.circuits.0.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.normalEnergySaving": [],
+      "heating.circuits.0.operating.programs.normalHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reducedCooling": [],
+      "heating.circuits.0.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.0.operating.programs.reducedHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.standby": [],
+      "heating.circuits.0.operating.programs.summerEco": [],
+      "heating.circuits.0.sensors.humidity.dewpoint": [],
+      "heating.circuits.0.sensors.temperature.room": [],
+      "heating.circuits.0.sensors.temperature.supply": [],
+      "heating.circuits.0.temperature": [],
+      "heating.circuits.0.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.0.zone.mode": [],
+      "heating.circuits.1": [],
+      "heating.circuits.1.circulation.pump": [],
+      "heating.circuits.1.configuration.summerEco.absolute": [],
+      "heating.circuits.1.cooling.hysteresis": [],
+      "heating.circuits.1.cooling.hysteresis.switch": [],
+      "heating.circuits.1.frostprotection": [],
+      "heating.circuits.1.heating.curve": [],
+      "heating.circuits.1.heating.hysteresis.switch": [],
+      "heating.circuits.1.heating.schedule": [],
+      "heating.circuits.1.operating.modes.active": [],
+      "heating.circuits.1.operating.modes.cooling": [],
+      "heating.circuits.1.operating.modes.heating": [],
+      "heating.circuits.1.operating.modes.heatingCooling": [],
+      "heating.circuits.1.operating.modes.standby": [],
+      "heating.circuits.1.operating.programs.active": [],
+      "heating.circuits.1.operating.programs.comfortCooling": [],
+      "heating.circuits.1.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.1.operating.programs.comfortHeating": [],
+      "heating.circuits.1.operating.programs.fixed": [],
+      "heating.circuits.1.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.1.operating.programs.frostprotection": [],
+      "heating.circuits.1.operating.programs.normalCooling": [],
+      "heating.circuits.1.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.normalEnergySaving": [],
+      "heating.circuits.1.operating.programs.normalHeating": [],
+      "heating.circuits.1.operating.programs.reducedCooling": [],
+      "heating.circuits.1.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.1.operating.programs.reducedHeating": [],
+      "heating.circuits.1.operating.programs.standby": [],
+      "heating.circuits.1.operating.programs.summerEco": [],
+      "heating.circuits.1.sensors.humidity.dewpoint": [],
+      "heating.circuits.1.sensors.temperature.room": [],
+      "heating.circuits.1.sensors.temperature.supply": [],
+      "heating.circuits.1.temperature": [],
+      "heating.circuits.1.temperature.levels": [],
+      "heating.circuits.1.zone.mode": [],
+      "heating.circuits.2": [],
+      "heating.circuits.2.circulation.pump": [],
+      "heating.circuits.2.configuration.summerEco.absolute": [],
+      "heating.circuits.2.cooling.hysteresis": [],
+      "heating.circuits.2.cooling.hysteresis.switch": [],
+      "heating.circuits.2.frostprotection": [],
+      "heating.circuits.2.heating.curve": [],
+      "heating.circuits.2.heating.hysteresis.switch": [],
+      "heating.circuits.2.heating.schedule": [],
+      "heating.circuits.2.operating.modes.active": [],
+      "heating.circuits.2.operating.modes.cooling": [],
+      "heating.circuits.2.operating.modes.heating": [],
+      "heating.circuits.2.operating.modes.heatingCooling": [],
+      "heating.circuits.2.operating.modes.standby": [],
+      "heating.circuits.2.operating.programs.active": [],
+      "heating.circuits.2.operating.programs.comfortCooling": [],
+      "heating.circuits.2.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.2.operating.programs.comfortHeating": [],
+      "heating.circuits.2.operating.programs.fixed": [],
+      "heating.circuits.2.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.2.operating.programs.frostprotection": [],
+      "heating.circuits.2.operating.programs.normalCooling": [],
+      "heating.circuits.2.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.normalEnergySaving": [],
+      "heating.circuits.2.operating.programs.normalHeating": [],
+      "heating.circuits.2.operating.programs.reducedCooling": [],
+      "heating.circuits.2.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.2.operating.programs.reducedHeating": [],
+      "heating.circuits.2.operating.programs.standby": [],
+      "heating.circuits.2.operating.programs.summerEco": [],
+      "heating.circuits.2.sensors.temperature.room": [],
+      "heating.circuits.2.sensors.temperature.supply": [],
+      "heating.circuits.2.temperature": [],
+      "heating.circuits.2.temperature.levels": [],
+      "heating.circuits.2.zone.mode": [],
+      "heating.circuits.3": [],
+      "heating.circuits.3.circulation.pump": [],
+      "heating.circuits.3.configuration.summerEco.absolute": [],
+      "heating.circuits.3.cooling.hysteresis": [],
+      "heating.circuits.3.cooling.hysteresis.switch": [],
+      "heating.circuits.3.frostprotection": [],
+      "heating.circuits.3.heating.curve": [],
+      "heating.circuits.3.heating.hysteresis.switch": [],
+      "heating.circuits.3.heating.schedule": [],
+      "heating.circuits.3.operating.modes.active": [],
+      "heating.circuits.3.operating.modes.cooling": [],
+      "heating.circuits.3.operating.modes.heating": [],
+      "heating.circuits.3.operating.modes.heatingCooling": [],
+      "heating.circuits.3.operating.modes.standby": [],
+      "heating.circuits.3.operating.programs.active": [],
+      "heating.circuits.3.operating.programs.comfortCooling": [],
+      "heating.circuits.3.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.3.operating.programs.comfortHeating": [],
+      "heating.circuits.3.operating.programs.fixed": [],
+      "heating.circuits.3.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.3.operating.programs.frostprotection": [],
+      "heating.circuits.3.operating.programs.normalCooling": [],
+      "heating.circuits.3.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.normalEnergySaving": [],
+      "heating.circuits.3.operating.programs.normalHeating": [],
+      "heating.circuits.3.operating.programs.reducedCooling": [],
+      "heating.circuits.3.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.3.operating.programs.reducedHeating": [],
+      "heating.circuits.3.operating.programs.standby": [],
+      "heating.circuits.3.operating.programs.summerEco": [],
+      "heating.circuits.3.sensors.temperature.room": [],
+      "heating.circuits.3.sensors.temperature.supply": [],
+      "heating.circuits.3.temperature": [],
+      "heating.circuits.3.temperature.levels": [],
+      "heating.circuits.3.zone.mode": [],
+      "heating.compressors": [],
+      "heating.compressors.0": [
+        "setActive",
+        "setPhase"
+      ],
+      "heating.compressors.0.heater.crankcase": [],
+      "heating.compressors.0.sensors.pressure.inlet": [],
+      "heating.compressors.0.sensors.temperature.inlet": [],
+      "heating.compressors.0.sensors.temperature.motorChamber": [],
+      "heating.compressors.0.sensors.temperature.oil": [],
+      "heating.compressors.0.sensors.temperature.outlet": [],
+      "heating.compressors.0.speed.current": [],
+      "heating.compressors.0.statistics": [],
+      "heating.condensors.0.sensors.temperature.liquid": [],
+      "heating.configuration.bufferCylinderSize": [],
+      "heating.configuration.centralHeatingCylinderSize": [],
+      "heating.configuration.dhw.highDemand.threshold": [],
+      "heating.configuration.dhw.highDemand.timeframe": [],
+      "heating.configuration.dhw.temperature.comfortCharging": [],
+      "heating.configuration.dhwCylinderSize": [],
+      "heating.configuration.heatingRod.dhw": [],
+      "heating.configuration.heatingRod.heating": [],
+      "heating.configuration.houseHeatingLoad": [],
+      "heating.configuration.houseLocation": [],
+      "heating.configuration.houseOrientation": [],
+      "heating.configuration.internalPumpOne": [],
+      "heating.configuration.internalPumpTwo": [],
+      "heating.configuration.internalPumps": [],
+      "heating.configuration.temperature.outside.DampingFactor": [],
+      "heating.device.time": [],
+      "heating.device.variant": [],
+      "heating.dhw": [],
+      "heating.dhw.actuator": [],
+      "heating.dhw.configuration.highDemand.threshold": [],
+      "heating.dhw.configuration.highDemand.timeframe": [],
+      "heating.dhw.configuration.temperature.comfortCharging": [],
+      "heating.dhw.hygiene": [
+        "activate",
+        "disable",
+        "enable"
+      ],
+      "heating.dhw.hygiene.trigger": [],
+      "heating.dhw.oneTimeCharge": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "heating.dhw.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.dhw.operating.modes.balanced": [],
+      "heating.dhw.operating.modes.comfort": [],
+      "heating.dhw.operating.modes.eco": [],
+      "heating.dhw.operating.modes.efficient": [],
+      "heating.dhw.operating.modes.efficientWithMinComfort": [],
+      "heating.dhw.operating.modes.off": [],
+      "heating.dhw.pumps.circulation": [],
+      "heating.dhw.pumps.circulation.schedule": [],
+      "heating.dhw.pumps.secondary": [],
+      "heating.dhw.scaldProtection": [],
+      "heating.dhw.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.sensors.temperature.dhwCylinder": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.middle": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.top": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.middle": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.top": [],
+      "heating.dhw.sensors.temperature.tankLoadSystem.return": [],
+      "heating.dhw.sensors.temperature.tankLoadSystem.supply": [],
+      "heating.dhw.temperature.hygiene": [],
+      "heating.dhw.temperature.hysteresis": [
+        "setHysteresis",
+        "setHysteresisSwitchOffValue",
+        "setHysteresisSwitchOnValue"
+      ],
+      "heating.dhw.temperature.levels": [],
+      "heating.dhw.temperature.main": [
+        "setTargetTemperature"
+      ],
+      "heating.economizers.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.heater.base": [],
+      "heating.evaporators.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.sensors.temperature.overheat": [],
+      "heating.external.lock": [],
+      "heating.heat.production.summary.cooling": [],
+      "heating.heat.production.summary.dhw": [],
+      "heating.heat.production.summary.heating": [],
+      "heating.heater.condensatePan": [],
+      "heating.heater.fanRing": [],
+      "heating.heatingRod": [],
+      "heating.heatingRod.power.consumption.summary.dhw": [],
+      "heating.heatingRod.power.consumption.summary.heating": [],
+      "heating.heatingRod.statistics": [],
+      "heating.inverters.0.sensors.power.current": [],
+      "heating.inverters.0.sensors.power.output": [],
+      "heating.inverters.0.sensors.temperature.powerModule": [],
+      "heating.noise.reduction.levels.maxReduced": [],
+      "heating.noise.reduction.levels.notReduced": [],
+      "heating.noise.reduction.levels.slightlyReduced": [],
+      "heating.noise.reduction.operating.programs.active": [],
+      "heating.noise.reduction.operating.programs.maxReduced": [],
+      "heating.noise.reduction.operating.programs.notReduced": [],
+      "heating.noise.reduction.operating.programs.slightlyReduced": [],
+      "heating.operating.programs.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.operating.programs.holidayAtHome": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.outdoor.defrosting": [],
+      "heating.outdoor.defrosting.thermalEnergy": [],
+      "heating.power.consumption.cooling": [],
+      "heating.power.consumption.dhw": [],
+      "heating.power.consumption.heating": [],
+      "heating.power.consumption.summary.cooling": [],
+      "heating.power.consumption.summary.dhw": [],
+      "heating.power.consumption.summary.heating": [],
+      "heating.power.consumption.total": [],
+      "heating.primaryCircuit.fans.0.current": [],
+      "heating.primaryCircuit.fans.1.current": [],
+      "heating.primaryCircuit.sensors.temperature.supply": [],
+      "heating.primaryCircuit.valves.fourThreeWay": [],
+      "heating.scop.dhw": [],
+      "heating.scop.heating": [],
+      "heating.scop.total": [],
+      "heating.secondaryCircuit.operation.state": [],
+      "heating.secondaryCircuit.sensors.temperature.supply": [],
+      "heating.secondaryCircuit.temperature.return.minimum": [],
+      "heating.secondaryCircuit.valves.fourThreeWay": [],
+      "heating.secondaryHeatGenerator": [],
+      "heating.secondaryHeatGenerator.configuration.defrosting": [],
+      "heating.secondaryHeatGenerator.configuration.dhw": [],
+      "heating.secondaryHeatGenerator.configuration.dhw.comfortEnsuring": [],
+      "heating.secondaryHeatGenerator.configuration.frostprotection": [],
+      "heating.secondaryHeatGenerator.configuration.heating": [],
+      "heating.secondaryHeatGenerator.configuration.heating.comfortEnsuring": [],
+      "heating.secondaryHeatGenerator.configuration.hygiene": [],
+      "heating.secondaryHeatGenerator.configuration.refrigerationCircuitExceeded": [],
+      "heating.secondaryHeatGenerator.configuration.runtime": [],
+      "heating.secondaryHeatGenerator.configuration.screedDrying": [],
+      "heating.secondaryHeatGenerator.electricity.energyFactor": [],
+      "heating.secondaryHeatGenerator.electricity.price.low": [],
+      "heating.secondaryHeatGenerator.electricity.price.normal": [],
+      "heating.secondaryHeatGenerator.fossil.energyFactor": [],
+      "heating.secondaryHeatGenerator.fossil.price.normal": [],
+      "heating.secondaryHeatGenerator.state": [],
+      "heating.secondaryHeatGenerator.status": [],
+      "heating.secondaryHeatGenerator.temperature.current": [],
+      "heating.secondaryHeatGenerator.valves.threeWay": [],
+      "heating.seer.cooling": [],
+      "heating.sensors.pressure.supply": [],
+      "heating.sensors.temperature.allengra": [],
+      "heating.sensors.temperature.hydraulicSeparator": [],
+      "heating.sensors.temperature.outside": [],
+      "heating.sensors.temperature.return": [],
+      "heating.sensors.volumetricFlow.allengra": [],
+      "heating.spf.dhw": [],
+      "heating.spf.heating": [],
+      "heating.spf.total": [],
+      "heating.valves.fourThreeWay.position": [],
+      "tcu.wifi": []
+    },
+    "write_bindings": {
+      "device.time.daylightSaving.begin": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "begin",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "device.time.daylightSaving.end": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "end",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "heating.circuits.0.heating.curve.shift": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.curve.slope": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.schedule": {
+        "api_feature": "heating.circuits.0.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.0.name": {
+        "api_feature": "heating.circuits.0",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0/commands/setName"
+      },
+      "heating.circuits.0.name.name": {
+        "api_feature": "heating.circuits.0.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name/commands/setName"
+      },
+      "heating.circuits.0.operating.modes.active": {
+        "api_feature": "heating.circuits.0.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.0.operating.programs.comfortHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.comfortHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfortHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.normalHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.normalHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.normalHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.reducedHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.reducedHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reducedHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.temperature.levels.max": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.0.temperature.levels.min": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMin"
+      },
+      "heating.dhw.oneTimeCharge.active": {
+        "api_feature": "heating.dhw.oneTimeCharge",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.oneTimeCharge/commands/setActive"
+      },
+      "heating.dhw.operating.modes.active": {
+        "api_feature": "heating.dhw.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.operating.modes.active/commands/setMode"
+      },
+      "heating.dhw.schedule": {
+        "api_feature": "heating.dhw.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.schedule/commands/setSchedule"
+      },
+      "heating.dhw.temperature.hysteresis": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresis",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresis"
+      },
+      "heating.dhw.temperature.hysteresis.switchOffValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOffValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOffValue"
+      },
+      "heating.dhw.temperature.hysteresis.switchOnValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOnValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOnValue"
+      },
+      "heating.dhw.temperature.main": {
+        "api_feature": "heating.dhw.temperature.main",
+        "command": "setTargetTemperature",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
+      },
+      "heating.operating.programs.holiday.end": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holiday.start": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.end": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.start": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      }
+    }
+  },
+  "Vitocal250A": {
+    "api_feature_commands": {
+      "device.actorSensorTest": [],
+      "device.brand": [],
+      "device.configuration.houseLocation": [],
+      "device.demand.external": [],
+      "device.lock.external": [],
+      "device.lock.malfunction": [],
+      "device.messages.info.raw": [],
+      "device.messages.service.raw": [],
+      "device.messages.status.raw": [],
+      "device.parameterIdentification.version": [],
+      "device.power.consumption.limitation": [],
+      "device.power.statusReport.consumption": [],
+      "device.power.statusReport.production": [],
+      "device.productIdentification": [],
+      "device.productMatrix": [],
+      "device.remoteReset": [],
+      "device.serial": [],
+      "device.setDefaultValues": [],
+      "device.time.daylightSaving": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "device.type": [],
+      "device.variant": [],
+      "device.zigbee.active": [],
+      "device.zigbee.status": [],
+      "heating.boiler.pumps.internal": [],
+      "heating.boiler.pumps.internal.current": [],
+      "heating.boiler.pumps.internal.target": [],
+      "heating.boiler.sensors.temperature.commonSupply": [],
+      "heating.boiler.serial": [],
+      "heating.boiler.temperature.current": [],
+      "heating.buffer.sensors.temperature.main": [],
+      "heating.bufferCylinder.sensors.temperature.main": [],
+      "heating.circuits": [],
+      "heating.circuits.0": [
+        "setName"
+      ],
+      "heating.circuits.0.circulation.pump": [],
+      "heating.circuits.0.configuration.summerEco.absolute": [],
+      "heating.circuits.0.cooling.hysteresis": [],
+      "heating.circuits.0.cooling.hysteresis.switch": [],
+      "heating.circuits.0.frostprotection": [],
+      "heating.circuits.0.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.0.heating.hysteresis.switch": [],
+      "heating.circuits.0.heating.schedule": [
+        "resetDay",
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.0.name": [
+        "setName"
+      ],
+      "heating.circuits.0.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.0.operating.modes.cooling": [],
+      "heating.circuits.0.operating.modes.heating": [],
+      "heating.circuits.0.operating.modes.heatingCooling": [],
+      "heating.circuits.0.operating.modes.standby": [],
+      "heating.circuits.0.operating.programs.active": [],
+      "heating.circuits.0.operating.programs.comfortCooling": [],
+      "heating.circuits.0.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.0.operating.programs.comfortHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.fixed": [],
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.0.operating.programs.frostprotection": [],
+      "heating.circuits.0.operating.programs.normalCooling": [],
+      "heating.circuits.0.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.normalEnergySaving": [],
+      "heating.circuits.0.operating.programs.normalHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reducedCooling": [],
+      "heating.circuits.0.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.0.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.0.operating.programs.reducedHeating": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.standby": [],
+      "heating.circuits.0.operating.programs.summerEco": [],
+      "heating.circuits.0.sensors.humidity.dewpoint": [],
+      "heating.circuits.0.sensors.temperature.room": [],
+      "heating.circuits.0.sensors.temperature.supply": [],
+      "heating.circuits.0.temperature": [],
+      "heating.circuits.0.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.0.zone.demand": [],
+      "heating.circuits.0.zone.mode": [],
+      "heating.circuits.1": [],
+      "heating.circuits.1.circulation.pump": [],
+      "heating.circuits.1.configuration.summerEco.absolute": [],
+      "heating.circuits.1.cooling.hysteresis": [],
+      "heating.circuits.1.cooling.hysteresis.switch": [],
+      "heating.circuits.1.frostprotection": [],
+      "heating.circuits.1.heating.curve": [],
+      "heating.circuits.1.heating.hysteresis.switch": [],
+      "heating.circuits.1.heating.schedule": [],
+      "heating.circuits.1.operating.modes.active": [],
+      "heating.circuits.1.operating.modes.cooling": [],
+      "heating.circuits.1.operating.modes.heating": [],
+      "heating.circuits.1.operating.modes.heatingCooling": [],
+      "heating.circuits.1.operating.modes.standby": [],
+      "heating.circuits.1.operating.programs.active": [],
+      "heating.circuits.1.operating.programs.comfortCooling": [],
+      "heating.circuits.1.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.1.operating.programs.comfortHeating": [],
+      "heating.circuits.1.operating.programs.fixed": [],
+      "heating.circuits.1.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.1.operating.programs.frostprotection": [],
+      "heating.circuits.1.operating.programs.normalCooling": [],
+      "heating.circuits.1.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.normalEnergySaving": [],
+      "heating.circuits.1.operating.programs.normalHeating": [],
+      "heating.circuits.1.operating.programs.reducedCooling": [],
+      "heating.circuits.1.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.1.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.1.operating.programs.reducedHeating": [],
+      "heating.circuits.1.operating.programs.standby": [],
+      "heating.circuits.1.operating.programs.summerEco": [],
+      "heating.circuits.1.sensors.humidity.dewpoint": [],
+      "heating.circuits.1.sensors.temperature.room": [],
+      "heating.circuits.1.sensors.temperature.supply": [],
+      "heating.circuits.1.temperature": [],
+      "heating.circuits.1.temperature.levels": [],
+      "heating.circuits.1.zone.demand": [],
+      "heating.circuits.1.zone.mode": [],
+      "heating.circuits.2": [],
+      "heating.circuits.2.circulation.pump": [],
+      "heating.circuits.2.configuration.summerEco.absolute": [],
+      "heating.circuits.2.cooling.hysteresis": [],
+      "heating.circuits.2.cooling.hysteresis.switch": [],
+      "heating.circuits.2.frostprotection": [],
+      "heating.circuits.2.heating.curve": [],
+      "heating.circuits.2.heating.hysteresis.switch": [],
+      "heating.circuits.2.heating.schedule": [],
+      "heating.circuits.2.operating.modes.active": [],
+      "heating.circuits.2.operating.modes.cooling": [],
+      "heating.circuits.2.operating.modes.heating": [],
+      "heating.circuits.2.operating.modes.heatingCooling": [],
+      "heating.circuits.2.operating.modes.standby": [],
+      "heating.circuits.2.operating.programs.active": [],
+      "heating.circuits.2.operating.programs.comfortCooling": [],
+      "heating.circuits.2.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.2.operating.programs.comfortHeating": [],
+      "heating.circuits.2.operating.programs.fixed": [],
+      "heating.circuits.2.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.2.operating.programs.frostprotection": [],
+      "heating.circuits.2.operating.programs.normalCooling": [],
+      "heating.circuits.2.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.normalEnergySaving": [],
+      "heating.circuits.2.operating.programs.normalHeating": [],
+      "heating.circuits.2.operating.programs.reducedCooling": [],
+      "heating.circuits.2.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.2.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.2.operating.programs.reducedHeating": [],
+      "heating.circuits.2.operating.programs.standby": [],
+      "heating.circuits.2.operating.programs.summerEco": [],
+      "heating.circuits.2.sensors.temperature.room": [],
+      "heating.circuits.2.sensors.temperature.supply": [],
+      "heating.circuits.2.temperature": [],
+      "heating.circuits.2.temperature.levels": [],
+      "heating.circuits.2.zone.demand": [],
+      "heating.circuits.2.zone.mode": [],
+      "heating.circuits.3": [],
+      "heating.circuits.3.circulation.pump": [],
+      "heating.circuits.3.configuration.summerEco.absolute": [],
+      "heating.circuits.3.cooling.hysteresis": [],
+      "heating.circuits.3.cooling.hysteresis.switch": [],
+      "heating.circuits.3.frostprotection": [],
+      "heating.circuits.3.heating.curve": [],
+      "heating.circuits.3.heating.hysteresis.switch": [],
+      "heating.circuits.3.heating.schedule": [],
+      "heating.circuits.3.operating.modes.active": [],
+      "heating.circuits.3.operating.modes.cooling": [],
+      "heating.circuits.3.operating.modes.heating": [],
+      "heating.circuits.3.operating.modes.heatingCooling": [],
+      "heating.circuits.3.operating.modes.standby": [],
+      "heating.circuits.3.operating.programs.active": [],
+      "heating.circuits.3.operating.programs.comfortCooling": [],
+      "heating.circuits.3.operating.programs.comfortCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.comfortEnergySaving": [],
+      "heating.circuits.3.operating.programs.comfortHeating": [],
+      "heating.circuits.3.operating.programs.fixed": [],
+      "heating.circuits.3.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.3.operating.programs.frostprotection": [],
+      "heating.circuits.3.operating.programs.normalCooling": [],
+      "heating.circuits.3.operating.programs.normalCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.normalEnergySaving": [],
+      "heating.circuits.3.operating.programs.normalHeating": [],
+      "heating.circuits.3.operating.programs.reducedCooling": [],
+      "heating.circuits.3.operating.programs.reducedCoolingEnergySaving": [],
+      "heating.circuits.3.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.3.operating.programs.reducedHeating": [],
+      "heating.circuits.3.operating.programs.standby": [],
+      "heating.circuits.3.operating.programs.summerEco": [],
+      "heating.circuits.3.sensors.temperature.room": [],
+      "heating.circuits.3.sensors.temperature.supply": [],
+      "heating.circuits.3.temperature": [],
+      "heating.circuits.3.temperature.levels": [],
+      "heating.circuits.3.zone.demand": [],
+      "heating.circuits.3.zone.mode": [],
+      "heating.compressors": [],
+      "heating.compressors.0": [
+        "setActive",
+        "setPhase"
+      ],
+      "heating.compressors.0.heater.crankcase": [],
+      "heating.compressors.0.sensors.pressure.inlet": [],
+      "heating.compressors.0.sensors.temperature.inlet": [],
+      "heating.compressors.0.sensors.temperature.motorChamber": [],
+      "heating.compressors.0.sensors.temperature.oil": [],
+      "heating.compressors.0.sensors.temperature.outlet": [],
+      "heating.compressors.0.speed.current": [],
+      "heating.compressors.0.speed.setpoint": [],
+      "heating.compressors.0.statistics": [],
+      "heating.condensors.0.sensors.temperature.liquid": [],
+      "heating.configuration.bufferCylinderSize": [],
+      "heating.configuration.centralHeatingCylinderSize": [],
+      "heating.configuration.dhw.highDemand.threshold": [],
+      "heating.configuration.dhw.highDemand.timeframe": [],
+      "heating.configuration.dhw.temperature.comfortCharging": [],
+      "heating.configuration.dhwCylinderSize": [],
+      "heating.configuration.heatingRod.dhw": [],
+      "heating.configuration.heatingRod.heating": [],
+      "heating.configuration.houseHeatingLoad": [],
+      "heating.configuration.houseLocation": [],
+      "heating.configuration.houseOrientation": [],
+      "heating.configuration.internalPumpOne": [],
+      "heating.configuration.internalPumpTwo": [],
+      "heating.configuration.internalPumps": [],
+      "heating.configuration.pressure.total": [],
+      "heating.configuration.temperature.outside.DampingFactor": [],
+      "heating.device.time": [],
+      "heating.device.variant": [],
+      "heating.dhw": [],
+      "heating.dhw.actuator": [],
+      "heating.dhw.configuration.highDemand.threshold": [],
+      "heating.dhw.configuration.highDemand.timeframe": [],
+      "heating.dhw.configuration.temperature.comfortCharging": [],
+      "heating.dhw.hygiene": [
+        "activate",
+        "disable",
+        "enable",
+        "setActive",
+        "setEnabled"
+      ],
+      "heating.dhw.hygiene.trigger": [],
+      "heating.dhw.oneTimeCharge": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "heating.dhw.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.dhw.operating.modes.balanced": [],
+      "heating.dhw.operating.modes.efficient": [],
+      "heating.dhw.operating.modes.efficientWithMinComfort": [],
+      "heating.dhw.operating.modes.off": [],
+      "heating.dhw.pumps.circulation": [],
+      "heating.dhw.pumps.circulation.schedule": [
+        "resetDay",
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.pumps.secondary": [],
+      "heating.dhw.scaldProtection": [],
+      "heating.dhw.schedule": [
+        "resetDay",
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.sensors.temperature.dhwCylinder": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.middle": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.top": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.middle": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.top": [],
+      "heating.dhw.sensors.temperature.tankLoadSystem.return": [],
+      "heating.dhw.sensors.temperature.tankLoadSystem.supply": [],
+      "heating.dhw.temperature.hygiene": [],
+      "heating.dhw.temperature.hysteresis": [
+        "setHysteresis",
+        "setHysteresisSwitchOffValue",
+        "setHysteresisSwitchOnValue"
+      ],
+      "heating.dhw.temperature.levels": [],
+      "heating.dhw.temperature.main": [
+        "setTargetTemperature"
+      ],
+      "heating.economizers.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.heater.base": [],
+      "heating.evaporators.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.sensors.temperature.overheat": [],
+      "heating.external.lock": [],
+      "heating.heat.production.current": [],
+      "heating.heat.production.summary.cooling": [],
+      "heating.heat.production.summary.dhw": [],
+      "heating.heat.production.summary.heating": [],
+      "heating.heater.condensatePan": [],
+      "heating.heater.fanRing": [],
+      "heating.heatingRod": [],
+      "heating.heatingRod.maximumOutsideTemperature": [],
+      "heating.heatingRod.power.consumption.summary.dhw": [],
+      "heating.heatingRod.power.consumption.summary.heating": [],
+      "heating.heatingRod.statistics": [],
+      "heating.inverters.0.sensors.power.current": [],
+      "heating.inverters.0.sensors.power.output": [],
+      "heating.inverters.0.sensors.temperature.powerModule": [],
+      "heating.noise.reduction.levels.maxReduced": [],
+      "heating.noise.reduction.levels.notReduced": [],
+      "heating.noise.reduction.levels.slightlyReduced": [],
+      "heating.noise.reduction.operating.programs.active": [],
+      "heating.noise.reduction.operating.programs.maxReduced": [],
+      "heating.noise.reduction.operating.programs.notReduced": [],
+      "heating.noise.reduction.operating.programs.slightlyReduced": [],
+      "heating.operating.programs.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.operating.programs.holidayAtHome": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.outdoor.defrosting": [],
+      "heating.outdoor.defrosting.thermalEnergy": [],
+      "heating.power.consumption.cooling": [],
+      "heating.power.consumption.current": [],
+      "heating.power.consumption.dhw": [],
+      "heating.power.consumption.heating": [],
+      "heating.power.consumption.summary.cooling": [],
+      "heating.power.consumption.summary.dhw": [],
+      "heating.power.consumption.summary.heating": [],
+      "heating.power.consumption.total": [],
+      "heating.primaryCircuit.fans.0.current": [],
+      "heating.primaryCircuit.fans.1.current": [],
+      "heating.primaryCircuit.sensors.temperature.supply": [],
+      "heating.primaryCircuit.valves.fourThreeWay": [],
+      "heating.scop.dhw": [],
+      "heating.scop.heating": [],
+      "heating.scop.total": [],
+      "heating.secondaryCircuit.operation.state": [],
+      "heating.secondaryCircuit.sensors.temperature.supply": [],
+      "heating.secondaryCircuit.temperature.return.minimum": [],
+      "heating.secondaryCircuit.valves.fourThreeWay": [],
+      "heating.secondaryHeatGenerator": [],
+      "heating.secondaryHeatGenerator.configuration.defrosting": [],
+      "heating.secondaryHeatGenerator.configuration.dhw": [],
+      "heating.secondaryHeatGenerator.configuration.dhw.comfortEnsuring": [],
+      "heating.secondaryHeatGenerator.configuration.frostprotection": [],
+      "heating.secondaryHeatGenerator.configuration.heating": [],
+      "heating.secondaryHeatGenerator.configuration.heating.comfortEnsuring": [],
+      "heating.secondaryHeatGenerator.configuration.hygiene": [],
+      "heating.secondaryHeatGenerator.configuration.refrigerationCircuitExceeded": [],
+      "heating.secondaryHeatGenerator.configuration.runtime": [],
+      "heating.secondaryHeatGenerator.configuration.screedDrying": [],
+      "heating.secondaryHeatGenerator.electricity.energyFactor": [],
+      "heating.secondaryHeatGenerator.electricity.price.low": [],
+      "heating.secondaryHeatGenerator.electricity.price.normal": [],
+      "heating.secondaryHeatGenerator.fossil.energyFactor": [],
+      "heating.secondaryHeatGenerator.fossil.price.normal": [],
+      "heating.secondaryHeatGenerator.state": [],
+      "heating.secondaryHeatGenerator.status": [],
+      "heating.secondaryHeatGenerator.temperature.current": [],
+      "heating.secondaryHeatGenerator.valves.threeWay": [],
+      "heating.seer.cooling": [],
+      "heating.sensors.pressure.supply": [],
+      "heating.sensors.temperature.allengra": [],
+      "heating.sensors.temperature.hydraulicSeparator": [],
+      "heating.sensors.temperature.outside": [],
+      "heating.sensors.temperature.return": [],
+      "heating.sensors.valve.0.expansion.target": [],
+      "heating.sensors.valve.1.expansion.target": [],
+      "heating.sensors.volumetricFlow.allengra": [],
+      "heating.spf.dhw": [],
+      "heating.spf.heating": [],
+      "heating.spf.total": [],
+      "heating.valves.fourThreeWay.position": [],
+      "tcu.wifi": []
+    },
+    "write_bindings": {
+      "device.time.daylightSaving.active": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active",
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/setActive"
+      },
+      "device.time.daylightSaving.begin": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "begin",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "device.time.daylightSaving.end": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "end",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "heating.circuits.0.heating.curve.shift": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "slope",
+          "shift"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.curve.slope": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "slope",
+          "shift"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.schedule": {
+        "api_feature": "heating.circuits.0.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.0.name": {
+        "api_feature": "heating.circuits.0",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0/commands/setName"
+      },
+      "heating.circuits.0.name.name": {
+        "api_feature": "heating.circuits.0.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name/commands/setName"
+      },
+      "heating.circuits.0.operating.modes.active": {
+        "api_feature": "heating.circuits.0.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.0.operating.programs.comfortHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.comfortHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfortHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.normalHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.normalHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.normalHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.reducedHeating.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.reducedHeating",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reducedHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.temperature.levels.max": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.0.temperature.levels.min": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMin"
+      },
+      "heating.dhw.hygiene.enabled": {
+        "api_feature": "heating.dhw.hygiene",
+        "command": "setEnabled",
+        "parameter": "enabled",
+        "required": [
+          "enabled"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene/commands/setEnabled"
+      },
+      "heating.dhw.oneTimeCharge.active": {
+        "api_feature": "heating.dhw.oneTimeCharge",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.oneTimeCharge/commands/setActive"
+      },
+      "heating.dhw.operating.modes.active": {
+        "api_feature": "heating.dhw.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.operating.modes.active/commands/setMode"
+      },
+      "heating.dhw.pumps.circulation.schedule": {
+        "api_feature": "heating.dhw.pumps.circulation.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.pumps.circulation.schedule/commands/setSchedule"
+      },
+      "heating.dhw.schedule": {
+        "api_feature": "heating.dhw.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.schedule/commands/setSchedule"
+      },
+      "heating.dhw.temperature.hysteresis": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresis",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresis"
+      },
+      "heating.dhw.temperature.hysteresis.switchOffValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOffValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOffValue"
+      },
+      "heating.dhw.temperature.hysteresis.switchOnValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOnValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOnValue"
+      },
+      "heating.dhw.temperature.main": {
+        "api_feature": "heating.dhw.temperature.main",
+        "command": "setTargetTemperature",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
+      },
+      "heating.operating.programs.holiday.end": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "start",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holiday.start": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "start",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.end": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "start",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.start": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "start",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      }
+    }
+  },
+  "Vitocal333G-with-Vitovent300F": {
+    "api_feature_commands": {
+      "device.messages.errors.counter.d6": [],
+      "device.messages.logbook": [],
+      "device.serial": [],
+      "heating.boiler.sensors.temperature.commonSupply": [],
+      "heating.boiler.serial": [],
+      "heating.buffer.sensors.temperature.main": [],
+      "heating.buffer.sensors.temperature.top": [],
+      "heating.bufferCylinder.sensors.temperature.main": [],
+      "heating.bufferCylinder.sensors.temperature.top": [],
+      "heating.circuits": [],
+      "heating.circuits.0": [
+        "setName"
+      ],
+      "heating.circuits.0.circulation.pump": [],
+      "heating.circuits.0.frostprotection": [],
+      "heating.circuits.0.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.0.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.0.name": [
+        "setName"
+      ],
+      "heating.circuits.0.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.0.operating.modes.cooling": [],
+      "heating.circuits.0.operating.modes.dhw": [],
+      "heating.circuits.0.operating.modes.dhwAndHeating": [],
+      "heating.circuits.0.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.0.operating.modes.forcedNormal": [],
+      "heating.circuits.0.operating.modes.forcedReduced": [],
+      "heating.circuits.0.operating.modes.heating": [],
+      "heating.circuits.0.operating.modes.heatingCooling": [],
+      "heating.circuits.0.operating.modes.normalStandby": [],
+      "heating.circuits.0.operating.modes.standby": [],
+      "heating.circuits.0.operating.programs.active": [],
+      "heating.circuits.0.operating.programs.comfort": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.eco": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.0.operating.programs.fixed": [],
+      "heating.circuits.0.operating.programs.normal": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reduced": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.0.operating.programs.standby": [],
+      "heating.circuits.0.sensors.temperature.room": [],
+      "heating.circuits.0.sensors.temperature.supply": [],
+      "heating.circuits.0.temperature": [],
+      "heating.circuits.0.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.1": [
+        "setName"
+      ],
+      "heating.circuits.1.circulation.pump": [],
+      "heating.circuits.1.frostprotection": [],
+      "heating.circuits.1.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.1.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.1.name": [
+        "setName"
+      ],
+      "heating.circuits.1.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.1.operating.modes.cooling": [],
+      "heating.circuits.1.operating.modes.dhw": [],
+      "heating.circuits.1.operating.modes.dhwAndHeating": [],
+      "heating.circuits.1.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.1.operating.modes.forcedNormal": [],
+      "heating.circuits.1.operating.modes.forcedReduced": [],
+      "heating.circuits.1.operating.modes.heating": [],
+      "heating.circuits.1.operating.modes.heatingCooling": [],
+      "heating.circuits.1.operating.modes.normalStandby": [],
+      "heating.circuits.1.operating.modes.standby": [],
+      "heating.circuits.1.operating.programs.active": [],
+      "heating.circuits.1.operating.programs.comfort": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.eco": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.1.operating.programs.fixed": [],
+      "heating.circuits.1.operating.programs.normal": [
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.reduced": [
+        "setTemperature"
+      ],
+      "heating.circuits.1.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.1.operating.programs.standby": [],
+      "heating.circuits.1.sensors.temperature.room": [],
+      "heating.circuits.1.sensors.temperature.supply": [],
+      "heating.circuits.1.temperature": [],
+      "heating.circuits.1.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.2": [],
+      "heating.circuits.2.circulation.pump": [],
+      "heating.circuits.2.frostprotection": [],
+      "heating.circuits.2.heating.curve": [],
+      "heating.circuits.2.heating.schedule": [],
+      "heating.circuits.2.name": [],
+      "heating.circuits.2.operating.modes.active": [],
+      "heating.circuits.2.operating.modes.cooling": [],
+      "heating.circuits.2.operating.modes.dhw": [],
+      "heating.circuits.2.operating.modes.dhwAndHeating": [],
+      "heating.circuits.2.operating.modes.dhwAndHeatingCooling": [],
+      "heating.circuits.2.operating.modes.forcedNormal": [],
+      "heating.circuits.2.operating.modes.forcedReduced": [],
+      "heating.circuits.2.operating.modes.heating": [],
+      "heating.circuits.2.operating.modes.heatingCooling": [],
+      "heating.circuits.2.operating.modes.normalStandby": [],
+      "heating.circuits.2.operating.modes.standby": [],
+      "heating.circuits.2.operating.programs.active": [],
+      "heating.circuits.2.operating.programs.comfort": [],
+      "heating.circuits.2.operating.programs.eco": [],
+      "heating.circuits.2.operating.programs.fixed": [],
+      "heating.circuits.2.operating.programs.normal": [],
+      "heating.circuits.2.operating.programs.reduced": [],
+      "heating.circuits.2.operating.programs.screedDrying.heatpump": [],
+      "heating.circuits.2.operating.programs.standby": [],
+      "heating.circuits.2.sensors.temperature.room": [],
+      "heating.circuits.2.sensors.temperature.supply": [],
+      "heating.circuits.2.temperature": [],
+      "heating.circuits.2.temperature.levels": [],
+      "heating.compressors": [],
+      "heating.compressors.0": [
+        "setActive",
+        "setPhase"
+      ],
+      "heating.compressors.0.heat.production.cooling.week": [],
+      "heating.compressors.0.heat.production.current": [],
+      "heating.compressors.0.heat.production.dhw.week": [],
+      "heating.compressors.0.heat.production.heating.week": [],
+      "heating.compressors.0.heatTarget": [],
+      "heating.compressors.0.power": [],
+      "heating.compressors.0.power.consumption.cooling.week": [],
+      "heating.compressors.0.power.consumption.current": [],
+      "heating.compressors.0.power.consumption.dhw.week": [],
+      "heating.compressors.0.power.consumption.heating.week": [],
+      "heating.compressors.0.sensors.power": [],
+      "heating.compressors.0.sensors.pressure.inlet": [],
+      "heating.compressors.0.sensors.temperature.ambient": [],
+      "heating.compressors.0.sensors.temperature.inlet": [],
+      "heating.compressors.0.sensors.temperature.outlet": [],
+      "heating.compressors.0.sensors.temperature.overheat": [],
+      "heating.compressors.0.statistics": [],
+      "heating.compressors.0.statistics.load": [],
+      "heating.compressors.1": [],
+      "heating.compressors.1.heat.production.current": [],
+      "heating.compressors.1.power.consumption.current": [],
+      "heating.compressors.1.statistics": [],
+      "heating.compressors.1.statistics.load": [],
+      "heating.condensors.0.sensors.temperature.subcooling": [],
+      "heating.configuration.buffer.temperature.max": [],
+      "heating.configuration.dhw.temperature.dhwCylinder.max": [],
+      "heating.configuration.dhw.temperature.hotWaterStorage.max": [],
+      "heating.configuration.dhwHeater": [],
+      "heating.configuration.flow.temperature.max": [],
+      "heating.configuration.flow.temperature.min": [],
+      "heating.configuration.heatingRod.dhw": [],
+      "heating.configuration.heatingRod.heating": [],
+      "heating.configuration.smartGrid.heatingRod": [],
+      "heating.configuration.temperature.outside.DampingFactor": [],
+      "heating.controller.serial": [],
+      "heating.coolingCircuits.0.reverse": [],
+      "heating.coolingCircuits.0.type": [],
+      "heating.cop.cooling": [],
+      "heating.cop.dhw": [],
+      "heating.cop.green": [],
+      "heating.cop.heating": [],
+      "heating.cop.total": [],
+      "heating.device.mainECU": [],
+      "heating.device.time": [
+        "setTime"
+      ],
+      "heating.dhw": [],
+      "heating.dhw.charging": [],
+      "heating.dhw.configuration.temperature.dhwCylinder.max": [],
+      "heating.dhw.oneTimeCharge": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "heating.dhw.pumps.circulation": [],
+      "heating.dhw.pumps.circulation.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.pumps.primary": [],
+      "heating.dhw.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.sensors.temperature.dhwCylinder": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.bottom": [],
+      "heating.dhw.sensors.temperature.dhwCylinder.top": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.bottom": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage.top": [],
+      "heating.dhw.sensors.temperature.outlet": [],
+      "heating.dhw.temperature.hysteresis": [
+        "setHysteresis",
+        "setHysteresisSwitchOffValue",
+        "setHysteresisSwitchOnValue"
+      ],
+      "heating.dhw.temperature.main": [
+        "setTargetTemperature"
+      ],
+      "heating.dhw.temperature.temp2": [
+        "setTargetTemperature"
+      ],
+      "heating.evaporators.0.sensors.temperature.liquid": [],
+      "heating.evaporators.0.sensors.temperature.overheat": [],
+      "heating.heatingRod.heatTarget": [],
+      "heating.heatingRod.runtime": [],
+      "heating.heatingRod.status": [],
+      "heating.operating.programs.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.primaryCircuit.sensors.rotation": [],
+      "heating.primaryCircuit.sensors.temperature.return": [],
+      "heating.primaryCircuit.sensors.temperature.supply": [],
+      "heating.secondaryCircuit.sensors.temperature.supply": [],
+      "heating.sensors.pressure.hotGas": [],
+      "heating.sensors.pressure.suctionGas": [],
+      "heating.sensors.temperature.hotGas": [],
+      "heating.sensors.temperature.liquidGas": [],
+      "heating.sensors.temperature.outside": [],
+      "heating.sensors.temperature.return": [],
+      "heating.sensors.temperature.suctionGas": [],
+      "heating.solar": [],
+      "heating.solar.power.cumulativeProduced": [],
+      "heating.solar.power.production": [],
+      "heating.solar.pumps.circuit": [],
+      "heating.solar.rechargeSuppression": [],
+      "heating.solar.sensors.temperature.collector": [],
+      "heating.solar.sensors.temperature.dhw": [],
+      "heating.solar.statistics": [],
+      "ventilation": [],
+      "ventilation.heatExchanger.frostprotection": [],
+      "ventilation.levels.levelFour": [],
+      "ventilation.levels.levelOne": [],
+      "ventilation.levels.levelThree": [],
+      "ventilation.levels.levelTwo": [],
+      "ventilation.operating.modes.active": [
+        "setMode",
+        "setModeContinuousSensorOverride"
+      ],
+      "ventilation.operating.modes.standard": [],
+      "ventilation.operating.modes.standby": [],
+      "ventilation.operating.modes.ventilation": [],
+      "ventilation.operating.programs.active": [],
+      "ventilation.operating.state": [],
+      "ventilation.quickmodes.comfort": [
+        "activate",
+        "deactivate"
+      ],
+      "ventilation.quickmodes.eco": [
+        "activate",
+        "deactivate"
+      ],
+      "ventilation.quickmodes.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "ventilation.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "ventilation.volumeFlow.current.input": [],
+      "ventilation.volumeFlow.current.output": []
+    },
+    "write_bindings": {
+      "heating.circuits.0.heating.curve.shift": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.curve.slope": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.schedule": {
+        "api_feature": "heating.circuits.0.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.0.name": {
+        "api_feature": "heating.circuits.0",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0/commands/setName"
+      },
+      "heating.circuits.0.name.name": {
+        "api_feature": "heating.circuits.0.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name/commands/setName"
+      },
+      "heating.circuits.0.operating.modes.active": {
+        "api_feature": "heating.circuits.0.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.0.operating.programs.comfort.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.normal.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.normal",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.normal/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.reduced.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.reduced",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reduced/commands/setTemperature"
+      },
+      "heating.circuits.0.temperature.levels.max": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.0.temperature.levels.min": {
+        "api_feature": "heating.circuits.0.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMin"
+      },
+      "heating.circuits.1.heating.curve.shift": {
+        "api_feature": "heating.circuits.1.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.1.heating.curve.slope": {
+        "api_feature": "heating.circuits.1.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.1.heating.schedule": {
+        "api_feature": "heating.circuits.1.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.1.name": {
+        "api_feature": "heating.circuits.1",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1/commands/setName"
+      },
+      "heating.circuits.1.name.name": {
+        "api_feature": "heating.circuits.1.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.name/commands/setName"
+      },
+      "heating.circuits.1.operating.modes.active": {
+        "api_feature": "heating.circuits.1.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.1.operating.programs.comfort.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.comfort",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.normal.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.normal",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.normal/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.reduced.temperature": {
+        "api_feature": "heating.circuits.1.operating.programs.reduced",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.reduced/commands/setTemperature"
+      },
+      "heating.circuits.1.temperature.levels.max": {
+        "api_feature": "heating.circuits.1.temperature.levels",
+        "command": "setMax",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.temperature.levels/commands/setMax"
+      },
+      "heating.circuits.1.temperature.levels.min": {
+        "api_feature": "heating.circuits.1.temperature.levels",
+        "command": "setMin",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.temperature.levels/commands/setMin"
+      },
+      "heating.dhw.oneTimeCharge.active": {
+        "api_feature": "heating.dhw.oneTimeCharge",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.oneTimeCharge/commands/setActive"
+      },
+      "heating.dhw.pumps.circulation.schedule": {
+        "api_feature": "heating.dhw.pumps.circulation.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.pumps.circulation.schedule/commands/setSchedule"
+      },
+      "heating.dhw.schedule": {
+        "api_feature": "heating.dhw.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.schedule/commands/setSchedule"
+      },
+      "heating.dhw.temperature.hysteresis": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresis",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresis"
+      },
+      "heating.dhw.temperature.hysteresis.switchOnValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOnValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOnValue"
+      },
+      "heating.dhw.temperature.main": {
+        "api_feature": "heating.dhw.temperature.main",
+        "command": "setTargetTemperature",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
+      },
+      "heating.dhw.temperature.temp2": {
+        "api_feature": "heating.dhw.temperature.temp2",
+        "command": "setTargetTemperature",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.temp2/commands/setTargetTemperature"
+      },
+      "heating.operating.programs.holiday.end": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holiday.start": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "ventilation.operating.modes.active": {
+        "api_feature": "ventilation.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.operating.modes.active/commands/setMode"
+      },
+      "ventilation.quickmodes.holiday.end": {
+        "api_feature": "ventilation.quickmodes.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.holiday/commands/schedule"
+      },
+      "ventilation.quickmodes.holiday.start": {
+        "api_feature": "ventilation.quickmodes.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.holiday/commands/schedule"
+      },
+      "ventilation.schedule": {
+        "api_feature": "ventilation.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.schedule/commands/setSchedule"
+      }
+    }
+  },
+  "Vitocharge03": {
+    "api_feature_commands": {
+      "device.etn": [],
+      "device.messages.info.raw": [],
+      "device.messages.service.raw": [],
+      "device.messages.status.raw": [],
+      "device.parameterIdentification.version": [],
+      "device.productIdentification": [],
+      "device.productMatrix": [],
+      "device.remoteReset": [],
+      "device.serial": [],
+      "device.serial.internalComponents": [],
+      "device.time.daylightSaving": [
+        "activate",
+        "deactivate"
+      ],
+      "ess.battery.usedAverage": [],
+      "ess.configuration.backupBox": [],
+      "ess.configuration.systemType": [],
+      "ess.inverter.ac.power": [],
+      "ess.operationState": [],
+      "ess.power": [],
+      "ess.sensors.temperature.ambient": [],
+      "ess.stateOfCharge": [],
+      "ess.transfer.charge.cumulated": [],
+      "ess.transfer.discharge.cumulated": [],
+      "ess.version.hardware": [],
+      "heating.boiler.serial": [],
+      "heating.device.mainECU": [],
+      "heating.device.time": [
+        "setTime"
+      ],
+      "pcc.ac.active.current": [],
+      "pcc.ac.active.power": [],
+      "pcc.ac.reactive.power": [],
+      "pcc.state.gridCode": [],
+      "pcc.transfer.consumption.total": [],
+      "pcc.transfer.feedIn.total": [],
+      "pcc.transfer.power.exchange": [],
+      "photovoltaic.installedPeakPower": [],
+      "photovoltaic.production.cumulated": [],
+      "photovoltaic.production.current": [],
+      "photovoltaic.status": [],
+      "photovoltaic.string.current": [],
+      "photovoltaic.string.voltage": []
+    },
+    "write_bindings": {
+      "device.time.daylightSaving.begin": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "begin",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/################/features/device.time.daylightSaving/commands/activate"
+      },
+      "device.time.daylightSaving.end": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "end",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/################/features/device.time.daylightSaving/commands/activate"
+      }
+    }
+  },
+  "Vitodens200W": {
+    "api_feature_commands": {
+      "device.configuration.houseLocation": [],
+      "device.etn": [],
+      "device.lock.malfunction": [],
+      "device.messages.info.raw": [],
+      "device.messages.service.raw": [],
+      "device.messages.status.raw": [],
+      "device.parameterIdentification.version": [],
+      "device.serial": [],
+      "device.setDefaultValues": [],
+      "device.time.daylightSaving": [
+        "activate",
+        "deactivate"
+      ],
+      "device.timeseries.burner.stops": [],
+      "device.timeseries.dhw.burner.stops": [],
+      "device.timeseries.ignitionTimeSteps": [],
+      "device.timeseries.monitoringIonization": [],
+      "device.timeseries.water.pressure.peaks": [],
+      "device.zigbee.active": [],
+      "device.zigbee.status": [],
+      "heating.boiler.pumps.internal": [],
+      "heating.boiler.pumps.internal.target": [],
+      "heating.boiler.sensors.temperature.commonSupply": [],
+      "heating.boiler.serial": [],
+      "heating.boiler.temperature": [],
+      "heating.buffer.sensors.temperature.main": [],
+      "heating.bufferCylinder.sensors.temperature.main": [],
+      "heating.burners": [],
+      "heating.burners.0": [],
+      "heating.burners.0.demand.modulation": [],
+      "heating.burners.0.demand.temperature": [],
+      "heating.burners.0.modulation": [],
+      "heating.burners.0.statistics": [],
+      "heating.calculated.temperature.outside": [],
+      "heating.circuits": [],
+      "heating.circuits.0": [
+        "setName"
+      ],
+      "heating.circuits.0.circulation.pump": [],
+      "heating.circuits.0.configuration.summerEco.absolute": [],
+      "heating.circuits.0.frostprotection": [],
+      "heating.circuits.0.heating.curve": [
+        "setCurve"
+      ],
+      "heating.circuits.0.heating.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.circuits.0.name": [
+        "setName"
+      ],
+      "heating.circuits.0.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.circuits.0.operating.modes.heating": [],
+      "heating.circuits.0.operating.modes.standby": [],
+      "heating.circuits.0.operating.programs.active": [],
+      "heating.circuits.0.operating.programs.comfort": [
+        "activate",
+        "deactivate",
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule": [
+        "activate",
+        "deactivate"
+      ],
+      "heating.circuits.0.operating.programs.noDemand": [],
+      "heating.circuits.0.operating.programs.normal": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reduced": [
+        "setTemperature"
+      ],
+      "heating.circuits.0.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.0.operating.programs.standby": [],
+      "heating.circuits.0.operating.programs.summerEco": [],
+      "heating.circuits.0.sensors.temperature.room": [],
+      "heating.circuits.0.sensors.temperature.supply": [],
+      "heating.circuits.0.temperature": [],
+      "heating.circuits.0.temperature.levels": [
+        "setLevels",
+        "setMax",
+        "setMin"
+      ],
+      "heating.circuits.0.zone.demand": [],
+      "heating.circuits.0.zone.mode": [],
+      "heating.circuits.1": [],
+      "heating.circuits.1.circulation.pump": [],
+      "heating.circuits.1.configuration.summerEco.absolute": [],
+      "heating.circuits.1.frostprotection": [],
+      "heating.circuits.1.heating.curve": [],
+      "heating.circuits.1.heating.schedule": [],
+      "heating.circuits.1.operating.modes.active": [],
+      "heating.circuits.1.operating.modes.heating": [],
+      "heating.circuits.1.operating.modes.standby": [],
+      "heating.circuits.1.operating.programs.active": [],
+      "heating.circuits.1.operating.programs.comfort": [],
+      "heating.circuits.1.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.1.operating.programs.noDemand": [],
+      "heating.circuits.1.operating.programs.normal": [],
+      "heating.circuits.1.operating.programs.reduced": [],
+      "heating.circuits.1.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.1.operating.programs.standby": [],
+      "heating.circuits.1.operating.programs.summerEco": [],
+      "heating.circuits.1.sensors.temperature.room": [],
+      "heating.circuits.1.sensors.temperature.supply": [],
+      "heating.circuits.1.temperature": [],
+      "heating.circuits.1.temperature.levels": [],
+      "heating.circuits.1.zone.demand": [],
+      "heating.circuits.1.zone.mode": [],
+      "heating.circuits.2": [],
+      "heating.circuits.2.circulation.pump": [],
+      "heating.circuits.2.configuration.summerEco.absolute": [],
+      "heating.circuits.2.frostprotection": [],
+      "heating.circuits.2.heating.curve": [],
+      "heating.circuits.2.heating.schedule": [],
+      "heating.circuits.2.operating.modes.active": [],
+      "heating.circuits.2.operating.modes.heating": [],
+      "heating.circuits.2.operating.modes.standby": [],
+      "heating.circuits.2.operating.programs.active": [],
+      "heating.circuits.2.operating.programs.comfort": [],
+      "heating.circuits.2.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.2.operating.programs.noDemand": [],
+      "heating.circuits.2.operating.programs.normal": [],
+      "heating.circuits.2.operating.programs.reduced": [],
+      "heating.circuits.2.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.2.operating.programs.standby": [],
+      "heating.circuits.2.operating.programs.summerEco": [],
+      "heating.circuits.2.sensors.temperature.room": [],
+      "heating.circuits.2.sensors.temperature.supply": [],
+      "heating.circuits.2.temperature": [],
+      "heating.circuits.2.temperature.levels": [],
+      "heating.circuits.2.zone.demand": [],
+      "heating.circuits.2.zone.mode": [],
+      "heating.circuits.3": [],
+      "heating.circuits.3.circulation.pump": [],
+      "heating.circuits.3.configuration.summerEco.absolute": [],
+      "heating.circuits.3.frostprotection": [],
+      "heating.circuits.3.heating.curve": [],
+      "heating.circuits.3.heating.schedule": [],
+      "heating.circuits.3.operating.modes.active": [],
+      "heating.circuits.3.operating.modes.heating": [],
+      "heating.circuits.3.operating.modes.standby": [],
+      "heating.circuits.3.operating.programs.active": [],
+      "heating.circuits.3.operating.programs.comfort": [],
+      "heating.circuits.3.operating.programs.forcedLastFromSchedule": [],
+      "heating.circuits.3.operating.programs.noDemand": [],
+      "heating.circuits.3.operating.programs.normal": [],
+      "heating.circuits.3.operating.programs.reduced": [],
+      "heating.circuits.3.operating.programs.reducedEnergySaving": [],
+      "heating.circuits.3.operating.programs.standby": [],
+      "heating.circuits.3.operating.programs.summerEco": [],
+      "heating.circuits.3.sensors.temperature.room": [],
+      "heating.circuits.3.sensors.temperature.supply": [],
+      "heating.circuits.3.temperature": [],
+      "heating.circuits.3.temperature.levels": [],
+      "heating.circuits.3.zone.demand": [],
+      "heating.circuits.3.zone.mode": [],
+      "heating.configuration.bufferCylinderSize": [],
+      "heating.configuration.centralHeatingCylinderSize": [],
+      "heating.configuration.dhwCylinderPump": [],
+      "heating.configuration.dhwCylinderSize": [],
+      "heating.configuration.gasType": [],
+      "heating.configuration.houseHeatingLoad": [],
+      "heating.configuration.houseLocation": [],
+      "heating.configuration.houseOrientation": [],
+      "heating.configuration.internalPumps": [],
+      "heating.configuration.pressure.total": [],
+      "heating.device.time": [],
+      "heating.dhw": [],
+      "heating.dhw.hygiene": [
+        "activate",
+        "disable",
+        "enable"
+      ],
+      "heating.dhw.hygiene.trigger": [
+        "triggerDaily",
+        "triggerOncePerWeek"
+      ],
+      "heating.dhw.oneTimeCharge": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "heating.dhw.operating.modes.active": [
+        "setMode"
+      ],
+      "heating.dhw.operating.modes.balanced": [],
+      "heating.dhw.operating.modes.off": [],
+      "heating.dhw.pumps.circulation": [],
+      "heating.dhw.pumps.circulation.schedule": [],
+      "heating.dhw.scaldProtection": [],
+      "heating.dhw.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "heating.dhw.sensors.temperature.dhwCylinder": [],
+      "heating.dhw.sensors.temperature.hotWaterStorage": [],
+      "heating.dhw.sensors.temperature.outlet": [],
+      "heating.dhw.temperature.hygiene": [
+        "setTemperature"
+      ],
+      "heating.dhw.temperature.hysteresis": [
+        "setHysteresis",
+        "setHysteresisSwitchOffValue",
+        "setHysteresisSwitchOnValue"
+      ],
+      "heating.dhw.temperature.main": [
+        "setTargetTemperature"
+      ],
+      "heating.gas.consumption.dhw": [],
+      "heating.gas.consumption.heating": [],
+      "heating.gas.consumption.summary.dhw": [],
+      "heating.gas.consumption.summary.heating": [],
+      "heating.gas.consumption.total": [],
+      "heating.heat.production.summary.dhw": [],
+      "heating.heat.production.summary.heating": [],
+      "heating.operating.programs.holiday": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.operating.programs.holidayAtHome": [
+        "changeEndDate",
+        "schedule",
+        "unschedule"
+      ],
+      "heating.power.consumption.dhw": [],
+      "heating.power.consumption.heating": [],
+      "heating.power.consumption.summary.dhw": [],
+      "heating.power.consumption.summary.heating": [],
+      "heating.power.consumption.total": [],
+      "heating.sensors.pressure.supply": [],
+      "heating.sensors.temperature.hydraulicSeparator": [],
+      "heating.sensors.temperature.outside": [],
+      "heating.solar": [],
+      "heating.solar.power.production": [],
+      "heating.solar.pumps.circuit": [],
+      "heating.solar.rechargeSuppression": [],
+      "heating.solar.sensors.temperature.collector": [],
+      "heating.solar.sensors.temperature.dhw": [],
+      "heating.solar.summary.power.production": []
+    },
+    "write_bindings": {
+      "device.time.daylightSaving.begin": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "begin",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "device.time.daylightSaving.end": {
+        "api_feature": "device.time.daylightSaving",
+        "command": "activate",
+        "parameter": "end",
+        "required": [
+          "begin",
+          "end"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+      },
+      "heating.circuits.0.heating.curve.shift": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "shift",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.curve.slope": {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameter": "slope",
+        "required": [
+          "shift",
+          "slope"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.curve/commands/setCurve"
+      },
+      "heating.circuits.0.heating.schedule": {
+        "api_feature": "heating.circuits.0.heating.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.heating.schedule/commands/setSchedule"
+      },
+      "heating.circuits.0.name": {
+        "api_feature": "heating.circuits.0",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0/commands/setName"
+      },
+      "heating.circuits.0.name.name": {
+        "api_feature": "heating.circuits.0.name",
+        "command": "setName",
+        "parameter": "name",
+        "required": [
+          "name"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name/commands/setName"
+      },
+      "heating.circuits.0.operating.modes.active": {
+        "api_feature": "heating.circuits.0.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
+      },
+      "heating.circuits.0.operating.programs.comfort.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.normal.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.normal",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.normal/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.reduced.temperature": {
+        "api_feature": "heating.circuits.0.operating.programs.reduced",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reduced/commands/setTemperature"
+      },
+      "heating.dhw.hygiene.trigger.startHour": {
+        "api_feature": "heating.dhw.hygiene.trigger",
+        "command": "triggerDaily",
+        "parameter": "startHour",
+        "required": [
+          "startHour",
+          "startMinute"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene.trigger/commands/triggerDaily"
+      },
+      "heating.dhw.hygiene.trigger.startMinute": {
+        "api_feature": "heating.dhw.hygiene.trigger",
+        "command": "triggerDaily",
+        "parameter": "startMinute",
+        "required": [
+          "startHour",
+          "startMinute"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene.trigger/commands/triggerDaily"
+      },
+      "heating.dhw.oneTimeCharge.active": {
+        "api_feature": "heating.dhw.oneTimeCharge",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.oneTimeCharge/commands/setActive"
+      },
+      "heating.dhw.operating.modes.active": {
+        "api_feature": "heating.dhw.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.operating.modes.active/commands/setMode"
+      },
+      "heating.dhw.schedule": {
+        "api_feature": "heating.dhw.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.schedule/commands/setSchedule"
+      },
+      "heating.dhw.temperature.hygiene": {
+        "api_feature": "heating.dhw.temperature.hygiene",
+        "command": "setTemperature",
+        "parameter": "targetTemperature",
+        "required": [
+          "targetTemperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hygiene/commands/setTemperature"
+      },
+      "heating.dhw.temperature.hysteresis": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresis",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresis"
+      },
+      "heating.dhw.temperature.hysteresis.switchOffValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOffValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOffValue"
+      },
+      "heating.dhw.temperature.hysteresis.switchOnValue": {
+        "api_feature": "heating.dhw.temperature.hysteresis",
+        "command": "setHysteresisSwitchOnValue",
+        "parameter": "hysteresis",
+        "required": [
+          "hysteresis"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.hysteresis/commands/setHysteresisSwitchOnValue"
+      },
+      "heating.dhw.temperature.main": {
+        "api_feature": "heating.dhw.temperature.main",
+        "command": "setTargetTemperature",
+        "parameter": "temperature",
+        "required": [
+          "temperature"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
+      },
+      "heating.operating.programs.holiday.end": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holiday.start": {
+        "api_feature": "heating.operating.programs.holiday",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.end": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "end",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      },
+      "heating.operating.programs.holidayAtHome.start": {
+        "api_feature": "heating.operating.programs.holidayAtHome",
+        "command": "schedule",
+        "parameter": "start",
+        "required": [
+          "end",
+          "start"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
+      }
+    }
+  },
+  "Vitopure350": {
+    "api_feature_commands": {
+      "device.messages.info.raw": [],
+      "device.messages.service.raw": [],
+      "device.messages.status.raw": [],
+      "device.productIdentification": [],
+      "device.setDefaultValues": [],
+      "device.time.daylightSaving": [
+        "activate",
+        "deactivate"
+      ],
+      "device.variant": [],
+      "heating.boiler.serial": [],
+      "heating.device.time": [
+        "setTime"
+      ],
+      "heating.device.variant": [],
+      "tcu.wifi": [],
+      "ventilation": [],
+      "ventilation.control.filterChange": [],
+      "ventilation.fan.supply": [],
+      "ventilation.fan.supply.runtime": [],
+      "ventilation.features.co": [],
+      "ventilation.features.co2": [],
+      "ventilation.features.dust": [],
+      "ventilation.features.finedust": [],
+      "ventilation.features.organicComponent": [],
+      "ventilation.filter.pollution.blocked": [],
+      "ventilation.filter.runtime": [],
+      "ventilation.operating.modes.active": [
+        "setMode",
+        "setModeContinuousSensorOverride"
+      ],
+      "ventilation.operating.modes.filterChange": [],
+      "ventilation.operating.modes.permanent": [
+        "setLevel"
+      ],
+      "ventilation.operating.modes.sensorDriven": [],
+      "ventilation.operating.modes.ventilation": [],
+      "ventilation.operating.programs.active": [],
+      "ventilation.operating.state": [],
+      "ventilation.quickmodes.forcedLevelFour": [
+        "activate",
+        "deactivate",
+        "setDefaultRuntime",
+        "setTimeout"
+      ],
+      "ventilation.quickmodes.silent": [
+        "activate",
+        "deactivate",
+        "setDefaultRuntime",
+        "setTimeout"
+      ],
+      "ventilation.quickmodes.standby": [
+        "activate",
+        "deactivate",
+        "setActive"
+      ],
+      "ventilation.schedule": [
+        "resetSchedule",
+        "setSchedule"
+      ],
+      "ventilation.sensors.airBorneDust.pm1": [],
+      "ventilation.sensors.airBorneDust.pm10": [],
+      "ventilation.sensors.airBorneDust.pm2d5": [],
+      "ventilation.sensors.airBorneDust.pm4": [],
+      "ventilation.sensors.airQuality": [],
+      "ventilation.sensors.humidity.supply": [],
+      "ventilation.sensors.temperature.supply": [],
+      "ventilation.sensors.volatileOrganicCompounds": []
+    },
+    "write_bindings": {
+      "ventilation.operating.modes.active": {
+        "api_feature": "ventilation.operating.modes.active",
+        "command": "setMode",
+        "parameter": "mode",
+        "required": [
+          "mode"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.operating.modes.active/commands/setMode"
+      },
+      "ventilation.quickmodes.forcedLevelFour.defaultRuntime": {
+        "api_feature": "ventilation.quickmodes.forcedLevelFour",
+        "command": "setDefaultRuntime",
+        "parameter": "defaultRuntime",
+        "required": [
+          "defaultRuntime"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.forcedLevelFour/commands/setDefaultRuntime"
+      },
+      "ventilation.quickmodes.silent.defaultRuntime": {
+        "api_feature": "ventilation.quickmodes.silent",
+        "command": "setDefaultRuntime",
+        "parameter": "defaultRuntime",
+        "required": [
+          "defaultRuntime"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.silent/commands/setDefaultRuntime"
+      },
+      "ventilation.quickmodes.standby.active": {
+        "api_feature": "ventilation.quickmodes.standby",
+        "command": "setActive",
+        "parameter": "active",
+        "required": [
+          "active"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.standby/commands/setActive"
+      },
+      "ventilation.schedule": {
+        "api_feature": "ventilation.schedule",
+        "command": "setSchedule",
+        "parameter": "newSchedule",
+        "required": [
+          "newSchedule"
+        ],
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.schedule/commands/setSchedule"
+      }
+    }
+  }
+}

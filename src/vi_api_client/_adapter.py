@@ -29,7 +29,7 @@ from .exceptions import (
     ViServerInternalError,
     ViValidationError,
 )
-from .models import Device, FeatureControl
+from .models import Device
 from .privacy import redact_sensitive
 from .validation import validate_json_value
 
@@ -80,7 +80,7 @@ class CommandAdapter(Protocol):
     """
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, JsonValue]
+        self, uri: str, parameters: dict[str, JsonValue]
     ) -> object: ...
 
 
@@ -138,10 +138,10 @@ class LiveAdapter:
         )
 
     async def execute_command(
-        self, control: FeatureControl, parameters: dict[str, JsonValue]
+        self, uri: str, parameters: dict[str, JsonValue]
     ) -> object:
         """Return the raw command API response."""
-        return await self._request("POST", control.uri, json=parameters)
+        return await self._request("POST", uri, json=parameters)
 
     async def _request(
         self,

@@ -198,7 +198,8 @@ async def test_fixture_execute_command_is_offline_and_stateless(capsys, caplog):
     assert refreshed_feature is not None
     assert refreshed_feature.value == 0.6
     assert capsys.readouterr().out == ""
-    assert "Executing fixture command 'setCurve'" in caplog.text
+    assert "Executing fixture command at" in caplog.text
+    assert "commands/setCurve" in caplog.text
 
 
 @pytest.mark.usefixtures("no_http_requests")
@@ -216,9 +217,9 @@ async def test_fixture_comfort_temperature_is_written_with_set_temperature():
 
     # Assert: The write targets setTemperature and its targetTemperature.
     assert feature is not None
-    assert feature.control is not None
-    assert feature.control.command_name == "setTemperature"
-    assert feature.control.parameter_name == "targetTemperature"
+    assert feature.write_binding is not None
+    assert feature.write_binding.command_name == "setTemperature"
+    assert feature.write_binding.parameter_name == "targetTemperature"
 
 
 async def test_fixture_schedule_value_is_the_plan_and_renders_compactly():

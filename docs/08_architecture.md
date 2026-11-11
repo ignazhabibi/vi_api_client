@@ -91,21 +91,33 @@ for every device type.
 **Impact:** Consumers retrieve features with `device.get_feature(name)`. New
 API features can often be used without adding a dedicated client method.
 
-### Writable feature and `FeatureControl`
+### Writable features, constraint rules, and command knowledge
 
-**What is it?** A writable feature has `FeatureControl` metadata describing:
+**What is it?** A writable feature carries two kinds of command knowledge:
 
-- the API command,
-- the parameter associated with this feature,
-- additional required parameters,
-- allowed ranges or option values, and
-- the command URI.
+- `FeatureConstraints`, the public rules for writing its value: allowed ranges
+  or option values, lengths, pattern, value type, and schedule rules, and
+- an internal, undocumented write binding — the API feature, command,
+  parameter, required parameters, and URI — that records how the library
+  sends the command.
 
-`FeatureControl` describes a possible command; it does not execute it.
+The `Device` additionally carries one internal command list per API feature
+with every reported command and its parameter metadata, read through
+`Device.get_command_names`. It keeps commands the parser binds to no feature
+and commands of API features without properties, and stores neither
+`isExecutable` nor `isDeprecated`: the library sends a command and lets the
+API decide (ADR 0005). A duplicate `(API feature name, command name)` pair in
+one response raises `ViResponseError`.
+
+The binding travels with the feature, so copying a feature with
+`dataclasses.replace` keeps it writable, and a hand-built feature is read-only
+because only the parser attaches bindings.
 
 **Why?** Command rules come from API responses and vary by device and feature.
-Keeping them in the model allows the shared core to validate and construct
-commands generically.
+The public model exposes what a consumer needs to offer a value; how the
+command is sent stays internal and is not part of the compatibility contract.
+The command list is the single place a later command execution without a value
+will read from.
 
 **Impact:** Writability means more than having a value. Status, parameters,
 companion values, and constraints must be validated before sending a command.
@@ -255,8 +267,7 @@ flowchart LR
     Installation -->|"logically owns"| Gateway
     Gateway -->|"connects"| Device["Device snapshot"]
     Device -->|"contains 0..n"| Feature
-    Feature -->|"optionally has"| Control["FeatureControl"]
-    Control --> Command["Feature command"]
+    Feature -->|"optionally carries"| Constraints["FeatureConstraints"]
 ```
 
 An `Installation` describes an installation. A `Gateway` connects it to
@@ -418,7 +429,7 @@ sequenceDiagram
     alt validation fails
         Client-->>App: ValueError, no I/O
     else valid command
-        Client->>Adapter: execute_command(control, payload)
+        Client->>Adapter: execute_command(uri, payload)
         Adapter->>API: send or simulate
         API-->>Adapter: command response
         alt success

@@ -50,21 +50,23 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
 
     # Assert: The fixture yields features whose write constraints are usable.
     assert all_features
-    controls = [
-        (feature.name, feature.control)
+    write_features = [
+        (feature.name, feature.write_binding, feature.constraints)
         for feature in all_features
-        if feature.control is not None
+        if feature.write_binding is not None
     ]
-    for name, control in controls:
+    for name, binding, constraints in write_features:
+        assert constraints is not None
         # Curve settings without bounds would let consumers send invalid values.
-        if "heating.curve" in name and control.parameter_name in ("slope", "shift"):
-            assert control.min is not None, f"{name}: missing min constraint"
-            assert control.max is not None, f"{name}: missing max constraint"
-        if control.pattern:
-            assert control.pattern.startswith("^"), f"{name}: pattern is not anchored"
+        if "heating.curve" in name and binding.parameter_name in ("slope", "shift"):
+            assert constraints.min is not None, f"{name}: missing min constraint"
+            assert constraints.max is not None, f"{name}: missing max constraint"
+        if constraints.pattern:
+            pattern = constraints.pattern
+            assert pattern.startswith("^"), f"{name}: pattern is not anchored"
             try:
-                re.compile(control.pattern)
+                re.compile(pattern)
             except re.error as error:
                 pytest.fail(
-                    f"{name}: pattern {control.pattern!r} is not a valid regex: {error}"
+                    f"{name}: pattern {pattern!r} is not a valid regex: {error}"
                 )

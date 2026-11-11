@@ -84,7 +84,8 @@ def redact_feature(
 
     The value follows `redact_sensitive`, with the last part of the feature
     name as its key: the value of ``....houseLocation.latitude`` becomes 0.
-    The control's URI and options are redacted the same way.
+    The option values in constraints and the URI of the internal write
+    binding are redacted the same way.
 
     Args:
         feature: The feature to redact.
@@ -94,24 +95,27 @@ def redact_feature(
         The redacted copy; the input is not changed.
     """
     value_key = feature.name.rsplit(".", 1)[-1]
-    control = feature.control
-    if control is not None:
-        control = replace(
-            control,
-            uri=_redact_text(control.uri, placeholder),
+    constraints = feature.constraints
+    if constraints is not None:
+        constraints = replace(
+            constraints,
             options=(
                 None
-                if control.options is None
+                if constraints.options is None
                 else [
                     redact_sensitive(option, placeholder=placeholder)
-                    for option in control.options
+                    for option in constraints.options
                 ]
             ),
         )
+    binding = feature.write_binding
+    if binding is not None:
+        binding = replace(binding, uri=_redact_text(binding.uri, placeholder))
     return replace(
         feature,
         value=_redact_entry(value_key, feature.value, placeholder),
-        control=control,
+        constraints=constraints,
+        write_binding=binding,
     )
 
 
@@ -119,7 +123,8 @@ def redact_device(device: Device, *, placeholder: str = _DEFAULT_PLACEHOLDER) ->
     """Return a copy of a device with its identifiers and features redacted.
 
     The installation ID, gateway serial, and device ID follow the identifier
-    rule, and every feature goes through `redact_feature`.
+    rule, every feature goes through `redact_feature`, and the URIs of the
+    internal device command list are redacted the same way.
 
     Args:
         device: The device to redact.
@@ -128,6 +133,13 @@ def redact_device(device: Device, *, placeholder: str = _DEFAULT_PLACEHOLDER) ->
     Returns:
         The redacted copy; the input is not changed.
     """
+    commands = {
+        api_feature_name: tuple(
+            replace(command, uri=_redact_text(command.uri, placeholder))
+            for command in device_commands
+        )
+        for api_feature_name, device_commands in device.commands_by_api_feature.items()
+    }
     return replace(
         device,
         id=_redact_text(device.id, placeholder),
@@ -137,6 +149,7 @@ def redact_device(device: Device, *, placeholder: str = _DEFAULT_PLACEHOLDER) ->
             redact_feature(feature, placeholder=placeholder)
             for feature in device.features
         ],
+        commands_by_api_feature=commands,
     )
 
 

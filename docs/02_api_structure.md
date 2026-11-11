@@ -70,30 +70,29 @@ A `Feature` object in this library represents a single property.
 | `value` | The current value as a `FeatureValue` (e.g., `12.5` or `"on"`), following the recursive `JsonValue` contract |
 | `unit` | Unit of measurement, if any (`celsius`, `bar`, `percent`) |
 | `is_writable` | `True` if the API offers a command that changes this value; writing also needs `is_enabled` and `is_ready` |
-| `control` | (Optional) Contains details on how to write to this feature |
+| `constraints` | (Optional) `FeatureConstraints` rules for writing this feature's value |
 
 Responses are validated at the client's trust boundary: known malformed
 fields raise `ViResponseError`, while unknown additional fields from newer API
 versions remain allowed. See the [Models Reference](04_models_reference.md)
 for the full value contract.
 
-### The `control` Object
+### Constraints and reported commands
 
-If a feature is writable, it has a `.control` attribute with metadata:
+A writable feature has a `.constraints` attribute (`FeatureConstraints`) with
+the rules for writing its value:
 
-*   `command_name`: The internal command to send (e.g., `setCurve`)
-*   `parameter_name`: The parameter this feature maps to (e.g., `slope`)
-*   `required_parameters`: API parameters marked required, plus parameters with no
-    `required` marker; explicitly optional parameters are excluded (e.g.,
-    `['slope', 'shift']`)
-*   `parent_feature_name`: Name of the parent feature, used to resolve sibling dependencies (e.g., `heating.circuits.0.heating.curve`)
-*   `uri`: The API URI endpoint for executing the command
 *   `min` / `max` / `step`: Numerical constraints
 *   `options`: List of allowed values (Enum)
 *   `min_length` / `max_length`: String length constraints
 *   `pattern`: Regex pattern for validation
 *   `value_type`: API command value type (e.g., `number`, `boolean`, `string`)
 *   `schedule`: `ScheduleConstraints` with the rules for writing a schedule, if the API reports them
+
+How a command is sent is internal to the library: a writable feature carries
+an internal write binding (command, parameter, required parameters, URI) that
+is not part of the public model, and every command an API feature reports is
+listed on the device through `Device.get_command_names("heating.curve")`.
 
 ## 5. Usage Pattern
 
@@ -148,7 +147,7 @@ consumer owns polling cadence and stale-state policy.
 
 - **[Getting Started](01_getting_started.md)**: installation and basic usage.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureControl`, `Device`, and command results.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command results.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

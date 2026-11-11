@@ -1,13 +1,20 @@
 """Tests for parsing API responses and features into models and flat features."""
 
+from typing import Any
+
 import pytest
 from builders import load_fixture_features, load_fixture_json
 
 from vi_api_client import JsonValue
 from vi_api_client.exceptions import ViResponseError
-from vi_api_client.models import Device, ScheduleConstraints
+from vi_api_client.models import (
+    CommandParameter,
+    Device,
+    ScheduleConstraints,
+)
 from vi_api_client.parsing import (
     api_feature_to_flat_features,
+    parse_api_features,
     parse_command_response,
     parse_device,
 )
@@ -74,8 +81,8 @@ def test_control_requires_parameters_unless_marked_optional():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: Explicit false is optional while missing markers remain conservative.
-    assert feature.control is not None
-    assert feature.control.required_parameters == (
+    assert feature.write_binding is not None
+    assert feature.write_binding.required_parameters == (
         "requiredSibling",
         "unspecifiedSibling",
     )
@@ -204,7 +211,7 @@ def test_consumption_series_expose_current_day_and_year_aliases(
         alias_feature = features_by_name[f"{base_name}.{alias_name}"]
         assert alias_feature.value == source_values[0]
         assert alias_feature.unit == "kilowattHour"
-        assert alias_feature.control is None
+        assert alias_feature.write_binding is None
 
 
 def test_bundled_fixture_exposes_current_day_aliases():
@@ -256,18 +263,19 @@ def test_commands_become_controls_of_the_properties_they_write():
     feature_slope = next(
         feature for feature in features if feature.name.endswith(".slope")
     )
-    assert feature_slope.control is not None
-    assert feature_slope.control.command_name == "setCurve"
-    assert feature_slope.control.parameter_name == "slope"
-    assert feature_slope.control.value_type == "number"
-    assert "shift" in feature_slope.control.required_parameters
+    assert feature_slope.write_binding is not None
+    assert feature_slope.write_binding.command_name == "setCurve"
+    assert feature_slope.write_binding.parameter_name == "slope"
+    assert feature_slope.constraints is not None
+    assert feature_slope.constraints.value_type == "number"
+    assert "shift" in feature_slope.write_binding.required_parameters
 
     feature_shift = next(
         feature for feature in features if feature.name.endswith(".shift")
     )
-    assert feature_shift.control is not None
-    assert feature_shift.control.command_name == "setCurve"
-    assert feature_shift.control.parameter_name == "shift"
+    assert feature_shift.write_binding is not None
+    assert feature_shift.write_binding.command_name == "setCurve"
+    assert feature_shift.write_binding.parameter_name == "shift"
 
 
 def test_hysteresis_commands_create_writable_switch_point_features():
@@ -280,7 +288,9 @@ def test_hysteresis_commands_create_writable_switch_point_features():
 
     # Assert: The base value and both switch points are writable with their commands.
     assert {
-        feature.name: feature.control.command_name if feature.control else None
+        feature.name: (
+            feature.write_binding.command_name if feature.write_binding else None
+        )
         for feature in features
     } == {
         "heating.dhw.temperature.hysteresis": "setHysteresis",
@@ -405,9 +415,9 @@ def test_temperature_property_binds_target_temperature_command():
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.dhw.temperature.main.temperature"
-    assert feature.control is not None
-    assert feature.control.command_name == "setTargetTemperature"
-    assert feature.control.parameter_name == "targetTemperature"
+    assert feature.write_binding is not None
+    assert feature.write_binding.command_name == "setTargetTemperature"
+    assert feature.write_binding.parameter_name == "targetTemperature"
 
 
 def test_command_enum_becomes_the_control_options():
@@ -433,11 +443,11 @@ def test_command_enum_becomes_the_control_options():
     # Act: Parse the feature.
     features = api_feature_to_flat_features(raw_feature)
 
-    # Assert: The enum members become the control's allowed options.
+    # Assert: The enum members become the constraints' allowed options.
     assert len(features) == 1
-    control = features[0].control
-    assert control is not None
-    assert list(control.options or []) == ["auto", "eco"]
+    constraints = features[0].constraints
+    assert constraints is not None
+    assert list(constraints.options or []) == ["auto", "eco"]
 
 
 def _curve_feature(
@@ -482,7 +492,7 @@ def test_non_executable_commands_do_not_make_features_writable():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: The feature stays read-only.
-    assert feature.control is None
+    assert feature.write_binding is None
     assert feature.is_writable is False
 
 
@@ -500,12 +510,12 @@ def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
     )
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The control writes through the executable command.
-    assert control is not None
-    assert (control.command_name, control.parameter_name) == ("setCurve", "slope")
-    assert control.uri == "/commands/setCurve"
+    assert binding is not None
+    assert (binding.command_name, binding.parameter_name) == ("setCurve", "slope")
+    assert binding.uri == "/commands/setCurve"
 
 
 def test_command_parameter_constraints_win_over_property_metadata():
@@ -530,11 +540,11 @@ def test_command_parameter_constraints_win_over_property_metadata():
     )
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    constraints = api_feature_to_flat_features(raw_feature)[0].constraints
 
     # Assert: The parameter constraints win, including the 'stepping' alias.
-    assert control is not None
-    assert (control.min, control.max, control.step) == (0.2, 3.5, 0.1)
+    assert constraints is not None
+    assert (constraints.min, constraints.max, constraints.step) == (0.2, 3.5, 0.1)
 
 
 def test_property_metadata_fills_missing_parameter_constraints():
@@ -555,12 +565,12 @@ def test_property_metadata_fills_missing_parameter_constraints():
     }
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    constraints = api_feature_to_flat_features(raw_feature)[0].constraints
 
     # Assert: The gaps are filled from the property, resolving the alias.
-    assert control is not None
-    assert (control.min_length, control.max_length) == (1, 20)
-    assert control.pattern == "^[A-Z]"
+    assert constraints is not None
+    assert (constraints.min_length, constraints.max_length) == (1, 20)
+    assert constraints.pattern == "^[A-Z]"
 
 
 def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
@@ -590,13 +600,20 @@ def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
     schedule, active = features
     assert schedule.value == {"mon": []}
     assert active.value is True
-    assert active.control is None
-    control = schedule.control
-    assert control is not None
-    assert control.command_name == "setSchedule"
-    assert control.parameter_name == "newSchedule"
-    assert control.value_type == "Schedule"
-    assert (control.min, control.max, control.step, control.options) == (
+    assert active.write_binding is None
+    binding = schedule.write_binding
+    constraints = schedule.constraints
+    assert binding is not None
+    assert constraints is not None
+    assert binding.command_name == "setSchedule"
+    assert binding.parameter_name == "newSchedule"
+    assert constraints.value_type == "Schedule"
+    assert (
+        constraints.min,
+        constraints.max,
+        constraints.step,
+        constraints.options,
+    ) == (
         None,
         None,
         None,
@@ -627,11 +644,11 @@ def test_schedule_control_carries_the_reported_schedule_rules():
     )
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    constraints = api_feature_to_flat_features(raw_feature)[0].constraints
 
-    # Assert: Every rule is available on the control.
-    assert control is not None
-    assert control.schedule == ScheduleConstraints(
+    # Assert: Every rule is available on the constraints.
+    assert constraints is not None
+    assert constraints.schedule == ScheduleConstraints(
         max_entries=4,
         modes=("on",),
         resolution=10,
@@ -640,15 +657,15 @@ def test_schedule_control_carries_the_reported_schedule_rules():
     )
 
 
-def test_schedule_control_without_reported_rules_has_no_schedule_constraints():
+def test_schedule_constraints_without_reported_rules_have_no_schedule_rules():
     raw_feature = _schedule_feature(
         {"setSchedule": {"params": {"newSchedule": {"type": "Schedule"}}}}
     )
 
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    constraints = api_feature_to_flat_features(raw_feature)[0].constraints
 
-    assert control is not None
-    assert control.schedule is None
+    assert constraints is not None
+    assert constraints.schedule is None
 
 
 @pytest.mark.parametrize(
@@ -697,11 +714,11 @@ def test_command_requiring_the_value_is_preferred_over_one_taking_it_optionally(
     }
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The temperature is written through 'setTemperature'.
-    assert control is not None
-    assert (control.command_name, control.parameter_name) == (
+    assert binding is not None
+    assert (binding.command_name, binding.parameter_name) == (
         "setTemperature",
         "targetTemperature",
     )
@@ -719,10 +736,10 @@ def test_command_taking_the_value_optionally_is_used_when_it_is_the_only_one():
         },
     }
 
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
-    assert control is not None
-    assert (control.command_name, control.parameter_name) == ("activate", "temperature")
+    assert binding is not None
+    assert (binding.command_name, binding.parameter_name) == ("activate", "temperature")
 
 
 def test_non_executable_schedule_commands_do_not_make_schedules_writable():
@@ -741,7 +758,7 @@ def test_non_executable_schedule_commands_do_not_make_schedules_writable():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: The schedule stays read-only.
-    assert feature.control is None
+    assert feature.write_binding is None
 
 
 def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
@@ -761,15 +778,15 @@ def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
     )
 
     # Act: Parse the API feature.
-    control = api_feature_to_flat_features(raw_feature)[0].control
+    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
 
     # Assert: The schedule control writes through the executable command.
-    assert control is not None
-    assert (control.command_name, control.parameter_name) == (
+    assert binding is not None
+    assert (binding.command_name, binding.parameter_name) == (
         "setSchedule",
         "newSchedule",
     )
-    assert control.uri == "/commands/setSchedule"
+    assert binding.uri == "/commands/setSchedule"
 
 
 def test_parse_device_maps_fields_and_converts_integer_ids_to_text():
@@ -877,3 +894,108 @@ def test_parse_command_response_rejects_malformed_payloads(
     """Malformed known fields fail the command response contract."""
     with pytest.raises(ViResponseError, match=message):
         parse_command_response(payload)
+
+
+def _commanded_api_feature() -> dict[str, Any]:
+    """Return one valid API feature with one executable command."""
+    return {
+        "feature": "heating.mode",
+        "properties": {"mode": {"value": "auto"}},
+        "commands": {
+            "setMode": {
+                "uri": "/commands/setMode",
+                "params": {"mode": {"type": "string", "required": True}},
+            }
+        },
+    }
+
+
+def test_duplicate_api_feature_commands_reject_the_response():
+    """One API feature may not report the same command name twice."""
+    # Arrange: The same API feature appears twice with the same command.
+    duplicate_entries = [
+        _commanded_api_feature(),
+        _commanded_api_feature(),
+    ]
+
+    # Act and assert: The duplicate command is rejected, keeping the command
+    # list unambiguous.
+    with pytest.raises(ViResponseError, match="Duplicate API feature command"):
+        parse_api_features(duplicate_entries, only_available=False)
+
+
+def test_same_command_across_distinct_api_features_is_accepted():
+    """Different API features may report commands with the same name."""
+    # Arrange: Two API features share only the command name.
+    second = _commanded_api_feature()
+    second["feature"] = "heating.level"
+    second["properties"] = {"level": {"value": 1}}
+
+    # Act: Parse both API features.
+    _, commands = parse_api_features(
+        [_commanded_api_feature(), second], only_available=False
+    )
+
+    # Assert: Both command lists carry their own setMode-like command.
+    assert sorted(commands) == ["heating.level", "heating.mode"]
+    assert commands["heating.mode"][0].name == "setMode"
+    assert commands["heating.level"][0].name == "setMode"
+
+
+@pytest.mark.parametrize(
+    "deprecated",
+    [
+        pytest.param("yes", id="text"),
+        pytest.param(1, id="number"),
+        pytest.param([], id="list"),
+    ],
+)
+def test_non_boolean_deprecation_marker_rejects_the_command(deprecated: Any):
+    """isDeprecated must be a boolean when the API reports it."""
+    # Arrange: The command carries a malformed deprecation marker.
+    api_feature = _commanded_api_feature()
+    api_feature["commands"]["setMode"]["isDeprecated"] = deprecated
+
+    # Act and assert: The malformed marker fails the feature response.
+    with pytest.raises(ViResponseError, match="isDeprecated must be a boolean"):
+        parse_api_features([api_feature], only_available=False)
+
+
+def test_device_commands_carry_parameter_metadata_without_availability_flags():
+    """The command list keeps URI and parameter details, never flags."""
+    # Arrange: One API feature whose command has optional and required params.
+    extra = {
+        "feature": "heating.curve",
+        "properties": {"slope": {"value": 1.4}},
+        "commands": {
+            "setCurve": {
+                "isExecutable": False,
+                "isDeprecated": True,
+                "uri": "/commands/setCurve",
+                "params": {
+                    "slope": {"type": "number", "required": True},
+                    "shift": {"type": "number", "required": False},
+                },
+            }
+        },
+    }
+
+    # Act: Parse the feature response into its flat features and command list.
+    features, commands = parse_api_features([extra], only_available=False)
+    (command,) = commands["heating.curve"]
+
+    # Assert: The command list keeps every reported command, even a blocked
+    # one, with URIs and parameter metadata but neither flag.
+    assert command.name == "setCurve"
+    assert command.uri == "/commands/setCurve"
+    assert command.parameters == (
+        CommandParameter(
+            name="slope", required=True, value_type="number", constraints=None
+        ),
+        CommandParameter(
+            name="shift", required=False, value_type="number", constraints=None
+        ),
+    )
+    assert "{isExecutable" not in str(command)
+    assert "isDeprecated" not in str(command)
+    assert all(feature.write_binding is None for feature in features)
