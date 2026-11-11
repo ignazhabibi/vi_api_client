@@ -115,6 +115,14 @@ metadata a device snapshot carries; `Device.get_command_names` reads it. It
 stores neither executability nor deprecation.
 _Avoid_: Command registry
 
+**Setter command**:
+A command whose name starts with `set`. Only a setter binds a value to a
+feature; a command such as `schedule` or `triggerDaily` does more than store a
+value, leaves its features read-only, and is sent with `run_command`, for
+example `run_command(device, "heating.operating.programs.holiday",
+"schedule", {"start": "2026-12-24", "end": "2026-12-31"})`.
+_Avoid_: Write command, value command
+
 **Feature command**:
 The API operation that sends command parameters for a writable feature. How
 the library sends it is internal command knowledge; it is not the executed

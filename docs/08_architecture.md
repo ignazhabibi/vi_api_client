@@ -329,6 +329,13 @@ This avoids device-specific class hierarchies and lets many new API features
 work without new Python methods.
 
 The parser also associates command metadata with the correct feature. Only a
+command whose name starts with `set` binds a value to a feature. Commands
+such as `schedule`, `activate(begin, end)`, and `triggerDaily` take parameters
+that match properties but do more than store a value, so their features stay
+read-only and the commands are sent with `run_command`, for example
+`run_command(device, "heating.operating.programs.holiday", "schedule",
+{"start": "2026-12-24", "end": "2026-12-31"})`. This prefix is the only place
+where a command name decides something (ADR 0005). Only a
 parameter explicitly marked `required: false` is optional. If the flag is
 absent, the parameter is treated as required to avoid incomplete commands.
 Complex structures such as schedules remain one value when further splitting

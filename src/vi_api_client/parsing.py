@@ -582,7 +582,7 @@ def _find_write(
     api_feature_name: str,
     property_data: Any = None,
 ) -> _CommandWrite | None:
-    """Find the executable command whose parameter writes the given property.
+    """Find the executable setter whose parameter writes the given property.
 
     Args:
         property_key: The property key (e.g. 'slope').
@@ -591,28 +591,36 @@ def _find_write(
         property_data: Optional property metadata for constraint fallback.
 
     Returns:
-        The command's internal write binding and its constraint rules, if a
-        matching command is found, else None.
+        The setter's internal write binding and its constraint rules, if a
+        matching setter is found, else None.
     """
-    # A command whose matching parameter is optional only writes the value on
-    # the side, e.g. 'activate(temperature)' switches a program on; a command
-    # that requires the parameter, such as 'setTemperature', is preferred.
-    optional_parameter_write: _CommandWrite | None = None
     for command_name, command in commands.items():
-        if not command.get("isExecutable", True):
+        if not _is_setter(command_name) or not command.get("isExecutable", True):
             continue
 
-        params = command.get("params", {})
-        target_param = _match_parameter(property_key, params, command_name)
+        target_param = _match_parameter(
+            property_key, command.get("params", {}), command_name
+        )
         if target_param:
-            write = _build_write(
+            return _build_write(
                 command_name, command, target_param, api_feature_name, property_data
             )
-            if params[target_param].get("required") is not False:
-                return write
-            optional_parameter_write = optional_parameter_write or write
 
-    return optional_parameter_write
+    return None
+
+
+def _is_setter(command_name: str) -> bool:
+    """Return whether a command only stores a value.
+
+    Only a command whose name starts with ``set`` binds a value to a
+    feature. Other commands also take parameters that match properties but
+    do more than store a value: ``triggerDaily`` turns a weekly hygiene run
+    into a daily one, ``activate`` on the daylight saving feature switches
+    it on, and ``schedule`` plans a holiday. They stay reachable through
+    `ViClient.run_command`, where the caller names them. This prefix is the
+    only place where a command name decides something.
+    """
+    return command_name.startswith("set")
 
 
 def _find_pair_write(
@@ -774,17 +782,17 @@ def _resolve_constraint(keys: list[str], sources: list[dict[str, Any]]) -> Any |
 def _find_complex_write(
     api_feature_name: str, commands: dict[str, Any]
 ) -> _CommandWrite | None:
-    """Heuristic to find the write of a complex feature (e.g. schedule).
+    """Find the executable setter that writes a complex feature (e.g. schedule).
 
     Args:
         api_feature_name: The name of the API feature.
         commands: The API feature's commands.
 
     Returns:
-        The write binding and constraint rules if a likely command is found.
+        The write binding and constraint rules if a matching setter is found.
     """
     for command_name, command in commands.items():
-        if not command.get("isExecutable", True):
+        if not _is_setter(command_name) or not command.get("isExecutable", True):
             continue
 
         params = command.get("params", {})

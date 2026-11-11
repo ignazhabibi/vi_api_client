@@ -500,7 +500,7 @@ class ViClient:
         if current_feature is None:
             raise ValueError(f"Feature '{feature_name}' is not present on the device.")
 
-        binding = self._require_command_binding(current_feature)
+        binding = self._require_command_binding(device, current_feature)
         constraints = self._require_constraints(current_feature)
         if isinstance(binding, CommandPairWriteBinding):
             # The boolean type check is the pair's whole validation; which
@@ -870,16 +870,38 @@ class ViClient:
     # Feature commands: check availability, build and validate the payload, send it.
 
     @staticmethod
-    def _require_command_binding(feature: Feature) -> WriteBinding:
+    def _require_command_binding(device: Device, feature: Feature) -> WriteBinding:
         """Validate a feature's command availability and return its binding.
 
-        A hand-built feature has no write binding, so it is read-only.
+        A hand-built feature has no write binding, so it is read-only. So is
+        a feature whose API feature reports only commands that do more than
+        store a value; its error names them as the `run_command` alternative.
 
         Raises:
             ValueError: If the feature cannot currently execute a command.
         """
         if not feature.is_writable:
-            raise ValueError(f"Feature '{feature.name}' is read-only.")
+            # The longest API feature name the feature name starts with owns
+            # the feature; the snapshot lists every API feature of a refresh.
+            api_feature_name = max(
+                (
+                    name
+                    for name in device.commands_by_api_feature
+                    if feature.name == name or feature.name.startswith(f"{name}.")
+                ),
+                key=len,
+                default=None,
+            )
+            command_names = (
+                device.get_command_names(api_feature_name) if api_feature_name else ()
+            )
+            if not command_names:
+                raise ValueError(f"Feature '{feature.name}' is read-only.")
+            raise ValueError(
+                f"Feature '{feature.name}' is read-only. API feature "
+                f"'{api_feature_name}' reports the commands "
+                f"{', '.join(command_names)}; send one with run_command."
+            )
         if not feature.is_enabled:
             raise ValueError(f"Feature '{feature.name}' is disabled.")
         if not feature.is_ready:

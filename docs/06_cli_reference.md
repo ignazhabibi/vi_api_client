@@ -304,6 +304,16 @@ feature, and it does not have to be executable at the moment of the write;
 `heating.circuits.0.heating.curve.slope` is not accepted: the error names the
 API features that report commands with a similar name.
 
+Features that only a command without the `set` prefix takes as a parameter
+are read-only and are not listed by `list-writable`: the holiday dates, the
+daylight saving dates on devices without `setActive`, and the hygiene trigger
+time. `set` on one of them prints an error that names the commands of its API
+feature. Run the command with `exec` and supply every parameter:
+
+```bash
+vi-client exec heating.operating.programs.holiday schedule start=2026-12-24 end=2026-12-31
+```
+
 `exec` validates every supplied parameter against the command's reported
 parameters and constraints and sends them exactly as supplied. It does not add
 dependent values or update a device snapshot; use `set` for the normal

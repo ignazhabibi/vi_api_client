@@ -121,7 +121,7 @@ async def test_fixture_gateway_device_refresh_stays_offline():
 @pytest.mark.usefixtures("no_http_requests")
 @pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
 async def test_every_catalog_device_supports_the_standard_workflow(fixture_device):
-    """Each bundled catalog device runs discovery, a filtered read, and a write."""
+    """Each catalog device runs discovery, a filtered read, and a write or command."""
     # Arrange: Create a fixture client for one bundled catalog device.
     client = FixtureViClient(fixture_device)
 
@@ -145,17 +145,29 @@ async def test_every_catalog_device_supports_the_standard_workflow(fixture_devic
     # Assert: The filtered read returns exactly the requested feature.
     assert [feature.name for feature in filtered] == [probe.name]
 
-    # Act: Write the current value of the first writable feature back.
+    # Act: Write the current value of the first writable number or boolean
+    # back. Text features are skipped because a masked fixture name is empty
+    # and violates its own length rule.
     writable = next(
         (
             feature
             for feature in device.features
-            if feature.is_writable and feature.value is not None
+            if feature.is_writable and isinstance(feature.value, bool | int | float)
         ),
         None,
     )
-    # Every bundled device exposes at least one writable feature; a catalog
-    # addition without one must be reviewed instead of silently skipped.
+    # Vitocharge03 reports commands only for daylight saving, and none of
+    # them is a setter, so it has no writable feature and its workflow ends
+    # with a command run. A catalog addition without a writable feature must
+    # be reviewed instead of silently skipped.
+    if fixture_device == "Vitocharge03":
+        assert writable is None
+        assert device.get_command_names("device.time.daylightSaving") == (
+            "activate",
+            "deactivate",
+        )
+        await client.run_command(device, "device.time.daylightSaving", "deactivate")
+        return
     assert writable is not None
     updated_device = await client.set_feature(device, writable, writable.value)
 

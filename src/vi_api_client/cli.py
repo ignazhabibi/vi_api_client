@@ -708,7 +708,20 @@ async def _fetch_writable_feature(
         return None
     binding = feature.write_binding
     if binding is None:
-        print(f"Error: Feature '{feature.name}' is read-only (no control).")
+        api_feature_name = _matching_api_feature_name(device_snapshot, feature.name)
+        command_names = (
+            device_snapshot.get_command_names(api_feature_name)
+            if api_feature_name
+            else ()
+        )
+        hint = (
+            f" API feature '{api_feature_name}' reports the commands "
+            f"{', '.join(command_names)}; run one with "
+            f"'vi-client exec {api_feature_name} <command-name> [key=value ...]'."
+            if command_names
+            else ""
+        )
+        print(f"Error: Feature '{feature.name}' is read-only (no control).{hint}")
         return None
     return device_snapshot, feature, binding
 
