@@ -150,7 +150,7 @@ The example reads tokens from `tokens.json`. Create that file once with
 ```python
 import asyncio
 import aiohttp
-from vi_api_client import OAuth, ViClient
+from vi_api_client import OAuth, ViClient, ViCommandRejectedError
 
 
 async def main():
@@ -198,18 +198,33 @@ async def main():
             print(f"{feature.name}: {feature.value}")
 
         # 4. Write one Feature with automatic dependency resolution
-        # Find a writable feature (e.g. heating curve slope)
+        # Find a feature that can be set right now (e.g. heating curve slope)
         slope = next(
-            (f for f in device.features if "curve.slope" in f.name and f.is_writable),
+            (f for f in device.features if "curve.slope" in f.name and f.is_settable),
             None,
         )
         if slope:
-            print(f"Setting slope to 1.4...")
-            device = await client.set_feature(device, slope, 1.4)
-            print("✅ Success! Device updated.")
-            # No exception means the API accepted the write; use the updated
-            # device for subsequent calls. A rejected command raises
-            # ViCommandRejectedError.
+            print("Setting slope to 1.4...")
+            try:
+                # Use the returned device for subsequent calls.
+                device = await client.set_feature(device, slope, 1.4)
+            except ViCommandRejectedError as error:
+                print(f"The device rejected the write: {error}")
+            else:
+                print("✅ Success! Device updated.")
+
+        # 5. Run any command an API feature reports
+        holiday = "heating.operating.programs.holiday"
+        if "schedule" in device.get_command_names(holiday):
+            try:
+                await client.run_command(
+                    device,
+                    holiday,
+                    "schedule",
+                    {"start": "2026-12-24", "end": "2026-12-31"},
+                )
+            except ViCommandRejectedError as error:
+                print(f"The device rejected the command: {error}")
 
 
 if __name__ == "__main__":

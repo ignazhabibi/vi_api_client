@@ -498,7 +498,7 @@ keeps its previous snapshot; see `docs/adr/0005-keep-command-knowledge-in-the-li
 
 ## 11. Running any reported command
 
-`run_command(device, feature_name, command_name, parameters)` is the second
+`run_command(device, api_feature_name, command_name, parameters)` is the second
 write path: it runs any command the API feature reports, addressed by names,
 and returns nothing. It resolves the command from the snapshot's internal
 command list, so the device must come from a device refresh; a snapshot without

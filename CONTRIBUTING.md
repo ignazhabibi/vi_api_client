@@ -41,20 +41,21 @@ free and that the library parses the features, writes
 catalog entry with the model, device type, and capture date. To refresh an
 existing fixture, for example after a firmware update, add `--replace`; the
 script then replaces the fixture file and its catalog entry, keeps the entry's
-model ID, and refuses names that are not in the catalog. Review the fixture diff.
+model ID, and refuses names that are not in the catalog.
 
-After adding or refreshing a fixture, regenerate the command knowledge
-baseline and review its diff as well:
-
-```bash
-python scripts/update_command_knowledge_baseline.py
-```
+The script also regenerates the command knowledge baseline, so adding or
+refreshing a fixture needs no further step. Review the fixture diff and the
+baseline diff, then run the quality gate.
 
 `tests/fixtures/command_knowledge_baseline.json` records how the library
 writes every writable feature of every bundled fixture and which commands
 every API feature reports. A test compares it with the current parser, so an
-unintended parser change shows up as a diff; after an intended one, run the
-same script. Then run the quality gate.
+unintended parser change shows up as a diff. After an intended parser change,
+regenerate the baseline yourself and review its diff:
+
+```bash
+python scripts/update_command_knowledge_baseline.py
+```
 
 ## Quality Gate
 

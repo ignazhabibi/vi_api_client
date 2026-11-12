@@ -246,3 +246,60 @@ def test_rejects_an_unreadable_export(tmp_path, fixtures_dir, capsys):
     # Assert: The script fails and names the file.
     assert exit_status == 1
     assert "Cannot read" in capsys.readouterr().err
+
+
+def test_bundled_fixture_regenerates_the_command_knowledge_baseline(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+):
+    # Arrange: Treat the temporary directory as the bundled fixture directory
+    # and record the baseline run instead of rewriting the repository file.
+    baseline_runs: list[bool] = []
+    monkeypatch.setattr(add_fixture, "FIXTURES_DIR", fixtures_dir)
+    monkeypatch.setattr(
+        add_fixture, "_regenerate_baseline", lambda: baseline_runs.append(True)
+    )
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+
+    # Act: Add the export to the bundled fixtures.
+    exit_status = _run(export_path, "New", fixtures_dir)
+
+    # Assert: The baseline is regenerated once and the review hint names it.
+    assert exit_status == 0
+    assert baseline_runs == [True]
+    assert "fixture and baseline diffs" in capsys.readouterr().out
+
+
+def test_other_fixture_directory_leaves_the_baseline_alone(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+):
+    # Arrange: Record baseline runs; the target is not the bundled directory.
+    baseline_runs: list[bool] = []
+    monkeypatch.setattr(
+        add_fixture, "_regenerate_baseline", lambda: baseline_runs.append(True)
+    )
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+
+    # Act: Add the export to the temporary directory.
+    exit_status = _run(export_path, "New", fixtures_dir)
+
+    # Assert: The baseline describes only bundled fixtures, so it stays as is.
+    assert exit_status == 0
+    assert baseline_runs == []
+    assert "Review the fixture diff" in capsys.readouterr().out
+
+
+def test_rejected_export_leaves_the_baseline_alone(tmp_path, fixtures_dir, monkeypatch):
+    # Arrange: Treat the temporary directory as the bundled one and record
+    # baseline runs.
+    baseline_runs: list[bool] = []
+    monkeypatch.setattr(add_fixture, "FIXTURES_DIR", fixtures_dir)
+    monkeypatch.setattr(
+        add_fixture, "_regenerate_baseline", lambda: baseline_runs.append(True)
+    )
+
+    # Act: Add an export file that does not exist.
+    exit_status = _run(tmp_path / "missing.json", "New", fixtures_dir)
+
+    # Assert: A failed add never touches the baseline.
+    assert exit_status == 1
+    assert baseline_runs == []

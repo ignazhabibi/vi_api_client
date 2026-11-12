@@ -211,7 +211,7 @@ async def test_cmd_set_rejects_malformed_typed_values(
 
     # Assert: The validation failure is printed and no write is sent.
     captured = capsys.readouterr()
-    assert f"Validation failed: Value '{raw_value}'" in captured.out
+    assert f"Error: Value '{raw_value}'" in captured.out
     assert message in captured.out
     mock_cli_context.client.set_feature.assert_not_called()
 

@@ -609,7 +609,11 @@ async def cmd_set(args: argparse.Namespace) -> bool:
                 f"  (Command: {binding.command_name}, Param: {binding.parameter_name})"
             )
 
-        value = _parse_set_value(raw_value, feature)
+        try:
+            value = _parse_set_value(raw_value, feature)
+        except ValueError as error:
+            print(f"Error: {error}")
+            return False
         try:
             await context.client.set_feature(device, feature, value)
         except ViCommandRejectedError as error:
@@ -631,7 +635,7 @@ def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
         The value in the type expected by the target command.
 
     Raises:
-        ViValidationError: If a numeric, boolean, or schedule command value is
+        ValueError: If a numeric, boolean, or schedule command value is
             malformed.
     """
     constraints = feature.constraints or FeatureConstraints()
@@ -643,7 +647,7 @@ def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
         try:
             schedule: JsonValue = json.loads(raw_value)
         except json.JSONDecodeError as error:
-            raise ViValidationError(
+            raise ValueError(
                 f"Value for '{feature.name}' must be a JSON schedule object."
             ) from error
         return schedule
@@ -654,7 +658,7 @@ def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
             return True
         if normalized_value == "false":
             return False
-        raise ViValidationError(
+        raise ValueError(
             f"Value '{raw_value}' for '{feature.name}' must be true or false."
         )
 
@@ -662,7 +666,7 @@ def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
         try:
             return int(raw_value)
         except ValueError as error:
-            raise ViValidationError(
+            raise ValueError(
                 f"Value '{raw_value}' for '{feature.name}' must be an integer."
             ) from error
 
@@ -670,11 +674,11 @@ def _parse_set_value(raw_value: str, feature: Feature) -> JsonValue:
         try:
             value = float(raw_value)
         except ValueError as error:
-            raise ViValidationError(
+            raise ValueError(
                 f"Value '{raw_value}' for '{feature.name}' must be a number."
             ) from error
         if not math.isfinite(value):
-            raise ViValidationError(
+            raise ValueError(
                 f"Value '{raw_value}' for '{feature.name}' must be finite."
             )
         return value
@@ -774,7 +778,7 @@ async def _fetch_writable_feature(
             if command_names
             else ""
         )
-        print(f"Error: Feature '{feature.name}' is read-only (no control).{hint}")
+        print(f"Error: Feature '{feature.name}' is read-only.{hint}")
         return None
     return device_snapshot, feature, binding
 
@@ -807,7 +811,7 @@ def _print_command_rejected(error: ViCommandRejectedError) -> None:
 async def cmd_list_writable(args: argparse.Namespace) -> bool:
     """List all writable features for a device.
 
-    Displays features that have a control block (can be modified).
+    Displays the features a command can write.
 
     Args:
         args: Parsed command line arguments.

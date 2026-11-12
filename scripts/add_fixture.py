@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any, cast
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = PROJECT_ROOT / "src" / "vi_api_client" / "fixtures"
+BASELINE_SCRIPT = PROJECT_ROOT / "scripts" / "update_command_knowledge_baseline.py"
 
 # Use the repository source the fixture is written into, not an installed copy.
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -167,8 +169,21 @@ def add_fixture(
     )
 
 
+def _regenerate_baseline() -> None:
+    """Rewrite the command knowledge baseline from the bundled fixtures.
+
+    The baseline script runs in a new interpreter, so it reads the fixture
+    catalog as this script just wrote it.
+    """
+    subprocess.run([sys.executable, str(BASELINE_SCRIPT)], check=True)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Add the export and report the result."""
+    """Add the export, refresh the baseline, and report the result.
+
+    The command knowledge baseline describes the bundled fixtures, so it is
+    regenerated only when the fixture went into the bundled directory.
+    """
     args = build_parser().parse_args(argv)
     try:
         summary = add_fixture(
@@ -178,7 +193,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 1
     print(summary)
-    print("Review the fixture diff, then run the quality gate.")
+    if args.fixtures_dir.resolve() == FIXTURES_DIR.resolve():
+        _regenerate_baseline()
+        print("Review the fixture and baseline diffs, then run the quality gate.")
+    else:
+        print("Review the fixture diff, then run the quality gate.")
     return 0
 
 

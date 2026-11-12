@@ -7,7 +7,7 @@ status: accepted
 Version 7.0.0 reshapes writing in one step, without a deprecation phase.
 Consumers write through two operations. `set_feature` writes a value and
 returns the command-updated device snapshot. `run_command(device,
-feature_name, command_name, parameters)` sends any command an API feature
+api_feature_name, command_name, parameters)` sends any command an API feature
 reports, addressed by names, and returns nothing. `execute_command` and
 `CommandResponse` are removed. A command the device rejects raises
 `ViCommandRejectedError`, so success always means that no exception was raised.

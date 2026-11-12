@@ -3,8 +3,9 @@
 The baseline records, per bundled device fixture, how the library writes
 every writable feature and which commands every API feature reports. A test
 compares it with the current implementation, so an unintended parser change
-shows up as a diff. Run this script after refreshing or adding a fixture, or
-after an intended parser change, and review the diff it produces.
+shows up as a diff. ``scripts/add_fixture.py`` runs this script after adding
+or refreshing a fixture; run it yourself after an intended parser change, and
+review the diff it produces.
 """
 
 from __future__ import annotations
@@ -30,21 +31,22 @@ from vi_api_client.parsing import parse_api_features  # noqa: E402
 
 
 def _binding_document(binding: WriteBinding) -> dict[str, Any]:
-    """Return one write binding as a JSON document."""
+    """Return one write binding as a JSON document.
+
+    The command URIs are left out: they repeat the fixture's own data, so
+    they would only enlarge the diff after a fixture refresh.
+    """
     if isinstance(binding, CommandPairWriteBinding):
         return {
             "api_feature": binding.api_feature_name,
             "on_command": binding.on_command_name,
             "off_command": binding.off_command_name,
-            "on_uri": binding.on_uri,
-            "off_uri": binding.off_uri,
         }
     return {
         "api_feature": binding.api_feature_name,
         "command": binding.command_name,
         "parameter": binding.parameter_name,
         "required": list(binding.required_parameters),
-        "uri": binding.uri,
     }
 
 

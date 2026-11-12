@@ -3,8 +3,9 @@
 ``tests/fixtures/command_knowledge_baseline.json`` records how the library
 writes every writable feature of every bundled fixture and which commands
 every API feature reports. ``scripts/update_command_knowledge_baseline.py``
-regenerates it; run the script after refreshing or adding a fixture or after
-an intended parser change, and review the diff.
+regenerates it. ``scripts/add_fixture.py`` runs that script after adding or
+refreshing a fixture; run it yourself after an intended parser change, and
+review the diff.
 """
 
 import importlib.util

@@ -270,18 +270,18 @@ class Device:
         """
         return self._features_by_name.get(name)
 
-    def get_command_names(self, feature_name: str) -> tuple[str, ...]:
+    def get_command_names(self, api_feature_name: str) -> tuple[str, ...]:
         """Return the sorted command names one API feature reports, or ().
 
         Args:
-            feature_name: The name of the API feature, such as
+            api_feature_name: The name of the API feature, such as
                 ``heating.operating.programs.holiday``.
 
         Returns:
             The names of every command the API feature reported in the
             snapshot this device was built from, in sorted order.
         """
-        commands = self.commands_by_api_feature.get(feature_name, ())
+        commands = self.commands_by_api_feature.get(api_feature_name, ())
         return tuple(sorted(command.name for command in commands))
 
 

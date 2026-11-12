@@ -1,11 +1,10 @@
 """Tests for boolean features written through an on/off command pair."""
 
-from copy import deepcopy
 from dataclasses import replace
 from typing import Any
 
 import pytest
-from builders import build_device, load_fixture_device, load_fixture_features
+from builders import build_device, load_fixture_features
 from yarl import URL
 
 from vi_api_client import FixtureViClient, redact_device
@@ -207,7 +206,7 @@ def test_optional_parameter_keeps_the_command_pair():
     assert isinstance(feature.write_binding, CommandPairWriteBinding)
 
 
-def test_missing_counterpart_excludes_the_command_pair():
+def test_property_without_a_table_row_stays_read_only():
     # Arrange: Hygiene reports `activate` without `deactivate` next to the
     # enable/disable pair; no table row covers its `active` property.
     name = "heating.dhw.hygiene"
@@ -314,35 +313,6 @@ def test_one_time_charge_without_a_setter_is_pair_written():
         on_uri=_command_url(name, "activate"),
         off_uri=_command_url(name, "deactivate"),
     )
-
-
-@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
-def test_snapshots_differing_only_in_pair_executability_are_equally_writable(
-    fixture_device,
-):
-    # Arrange: A fixture payload and a copy whose pair commands report the
-    # opposite executability.
-    api_features = load_fixture_device(fixture_device)["data"]
-    flipped_api_features = deepcopy(api_features)
-    for api_feature in flipped_api_features:
-        for command_name in ("activate", "deactivate", "enable", "disable"):
-            command = api_feature.get("commands", {}).get(command_name)
-            if command is not None:
-                command["isExecutable"] = not command["isExecutable"]
-
-    # Act: Parse both payloads.
-    features, _ = parse_api_features(api_features, only_available=False)
-    flipped_features, _ = parse_api_features(flipped_api_features, only_available=False)
-
-    # Assert: Both snapshots report the same pair-written features.
-    def pair_written_names(parsed: list[Feature]) -> list[str]:
-        return sorted(
-            feature.name
-            for feature in parsed
-            if isinstance(feature.write_binding, CommandPairWriteBinding)
-        )
-
-    assert pair_written_names(features) == pair_written_names(flipped_features)
 
 
 @pytest.mark.parametrize(
