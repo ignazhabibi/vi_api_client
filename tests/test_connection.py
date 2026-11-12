@@ -375,7 +375,7 @@ async def test_command_requests_report_non_executable_commands_as_rejections(
 
     # Act: Send a command the device currently does not allow.
     with pytest.raises(ViCommandRejectedError) as raised_error:
-        await live_adapter.execute_command(COMMAND_URL, {"mode": "dhw"})
+        await live_adapter.send_command(COMMAND_URL, {"mode": "dhw"})
 
     # Assert: The rejection keeps the envelope's details and the reason.
     error = raised_error.value
@@ -442,7 +442,7 @@ async def test_command_requests_degrade_without_the_documented_rejection(
 
     # Act: Send a command whose response lacks the documented rejection.
     with pytest.raises(ViError) as raised_error:
-        await live_adapter.execute_command(COMMAND_URL, {"mode": "dhw"})
+        await live_adapter.send_command(COMMAND_URL, {"mode": "dhw"})
 
     # Assert: Without both documented markers the response keeps its class.
     assert type(raised_error.value) is expected_error
@@ -650,7 +650,7 @@ async def test_live_adapter_sends_commands_to_vi_api_uris(
     mock_responses.post(COMMAND_URL, payload={"data": {"success": True}})
 
     # Act: Execute a command whose URI uses the given spelling.
-    response = await live_adapter.execute_command(command_uri, {"mode": "dhw"})
+    response = await live_adapter.send_command(command_uri, {"mode": "dhw"})
 
     # Assert: The command reached the Vi API URL.
     assert response == {"data": {"success": True}}
@@ -678,7 +678,7 @@ async def test_live_adapter_refuses_command_uris_outside_vi_api(
     """Command URIs from API responses must not receive the bearer token."""
 
     with pytest.raises(ViResponseError, match="outside the Vi API"):
-        await live_adapter.execute_command(command_uri, {"mode": "dhw"})
+        await live_adapter.send_command(command_uri, {"mode": "dhw"})
 
 
 async def test_live_adapter_maps_non_json_error_bodies(

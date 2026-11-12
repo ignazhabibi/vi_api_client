@@ -311,6 +311,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
       },
+      "heating.circuits.0.operating.programs.comfort.active": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/activate"
+      },
       "heating.circuits.0.operating.programs.comfort.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.comfort",
         "command": "setTemperature",
@@ -319,6 +326,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.eco.active": {
+        "api_feature": "heating.circuits.0.operating.programs.eco",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.eco/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.eco/commands/activate"
       },
       "heating.circuits.0.operating.programs.normal.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.normal",
@@ -412,6 +426,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.modes.active/commands/setMode"
       },
+      "heating.circuits.1.operating.programs.comfort.active": {
+        "api_feature": "heating.circuits.1.operating.programs.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/activate"
+      },
       "heating.circuits.1.operating.programs.comfort.temperature": {
         "api_feature": "heating.circuits.1.operating.programs.comfort",
         "command": "setTemperature",
@@ -420,6 +441,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.eco.active": {
+        "api_feature": "heating.circuits.1.operating.programs.eco",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.eco/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.eco/commands/activate"
       },
       "heating.circuits.1.operating.programs.normal.temperature": {
         "api_feature": "heating.circuits.1.operating.programs.normal",
@@ -456,26 +484,6 @@
           "temperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.temperature.levels/commands/setMin"
-      },
-      "heating.operating.programs.holiday.end": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holiday.start": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
       }
     }
   },
@@ -865,26 +873,6 @@
       "tcu.wifi": []
     },
     "write_bindings": {
-      "device.time.daylightSaving.begin": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "begin",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
-      },
-      "device.time.daylightSaving.end": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "end",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
-      },
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -950,6 +938,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfortHeating/commands/setTemperature"
       },
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule.active": {
+        "api_feature": "heating.circuits.0.operating.programs.forcedLastFromSchedule",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/activate"
+      },
       "heating.circuits.0.operating.programs.normalHeating.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.normalHeating",
         "command": "setTemperature",
@@ -985,6 +980,13 @@
           "temperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.temperature.levels/commands/setMin"
+      },
+      "heating.dhw.hygiene.enabled": {
+        "api_feature": "heating.dhw.hygiene",
+        "off_command": "disable",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene/commands/disable",
+        "on_command": "enable",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene/commands/enable"
       },
       "heating.dhw.oneTimeCharge.active": {
         "api_feature": "heating.dhw.oneTimeCharge",
@@ -1048,46 +1050,6 @@
           "temperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
-      },
-      "heating.operating.programs.holiday.end": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holiday.start": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.end": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.start": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
       }
     }
   },
@@ -1510,23 +1472,25 @@
       },
       "device.time.daylightSaving.begin": {
         "api_feature": "device.time.daylightSaving",
-        "command": "activate",
+        "command": "setActive",
         "parameter": "begin",
         "required": [
+          "active",
           "begin",
           "end"
         ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/setActive"
       },
       "device.time.daylightSaving.end": {
         "api_feature": "device.time.daylightSaving",
-        "command": "activate",
+        "command": "setActive",
         "parameter": "end",
         "required": [
+          "active",
           "begin",
           "end"
         ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
+        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/setActive"
       },
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
@@ -1592,6 +1556,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfortHeating/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule.active": {
+        "api_feature": "heating.circuits.0.operating.programs.forcedLastFromSchedule",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/activate"
       },
       "heating.circuits.0.operating.programs.normalHeating.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.normalHeating",
@@ -1709,46 +1680,6 @@
           "temperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
-      },
-      "heating.operating.programs.holiday.end": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "start",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holiday.start": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "start",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.end": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "start",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.start": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "start",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
       }
     }
   },
@@ -2111,6 +2042,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
       },
+      "heating.circuits.0.operating.programs.comfort.active": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/activate"
+      },
       "heating.circuits.0.operating.programs.comfort.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.comfort",
         "command": "setTemperature",
@@ -2119,6 +2057,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.eco.active": {
+        "api_feature": "heating.circuits.0.operating.programs.eco",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.eco/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.eco/commands/activate"
       },
       "heating.circuits.0.operating.programs.normal.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.normal",
@@ -2212,6 +2157,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.modes.active/commands/setMode"
       },
+      "heating.circuits.1.operating.programs.comfort.active": {
+        "api_feature": "heating.circuits.1.operating.programs.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/activate"
+      },
       "heating.circuits.1.operating.programs.comfort.temperature": {
         "api_feature": "heating.circuits.1.operating.programs.comfort",
         "command": "setTemperature",
@@ -2220,6 +2172,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.1.operating.programs.eco.active": {
+        "api_feature": "heating.circuits.1.operating.programs.eco",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.eco/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.1.operating.programs.eco/commands/activate"
       },
       "heating.circuits.1.operating.programs.normal.temperature": {
         "api_feature": "heating.circuits.1.operating.programs.normal",
@@ -2320,26 +2279,6 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.temp2/commands/setTargetTemperature"
       },
-      "heating.operating.programs.holiday.end": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holiday.start": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
       "ventilation.operating.modes.active": {
         "api_feature": "ventilation.operating.modes.active",
         "command": "setMode",
@@ -2349,25 +2288,19 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.operating.modes.active/commands/setMode"
       },
-      "ventilation.quickmodes.holiday.end": {
-        "api_feature": "ventilation.quickmodes.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.holiday/commands/schedule"
+      "ventilation.quickmodes.comfort.active": {
+        "api_feature": "ventilation.quickmodes.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.comfort/commands/activate"
       },
-      "ventilation.quickmodes.holiday.start": {
-        "api_feature": "ventilation.quickmodes.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.holiday/commands/schedule"
+      "ventilation.quickmodes.eco.active": {
+        "api_feature": "ventilation.quickmodes.eco",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.eco/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.eco/commands/activate"
       },
       "ventilation.schedule": {
         "api_feature": "ventilation.schedule",
@@ -2426,28 +2359,7 @@
       "photovoltaic.string.current": [],
       "photovoltaic.string.voltage": []
     },
-    "write_bindings": {
-      "device.time.daylightSaving.begin": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "begin",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/################/features/device.time.daylightSaving/commands/activate"
-      },
-      "device.time.daylightSaving.end": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "end",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/################/features/device.time.daylightSaving/commands/activate"
-      }
-    }
+    "write_bindings": {}
   },
   "Vitodens200W": {
     "api_feature_commands": {
@@ -2695,26 +2607,6 @@
       "heating.solar.summary.power.production": []
     },
     "write_bindings": {
-      "device.time.daylightSaving.begin": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "begin",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
-      },
-      "device.time.daylightSaving.end": {
-        "api_feature": "device.time.daylightSaving",
-        "command": "activate",
-        "parameter": "end",
-        "required": [
-          "begin",
-          "end"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.time.daylightSaving/commands/activate"
-      },
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -2771,6 +2663,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.modes.active/commands/setMode"
       },
+      "heating.circuits.0.operating.programs.comfort.active": {
+        "api_feature": "heating.circuits.0.operating.programs.comfort",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/activate"
+      },
       "heating.circuits.0.operating.programs.comfort.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.comfort",
         "command": "setTemperature",
@@ -2779,6 +2678,13 @@
           "targetTemperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.comfort/commands/setTemperature"
+      },
+      "heating.circuits.0.operating.programs.forcedLastFromSchedule.active": {
+        "api_feature": "heating.circuits.0.operating.programs.forcedLastFromSchedule",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.forcedLastFromSchedule/commands/activate"
       },
       "heating.circuits.0.operating.programs.normal.temperature": {
         "api_feature": "heating.circuits.0.operating.programs.normal",
@@ -2798,25 +2704,12 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.operating.programs.reduced/commands/setTemperature"
       },
-      "heating.dhw.hygiene.trigger.startHour": {
-        "api_feature": "heating.dhw.hygiene.trigger",
-        "command": "triggerDaily",
-        "parameter": "startHour",
-        "required": [
-          "startHour",
-          "startMinute"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene.trigger/commands/triggerDaily"
-      },
-      "heating.dhw.hygiene.trigger.startMinute": {
-        "api_feature": "heating.dhw.hygiene.trigger",
-        "command": "triggerDaily",
-        "parameter": "startMinute",
-        "required": [
-          "startHour",
-          "startMinute"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene.trigger/commands/triggerDaily"
+      "heating.dhw.hygiene.enabled": {
+        "api_feature": "heating.dhw.hygiene",
+        "off_command": "disable",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene/commands/disable",
+        "on_command": "enable",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.hygiene/commands/enable"
       },
       "heating.dhw.oneTimeCharge.active": {
         "api_feature": "heating.dhw.oneTimeCharge",
@@ -2889,46 +2782,6 @@
           "temperature"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.dhw.temperature.main/commands/setTargetTemperature"
-      },
-      "heating.operating.programs.holiday.end": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holiday.start": {
-        "api_feature": "heating.operating.programs.holiday",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holiday/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.end": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "end",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
-      },
-      "heating.operating.programs.holidayAtHome.start": {
-        "api_feature": "heating.operating.programs.holidayAtHome",
-        "command": "schedule",
-        "parameter": "start",
-        "required": [
-          "end",
-          "start"
-        ],
-        "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.operating.programs.holidayAtHome/commands/schedule"
       }
     }
   },
@@ -3013,6 +2866,13 @@
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.operating.modes.active/commands/setMode"
       },
+      "ventilation.quickmodes.forcedLevelFour.active": {
+        "api_feature": "ventilation.quickmodes.forcedLevelFour",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.forcedLevelFour/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.forcedLevelFour/commands/activate"
+      },
       "ventilation.quickmodes.forcedLevelFour.defaultRuntime": {
         "api_feature": "ventilation.quickmodes.forcedLevelFour",
         "command": "setDefaultRuntime",
@@ -3021,6 +2881,13 @@
           "defaultRuntime"
         ],
         "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.forcedLevelFour/commands/setDefaultRuntime"
+      },
+      "ventilation.quickmodes.silent.active": {
+        "api_feature": "ventilation.quickmodes.silent",
+        "off_command": "deactivate",
+        "off_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.silent/commands/deactivate",
+        "on_command": "activate",
+        "on_uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/ventilation.quickmodes.silent/commands/activate"
       },
       "ventilation.quickmodes.silent.defaultRuntime": {
         "api_feature": "ventilation.quickmodes.silent",

@@ -1174,7 +1174,7 @@ class ViClient:
                 command response.
             ViResponseError: If the command response violates the API contract.
         """
-        response = await self._command_adapter.execute_command(uri, payload)
+        response = await self._command_adapter.send_command(uri, payload)
         outcome = parse_command_outcome(
             self._response_object(response, resource="Command")
         )

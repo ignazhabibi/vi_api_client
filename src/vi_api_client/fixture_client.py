@@ -119,7 +119,7 @@ class _FixtureDiscoveryAdapter:
 class _FixtureCommandAdapter:
     """Return deterministic command responses without modifying fixtures."""
 
-    async def execute_command(
+    async def send_command(
         self, uri: str, parameters: dict[str, JsonValue]
     ) -> dict[str, Any]:
         """Return a successful fixture command response."""

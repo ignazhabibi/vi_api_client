@@ -281,7 +281,9 @@ flowchart LR
     Installation -->|"logically owns"| Gateway
     Gateway -->|"connects"| Device["Device snapshot"]
     Device -->|"contains 0..n"| Feature
+    Device -->|"lists per API feature"| Commands["Reported commands"]
     Feature -->|"optionally carries"| Constraints["FeatureConstraints"]
+    Feature -->|"optionally carries"| Deprecation["FeatureDeprecation"]
 ```
 
 An `Installation` describes an installation. A `Gateway` connects it to
@@ -448,12 +450,16 @@ sequenceDiagram
     Client->>Device: resolve feature by name
     Device-->>Client: canonical current feature
     Client->>Client: validate writable, enabled, ready
-    Client->>Device: find required sibling values
-    Client->>Client: validate constraints
+    alt parameter setter
+        Client->>Device: find required sibling values
+        Client->>Client: validate constraints
+    else on/off command pair
+        Client->>Client: require a boolean, pick the on or off command
+    end
     alt validation fails
         Client-->>App: ValueError, no I/O
     else valid command
-        Client->>Adapter: execute_command(uri, payload)
+        Client->>Adapter: send_command(uri, payload)
         Adapter->>API: send or simulate
         API-->>Adapter: command response
         alt accepted
@@ -505,6 +511,34 @@ await client.run_command(
     "setCurve",
     {"slope": 1.4, "shift": 0},
 )
+```
+
+```mermaid
+sequenceDiagram
+    participant App as Consumer
+    participant Client as ViClient
+    participant Device as Refreshed snapshot
+    participant Adapter as Command adapter
+    participant API as Live API or fixture
+    App->>Client: run_command(device, api_feature, command, parameters)
+    Client->>Device: look up the reported command
+    alt snapshot without commands, unknown name
+        Client-->>App: ValueError, no I/O
+    else command found
+        Client->>Client: validate parameter names, required parameters, values
+        alt validation fails
+            Client-->>App: ValueError, no I/O
+        else valid command
+            Client->>Adapter: send_command(uri, parameters)
+            Adapter->>API: send or simulate
+            API-->>Adapter: command response
+            alt accepted
+                Client-->>App: None, no snapshot changes
+            else rejected
+                Client-->>App: ViCommandRejectedError
+            end
+        end
+    end
 ```
 
 Before any request, the core checks that every supplied parameter name is

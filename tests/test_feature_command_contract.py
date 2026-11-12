@@ -31,7 +31,7 @@ class _RecordingCommandAdapter:
         self.success = success
         self.response = response
 
-    async def execute_command(
+    async def send_command(
         self, uri: str, parameters: dict[str, Any]
     ) -> dict[str, Any]:
         """Record the command and return its configured response."""

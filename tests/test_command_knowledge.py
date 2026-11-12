@@ -1,13 +1,17 @@
-"""Command knowledge regression and snapshot contract tests.
+"""Command knowledge snapshot and device command list contract tests.
 
-The baseline in ``tests/fixtures/command_knowledge_baseline.json`` was
-generated from the implementation before the FeatureConstraints rework, so
-these tests pin the writable sets, their bindings, and the reported commands
-of every bundled fixture.
+``tests/fixtures/command_knowledge_baseline.json`` records how the library
+writes every writable feature of every bundled fixture and which commands
+every API feature reports. ``scripts/update_command_knowledge_baseline.py``
+regenerates it; run the script after refreshing or adding a fixture or after
+an intended parser change, and review the diff.
 """
 
+import importlib.util
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
+from types import ModuleType
 
 import pytest
 from builders import build_device, load_fixture_device, load_fixture_json
@@ -27,127 +31,67 @@ from vi_api_client.models import (
     ParameterWriteBinding,
 )
 
-BASELINE = load_fixture_json("command_knowledge_baseline.json")
-
-_DAYLIGHT_SAVING = [
-    "device.time.daylightSaving.begin",
-    "device.time.daylightSaving.end",
-]
-_HOLIDAY = [
-    "heating.operating.programs.holiday.end",
-    "heating.operating.programs.holiday.start",
-]
-_HOLIDAY_AT_HOME = [
-    "heating.operating.programs.holidayAtHome.end",
-    "heating.operating.programs.holidayAtHome.start",
-]
-
-# The baseline features that stopped being writable because only a command
-# whose name starts with "set" binds a value: they were written through
-# activate, schedule, or triggerDaily, which do more than store a value.
-NO_LONGER_WRITABLE = {
-    "Vitocal200S": [*_HOLIDAY],
-    "Vitocal222S": [*_DAYLIGHT_SAVING, *_HOLIDAY, *_HOLIDAY_AT_HOME],
-    # Vitocal250A keeps its daylight saving dates writable, see below.
-    "Vitocal250A": [*_HOLIDAY, *_HOLIDAY_AT_HOME],
-    "Vitocal333G-with-Vitovent300F": [
-        *_HOLIDAY,
-        "ventilation.quickmodes.holiday.end",
-        "ventilation.quickmodes.holiday.start",
-    ],
-    "Vitocharge03": [*_DAYLIGHT_SAVING],
-    "Vitodens200W": [
-        *_DAYLIGHT_SAVING,
-        "heating.dhw.hygiene.trigger.startHour",
-        "heating.dhw.hygiene.trigger.startMinute",
-        *_HOLIDAY,
-        *_HOLIDAY_AT_HOME,
-    ],
-    "Vitopure350": [],
-}
-
-# Vitocal250A reports the setter setActive(active, begin, end) next to
-# activate(begin, end), so its daylight saving dates stay writable and are
-# now written through the setter. No other fixture feature changed its command.
-REBOUND_TO_SETTER = {
-    "Vitocal250A": {
-        feature_name: {
-            "command": "setActive",
-            "parameter": feature_name.rsplit(".", 1)[-1],
-            "required": ["active", "begin", "end"],
-            "api_feature": "device.time.daylightSaving",
-        }
-        for feature_name in _DAYLIGHT_SAVING
-    }
-}
+SCRIPT_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "scripts"
+    / "update_command_knowledge_baseline.py"
+)
+FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
 
 
-def _expected_write_bindings(fixture_device: str) -> dict[str, dict[str, object]]:
-    """Return the baseline bindings after applying the setter rule."""
-    expected = dict(BASELINE[fixture_device]["write_bindings"])
-    for feature_name in NO_LONGER_WRITABLE[fixture_device]:
-        # Popping without a default proves the feature was writable before.
-        expected.pop(feature_name)
-    for feature_name, rebound in REBOUND_TO_SETTER.get(fixture_device, {}).items():
-        previous = expected[feature_name]
-        expected[feature_name] = {
-            **rebound,
-            "uri": previous["uri"].replace("/commands/activate", "/commands/setActive"),
-        }
-    return expected
+def _load_script() -> ModuleType:
+    """Import the baseline script as a module so its functions run in-process."""
+    spec = importlib.util.spec_from_file_location(
+        "update_command_knowledge_baseline", SCRIPT_PATH
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-@pytest.mark.parametrize("fixture_device", sorted(BASELINE), ids=sorted(BASELINE))
-async def test_every_fixture_keeps_its_writable_set_and_write_bindings(fixture_device):
-    """Only the setter rule changes the writable set; every other binding stays."""
-    # Arrange: Refresh one bundled fixture without availability filtering.
-    client = FixtureViClient(fixture_device)
-    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    refreshed = await client.refresh_device(device, only_available=False)
-
-    # Act: Collect the binding of every feature a parameter command writes.
-    # Features written through an on/off command pair became writable later
-    # and are pinned in test_command_pairs.py.
-    actual = {
-        feature.name: {
-            "command": binding.command_name,
-            "parameter": binding.parameter_name,
-            "uri": binding.uri,
-            "required": list(binding.required_parameters),
-            "api_feature": binding.api_feature_name,
-        }
-        for feature in refreshed.features
-        if isinstance(binding := feature.write_binding, ParameterWriteBinding)
-    }
-
-    # Assert: The writable set, commands, parameters, and URIs are unchanged.
-    assert actual == _expected_write_bindings(fixture_device)
-    for feature_name in NO_LONGER_WRITABLE[fixture_device]:
-        feature = refreshed.get_feature(feature_name)
-        assert feature is not None
-        assert not feature.is_writable
-        assert feature.constraints is None
+baseline_script = _load_script()
 
 
-@pytest.mark.parametrize("fixture_device", sorted(BASELINE), ids=sorted(BASELINE))
-async def test_device_lists_every_reported_command_after_a_full_refresh(
-    fixture_device,
-):
-    """A complete refresh carries every reported command per API feature."""
-    # Arrange: Refresh one bundled fixture without availability filtering.
-    client = FixtureViClient(fixture_device)
-    device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
-    refreshed = await client.refresh_device(device, only_available=False)
+@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
+def test_every_fixture_matches_the_command_knowledge_baseline(fixture_device):
+    """An unintended change of bindings or reported commands shows as a diff."""
+    # Arrange: Load the recorded command knowledge of every bundled fixture.
+    baseline = load_fixture_json("command_knowledge_baseline.json")
 
-    # Act: Read the reported command names of every API feature.
-    baseline_commands = BASELINE[fixture_device]["api_feature_commands"]
-    actual_commands = {
-        api_feature_name: list(refreshed.get_command_names(api_feature_name))
-        for api_feature_name in baseline_commands
-    }
+    # Act: Build the command knowledge of one fixture from the current parser.
+    actual = baseline_script.build_fixture_baseline(fixture_device)
 
-    # Assert: Every reported command, and only those, is listed per feature.
-    assert actual_commands == baseline_commands
+    # Assert: The write bindings and reported commands match the record.
+    assert actual == baseline.get(fixture_device), (
+        "The command knowledge changed. If that is intended, run "
+        "'python scripts/update_command_knowledge_baseline.py' and review the diff."
+    )
+
+
+def test_baseline_covers_exactly_the_bundled_fixtures():
+    """A removed fixture leaves no stale record behind."""
+    baseline = load_fixture_json("command_knowledge_baseline.json")
+
+    assert sorted(baseline) == sorted(FIXTURE_DEVICES)
+
+
+def test_baseline_script_writes_the_current_command_knowledge(tmp_path, monkeypatch):
+    """The script writes one sorted JSON document for every bundled fixture."""
+    # Arrange: Point the script at a temporary baseline file.
+    baseline_path = tmp_path / "tests" / "fixtures" / "baseline.json"
+    baseline_path.parent.mkdir(parents=True)
+    monkeypatch.setattr(baseline_script, "BASELINE_PATH", baseline_path)
+    monkeypatch.setattr(baseline_script, "PROJECT_ROOT", tmp_path)
+
+    # Act: Run the script.
+    assert baseline_script.main() == 0
+
+    # Assert: The written file equals the bundled record byte for byte.
+    assert baseline_path.read_text(encoding="utf-8") == (
+        Path(__file__).resolve().parent / "fixtures" / "command_knowledge_baseline.json"
+    ).read_text(encoding="utf-8")
 
 
 async def test_get_command_names_returns_the_reported_command_sets():
