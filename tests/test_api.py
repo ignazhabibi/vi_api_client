@@ -107,6 +107,32 @@ async def test_refresh_gateway_devices_refreshes_multiple_devices_with_one_reque
     }
 
 
+async def test_refresh_gateway_devices_drops_unavailable_features_the_api_returned(
+    vi_client,
+    mock_responses,
+):
+    # Arrange: A gateway response that reports one feature as not ready
+    # although the request asked the API to skip those.
+    response = deepcopy(load_fixture_json("gateway_device_features.json"))
+    device = build_device("0")
+    unavailable = next(
+        api_feature
+        for api_feature in response["data"]
+        if api_feature["feature"] == "heating.sensors.temperature.outside"
+    )
+    unavailable["isReady"] = False
+    mock_responses.post(_gateway_features_url(device), payload=response)
+
+    # Act: Refresh the device through the gateway operation.
+    result = await vi_client.refresh_gateway_devices([device])
+
+    # Assert: The snapshot holds only available features, like refresh_device.
+    (refreshed_device,) = result.refreshed_devices
+    assert refreshed_device.get_feature("heating.sensors.temperature.outside") is None
+    assert refreshed_device.features
+    assert all(feature.is_available for feature in refreshed_device.features)
+
+
 async def test_refresh_gateway_devices_falls_back_only_for_omitted_devices_in_input_order(
     vi_client, mock_responses
 ):

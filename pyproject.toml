@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vi_api_client"
-version = "6.1.1"
+version = "7.0.0"
 description = "Async Python client for Viessmann Climate Solutions API"
 readme = "README.md"
 authors = [

@@ -19,7 +19,7 @@ from vi_api_client import ViClient
 `ViClient` exposes typed discovery, refresh, and write operations rather than a
 generic HTTP interface. Use `set_feature(device, feature, value)` for a safe
 single-feature write with dependency resolution, or
-`run_command(device, feature_name, command_name, parameters)` for any command
+`run_command(device, api_feature_name, command_name, parameters)` for any command
 an API feature reports. Both operations report a rejected command through
 `ViCommandRejectedError`, so success always means that no exception was raised.
 
@@ -354,7 +354,7 @@ device = await client.set_feature(device, slope_feature, 0.7)
 device = await client.set_feature(device, shift_feature, 7.0)
 ```
 
-### `run_command(device: Device, feature_name: str, command_name: str, parameters: dict[str, JsonValue] | None = None) -> None`
+### `run_command(device: Device, api_feature_name: str, command_name: str, parameters: dict[str, JsonValue] | None = None) -> None`
 
 Runs one reported command of a device's API feature, addressed by names, and
 returns nothing. Use it when the caller knows the command to run, such as an

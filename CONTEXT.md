@@ -96,7 +96,7 @@ The binding travels with the feature, so copies stay writable and hand-built
 features are read-only.
 _Avoid_: Control block, command metadata object
 
-**On/off command pair**:
+**On/off command pair** (short: command pair):
 Two commands without required parameters that switch one boolean property on
 and off, such as `enable` and `disable` for `heating.dhw.hygiene.enabled`.
 The library's explicit pair table decides which pairs make a feature writable;
@@ -122,6 +122,12 @@ metadata a device snapshot carries; `Device.get_command_names` reads it. It
 stores neither executability nor deprecation.
 _Avoid_: Command registry
 
+**API command**:
+A command an API feature reports, addressed by the API feature name and the
+command name, such as `heating.operating.programs.holiday` and `schedule`.
+`Device.get_command_names` lists them and `run_command` sends one.
+_Avoid_: Raw command, feature action
+
 **Setter command**:
 A command whose name starts with `set`. Only a setter binds a value to a
 feature; a command such as `schedule` or `triggerDaily` does more than store a
@@ -131,9 +137,9 @@ example `run_command(device, "heating.operating.programs.holiday",
 _Avoid_: Write command, value command
 
 **Feature command**:
-The API operation that sends command parameters for a writable feature. How
-the library sends it is internal command knowledge; it is not the executed
-command.
+The API command `set_feature` sends for a writable feature: a setter command
+with its parameters, or one command of an on/off command pair. Which command
+that is, is internal command knowledge and not part of the public model.
 
 **Command rejection**:
 The API's refusal of a sent command, reported by `ViCommandRejectedError` with

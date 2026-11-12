@@ -491,7 +491,7 @@ def _validate_commands(commands: dict[str, Any]) -> None:
 
 
 def _validate_property_constraints(properties: dict[str, JsonValue]) -> None:
-    """Validate known property constraint metadata used for control construction."""
+    """Validate known property constraint metadata used to build feature constraints."""
     for property_data in properties.values():
         if not isinstance(property_data, dict):
             continue

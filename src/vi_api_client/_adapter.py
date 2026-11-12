@@ -81,7 +81,7 @@ class CommandAdapter(Protocol):
     not need to stub discovery methods.
     """
 
-    async def execute_command(
+    async def send_command(
         self, uri: str, parameters: dict[str, JsonValue]
     ) -> object: ...
 
@@ -139,9 +139,7 @@ class LiveAdapter:
             params=params,
         )
 
-    async def execute_command(
-        self, uri: str, parameters: dict[str, JsonValue]
-    ) -> object:
+    async def send_command(self, uri: str, parameters: dict[str, JsonValue]) -> object:
         """Return the raw command API response."""
         return await self._request("POST", uri, json=parameters, is_command=True)
 

@@ -505,6 +505,8 @@ class ViClient:
                 continue
             features, commands = parse_api_features(api_features, only_available=True)
             self._reject_duplicate_feature_names(features)
+            # The skip hints are only hints: filter locally like refresh_device.
+            features = [feature for feature in features if feature.is_available]
             refreshed_devices_by_id[device.id] = replace(
                 device, features=features, commands_by_api_feature=commands
             )
@@ -618,7 +620,7 @@ class ViClient:
     async def run_command(
         self,
         device: Device,
-        feature_name: str,
+        api_feature_name: str,
         command_name: str,
         parameters: dict[str, JsonValue] | None = None,
     ) -> None:
@@ -633,7 +635,7 @@ class ViClient:
 
         Args:
             device: The device snapshot carrying the API feature's commands.
-            feature_name: The API feature name, such as
+            api_feature_name: The API feature name, such as
                 ``heating.circuits.0.heating.curve``.
             command_name: The command name the API feature reports.
             parameters: The command parameters to send. Every required
@@ -658,7 +660,7 @@ class ViClient:
                 "refresh_device, refresh_gateway_devices, or "
                 "get_full_installation_status to obtain a snapshot with commands."
             )
-        reported_commands = commands_by_api_feature.get(feature_name, ())
+        reported_commands = commands_by_api_feature.get(api_feature_name, ())
         command = next(
             (
                 reported
@@ -669,15 +671,15 @@ class ViClient:
         )
         if command is None:
             raise self._unknown_command_error(
-                feature_name, command_name, commands_by_api_feature
+                api_feature_name, command_name, commands_by_api_feature
             )
-        _LOGGER.debug("Running %s of %s", command_name, feature_name)
+        _LOGGER.debug("Running %s of %s", command_name, api_feature_name)
         self._validate_command_parameters(command, payload)
         await self._send_command(command.uri, payload)
 
     @staticmethod
     def _unknown_command_error(
-        feature_name: str,
+        api_feature_name: str,
         command_name: str,
         commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]],
     ) -> ValueError:
@@ -690,28 +692,28 @@ class ViClient:
         the API features that report commands with a similar name, so a
         flat feature name points to its API feature.
         """
-        reported_commands = commands_by_api_feature.get(feature_name, ())
+        reported_commands = commands_by_api_feature.get(api_feature_name, ())
         if not reported_commands:
             similar = sorted(
                 name
                 for name, commands in commands_by_api_feature.items()
                 if commands
                 and (
-                    feature_name.startswith(f"{name}.")
-                    or name.startswith(f"{feature_name}.")
+                    api_feature_name.startswith(f"{name}.")
+                    or name.startswith(f"{api_feature_name}.")
                 )
             )
             detail = (
                 f"; API features with commands: {', '.join(similar)}" if similar else ""
             )
             return ValueError(
-                f"API feature '{feature_name}' reports no commands{detail}"
+                f"API feature '{api_feature_name}' reports no commands{detail}"
             )
         available_commands = ", ".join(
             sorted(command.name for command in reported_commands)
         )
         return ValueError(
-            f"API feature '{feature_name}' reports no command '{command_name}'; "
+            f"API feature '{api_feature_name}' reports no command '{command_name}'; "
             f"available commands: {available_commands}"
         )
 
@@ -1174,7 +1176,7 @@ class ViClient:
                 command response.
             ViResponseError: If the command response violates the API contract.
         """
-        response = await self._command_adapter.execute_command(uri, payload)
+        response = await self._command_adapter.send_command(uri, payload)
         outcome = parse_command_outcome(
             self._response_object(response, resource="Command")
         )

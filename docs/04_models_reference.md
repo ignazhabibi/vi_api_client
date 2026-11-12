@@ -96,11 +96,11 @@ feature response can validly be empty.
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
 | `features` | `Sequence[Feature]` | Read-only features supported by this device. | `(Feature(...),)` |
 
-### `get_command_names(feature_name: str) -> tuple[str, ...]`
+### `get_command_names(api_feature_name: str) -> tuple[str, ...]`
 
 Returns the sorted names of every command the API feature of that name
-reported in the snapshot, or an empty tuple. `feature_name` is the API feature
-name, such as `heating.operating.programs.holiday`; unknown names return `()`.
+reported in the snapshot, or an empty tuple. The name is an API feature name,
+such as `heating.operating.programs.holiday`; unknown names return `()`.
 The list includes commands the parser binds to no feature and commands of API
 features without properties, and it never exposes whether a command is
 executable or deprecated: the library sends the command and lets the API
@@ -128,9 +128,11 @@ stable capability, not a promise that a write succeeds right now. Check
 `ValueError` otherwise.
 
 Which command the library sends for a writable feature is internal command
-knowledge, not public API: the feature carries an internal write binding, so
-consumers cannot construct writable features by hand. Consumers get writable
-features from a client read and may copy them with `dataclasses.replace`.
+knowledge, not public API: the feature carries an internal write binding.
+Its classes are not exported from `vi_api_client` and are not part of the
+compatibility contract, so do not construct one by hand; this is a convention
+the library does not enforce. Consumers get writable features from a client
+read and may copy them with `dataclasses.replace`.
 
 A feature is writable in one of two ways. Usually a command parameter writes
 its value. A boolean feature without such a parameter setter is writable when
