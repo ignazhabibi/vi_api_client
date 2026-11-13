@@ -319,3 +319,122 @@ def test_rejected_export_leaves_the_baseline_alone(tmp_path, fixtures_dir, monke
     # Assert: A failed add never touches the baseline.
     assert exit_status == 1
     assert baseline_runs == []
+
+
+def _catalog_entry(fixtures_dir: Path, name: str) -> dict:
+    """Return the catalog entry of one fixture."""
+    devices = json.loads((fixtures_dir / "discovery.json").read_text())["devices"]
+    return next(device for device in devices if device["fixtureName"] == name)
+
+
+def test_device_id_adds_a_further_device_to_a_fixture(tmp_path, fixtures_dir, capsys):
+    # Arrange: Export the features of a second gateway device.
+    export_path = _write_export(
+        tmp_path, _export([_NAME_FEATURE], roles=["type:heatpump"])
+    )
+
+    # Act: Add the export as device 1 of the Vitocal250A fixture.
+    exit_status = _run(export_path, "Vitocal250A", fixtures_dir, "--device-id", "1")
+
+    # Assert: The device gets its own feature file and a catalog identity,
+    # and device 0 of the entry is unchanged.
+    assert exit_status == 0
+    written = json.loads((fixtures_dir / "Vitocal250A.1.json").read_text())
+    assert written == {"data": [_NAME_FEATURE]}
+    entry = _catalog_entry(fixtures_dir, "Vitocal250A")
+    assert entry["modelId"] == "E3_Vitocal_16"
+    assert entry["additionalDevices"] == [
+        {
+            "id": "1",
+            "modelId": "E3_Vitocal",
+            "deviceType": "heating",
+            "roles": ["type:heatpump"],
+        }
+    ]
+    assert "Added device 1 of fixture Vitocal250A" in capsys.readouterr().out
+
+
+def test_replace_keeps_further_devices_and_replaces_one_of_them(
+    tmp_path, fixtures_dir, capsys
+):
+    # Arrange: Give the Vitocal250A fixture two further devices.
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+    for device_id in ("2", "1"):
+        assert (
+            _run(export_path, "Vitocal250A", fixtures_dir, "--device-id", device_id)
+            == 0
+        )
+    renamed = {**_NAME_FEATURE, "feature": "device.variant"}
+    replacement_path = _write_export(tmp_path, _export([renamed]))
+
+    # Act: Replace device 0 and then device 2.
+    main_status = _run(replacement_path, "Vitocal250A", fixtures_dir, "--replace")
+    device_status = _run(
+        replacement_path, "Vitocal250A", fixtures_dir, "--replace", "--device-id", "2"
+    )
+
+    # Assert: Device 0 keeps the further devices, which stay in ID order, and
+    # only the replaced device's file changed.
+    assert (main_status, device_status) == (0, 0)
+    entry = _catalog_entry(fixtures_dir, "Vitocal250A")
+    assert [device["id"] for device in entry["additionalDevices"]] == ["1", "2"]
+    assert json.loads((fixtures_dir / "Vitocal250A.2.json").read_text()) == {
+        "data": [renamed]
+    }
+    assert json.loads((fixtures_dir / "Vitocal250A.1.json").read_text()) == {
+        "data": [_NAME_FEATURE]
+    }
+    assert "Replaced device 2 of fixture Vitocal250A" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("name", "options", "message"),
+    [
+        pytest.param(
+            "New", ["--device-id", "1"], "does not exist", id="unknown-fixture"
+        ),
+        pytest.param(
+            "Vitocal250A",
+            ["--device-id", "1", "--replace"],
+            "has no device '1'",
+            id="replace-unknown-device",
+        ),
+        pytest.param(
+            "Vitocal250A",
+            ["--device-id", "1.json"],
+            "Invalid device ID",
+            id="bad-device-id",
+        ),
+    ],
+)
+def test_device_id_rejects_without_writing(
+    tmp_path, fixtures_dir, capsys, name, options, message
+):
+    # Arrange: Write a usable export and remember the catalog.
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+    catalog_before = (fixtures_dir / "discovery.json").read_text(encoding="utf-8")
+
+    # Act: Try to add the export as a further device.
+    exit_status = _run(export_path, name, fixtures_dir, *options)
+
+    # Assert: The script fails with the reason and writes nothing.
+    assert exit_status == 1
+    assert message in capsys.readouterr().err
+    assert (fixtures_dir / "discovery.json").read_text(
+        encoding="utf-8"
+    ) == catalog_before
+    assert sorted(path.name for path in fixtures_dir.iterdir()) == ["discovery.json"]
+
+
+def test_device_id_rejects_a_device_that_already_exists(tmp_path, fixtures_dir, capsys):
+    # Arrange: Add device 1 to the Vitocal250A fixture.
+    export_path = _write_export(tmp_path, _export([_NAME_FEATURE]))
+    assert _run(export_path, "Vitocal250A", fixtures_dir, "--device-id", "1") == 0
+    capsys.readouterr()
+
+    # Act: Add device 1 again.
+    exit_status = _run(export_path, "Vitocal250A", fixtures_dir, "--device-id", "1")
+
+    # Assert: The existing device is kept.
+    assert exit_status == 1
+    assert "already has device '1'" in capsys.readouterr().err

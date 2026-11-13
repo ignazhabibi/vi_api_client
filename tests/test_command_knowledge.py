@@ -15,7 +15,12 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from builders import build_device, load_fixture_device, load_fixture_json
+from builders import (
+    build_device,
+    bundled_feature_files,
+    load_fixture_device,
+    load_fixture_json,
+)
 
 from vi_api_client import (
     Feature,
@@ -37,7 +42,7 @@ SCRIPT_PATH = (
     / "scripts"
     / "update_command_knowledge_baseline.py"
 )
-FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
+FEATURE_FILES = bundled_feature_files()
 
 
 def _load_script() -> ModuleType:
@@ -55,7 +60,7 @@ def _load_script() -> ModuleType:
 baseline_script = _load_script()
 
 
-@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
+@pytest.mark.parametrize("fixture_device", FEATURE_FILES, ids=FEATURE_FILES)
 def test_every_fixture_matches_the_command_knowledge_baseline(fixture_device):
     """An unintended change of bindings or reported commands shows as a diff."""
     # Arrange: Load the recorded command knowledge of every bundled fixture.
@@ -75,7 +80,7 @@ def test_baseline_covers_exactly_the_bundled_fixtures():
     """A removed fixture leaves no stale record behind."""
     baseline = load_fixture_json("command_knowledge_baseline.json")
 
-    assert sorted(baseline) == sorted(FIXTURE_DEVICES)
+    assert sorted(baseline) == FEATURE_FILES
 
 
 def test_baseline_script_writes_the_current_command_knowledge(tmp_path, monkeypatch):

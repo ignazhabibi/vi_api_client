@@ -133,8 +133,9 @@ async def test_every_catalog_device_supports_the_standard_workflow(fixture_devic
         gateway_serial=gateway.serial,
     )
 
-    # Assert: Discovery returns one device and the refresh hydrates it.
-    assert len(devices) == 1
+    # Assert: Discovery returns device "0" first, possibly followed by further
+    # gateway devices, and the refresh hydrates it.
+    assert devices[0].id == "0"
     device = await client.refresh_device(devices[0])
     assert device.features
 

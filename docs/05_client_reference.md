@@ -41,7 +41,10 @@ catalog defines each selectable fixture name, model identity, device type, and,
 where known, the device roles.
 A fixture added from a device export reports the model ID that the exported
 device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
-without a known model ID report their fixture name.
+without a known model ID report their fixture name. A fixture can model several
+devices on one gateway: `get_devices` then lists device `"0"` and every further
+catalogued device, each device reads its own features, and a gateway-scoped
+refresh reads the features of all of them.
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 

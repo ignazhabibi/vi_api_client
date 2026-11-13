@@ -39,6 +39,18 @@
       ]
     },
     {
+      "fixtureName": "Vitocal200A",
+      "modelId": "Vitocal200A-SystemController",
+      "deviceType": "heating",
+      "additionalDevices": [
+        {
+          "id": "1",
+          "modelId": "Vitocal200A-OutdoorUnit",
+          "deviceType": "heating"
+        }
+      ]
+    },
+    {
       "fixtureName": "Vitocal200S",
       "modelId": "Vitocal200S",
       "deviceType": "heating"

@@ -7,12 +7,17 @@ stays parseable by the library and consistent with the fixture catalog.
 import re
 
 import pytest
-from builders import BUNDLED_FIXTURES_DIR, load_fixture_device, load_fixture_features
+from builders import (
+    BUNDLED_FIXTURES_DIR,
+    bundled_feature_files,
+    load_fixture_device,
+    load_fixture_features,
+)
 
 from vi_api_client import FixtureViClient
 from vi_api_client.models import ParameterWriteBinding
 
-FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
+FEATURE_FILES = bundled_feature_files()
 
 
 # The discovery catalog and the event history responses share the fixture
@@ -21,7 +26,7 @@ _NON_DEVICE_FIXTURES = {"discovery", "event_history", "event_history_final_page"
 
 
 def test_fixture_discovery_metadata_matches_bundled_device_fixtures():
-    """Each bundled device fixture should have exactly one metadata definition."""
+    """Each bundled device feature file should have exactly one catalog identity."""
     # Arrange: Read the catalog and the device fixture files beside it.
     device_metadata = load_fixture_device("discovery")["devices"]
     device_files = sorted(
@@ -30,20 +35,27 @@ def test_fixture_discovery_metadata_matches_bundled_device_fixtures():
         if path.stem not in _NON_DEVICE_FIXTURES
     )
 
-    # Act: Collect the fixture names the catalog declares.
+    # Act: Collect the fixture names and further devices the catalog declares.
     catalogued_fixture_names = [device["fixtureName"] for device in device_metadata]
+    identities = [
+        identity
+        for entry in device_metadata
+        for identity in [entry, *entry.get("additionalDevices", [])]
+    ]
 
-    # Assert: Every file has exactly one entry with the discovery identity
-    # fields, and the public catalog lists exactly the bundled devices.
-    assert sorted(catalogued_fixture_names) == device_files
-    assert FixtureViClient.get_available_fixture_devices() == device_files
+    # Assert: Every file has exactly one catalog identity with the discovery
+    # fields, and the public catalog lists exactly the bundled fixtures.
+    assert device_files == FEATURE_FILES
+    assert FixtureViClient.get_available_fixture_devices() == sorted(
+        catalogued_fixture_names
+    )
     assert all(
-        isinstance(device["modelId"], str) and isinstance(device["deviceType"], str)
-        for device in device_metadata
+        isinstance(identity["modelId"], str) and isinstance(identity["deviceType"], str)
+        for identity in identities
     )
 
 
-@pytest.mark.parametrize("device_name", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
+@pytest.mark.parametrize("device_name", FEATURE_FILES, ids=FEATURE_FILES)
 def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
     """Each fixture device parses into features with usable write constraints."""
     # Act: Parse all features of the device fixture.

@@ -23,6 +23,8 @@ from vi_api_client.parsing import api_feature_to_flat_features  # noqa: E402
 
 # Fixture names become file names and CLI arguments, such as "Vitocal250A".
 _FIXTURE_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
+# Device IDs become part of file names, such as "Vitocal200A.1.json".
+_DEVICE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
 
 
 class FixtureError(Exception):
@@ -48,6 +50,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--replace",
         action="store_true",
         help="Replace an existing fixture and its catalog entry",
+    )
+    parser.add_argument(
+        "--device-id",
+        default="0",
+        help=(
+            "Gateway device ID of the export (default: 0). Another ID adds the "
+            "export as a further device of the existing fixture NAME"
+        ),
     )
     return parser
 
@@ -108,37 +118,12 @@ def _write_json(path: Path, document: object) -> None:
     )
 
 
-def add_fixture(
-    export_path: Path, name: str, fixtures_dir: Path, *, replace: bool = False
-) -> str:
-    """Add an export as a fixture file and a discovery catalog entry.
-
-    With `replace`, the export replaces a catalogued fixture of that name and
-    its catalog entry instead. The entry always takes the model ID the
-    exported device reported, so consumers see the real model.
-
-    Returns:
-        A summary of the added or replaced fixture.
+def _prepare_export(export_path: Path) -> tuple[dict[str, Any], int]:
+    """Return the redacted export and the number of features it parses into.
 
     Raises:
-        FixtureError: If the name is invalid, taken (or, with `replace`, not
-            catalogued), or the export is unusable.
+        FixtureError: If the export is unusable.
     """
-    if not _FIXTURE_NAME_PATTERN.fullmatch(name):
-        raise FixtureError(
-            f"Invalid fixture name {name!r}: use letters, digits, and hyphens"
-        )
-    catalog_path = fixtures_dir / "discovery.json"
-    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    fixture_path = fixtures_dir / f"{name}.json"
-    catalogued = {entry["fixtureName"]: entry for entry in catalog["devices"]}
-    if replace:
-        # Only catalogued names, so a typo cannot add a fixture by accident.
-        if name not in catalogued:
-            raise FixtureError(f"Fixture {name!r} does not exist")
-    elif fixture_path.exists() or name in catalogued:
-        raise FixtureError(f"Fixture {name!r} already exists")
-
     export = _read_export(export_path)
     # Redaction keeps the document's shape, so the result is still an object.
     redacted_export = cast("dict[str, Any]", redact_sensitive(export))
@@ -147,19 +132,80 @@ def add_fixture(
             "Warning: redacted sensitive data that the export still contained",
             file=sys.stderr,
         )
-    feature_count = _check_parses(redacted_export["data"])
+    return redacted_export, _check_parses(redacted_export["data"])
 
-    device = redacted_export["device"]
-    entry: dict[str, Any] = {
-        "fixtureName": name,
+
+def _identity(device: dict[str, Any]) -> dict[str, Any]:
+    """Return the catalog identity of an exported device.
+
+    Roles stay as the API reported them; exports without roles add none.
+    """
+    identity: dict[str, Any] = {
         "modelId": device["modelId"],
         "deviceType": device["deviceType"],
     }
-    # Roles stay as the API reported them; exports without roles add none.
     if device.get("roles"):
-        entry["roles"] = device["roles"]
+        identity["roles"] = device["roles"]
+    return identity
+
+
+def add_fixture(
+    export_path: Path,
+    name: str,
+    fixtures_dir: Path,
+    *,
+    replace: bool = False,
+    device_id: str = "0",
+) -> str:
+    """Add an export as a fixture file and a discovery catalog entry.
+
+    With `replace`, the export replaces a catalogued fixture of that name and
+    its catalog entry instead. The entry always takes the model ID the
+    exported device reported, so consumers see the real model.
+
+    A `device_id` other than "0" adds the export as a further device on the
+    gateway of the catalogued fixture `name` instead, or with `replace`
+    replaces that device.
+
+    Returns:
+        A summary of the added or replaced fixture.
+
+    Raises:
+        FixtureError: If the name or device ID is invalid, taken (or, with
+            `replace`, not catalogued), or the export is unusable.
+    """
+    if not _FIXTURE_NAME_PATTERN.fullmatch(name):
+        raise FixtureError(
+            f"Invalid fixture name {name!r}: use letters, digits, and hyphens"
+        )
+    if not _DEVICE_ID_PATTERN.fullmatch(device_id):
+        raise FixtureError(
+            f"Invalid device ID {device_id!r}: use letters, digits, and hyphens"
+        )
+    catalog_path = fixtures_dir / "discovery.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalogued = {entry["fixtureName"]: entry for entry in catalog["devices"]}
+    if device_id != "0":
+        return _add_further_device(
+            export_path, name, fixtures_dir, device_id, replace=replace
+        )
+
+    fixture_path = fixtures_dir / f"{name}.json"
+    if replace:
+        # Only catalogued names, so a typo cannot add a fixture by accident.
+        if name not in catalogued:
+            raise FixtureError(f"Fixture {name!r} does not exist")
+    elif fixture_path.exists() or name in catalogued:
+        raise FixtureError(f"Fixture {name!r} already exists")
+
+    redacted_export, feature_count = _prepare_export(export_path)
+    device = redacted_export["device"]
+    entry: dict[str, Any] = {"fixtureName": name, **_identity(device)}
     if isinstance(device.get("capturedAt"), str):
         entry["capturedAt"] = device["capturedAt"]
+    # Replacing device "0" keeps the fixture's further devices.
+    if replace and "additionalDevices" in catalogued[name]:
+        entry["additionalDevices"] = catalogued[name]["additionalDevices"]
     other_entries = [item for item in catalog["devices"] if item["fixtureName"] != name]
     catalog["devices"] = sorted(
         [*other_entries, entry], key=lambda item: item["fixtureName"]
@@ -170,6 +216,52 @@ def add_fixture(
     action = "Replaced" if replace else "Added"
     return (
         f"{action} fixture {name} ({entry['modelId']}, {entry['deviceType']}) "
+        f"with {feature_count} features"
+    )
+
+
+def _add_further_device(
+    export_path: Path,
+    name: str,
+    fixtures_dir: Path,
+    device_id: str,
+    *,
+    replace: bool,
+) -> str:
+    """Add or replace a further device of a catalogued fixture.
+
+    Raises:
+        FixtureError: If the fixture is not catalogued, the device ID is taken
+            (or, with `replace`, not catalogued), or the export is unusable.
+    """
+    catalog_path = fixtures_dir / "discovery.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    entry = next(
+        (item for item in catalog["devices"] if item["fixtureName"] == name), None
+    )
+    if entry is None:
+        raise FixtureError(f"Fixture {name!r} does not exist")
+    further_devices = entry.get("additionalDevices", [])
+    is_catalogued = any(device["id"] == device_id for device in further_devices)
+    if replace and not is_catalogued:
+        raise FixtureError(f"Fixture {name!r} has no device {device_id!r}")
+    if not replace and is_catalogued:
+        raise FixtureError(f"Fixture {name!r} already has device {device_id!r}")
+
+    redacted_export, feature_count = _prepare_export(export_path)
+    identity = {"id": device_id, **_identity(redacted_export["device"])}
+    entry["additionalDevices"] = sorted(
+        [*(item for item in further_devices if item["id"] != device_id), identity],
+        key=lambda item: item["id"],
+    )
+
+    feature_path = fixtures_dir / f"{name}.{device_id}.json"
+    _write_json(feature_path, {"data": redacted_export["data"]})
+    _write_json(catalog_path, catalog)
+    action = "Replaced" if replace else "Added"
+    return (
+        f"{action} device {device_id} of fixture {name} "
+        f"({identity['modelId']}, {identity['deviceType']}) "
         f"with {feature_count} features"
     )
 
@@ -192,7 +284,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         summary = add_fixture(
-            args.export, args.name, args.fixtures_dir, replace=args.replace
+            args.export,
+            args.name,
+            args.fixtures_dir,
+            replace=args.replace,
+            device_id=args.device_id,
         )
     except FixtureError as error:
         print(f"Error: {error}", file=sys.stderr)

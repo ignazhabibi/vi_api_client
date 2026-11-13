@@ -2,8 +2,10 @@
 
 import logging
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
+from builders import load_fixture_device
 
 from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
@@ -58,6 +60,59 @@ async def test_fixture_discovery_uses_each_fixture_metadata_definition(
     assert [(device.id, device.model_id, device.device_type) for device in devices] == [
         ("0", *identity)
     ]
+
+
+async def test_fixture_discovery_lists_every_device_of_a_multi_device_fixture():
+    client = FixtureViClient("Vitocal200A")
+
+    devices = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    assert [(device.id, device.model_id) for device in devices] == [
+        ("0", "Vitocal200A-SystemController"),
+        ("1", "Vitocal200A-OutdoorUnit"),
+    ]
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_refreshes_read_the_features_of_each_device():
+    # Arrange: Discover both devices of the Vitocal 200-A fixture.
+    client = FixtureViClient("Vitocal200A")
+    controller, outdoor_unit = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    compressor_speed = "heating.compressors.0.speed.current"
+
+    # Act: Refresh the devices one by one and together through their gateway.
+    single_refreshes = [
+        await client.refresh_device(device) for device in (controller, outdoor_unit)
+    ]
+    gateway_result = await client.refresh_gateway_devices([controller, outdoor_unit])
+
+    # Assert: Both paths give each device its own features: only the outdoor
+    # unit reports the compressor, and both report a serial.
+    assert gateway_result.errors_by_device_id == {}
+    for refreshed_controller, refreshed_outdoor_unit in (
+        single_refreshes,
+        gateway_result.refreshed_devices,
+    ):
+        assert refreshed_controller.get_feature(compressor_speed) is None
+        assert refreshed_outdoor_unit.get_feature(compressor_speed) is not None
+        assert refreshed_controller.get_feature("device.serial") is not None
+        assert refreshed_outdoor_unit.get_feature("device.serial") is not None
+    assert list(gateway_result.refreshed_devices) == single_refreshes
+
+
+async def test_fixture_export_of_a_further_device_holds_only_its_features():
+    client = FixtureViClient("Vitocal200A")
+    _, outdoor_unit = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    document = await client.export_device_fixture(outdoor_unit)
+
+    assert document["data"] == load_fixture_device("Vitocal200A.1")["data"]
+    assert document["device"] == {
+        "modelId": "Vitocal200A-OutdoorUnit",
+        "deviceType": "heating",
+        "roles": [],
+        "capturedAt": ANY,
+    }
 
 
 async def test_fixture_discovery_reports_catalogued_roles(monkeypatch):

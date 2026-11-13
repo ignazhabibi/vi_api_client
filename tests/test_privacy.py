@@ -7,13 +7,13 @@ import pytest
 from builders import (
     build_device,
     build_feature,
+    bundled_feature_files,
     load_fixture_device,
     unmask_identifiers,
 )
 
 from vi_api_client import (
     FeatureConstraints,
-    FixtureViClient,
     redact_device,
     redact_feature,
     redact_sensitive,
@@ -21,7 +21,7 @@ from vi_api_client import (
 from vi_api_client.models import ParameterWriteBinding
 from vi_api_client.parsing import parse_api_features
 
-FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
+FEATURE_FILES = bundled_feature_files()
 
 
 @pytest.mark.parametrize(
@@ -152,7 +152,7 @@ def test_redact_sensitive_keeps_coordinates_without_a_number(coordinate):
     assert redact_sensitive({"latitude": coordinate}) == {"latitude": coordinate}
 
 
-@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
+@pytest.mark.parametrize("fixture_device", FEATURE_FILES, ids=FEATURE_FILES)
 def test_redact_sensitive_restores_every_bundled_fixture_from_unmasked_data(
     fixture_device,
 ):
