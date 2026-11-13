@@ -2,13 +2,21 @@
 
 import argparse
 import asyncio
+import difflib
 import json
 import logging
 import math
 import os
 import sys
 import textwrap
-from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC
@@ -52,6 +60,10 @@ from .utils import format_feature, parse_cli_params
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 # Tokens and the OAuth client configuration are stored together in this file.
 DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
+
+# Similarity from difflib above which a known name counts as a likely typo
+# fix; sibling names such as circuits.0 and circuits.1 also pass it.
+_CLOSE_NAME_CUTOFF = 0.8
 
 _MAIN_EPILOG = """\
 examples:
@@ -445,7 +457,16 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             device, only_available=False, feature_names=[feature_name]
         )
         if not features:
-            print(f"Feature '{feature_name}' not found.")
+            # Only the miss pays for the extra read that finds similar names.
+            snapshot = await context.client.refresh_device(device, only_available=False)
+            known_names = [
+                *(feature.name for feature in snapshot.features),
+                *snapshot.commands_by_api_feature,
+            ]
+            print(
+                f"Feature '{feature_name}' not found."
+                f"{_close_name_hint(feature_name, known_names)}"
+            )
             return False
 
         if args.json:
@@ -745,6 +766,14 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
     return True
 
 
+def _close_name_hint(name: str, known_names: Iterable[str]) -> str:
+    """Return a hint naming up to three known names close to a missing one."""
+    matches = difflib.get_close_matches(
+        name, sorted(set(known_names)), n=3, cutoff=_CLOSE_NAME_CUTOFF
+    )
+    return f" Did you mean: {', '.join(matches)}?" if matches else ""
+
+
 async def _fetch_writable_feature(
     context: CLIContext, name: str
 ) -> tuple[Device, Feature, WriteBinding] | None:
@@ -759,7 +788,10 @@ async def _fetch_writable_feature(
     device_snapshot = await context.client.refresh_device(device, only_available=False)
     feature = device_snapshot.get_feature(name)
     if feature is None:
-        print(f"Error: Feature '{name}' not found.")
+        known_names = [feature.name for feature in device_snapshot.features]
+        print(
+            f"Error: Feature '{name}' not found.{_close_name_hint(name, known_names)}"
+        )
         return None
     binding = feature.write_binding
     if binding is None:

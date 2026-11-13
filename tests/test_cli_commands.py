@@ -35,6 +35,7 @@ from vi_api_client import (
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     CLIContext,
+    _close_name_hint,
     _deprecation_document,
     _deprecation_text,
     _dispatch_command,
@@ -660,11 +661,11 @@ async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, c
     """An unknown name fails the read rather than printing an empty result."""
     args = _cli_args("get-feature", "missing.feature")
     mock_cli_context.client.get_features.return_value = []
+    mock_cli_context.client.refresh_device.return_value = build_device("DEV1")
 
     assert await cmd_get_feature(args) is False
 
-    assert "Feature 'missing.feature' not found." in capsys.readouterr().out
-    mock_cli_context.client.refresh_device.assert_not_called()
+    assert capsys.readouterr().out == "Feature 'missing.feature' not found.\n"
 
 
 async def test_cmd_login_uses_environment_config_and_persists_it(
@@ -981,16 +982,16 @@ async def test_run_cli_exec_rejects_flat_feature_names(run_cli):
         "slope=1.4",
     )
 
-    # Assert: The failure names the similar API features reporting commands;
-    # API features without commands stay off the list.
+    # Assert: The failure names the similar API features reporting commands,
+    # the closest first; API features without commands stay off the list.
     assert exit_status == 1
     assert (
         "API feature 'heating.circuits.0.heating.curve.slope' reports no commands"
         in err
     )
     assert (
-        "API features with commands: heating.circuits.0, "
-        "heating.circuits.0.heating.curve" in err
+        "API features with commands: heating.circuits.0.heating.curve, "
+        "heating.circuits.0\n" in err
     )
 
 
@@ -2670,3 +2671,42 @@ def test_version_without_package_metadata_is_unknown(monkeypatch, capsys):
 
     # Assert: The version is reported as unknown instead of failing.
     assert capsys.readouterr().out == "vi-client unknown\n"
+
+
+async def test_run_cli_get_feature_suggests_close_names(run_cli):
+    exit_status, out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve.slop",
+    )
+
+    assert exit_status == 1
+    assert "Did you mean: heating.circuits.0.heating.curve.slope," in out
+
+
+async def test_run_cli_set_suggests_close_names(run_cli):
+    exit_status, out, _ = await run_cli(
+        "set", "--fixture-device", "Vitocal250A", "heating.dhw.temperature.mian", "50"
+    )
+
+    assert exit_status == 1
+    assert "Did you mean: heating.dhw.temperature.main," in out
+
+
+async def test_run_cli_exec_suggests_close_api_feature_names(run_cli):
+    exit_status, _, err = await run_cli(
+        "exec",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curv",
+        "setCurve",
+        "slope=1",
+    )
+
+    assert exit_status == 1
+    assert "API features with commands: heating.circuits.0.heating.curve," in err
+
+
+def test_close_name_hint_is_empty_without_a_close_name():
+    assert _close_name_hint("heating.nothing.like.it", ["device.serial"]) == ""

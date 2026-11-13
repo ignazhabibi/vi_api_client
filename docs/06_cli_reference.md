@@ -11,6 +11,17 @@ command's own options, authentication, general options, and the target device,
 followed by examples. `vi-client --version` prints the installed version, for
 example in a bug report.
 
+A feature name that does not exist names up to three close known names, so a
+typo points to the right one:
+
+```text
+$ vi-client set heating.dhw.temperature.mian 50
+Error: Feature 'heating.dhw.temperature.mian' not found. Did you mean: heating.dhw.temperature.main, ...?
+```
+
+`get-feature` and `set` suggest feature names; `exec` suggests API features
+that report commands.
+
 > **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file! Every command accepts `--token-file` to read and write tokens from a different path instead.
 
 ## 1. Login
