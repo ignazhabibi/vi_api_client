@@ -1019,7 +1019,9 @@
       "device.productIdentification": [],
       "device.productMatrix": [],
       "device.remoteReset": [],
-      "device.serial": [],
+      "device.serial": [
+        "setPrin"
+      ],
       "device.setDefaultValues": [],
       "device.time.daylightSaving": [
         "activate",

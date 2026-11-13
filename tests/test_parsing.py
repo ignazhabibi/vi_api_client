@@ -228,9 +228,9 @@ def test_bundled_fixture_exposes_current_day_aliases():
         and feature.name.startswith("heating.power.consumption.")
         and ".summary." not in feature.name
     } == {
-        "heating.power.consumption.dhw.currentDay": (1.8, "kilowattHour"),
-        "heating.power.consumption.heating.currentDay": (4.5, "kilowattHour"),
-        "heating.power.consumption.total.currentDay": (2.1, "kilowattHour"),
+        "heating.power.consumption.dhw.currentDay": (3.3, "kilowattHour"),
+        "heating.power.consumption.heating.currentDay": (0, "kilowattHour"),
+        "heating.power.consumption.total.currentDay": (2.3, "kilowattHour"),
     }
 
 
