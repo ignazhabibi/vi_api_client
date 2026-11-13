@@ -1,5 +1,6 @@
 """Tests for the CLI command handlers and the dispatch entry path."""
 
+import argparse
 import json
 import logging
 import subprocess
@@ -2610,3 +2611,36 @@ def test_removal_suffix_leaves_out_missing_fields(deprecation, expected_suffix):
     feature = replace(build_feature(), deprecation=deprecation)
 
     assert _removal_suffix(feature) == expected_suffix
+
+
+def _subcommand_names() -> list[str]:
+    """Return every subcommand name the parser offers."""
+    subparsers = next(
+        action
+        for action in build_parser()._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    return sorted(subparsers.choices)
+
+
+@pytest.mark.parametrize("command", _subcommand_names())
+def test_every_command_help_ends_with_examples(command, capsys):
+    # Act: Print the command's help.
+    with pytest.raises(SystemExit) as exit_info:
+        build_parser().parse_args([command, "--help"])
+
+    # Assert: The help exits cleanly, groups the shared options, and shows
+    # an example of the command itself.
+    assert exit_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "authentication:" in out
+    assert f"examples:\n  vi-client {command}" in out
+
+
+def test_main_help_lists_commands_and_examples(capsys):
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--help"])
+
+    out = capsys.readouterr().out
+    assert all(command in out for command in _subcommand_names())
+    assert "Run 'vi-client <command> --help'" in out

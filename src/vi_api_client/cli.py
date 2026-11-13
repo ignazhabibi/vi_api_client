@@ -51,6 +51,17 @@ from .utils import format_feature, parse_cli_params
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 # Tokens and the OAuth client configuration are stored together in this file.
 DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
+
+_MAIN_EPILOG = """\
+examples:
+  vi-client login --client-id <your-client-id>
+  vi-client list-devices
+  vi-client list-features --available --values
+  vi-client set heating.circuits.0.heating.curve.slope 1.2
+  vi-client list-features --fixture-device Vitocal250A
+
+Run 'vi-client <command> --help' for the options of one command.
+"""
 # Default safety limit on pages fetched for one event history window.
 # diff-features sources besides file paths.
 _LIVE_SOURCE = "live"
@@ -1215,41 +1226,66 @@ async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     return True
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the command line parser with one handler per subcommand."""
-    # Parent parser for common arguments
+def _shared_option_parsers() -> tuple[
+    argparse.ArgumentParser, argparse.ArgumentParser, argparse.ArgumentParser
+]:
+    """Return the parent parsers for common, installation, and device options.
+
+    The options are grouped so each command's help lists its own options
+    first.
+    """
     common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument(
-        "--client-id", help="OAuth Client ID (optional if saved)"
+    auth_group = common_parser.add_argument_group("authentication")
+    auth_group.add_argument("--client-id", help="OAuth client ID (optional if saved)")
+    auth_group.add_argument("--redirect-uri", help="OAuth redirect URI")
+    auth_group.add_argument(
+        "--token-file",
+        default=DEFAULT_TOKEN_FILE,
+        help=f"Path to save and load tokens (default: {DEFAULT_TOKEN_FILE})",
     )
-    common_parser.add_argument("--redirect-uri", help="OAuth Redirect URI")
-    common_parser.add_argument(
-        "--token-file", default=DEFAULT_TOKEN_FILE, help="Path to save/load tokens"
-    )
-    common_parser.add_argument(
+    auth_group.add_argument(
         "--insecure", action="store_true", help="Disable SSL verification"
     )
-    common_parser.add_argument(
-        "--fixture-device", help="Use a fixture device (e.g. Vitodens200W)"
+    general_group = common_parser.add_argument_group("general")
+    general_group.add_argument(
+        "--fixture-device",
+        metavar="NAME",
+        help="Use a bundled fixture device offline (see list-fixture-devices)",
     )
-    common_parser.add_argument(
+    general_group.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging for the CLI and the library",
     )
 
     # Parent parsers for the optional installation and device target
+    target_title = "target (the first one found is used when omitted)"
     installation_parser = argparse.ArgumentParser(add_help=False)
-    installation_parser.add_argument(
-        "--installation-id", help="Installation ID (optional)"
+    installation_parser.add_argument_group(target_title).add_argument(
+        "--installation-id", metavar="ID", help="Installation ID"
     )
-    device_parser = argparse.ArgumentParser(
-        add_help=False, parents=[installation_parser]
+    device_parser = argparse.ArgumentParser(add_help=False)
+    device_target_group = device_parser.add_argument_group(target_title)
+    device_target_group.add_argument(
+        "--installation-id", metavar="ID", help="Installation ID"
     )
-    device_parser.add_argument("--gateway-serial", help="Gateway Serial (optional)")
-    device_parser.add_argument("--device-id", help="Device ID (optional)")
+    device_target_group.add_argument(
+        "--gateway-serial", metavar="SERIAL", help="Gateway serial"
+    )
+    device_target_group.add_argument("--device-id", metavar="ID", help="Device ID")
 
-    parser = argparse.ArgumentParser(description="Viessmann API CLI")
+    return common_parser, installation_parser, device_parser
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the command line parser with one handler per subcommand."""
+    common_parser, installation_parser, device_parser = _shared_option_parsers()
+    parser = argparse.ArgumentParser(
+        prog="vi-client",
+        description="Read and control Viessmann devices through the Viessmann API.",
+        epilog=_MAIN_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     # Commands without a target or JSON option still read these attributes.
     parser.set_defaults(
         handler=None,
@@ -1259,23 +1295,52 @@ def build_parser() -> argparse.ArgumentParser:
         device_id=None,
         json=False,
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(
+        dest="command", title="commands", metavar="<command>"
+    )
 
-    # Login
-    subparsers.add_parser(
-        "login", help="Authenticate with Viessmann", parents=[common_parser]
+    def add_command(
+        name: str,
+        summary: str,
+        examples: Sequence[str],
+        parents: Sequence[argparse.ArgumentParser],
+    ) -> argparse.ArgumentParser:
+        """Add one subcommand whose help ends with usage examples."""
+        return subparsers.add_parser(
+            name,
+            help=summary,
+            description=summary,
+            epilog="examples:\n" + "\n".join(f"  {example}" for example in examples),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            parents=parents,
+        )
+
+    add_command(
+        "login",
+        "Sign in with the Viessmann account and save the tokens",
+        ["vi-client login --client-id <your-client-id>"],
+        [common_parser],
     ).set_defaults(handler=cmd_login)
 
-    # List Devices
-    subparsers.add_parser(
-        "list-devices", help="List installations and devices", parents=[common_parser]
+    add_command(
+        "list-devices",
+        "List the installations, gateways, and devices of the account",
+        [
+            "vi-client list-devices",
+            "vi-client list-devices --fixture-device Vitocal200A",
+        ],
+        [common_parser],
     ).set_defaults(handler=cmd_list_devices)
 
-    # List Features
-    parser_features = subparsers.add_parser(
+    parser_features = add_command(
         "list-features",
-        help="List all features for a device",
-        parents=[common_parser, device_parser],
+        "List the features of a device",
+        [
+            "vi-client list-features --available --values",
+            "vi-client list-features --deprecated",
+            "vi-client list-features --json --fixture-device Vitocal250A",
+        ],
+        [common_parser, device_parser],
     )
     parser_features.add_argument(
         "--available",
@@ -1293,29 +1358,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--values", action="store_true", help="Show feature values"
     )
     parser_features.add_argument(
-        "--json", action="store_true", help="Output JSON (for lists)"
+        "--json", action="store_true", help="Print the features as JSON"
     )
     parser_features.set_defaults(handler=cmd_list_features)
 
-    # Get Feature
-    parser_feature = subparsers.add_parser(
+    parser_feature = add_command(
         "get-feature",
-        help="Get a specific feature",
-        parents=[common_parser, device_parser],
+        "Show one feature, or every feature of an API feature, with its commands",
+        [
+            "vi-client get-feature heating.circuits.0.heating.curve.slope",
+            "vi-client get-feature heating.circuits.0.heating.curve --json",
+        ],
+        [common_parser, device_parser],
     )
     parser_feature.add_argument(
-        "feature_name", help="Feature Name (e.g. heating.circuits.0)"
+        "feature_name", help="Feature or API feature name, e.g. heating.circuits.0"
     )
     parser_feature.add_argument(
         "--json", action="store_true", help="Print the matching features as JSON"
     )
     parser_feature.set_defaults(handler=cmd_get_feature)
 
-    # List Installation Events
-    parser_events = subparsers.add_parser(
+    parser_events = add_command(
         "list-events",
-        help="List the installation event history for a lookback window",
-        parents=[common_parser, installation_parser],
+        "List the installation event history for a lookback window",
+        [
+            "vi-client list-events --days 7",
+            "vi-client list-events --days 30 --limit 100 --json",
+        ],
+        [common_parser, installation_parser],
     )
     parser_events.add_argument(
         "--days",
@@ -1344,18 +1415,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_events.set_defaults(handler=cmd_list_events)
 
-    # List available fixture devices
-    subparsers.add_parser(
+    add_command(
         "list-fixture-devices",
-        help="List available fixture devices",
-        parents=[common_parser],
+        "List the bundled fixture devices usable with --fixture-device",
+        ["vi-client list-fixture-devices"],
+        [common_parser],
     ).set_defaults(handler=cmd_list_fixture_devices)
 
-    # Diff Features
-    parser_diff = subparsers.add_parser(
+    parser_diff = add_command(
         "diff-features",
-        help="Compare the features of two fixtures, exports, or the live device",
-        parents=[common_parser, device_parser],
+        "Compare the features of two fixtures, exports, or the live device",
+        [
+            "vi-client diff-features fixture:Vitocal250A live",
+            "vi-client diff-features fixture:Vitocal222S fixture:Vitocal250A",
+        ],
+        [common_parser, device_parser],
     )
     for side in ("left", "right"):
         parser_diff.add_argument(
@@ -1363,45 +1437,54 @@ def build_parser() -> argparse.ArgumentParser:
         )
     parser_diff.set_defaults(handler=cmd_diff_features)
 
-    # Dump Device
-    subparsers.add_parser(
+    add_command(
         "dump-device",
-        help="Print a device's features as an anonymized fixture (JSON)",
-        parents=[common_parser, device_parser],
+        "Print a device's features as an anonymized fixture (JSON)",
+        ["vi-client dump-device > export.json"],
+        [common_parser, device_parser],
     ).set_defaults(handler=cmd_dump_device, json=True)
 
-    # List Writable Features
-    subparsers.add_parser(
+    add_command(
         "list-writable",
-        help="List all writable features (commands)",
-        parents=[common_parser, device_parser],
+        "List the writable features of a device",
+        ["vi-client list-writable"],
+        [common_parser, device_parser],
     ).set_defaults(handler=cmd_list_writable)
 
-    # Set Value
-    parser_set = subparsers.add_parser(
+    parser_set = add_command(
         "set",
-        help="Set a feature value",
-        parents=[common_parser, device_parser],
+        "Set the value of a writable feature",
+        [
+            "vi-client set heating.circuits.0.heating.curve.slope 1.2",
+            "vi-client set heating.dhw.temperature.main 50",
+        ],
+        [common_parser, device_parser],
     )
     parser_set.add_argument(
         "feature_name",
-        help="Feature Name (e.g. heating.circuits.0.heating.curve.slope)",
+        help="Feature name, e.g. heating.circuits.0.heating.curve.slope",
     )
     parser_set.add_argument("value", help="Value to set")
     parser_set.set_defaults(handler=cmd_set)
 
-    # Exec Command (Advanced)
-    parser_exec = subparsers.add_parser(
+    parser_exec = add_command(
         "exec",
-        help="Run a command of an API feature (Advanced)",
-        parents=[common_parser, device_parser],
+        "Run a command of an API feature (advanced)",
+        [
+            "vi-client exec heating.circuits.0.heating.curve setCurve "
+            "slope=1.2 shift=0",
+            "vi-client exec heating.operating.programs.holiday unschedule",
+        ],
+        [common_parser, device_parser],
     )
     parser_exec.add_argument(
         "feature_name",
-        help="API Feature Name (e.g. heating.circuits.0.heating.curve)",
+        help="API feature name, e.g. heating.circuits.0.heating.curve",
     )
-    parser_exec.add_argument("command_name", help="Command Name")
-    parser_exec.add_argument("params", nargs="*", help="Parameters (key=value)")
+    parser_exec.add_argument("command_name", help="Command name, e.g. setCurve")
+    parser_exec.add_argument(
+        "params", nargs="*", metavar="key=value", help="Command parameters"
+    )
     parser_exec.set_defaults(handler=cmd_exec)
 
     return parser
