@@ -13,13 +13,21 @@ from vi_api_client.utils import format_feature
 # The bundled fixture devices and the model IDs and device types their catalog
 # entries declare. Fixtures added from a device export carry the real model ID.
 EXPECTED_DEVICE_IDENTITIES = {
+    "VitoairFs300E": ("E3_ViAir_300F_13", "ventilation"),
     "Vitocal200S": ("Vitocal200S", "heating"),
     "Vitocal222S": ("Vitocal222S", "heating"),
     "Vitocal250A": ("E3_Vitocal_16", "heating"),
+    "Vitocal250A-TwoCircuits": ("E3_Vitocal_17", "heating"),
+    "Vitocal252A": ("Vitocal252A", "heating"),
+    "Vitocal262A-T2H-R290": ("E3_Vitocal_262_02", "heating"),
+    "Vitocal300G-CU401B": ("CU401B_G", "heating"),
     "Vitocal333G-with-Vitovent300F": ("Vitocal333G-with-Vitovent300F", "heating"),
     "Vitocharge03": ("Vitocharge03", "battery"),
+    "VitochargeEvolution08": ("E3_VitoCharge_Evolution_08", "electricityStorage"),
+    "Vitodens100W": ("Vitodens100W", "heating"),
     "Vitodens200W": ("Vitodens200W", "heating"),
-    "Vitopure350": ("Vitopure350", "ventilation"),
+    "Vitodens300W-B3HF-19": ("E3_Vitodens_300_0419", "heating"),
+    "Vitopure350": ("E3_VitoPure", "ventilation"),
 }
 
 
