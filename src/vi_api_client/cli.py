@@ -556,18 +556,20 @@ def _print_command_list(device: Device, api_feature_name: str) -> None:
 
     A ``*`` marks a required parameter.
     """
-    commands = device.commands_by_api_feature.get(api_feature_name, ())
-
-    if not commands:
+    command_names = device.get_command_names(api_feature_name)
+    if not command_names:
         return
     print(f"  Commands of {api_feature_name}:")
-    for command in commands:
+    for command_name in command_names:
+        parameters = device.get_command_parameters(api_feature_name, command_name)
+        # Every listed name is a reported command, so it has a parameter list.
+        assert parameters is not None  # noqa: S101
         parameter_labels = ", ".join(
             f"{parameter.name}{'*' if parameter.required is not False else ''}"
-            for parameter in command.parameters
+            for parameter in parameters
         )
-        print(f"  - {command.name}: {parameter_labels or 'none'}")
-        for parameter in command.parameters:
+        print(f"  - {command_name}: {parameter_labels or 'none'}")
+        for parameter in parameters:
             _print_parameter_rules(parameter)
 
 
