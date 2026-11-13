@@ -285,6 +285,25 @@ def parse_api_features(
     return features, commands_by_api_feature
 
 
+def owning_api_feature_name(device: Device, feature_name: str) -> str | None:
+    """Return the API feature of a device snapshot that one feature belongs to.
+
+    The longest API feature name the feature name equals or starts with,
+    followed by a dot, owns the feature. Only API features the snapshot's
+    command list records are candidates, and a snapshot without one owns
+    nothing.
+    """
+    return max(
+        (
+            name
+            for name in device.commands_by_api_feature
+            if feature_name == name or feature_name.startswith(f"{name}.")
+        ),
+        key=len,
+        default=None,
+    )
+
+
 def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
     """Return the internal metadata of every command of one API feature."""
     commands: list[DeviceCommand] = []

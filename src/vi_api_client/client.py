@@ -36,6 +36,7 @@ from .models import (
     WriteBinding,
 )
 from .parsing import (
+    owning_api_feature_name,
     parse_api_features,
     parse_command_outcome,
     parse_device,
@@ -915,17 +916,7 @@ class ViClient:
             ValueError: If the feature cannot currently execute a command.
         """
         if not feature.is_writable:
-            # The longest API feature name the feature name starts with owns
-            # the feature; the snapshot lists every API feature of a refresh.
-            api_feature_name = max(
-                (
-                    name
-                    for name in device.commands_by_api_feature
-                    if feature.name == name or feature.name.startswith(f"{name}.")
-                ),
-                key=len,
-                default=None,
-            )
+            api_feature_name = owning_api_feature_name(device, feature.name)
             command_names = (
                 device.get_command_names(api_feature_name) if api_feature_name else ()
             )

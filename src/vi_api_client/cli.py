@@ -45,6 +45,7 @@ from .models import (
     WriteBinding,
     parse_instant,
 )
+from .parsing import owning_api_feature_name
 from .utils import format_feature, parse_cli_params
 
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
@@ -481,7 +482,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             if constraints.options:
                 print(f"  Options: {constraints.options}")
         else:
-            api_feature_name = _matching_api_feature_name(snapshot, feature.name)
+            api_feature_name = owning_api_feature_name(snapshot, feature.name)
         if api_feature_name is not None and (
             api_feature_name not in api_feature_sections
         ):
@@ -532,23 +533,6 @@ def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
 def _pair_commands_text(binding: CommandPairWriteBinding) -> str:
     """Return both commands of an on/off pair for text output."""
     return f"{binding.on_command_name} (on), {binding.off_command_name} (off)"
-
-
-def _matching_api_feature_name(device: Device, feature_name: str) -> str | None:
-    """Return the API feature with commands that one feature belongs to.
-
-    The longest API feature name the feature name starts with owns the
-    feature; API features without commands cannot own one for this purpose
-    because they have nothing to list.
-    """
-    candidates = [
-        name
-        for name in device.commands_by_api_feature
-        if feature_name == name or feature_name.startswith(f"{name}.")
-    ]
-    if not candidates:
-        return None
-    return max(candidates, key=len)
 
 
 def _print_command_list(device: Device, api_feature_name: str) -> None:
@@ -767,7 +751,7 @@ async def _fetch_writable_feature(
         return None
     binding = feature.write_binding
     if binding is None:
-        api_feature_name = _matching_api_feature_name(device_snapshot, feature.name)
+        api_feature_name = owning_api_feature_name(device_snapshot, feature.name)
         command_names = (
             device_snapshot.get_command_names(api_feature_name)
             if api_feature_name
