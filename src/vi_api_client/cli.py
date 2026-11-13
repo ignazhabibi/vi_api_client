@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC
 from functools import wraps
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -1226,6 +1227,14 @@ async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     return True
 
 
+def _installed_version() -> str:
+    """Return the installed package version, or "unknown" without metadata."""
+    try:
+        return version("vi_api_client")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def _shared_option_parsers() -> tuple[
     argparse.ArgumentParser, argparse.ArgumentParser, argparse.ArgumentParser
 ]:
@@ -1285,6 +1294,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Read and control Viessmann devices through the Viessmann API.",
         epilog=_MAIN_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_installed_version()}",
+        help="Show the installed vi_api_client version and exit",
     )
     # Commands without a target or JSON option still read these attributes.
     parser.set_defaults(

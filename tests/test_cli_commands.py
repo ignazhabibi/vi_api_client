@@ -1,6 +1,7 @@
 """Tests for the CLI command handlers and the dispatch entry path."""
 
 import argparse
+import importlib.metadata
 import json
 import logging
 import subprocess
@@ -2644,3 +2645,28 @@ def test_main_help_lists_commands_and_examples(capsys):
     out = capsys.readouterr().out
     assert all(command in out for command in _subcommand_names())
     assert "Run 'vi-client <command> --help'" in out
+
+
+def test_version_prints_the_installed_package_version(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        build_parser().parse_args(["--version"])
+
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out == (
+        f"vi-client {importlib.metadata.version('vi_api_client')}\n"
+    )
+
+
+def test_version_without_package_metadata_is_unknown(monkeypatch, capsys):
+    # Arrange: Run from a source tree without installed package metadata.
+    def missing_metadata(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr("vi_api_client.cli.version", missing_metadata)
+
+    # Act: Ask for the version.
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--version"])
+
+    # Assert: The version is reported as unknown instead of failing.
+    assert capsys.readouterr().out == "vi-client unknown\n"
