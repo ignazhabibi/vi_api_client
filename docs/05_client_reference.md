@@ -225,10 +225,8 @@ Fetches features for a specific device. This is the primary method to read data.
     *   `only_available`: if `True` (default), only returns features that are enabled and ready.
     *   `feature_names`: Optional list of feature names or API feature names to return (e.g. `["heating.circuits.0.heating.curve.slope"]` or `["heating.circuits.0.heating.curve"]`). An API feature name selects every feature parsed from it. If None, returns all features.
 *   **Returns**: List of `Feature` objects. Unknown names select nothing; they do not raise.
-*   **Matching**: The client always fetches the device's features and matches names locally after parsing, so live and fixture-backed clients return the same features. A name that is both a feature name and an API feature name, such as `heating.circuits.0.name`, selects both matches. The request therefore carries the whole device feature set even when only a few names are requested; the number of API calls does not change.
-*   **Default filter**: Because `only_available` defaults to `True`, a targeted read
-    with `feature_names` returns no disabled or not-ready feature unless the
-    caller passes `only_available=False`.
+*   **Matching**: Names are matched locally after one read of all the device's features, so live and fixture-backed clients return the same features. A name that is both a feature name and an API feature name selects both.
+*   **Default filter**: With the default `only_available=True`, a targeted read returns no disabled or not-ready feature.
 
 ### `refresh_device(device: Device, only_available: bool = True) -> Device`
 Refreshes a specific device by refetching all its features.
@@ -300,7 +298,7 @@ only.
 *   **Parameters**:
     *   `devices`: Existing devices from exactly one installation and gateway. Device IDs must be unique.
 *   **Returns**: A `GatewayDeviceRefreshResult`. Successful new devices preserve their relative input order; recognized device-specific failures are keyed separately by device ID.
-*   **Fallback**: Devices omitted from a valid bulk response are retried individually. A gateway-wide `DEVICE_COMMUNICATION_ERROR` retries all requested devices individually.
+*   **Fallback**: Devices omitted from a valid bulk response are retried individually. A gateway-wide device communication error retries all requested devices individually.
 *   **Raises**:
     *   `ValueError` for mixed installations, mixed gateways, or duplicate device IDs.
     *   `ViResponseError` for malformed successful responses.
@@ -320,64 +318,51 @@ for device_id, error in result.errors_by_device_id.items():
 `get_full_installation_status` use their single-device request and error
 semantics rather than this gateway-scoped partial-result contract.
 
+### Writing a value end to end
+
+```python
+device = await client.refresh_device(device)
+slope = device.get_feature("heating.circuits.0.heating.curve.slope")
+if slope is not None and slope.is_settable:
+    try:
+        device = await client.set_feature(device, slope, 0.7)
+    except ValueError as error:
+        ...  # rejected locally, nothing was sent
+    except ViCommandRejectedError as error:
+        ...  # the device refused; keep the previous snapshot
+```
+
+Read `slope.constraints` to offer valid values first. Keep the returned
+snapshot for the next write, and refresh when you need the device's own state.
+
 ### `set_feature(device: Device, feature: Feature | str, target_value: FeatureValue) -> Device`
-Sends a feature command for the feature with the same name in the supplied
-current device snapshot and returns a command-updated device snapshot, without
-an API read-back.
+Sends the command that writes one feature of the current snapshot and returns
+a snapshot with the value set locally, without reading it back from the API.
 
 *   **Parameters**:
-    *   `device`: The `Device` object.
-    *   `feature`: A `Feature` or a feature name present in `device`; the
-        current device feature must be writable, enabled, and ready. A supplied
-        `Feature` is only a name reference: stale values and constraints from
-        the object are ignored.
-    *   `target_value`: The new value to set; any `JsonValue` (null, boolean,
-        number, string, list, or string-keyed object).
-*   **Returns**: The command-updated `Device` snapshot with the feature value
-    set locally. A rejected command raises `ViCommandRejectedError`, so the
-    caller keeps its previous snapshot.
-*   **On/off command pairs**: A boolean feature that its device changes only
-    through two commands without parameters, such as
-    `heating.dhw.hygiene.enabled` with `enable` and `disable`, is written the
-    same way: `True` sends the on command and `False` the off command, each
-    with an empty JSON object, and any non-boolean value raises `ValueError`
-    before a request. An optional parameter of the on command is not sent.
-    Which pairs count is an explicit table; see
-    [Boolean features written through an on/off command pair](02_api_structure.md#boolean-features-written-through-an-onoff-command-pair).
-    The library does not check whether the device allows the requested
-    direction at the moment, because the reported `isExecutable` flags
-    describe the state before the write. The API decides, and a command it
-    does not allow raises `ViCommandRejectedError`.
+    *   `device`: The current device snapshot.
+    *   `feature`: A `Feature` or feature name of `device`. Only the name
+        counts; the feature in `device` must be writable, enabled, and ready.
+    *   `target_value`: The new value, any `JsonValue`.
+*   **Returns**: The updated `Device` snapshot. Use it for the next write.
+*   **Which features are writable**: A feature is written through a command
+    whose name starts with `set`, or, for some booleans, through an on/off
+    command pair such as `enable` and `disable`
+    ([command pairs](02_api_structure.md#boolean-features-written-through-an-onoff-command-pair)).
+    A feature that only another command takes, such as a holiday date with
+    `schedule`, is read-only; the error names `run_command` and the commands
+    to use ([setter commands](02_api_structure.md#only-setter-commands-write-a-value)).
+*   **Other parameters**: Further required parameters of the command are
+    taken from enabled, ready sibling features of the snapshot.
 *   **Raises**:
-    *   `ValueError` if the feature is absent from the device, unavailable,
-        missing a required enabled and ready sibling value, has a different
-        type than the command parameter reports (`number`, `integer`,
-        `string`, or `boolean`; a boolean never counts as a number), violates
-        client-side constraints, or the value is not a JSON value. These
-        raise before any request is sent.
-    *   `ViCommandRejectedError` if the API rejects the command: a command
-        response with `success` false, or the recorded status 400
-        `DEVICE_COMMUNICATION_ERROR` rejection with
-        `extendedPayload.reason` `COMMAND_NOT_EXECUTABLE`.
-    *   `ViResponseError` if the command URI is outside the Vi API or the
-        successful command response violates the API contract; no request is
-        sent to a URI outside the Vi API.
-    *   `ViConnectionError` if the API call fails.
-    *   Other `ViError` subclasses for authentication, rate-limit, server, or
-        device communication failures.
-*   **Setter commands only**: A value is written only through a command whose
-    name starts with `set`. A feature that only another command takes as a
-    parameter, such as `heating.operating.programs.holiday.start` with
-    `schedule`, is read-only; `set_feature` raises a `ValueError` that names
-    `run_command` and the commands the feature's API feature reports. See
-    [Only setter commands write a value](02_api_structure.md#only-setter-commands-write-a-value).
-*   **Magic**: This method uses the current device feature's command metadata,
-    always includes its target parameter, and resolves each other required
-    parameter from an enabled, ready sibling feature with a non-`None` value.
-    Optional sibling parameters are not added automatically.
-*   **Important**: The returned device is a local command-updated snapshot, not
-    an API refresh. Always use it for subsequent commands, then refresh when
-    authoritative API state is needed.
+    *   `ValueError` before any request, when the feature is missing,
+        unavailable, or read-only, a required sibling value is missing, or
+        the value has the wrong type or breaks a constraint.
+    *   `ViCommandRejectedError` when the device refuses the command; see
+        [Command Rejections](07_exceptions_reference.md#command-rejections).
+    *   `ViResponseError` for a command URI outside the Vi API or a malformed
+        response, and other `ViError` subclasses for connection,
+        authentication, rate-limit, server, or device failures.
 
 **Example**:
 ```python
@@ -394,26 +379,18 @@ returns nothing. Use it when the caller knows the command to run, such as an
 advanced integration writing both heating-curve values at once or planning a
 holiday with `schedule` and cancelling it with `unschedule`.
 
-The command is resolved from the internal command list of the snapshot, so the
-`device` must come from `refresh_device`, `refresh_gateway_devices`, or
-`get_full_installation_status`; a snapshot assembled from `get_features`
-carries no command list, and `run_command` raises a `ValueError` saying the
-snapshot has no commands and must come from a device refresh. The command does
-not need to be the one bound to a feature, and reported executability and
-deprecation are not checked: a command the API reported as non-executable is
-sent like any other, and the API decides. No snapshot is changed.
+The `device` must come from `refresh_device`, `refresh_gateway_devices`, or
+`get_full_installation_status`; a snapshot built from `get_features` has no
+command list and raises `ValueError`. Any reported command can run, also one
+the API reports as not executable at the moment: the API decides. No snapshot
+is changed.
 
-`Device.get_command_parameters` lists the parameters a command reports, with
-their requirement, type, and allowed values. Every required parameter must be
-supplied; a parameter name the command does not report raises `ValueError`, and so does a missing required parameter. Each
-supplied value is checked against the parameter's reported type and constraints
-with the same rules `set_feature` applies to its value (type, options, range,
-step, text length, pattern, schedule rules), and every value must satisfy the
-JSON value contract. These checks raise `ValueError` before any request is sent.
-A rejected command raises `ViCommandRejectedError`; a command URI outside the
-Vi API and a successful response that violates the response contract raise
-`ViResponseError`, and other failures use the corresponding `ViError`
-subclasses.
+`Device.get_command_parameters` lists the parameters a command takes, with
+their requirement, type, and allowed values. Missing required parameters,
+unknown parameter names, and values that break the reported type or
+constraints raise `ValueError` before any request. A rejected command raises
+`ViCommandRejectedError`; other failures raise the same errors as
+`set_feature`.
 
 ```python
 # Run the two-parameter curve command in one call
