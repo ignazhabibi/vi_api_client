@@ -95,6 +95,7 @@ feature response can validly be empty.
 | `device_type` | `str` | Device type (e.g., "heating", "tcu"). | `'heating'` |
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
 | `features` | `Sequence[Feature]` | Read-only features supported by this device. | `(Feature(...),)` |
+| `roles` | `tuple[str, ...]` | Role strings exactly as the API reports them, in API order; empty when the API reports none. The library does not interpret them. | `('type:heatpump', 'type:product;Vitocal_250A')` |
 
 ### `get_command_names(api_feature_name: str) -> tuple[str, ...]`
 

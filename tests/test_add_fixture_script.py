@@ -41,9 +41,13 @@ def _write_export(tmp_path: Path, document: object) -> Path:
     return path
 
 
-def _export(data: list, captured_at: str | None = "2026-10-08") -> dict:
+def _export(
+    data: list, captured_at: str | None = "2026-10-08", roles: object = None
+) -> dict:
     """Return an export document as `dump-device` prints it."""
-    device = {"modelId": "E3_Vitocal", "deviceType": "heating"}
+    device: dict = {"modelId": "E3_Vitocal", "deviceType": "heating"}
+    if roles is not None:
+        device["roles"] = roles
     if captured_at is not None:
         device["capturedAt"] = captured_at
     return {"device": device, "data": data}
@@ -76,13 +80,15 @@ def test_adds_the_fixture_file_and_a_sorted_catalog_entry(
 ):
     # Arrange: Export the bundled Vitocal250A features.
     fixture = load_fixture_device("Vitocal250A")
-    export_path = _write_export(tmp_path, _export(fixture["data"]))
+    export_path = _write_export(
+        tmp_path, _export(fixture["data"], roles=["type:product;Vitocal_250A"])
+    )
 
     # Act: Add the export under a new name.
     exit_status = _run(export_path, "Vitocal250A-2026", fixtures_dir)
 
     # Assert: The fixture file matches the bundled format, and the catalog
-    # lists the new device in name order.
+    # lists the new device with its roles in name order.
     assert exit_status == 0
     assert (fixtures_dir / "Vitocal250A-2026.json").read_text(encoding="utf-8") == (
         BUNDLED_FIXTURES_DIR / "Vitocal250A.json"
@@ -94,6 +100,7 @@ def test_adds_the_fixture_file_and_a_sorted_catalog_entry(
         "fixtureName": "Vitocal250A-2026",
         "modelId": "E3_Vitocal",
         "deviceType": "heating",
+        "roles": ["type:product;Vitocal_250A"],
         "capturedAt": "2026-10-08",
     } in devices
     assert "Added fixture Vitocal250A-2026" in capsys.readouterr().out
@@ -140,6 +147,15 @@ def test_masks_identifiers_left_in_the_export(tmp_path, fixtures_dir, capsys):
         pytest.param("New", {"data": {}}, "'data' list", id="data-not-a-list"),
         pytest.param("New", {"data": []}, "'device' object", id="missing-device"),
         pytest.param("New", _export(["text"]), "must be an object", id="entry-text"),
+        pytest.param(
+            "New", _export([], roles="type:E3"), "list of strings", id="roles-text"
+        ),
+        pytest.param(
+            "New",
+            _export([], roles=["type:E3", 1]),
+            "list of strings",
+            id="role-number",
+        ),
         pytest.param(
             "New",
             _export([{"feature": ""}]),

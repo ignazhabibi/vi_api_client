@@ -37,7 +37,8 @@ availability.
 workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
 responses without authentication or network requests. Its bundled fixture
-catalog defines each selectable fixture name, model identity, and device type.
+catalog defines each selectable fixture name, model identity, device type, and,
+where known, the device roles.
 A fixture added from a device export reports the model ID that the exported
 device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
 without a known model ID report their fixture name.
@@ -215,7 +216,7 @@ contribute a new fixture.
 
 *   **Parameters**:
     *   `device`: The `Device` to export. It only identifies the device; features already on it are not used.
-*   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
+*   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "roles": [...], "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
 *   **Anonymization**: The whole document is redacted with `redact_sensitive` (see [Redacting Sensitive Data](#redacting-sensitive-data)), so it contains no installation IDs, gateway or device serials, or coordinates. Free text, such as user-chosen circuit names, stays.
 *   **Raises**: `ViResponseError` for a malformed response, and the applicable `ViError` subclass for API failures.
 

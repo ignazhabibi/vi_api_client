@@ -864,12 +864,14 @@ def test_parse_device_maps_fields_and_converts_integer_ids_to_text():
         "modelId": "complex_model",
         "deviceType": "heatpump",
         "status": "Online",
+        "roles": ["type:product;Vitocal_250A", "type:E3", "type:heatpump"],
     }
 
     # Act: Parse the API device within its gateway and installation.
     device = parse_device(data, "gw1", "inst1")
 
-    # Assert: Every field is mapped and the identifier is consistently text.
+    # Assert: Every field is mapped, the identifier is consistently text, and
+    # the roles keep their text and API order.
     assert device == Device(
         id="0",
         gateway_serial="gw1",
@@ -877,7 +879,40 @@ def test_parse_device_maps_fields_and_converts_integer_ids_to_text():
         model_id="complex_model",
         device_type="heatpump",
         status="Online",
+        roles=("type:product;Vitocal_250A", "type:E3", "type:heatpump"),
     )
+
+
+@pytest.mark.parametrize(
+    "roles",
+    [pytest.param(None, id="null"), pytest.param([], id="empty")],
+)
+def test_parse_device_without_roles_has_no_roles(roles):
+    data = {"id": "0", "modelId": "m", "deviceType": "heating", "roles": roles}
+
+    assert parse_device(data, "gw1", "inst1").roles == ()
+
+
+def test_parse_device_without_a_roles_field_has_no_roles():
+    data = {"id": "0", "modelId": "m", "deviceType": "heating"}
+
+    assert parse_device(data, "gw1", "inst1").roles == ()
+
+
+@pytest.mark.parametrize(
+    "roles",
+    [
+        pytest.param("type:heatpump", id="string"),
+        pytest.param({"type": "heatpump"}, id="object"),
+        pytest.param(["type:heatpump", 1], id="non-string-entry"),
+        pytest.param(["type:heatpump", None], id="null-entry"),
+    ],
+)
+def test_parse_device_rejects_malformed_roles(roles):
+    data = {"id": "0", "modelId": "m", "deviceType": "heating", "roles": roles}
+
+    with pytest.raises(ViResponseError, match="Device roles must be a list of strings"):
+        parse_device(data, "gw1", "inst1")
 
 
 @pytest.mark.parametrize(

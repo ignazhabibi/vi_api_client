@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, NotRequired, TypedDict, cast
 
 from ._adapter import CommandAdapter, DiscoveryAdapter
 from ._types import JsonValue
@@ -21,6 +21,7 @@ class _FixtureMetadata(TypedDict):
     fixtureName: str
     modelId: str
     deviceType: str
+    roles: NotRequired[list[str]]
 
 
 class _FixtureDiscoveryData(TypedDict):
@@ -77,17 +78,19 @@ class _FixtureDiscoveryAdapter:
     async def get_devices(
         self, installation_id: str, gateway_serial: str
     ) -> dict[str, Any]:
-        """Return the selected fixture as one deterministic device."""
-        return {
-            "data": [
-                {
-                    "id": "0",
-                    "modelId": self._device_metadata["modelId"],
-                    "deviceType": self._device_metadata["deviceType"],
-                    "status": "connected",
-                }
-            ]
+        """Return the selected fixture as one deterministic device.
+
+        The device carries the catalogued roles when the fixture has them.
+        """
+        device: dict[str, Any] = {
+            "id": "0",
+            "modelId": self._device_metadata["modelId"],
+            "deviceType": self._device_metadata["deviceType"],
+            "status": "connected",
         }
+        if "roles" in self._device_metadata:
+            device["roles"] = self._device_metadata["roles"]
+        return {"data": [device]}
 
     async def get_features(
         self, device: Device, payload: dict[str, bool]

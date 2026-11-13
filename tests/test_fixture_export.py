@@ -54,6 +54,7 @@ async def test_export_device_fixture_reads_raw_features_and_redacts_them(
             "0", installation_id=INSTALLATION_ID, gateway_serial=GATEWAY_SERIAL
         ),
         features=[build_feature()],
+        roles=("type:heatpump", "type:product;Vitocal_250A"),
     )
     url = _device_features_url(device)
     mock_responses.post(url, payload=response)
@@ -68,7 +69,12 @@ async def test_export_device_fixture_reads_raw_features_and_redacts_them(
     assert await request.json() == {"skipDisabled": False, "skipNotReady": False}
     assert document["data"] == fixture["data"]
     assert document["device"] in [
-        {"modelId": "model-0", "deviceType": "heating", "capturedAt": captured_at}
+        {
+            "modelId": "model-0",
+            "deviceType": "heating",
+            "roles": ["type:heatpump", "type:product;Vitocal_250A"],
+            "capturedAt": captured_at,
+        }
         for captured_at in (date_before, datetime.now(UTC).date().isoformat())
     ]
     exported_text = json.dumps(document)
@@ -104,5 +110,6 @@ async def test_fixture_client_exports_the_bundled_fixture():
     assert document["device"] == {
         "modelId": "Vitodens200W",
         "deviceType": "heating",
+        "roles": [],
         "capturedAt": ANY,
     }

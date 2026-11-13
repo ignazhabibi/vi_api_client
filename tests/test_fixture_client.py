@@ -52,6 +52,24 @@ async def test_fixture_discovery_uses_each_fixture_metadata_definition(
     ]
 
 
+async def test_fixture_discovery_reports_catalogued_roles(monkeypatch):
+    # Arrange: Catalog roles for the Vitocal250A fixture.
+    discovery_data = fixture_client._load_fixture_discovery_data()
+    for metadata in discovery_data["devices"]:
+        if metadata["fixtureName"] == "Vitocal250A":
+            metadata["roles"] = ["type:product;Vitocal_250A", "type:heatpump"]
+    monkeypatch.setattr(
+        fixture_client, "_load_fixture_discovery_data", lambda: discovery_data
+    )
+    client = FixtureViClient("Vitocal250A")
+
+    # Act: Discover the fixture device.
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    # Assert: The device reports the catalogued roles unchanged and in order.
+    assert device.roles == ("type:product;Vitocal_250A", "type:heatpump")
+
+
 async def test_fixture_refresh_device_returns_hydrated_copy_without_mutating_input():
     """Fixture refresh should have the same immutable public contract as live refresh."""
     # Arrange: Discover an unhydrated fixture device.

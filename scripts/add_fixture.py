@@ -72,6 +72,9 @@ def _read_export(path: Path) -> dict[str, Any]:
         raise FixtureError(
             "The export must have a 'device' object with modelId and deviceType"
         )
+    roles = device.get("roles", [])
+    if not isinstance(roles, list) or not all(isinstance(role, str) for role in roles):
+        raise FixtureError("The export's device roles must be a list of strings")
     return document
 
 
@@ -147,11 +150,14 @@ def add_fixture(
     feature_count = _check_parses(redacted_export["data"])
 
     device = redacted_export["device"]
-    entry = {
+    entry: dict[str, Any] = {
         "fixtureName": name,
         "modelId": device["modelId"],
         "deviceType": device["deviceType"],
     }
+    # Roles stay as the API reported them; exports without roles add none.
+    if device.get("roles"):
+        entry["roles"] = device["roles"]
     if isinstance(device.get("capturedAt"), str):
         entry["capturedAt"] = device["capturedAt"]
     other_entries = [item for item in catalog["devices"] if item["fixtureName"] != name]

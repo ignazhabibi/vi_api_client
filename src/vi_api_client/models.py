@@ -213,6 +213,9 @@ class Device:
         device_type: Type classification (e.g. 'heating').
         status: Connection status (e.g. 'Online').
         features: Read-only features known when this snapshot was created.
+        roles: Role strings exactly as the API reports them, in API order
+            (e.g. 'type:heatpump', 'type:product;Vitocal_250A'). The library
+            does not interpret them.
     """
 
     id: str
@@ -222,6 +225,7 @@ class Device:
     device_type: str
     status: str
     features: Sequence[Feature] = field(default_factory=tuple)
+    roles: tuple[str, ...] = ()
     # Internal command knowledge: the name carries no underscore so package
     # modules can maintain it under pyright strict, but the field is not part
     # of the public compatibility contract. It is kept out of the repr because
@@ -252,6 +256,7 @@ class Device:
                 raise ValueError(f"Duplicate feature name: {feature.name}")
             feature_map[feature.name] = feature
         object.__setattr__(self, "features", features)
+        object.__setattr__(self, "roles", tuple(self.roles))
         object.__setattr__(self, "_features_by_name", MappingProxyType(feature_map))
         object.__setattr__(
             self,
