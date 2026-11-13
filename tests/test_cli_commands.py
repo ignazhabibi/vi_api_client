@@ -1081,20 +1081,21 @@ async def test_cmd_list_features_json_values_print_value_documents(
     ]
 
 
-async def test_cmd_list_features_enabled_requests_only_available_features(
-    mock_cli_context,
+@pytest.mark.parametrize("flag", ["--available", "--enabled"])
+async def test_cmd_list_features_available_requests_only_available_features(
+    mock_cli_context, flag
 ):
-    """--enabled delegates the filter to the client read for the context device."""
-    # Arrange: Provide one feature and request the enabled filter.
-    args = _cli_args("list-features", "--enabled", "--json")
+    """--available, or its alias --enabled, delegates the filter to the read."""
+    # Arrange: Provide one feature and request the available filter.
+    args = _cli_args("list-features", flag, "--json")
     mock_cli_context.client.get_features.return_value = [
         build_feature(name="f_enabled", value=1)
     ]
 
-    # Act: List only enabled features.
+    # Act: List only available features.
     assert await cmd_list_features(args) is True
 
-    # Assert: The read requests the enabled filter for the context device.
+    # Assert: The read requests the available filter for the context device.
     call_args = mock_cli_context.client.get_features.call_args
     assert call_args.args[0].id == "DEV1"
     assert call_args.kwargs["only_available"] is True
@@ -2456,14 +2457,14 @@ async def test_run_cli_list_features_deprecated_values_shows_value_and_notice(
 async def test_run_cli_list_features_deprecated_combines_with_enabled(
     run_cli, mock_cli_context
 ):
-    """--deprecated filters the features the --enabled read returns."""
+    """--deprecated filters the features the --available read returns."""
     # Arrange: The availability-filtered read returns one deprecated and one
     # regular feature.
     features = _all_recorded_deprecation_features()
     mock_cli_context.client.get_features.return_value = [features[0], features[2]]
 
     # Act: Combine both filters.
-    exit_status, out, _ = await run_cli("list-features", "--deprecated", "--enabled")
+    exit_status, out, _ = await run_cli("list-features", "--deprecated", "--available")
 
     # Assert: The read was availability-filtered and only the deprecated
     # feature is listed.

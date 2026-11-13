@@ -129,8 +129,8 @@ vi-client login --client-id <YOUR_CLIENT_ID>
 # 2. List Devices
 vi-client list-devices
 
-# 3. List only enabled Features with values (auto-detects first device)
-vi-client list-features --enabled --values
+# 3. List only available Features with values (auto-detects first device)
+vi-client list-features --available --values
 
 # 4. List Writable Features (Settings)
 vi-client list-writable

@@ -354,7 +354,7 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
-            device, only_available=args.enabled
+            device, only_available=args.available
         )
     is_deprecated_listing: bool = args.deprecated
     if is_deprecated_listing:
@@ -1294,9 +1294,11 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common_parser, device_parser],
     )
     parser_features.add_argument(
+        "--available",
         "--enabled",
+        dest="available",
         action="store_true",
-        help="List only enabled and ready features",
+        help="List only enabled and ready features (--enabled is an alias)",
     )
     parser_features.add_argument(
         "--deprecated",
