@@ -112,7 +112,21 @@ type WriteBinding = ParameterWriteBinding | CommandPairWriteBinding
 
 @dataclass(frozen=True)
 class CommandParameter:
-    """Internal metadata of one command parameter, not public API."""
+    """One parameter of a command, as the API feature reports it.
+
+    `Device.get_command_parameters` returns these so a caller of
+    `ViClient.run_command` can offer valid parameter values. The fields
+    repeat the API report without interpretation.
+
+    Attributes:
+        name: The parameter name to pass to `run_command`, such as ``level``.
+        required: Whether the API reports the parameter as required, or
+            None when it reports nothing.
+        value_type: The parameter type the API reports, such as ``string``
+            or ``number``, or None.
+        constraints: The value rules the API reports, such as the allowed
+            ``options``, or None when it reports none.
+    """
 
     name: str
     required: bool | None = None
@@ -274,6 +288,27 @@ class Device:
             The feature object if found, otherwise None.
         """
         return self._features_by_name.get(name)
+
+    def get_command_parameters(
+        self, api_feature_name: str, command_name: str
+    ) -> tuple[CommandParameter, ...] | None:
+        """Return the parameters one reported command takes, in API order.
+
+        Args:
+            api_feature_name: The name of the API feature, such as
+                ``ventilation.operating.modes.permanent``.
+            command_name: The name of one of its commands, such as
+                ``setLevel``.
+
+        Returns:
+            The command's parameters, empty for a command without parameters,
+            or None when the API feature did not report the command in the
+            snapshot this device was built from.
+        """
+        for command in self.commands_by_api_feature.get(api_feature_name, ()):
+            if command.name == command_name:
+                return command.parameters
+        return None
 
     def get_command_names(self, api_feature_name: str) -> tuple[str, ...]:
         """Return the sorted command names one API feature reports, or ().

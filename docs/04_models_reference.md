@@ -112,6 +112,32 @@ device.get_command_names("heating.operating.programs.holiday")
 # ("changeEndDate", "schedule", "unschedule")
 ```
 
+### `get_command_parameters(api_feature_name: str, command_name: str) -> tuple[CommandParameter, ...] | None`
+
+Returns the parameters one reported command takes, in API order, so a caller
+of `run_command` can offer valid values. It returns `None` when the API
+feature did not report the command, and `()` for a command without
+parameters. Each `CommandParameter` repeats the API report without
+interpretation:
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `str` | Parameter name to pass to `run_command`, such as `level`. |
+| `required` | `bool \| None` | Whether the API reports the parameter as required. |
+| `value_type` | `str \| None` | Parameter type the API reports, such as `string` or `number`. |
+| `constraints` | `FeatureConstraints \| None` | Reported value rules, such as the allowed `options`. |
+
+```python
+(level,) = device.get_command_parameters(
+    "ventilation.operating.modes.permanent", "setLevel"
+)
+level.constraints.options
+# ("levelOne", "levelTwo", "levelThree", "levelFour")
+await client.run_command(
+    device, "ventilation.operating.modes.permanent", "setLevel", {"level": "levelTwo"}
+)
+```
+
 The command list travels with each snapshot-building read: `refresh_device`,
 `refresh_gateway_devices` including its individual fallback, and
 `get_full_installation_status`.

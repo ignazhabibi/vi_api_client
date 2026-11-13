@@ -340,3 +340,40 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         {"access_token": "<redacted>"},
     )
     assert redacted_parameter.name == "serial"
+
+
+async def test_get_command_parameters_returns_the_reported_parameters():
+    # Arrange: Refresh the Vitoair fixture, whose ventilation level is set
+    # through a command of an API feature without a level property.
+    client = FixtureViClient("VitoairFs300E")
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device, only_available=False)
+
+    # Act: Read the parameters of the level command.
+    parameters = device.get_command_parameters(
+        "ventilation.operating.modes.permanent", "setLevel"
+    )
+
+    # Assert: The parameter carries the reported name, requirement, type, and
+    # allowed values unchanged.
+    assert parameters is not None
+    (level,) = parameters
+    assert (level.name, level.required, level.value_type) == ("level", True, "string")
+    assert level.constraints is not None
+    assert level.constraints.options == (
+        "levelOne",
+        "levelTwo",
+        "levelThree",
+        "levelFour",
+    )
+
+
+async def test_get_command_parameters_distinguishes_missing_and_parameterless_commands():
+    client = FixtureViClient("Vitocal250A")
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device, only_available=False)
+
+    holiday = "heating.operating.programs.holiday"
+    assert device.get_command_parameters(holiday, "unschedule") == ()
+    assert device.get_command_parameters(holiday, "noSuchCommand") is None
+    assert device.get_command_parameters("no.such.api.feature", "setLevel") is None

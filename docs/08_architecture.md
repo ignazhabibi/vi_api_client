@@ -117,7 +117,8 @@ locally; the API decides whether the write is allowed (ADR 0005).
 
 The `Device` additionally carries one internal command list per API feature
 with every reported command and its parameter metadata, read through
-`Device.get_command_names`. It keeps commands the parser binds to no feature
+`Device.get_command_names` and `Device.get_command_parameters` (ADR 0006). It
+keeps commands the parser binds to no feature
 and commands of API features without properties, and stores neither
 `isExecutable` nor `isDeprecated`: the library sends a command and lets the
 API decide (ADR 0005). A duplicate `(API feature name, command name)` pair in
@@ -899,4 +900,5 @@ Models represent immutable state.
 - [ADR 0003: Recursive JSON value contract](adr/0003-use-a-recursive-json-value-contract.md)
 - [ADR 0004: Match feature names locally](adr/0004-match-feature-names-locally.md)
 - [ADR 0005: Command knowledge stays in the library](adr/0005-keep-command-knowledge-in-the-library.md)
+- [ADR 0006: Expose reported command parameters](adr/0006-expose-reported-command-parameters.md)
 - [Canonical domain language](../CONTEXT.md)

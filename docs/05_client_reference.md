@@ -377,8 +377,9 @@ not need to be the one bound to a feature, and reported executability and
 deprecation are not checked: a command the API reported as non-executable is
 sent like any other, and the API decides. No snapshot is changed.
 
-Every required parameter must be supplied; a parameter name the command does not
-report raises `ValueError`, and so does a missing required parameter. Each
+`Device.get_command_parameters` lists the parameters a command reports, with
+their requirement, type, and allowed values. Every required parameter must be
+supplied; a parameter name the command does not report raises `ValueError`, and so does a missing required parameter. Each
 supplied value is checked against the parameter's reported type and constraints
 with the same rules `set_feature` applies to its value (type, options, range,
 step, text length, pattern, schedule rules), and every value must satisfy the
