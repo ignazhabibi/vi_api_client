@@ -1,5 +1,6 @@
 """Live and shared client workflows for the Viessmann API."""
 
+import difflib
 import logging
 import re
 from collections.abc import Mapping
@@ -686,20 +687,30 @@ class ViClient:
         the same message: the snapshot lists every API feature, including
         the ones reporting none. An unknown command names its API feature's
         reported commands, and a name that resolves to no API feature names
-        the API features that report commands with a similar name, so a
-        flat feature name points to its API feature.
+        the API features with commands whose names are close to it, followed
+        by those it nests in or contains, so a typo or a flat feature name
+        points to its API feature.
         """
         reported_commands = commands_by_api_feature.get(api_feature_name, ())
         if not reported_commands:
-            similar = sorted(
+            names_with_commands = sorted(
+                name for name, commands in commands_by_api_feature.items() if commands
+            )
+            # Likely typo fixes come first, then API features one name nests
+            # in or contains.
+            close = difflib.get_close_matches(
+                api_feature_name, names_with_commands, n=3, cutoff=0.8
+            )
+            related = [
                 name
-                for name, commands in commands_by_api_feature.items()
-                if commands
+                for name in names_with_commands
+                if name not in close
                 and (
                     api_feature_name.startswith(f"{name}.")
                     or name.startswith(f"{api_feature_name}.")
                 )
-            )
+            ]
+            similar = [*close, *related]
             detail = (
                 f"; API features with commands: {', '.join(similar)}" if similar else ""
             )

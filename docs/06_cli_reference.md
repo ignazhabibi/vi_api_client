@@ -5,6 +5,23 @@ The package includes a command-line interface `vi-client` for testing authentica
 Commands return exit status `0` on success and a non-zero status when the
 requested operation fails. This makes the CLI safe to use in shell scripts.
 
+`vi-client --help` lists the commands with examples, and
+`vi-client <command> --help` shows one command's options, grouped into the
+command's own options, authentication, general options, and the target device,
+followed by examples. `vi-client --version` prints the installed version, for
+example in a bug report.
+
+A feature name that does not exist names up to three close known names, so a
+typo points to the right one:
+
+```text
+$ vi-client set heating.dhw.temperature.mian 50
+Error: Feature 'heating.dhw.temperature.mian' not found. Did you mean: heating.dhw.temperature.main, ...?
+```
+
+`get-feature` and `set` suggest feature names; `exec` suggests API features
+that report commands.
+
 > **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file! Every command accepts `--token-file` to read and write tokens from a different path instead.
 
 ## 1. Login
@@ -32,6 +49,10 @@ View all installations, gateways, and devices available to your account.
 
 ```bash
 vi-client list-devices
+
+# One JSON document with the installations and, per gateway, its devices
+# with their model IDs and roles
+vi-client list-devices --json
 ```
 
 ## 3. List Features
@@ -52,7 +73,19 @@ vi-client list-features --json
 
 # List only features whose removal Viessmann has announced
 vi-client list-features --deprecated
+
+# List only the features of heating circuit 0, with values
+vi-client list-features --filter heating.circuits.0 --values
+
+# List every outside temperature feature, wherever it sits
+vi-client list-features --filter '*.temperature.outside*'
 ```
+
+`--filter NAME` keeps the feature `NAME` and every feature below it, so
+`heating.circuits.0` does not select `heating.circuits.01`. A filter with `*`,
+`?`, or `[` is a case-sensitive pattern over the whole name; quote it so the
+shell does not expand it. The option can be repeated, and a feature that
+matches any filter is listed. It combines with the other options.
 `--available` matches the library's `only_available` read; `--enabled` is an
 alias and keeps working.
 
@@ -262,6 +295,9 @@ List all features that can be changed, including their parameters and constraint
 
 ```bash
 vi-client list-writable
+
+# One JSON array with the same feature documents as get-feature --json
+vi-client list-writable --json
 ```
 
 Example output:
@@ -337,6 +373,10 @@ If you need to run a command with multiple parameters at once (rare), you can us
 
 ```bash
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
+
+# Print the result as one JSON document: the command, its parameters,
+# success, and the message and reason of a rejection
+vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0 --json
 ```
 
 The first argument is an API feature name, and `<command-name>` is any command
@@ -344,7 +384,7 @@ that API feature reports — it does not have to be the command bound to a
 feature, and it does not have to be executable at the moment of the write;
 `exec` sends it and the API decides. A flat feature name such as
 `heating.circuits.0.heating.curve.slope` is not accepted: the error names the
-API features that report commands with a similar name.
+API features with commands whose names are close to it.
 
 Features that only a command without the `set` prefix takes as a parameter
 are read-only and are not listed by `list-writable`: the holiday dates, the

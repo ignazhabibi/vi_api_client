@@ -137,6 +137,10 @@ vi-client list-writable
 
 # 5. List the complete installation event history (last 7 days)
 vi-client list-events --days 7
+
+# All commands with examples, or the options of one command
+vi-client --help
+vi-client set --help
 ```
 
 See [CLI Reference](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/06_cli_reference.md) for more details.

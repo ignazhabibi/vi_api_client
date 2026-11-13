@@ -1,5 +1,7 @@
 """Tests for the CLI command handlers and the dispatch entry path."""
 
+import argparse
+import importlib.metadata
 import json
 import logging
 import subprocess
@@ -33,11 +35,13 @@ from vi_api_client import (
 from vi_api_client.cli import (
     _EVENT_LINE_WIDTH,
     CLIContext,
+    _close_name_hint,
     _deprecation_document,
     _deprecation_text,
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
+    _matches_name_filter,
     _print_event_summary,
     _removal_suffix,
     async_main,
@@ -658,11 +662,11 @@ async def test_cmd_get_feature_reports_unknown_feature_names(mock_cli_context, c
     """An unknown name fails the read rather than printing an empty result."""
     args = _cli_args("get-feature", "missing.feature")
     mock_cli_context.client.get_features.return_value = []
+    mock_cli_context.client.refresh_device.return_value = build_device("DEV1")
 
     assert await cmd_get_feature(args) is False
 
-    assert "Feature 'missing.feature' not found." in capsys.readouterr().out
-    mock_cli_context.client.refresh_device.assert_not_called()
+    assert capsys.readouterr().out == "Feature 'missing.feature' not found.\n"
 
 
 async def test_cmd_login_uses_environment_config_and_persists_it(
@@ -979,16 +983,16 @@ async def test_run_cli_exec_rejects_flat_feature_names(run_cli):
         "slope=1.4",
     )
 
-    # Assert: The failure names the similar API features reporting commands;
-    # API features without commands stay off the list.
+    # Assert: The failure names the similar API features reporting commands,
+    # the closest first; API features without commands stay off the list.
     assert exit_status == 1
     assert (
         "API feature 'heating.circuits.0.heating.curve.slope' reports no commands"
         in err
     )
     assert (
-        "API features with commands: heating.circuits.0, "
-        "heating.circuits.0.heating.curve" in err
+        "API features with commands: heating.circuits.0.heating.curve, "
+        "heating.circuits.0\n" in err
     )
 
 
@@ -2610,3 +2614,220 @@ def test_removal_suffix_leaves_out_missing_fields(deprecation, expected_suffix):
     feature = replace(build_feature(), deprecation=deprecation)
 
     assert _removal_suffix(feature) == expected_suffix
+
+
+def _subcommand_names() -> list[str]:
+    """Return every subcommand name the parser offers."""
+    subparsers = next(
+        action
+        for action in build_parser()._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    return sorted(subparsers.choices)
+
+
+@pytest.mark.parametrize("command", _subcommand_names())
+def test_every_command_help_ends_with_examples(command, capsys):
+    # Act: Print the command's help.
+    with pytest.raises(SystemExit) as exit_info:
+        build_parser().parse_args([command, "--help"])
+
+    # Assert: The help exits cleanly, groups the shared options, and shows
+    # an example of the command itself.
+    assert exit_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "authentication:" in out
+    assert f"examples:\n  vi-client {command}" in out
+
+
+def test_main_help_lists_commands_and_examples(capsys):
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--help"])
+
+    out = capsys.readouterr().out
+    assert all(command in out for command in _subcommand_names())
+    assert "Run 'vi-client <command> --help'" in out
+
+
+def test_version_prints_the_installed_package_version(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        build_parser().parse_args(["--version"])
+
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out == (
+        f"vi-client {importlib.metadata.version('vi_api_client')}\n"
+    )
+
+
+def test_version_without_package_metadata_is_unknown(monkeypatch, capsys):
+    # Arrange: Run from a source tree without installed package metadata.
+    def missing_metadata(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr("vi_api_client.cli.version", missing_metadata)
+
+    # Act: Ask for the version.
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--version"])
+
+    # Assert: The version is reported as unknown instead of failing.
+    assert capsys.readouterr().out == "vi-client unknown\n"
+
+
+async def test_run_cli_get_feature_suggests_close_names(run_cli):
+    exit_status, out, _ = await run_cli(
+        "get-feature",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve.slop",
+    )
+
+    assert exit_status == 1
+    assert "Did you mean: heating.circuits.0.heating.curve.slope," in out
+
+
+async def test_run_cli_set_suggests_close_names(run_cli):
+    exit_status, out, _ = await run_cli(
+        "set", "--fixture-device", "Vitocal250A", "heating.dhw.temperature.mian", "50"
+    )
+
+    assert exit_status == 1
+    assert "Did you mean: heating.dhw.temperature.main," in out
+
+
+async def test_run_cli_exec_suggests_close_api_feature_names(run_cli):
+    exit_status, _, err = await run_cli(
+        "exec",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curv",
+        "setCurve",
+        "slope=1",
+    )
+
+    assert exit_status == 1
+    assert "API features with commands: heating.circuits.0.heating.curve," in err
+
+
+def test_close_name_hint_is_empty_without_a_close_name():
+    assert _close_name_hint("heating.nothing.like.it", ["device.serial"]) == ""
+
+
+async def test_run_cli_list_devices_json_lists_every_device_with_roles(run_cli):
+    exit_status, out, err = await run_cli(
+        "list-devices", "--json", "--fixture-device", "Vitocal250A"
+    )
+
+    # Assert: stdout is one JSON document; setup output stays on stderr.
+    assert exit_status == 0
+    document = json.loads(out)
+    (gateway,) = document["gateways"]
+    (device,) = gateway["devices"]
+    assert device["model_id"] == "E3_Vitocal_16"
+    assert "type:product;Vitocal_250A" in device["roles"]
+    assert document["installations"][0]["id"] == "99999"
+    assert "Using Fixture Device" in err
+
+
+async def test_run_cli_list_writable_json_matches_the_feature_documents(run_cli):
+    exit_status, out, _ = await run_cli(
+        "list-writable", "--json", "--fixture-device", "Vitocal250A"
+    )
+
+    assert exit_status == 0
+    documents = json.loads(out)
+    slope = next(
+        document
+        for document in documents
+        if document["name"] == "heating.circuits.0.heating.curve.slope"
+    )
+    assert slope["command"] == {"name": "setCurve", "parameter": "slope"}
+    assert all(document["command"] is not None for document in documents)
+
+
+async def test_run_cli_exec_json_reports_the_result(run_cli):
+    exit_status, out, _ = await run_cli(
+        "exec",
+        "--json",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve",
+        "setCurve",
+        "slope=1.2",
+        "shift=0",
+    )
+
+    assert exit_status == 0
+    assert json.loads(out) == {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameters": {"slope": 1.2, "shift": 0},
+        "success": True,
+        "message": None,
+        "reason": None,
+    }
+
+
+async def test_cmd_exec_json_reports_a_rejected_command(mock_cli_context, capsys):
+    # Arrange: The device rejects the command.
+    args = _cli_args("exec", "--json", "x.y", "setMode", "mode=eco")
+    mock_cli_context.client.refresh_device.return_value = build_device("DEV1")
+    mock_cli_context.client.run_command.side_effect = ViCommandRejectedError(
+        "not allowed", "COMMAND_NOT_EXECUTABLE"
+    )
+
+    # Act: Run the command.
+    assert await cmd_exec(args) is False
+
+    # Assert: The JSON result names the rejection.
+    document = json.loads(capsys.readouterr().out)
+    assert document["success"] is False
+    assert (document["message"], document["reason"]) == (
+        "not allowed",
+        "COMMAND_NOT_EXECUTABLE",
+    )
+
+
+@pytest.mark.parametrize(
+    ("name_filter", "feature_name", "expected"),
+    [
+        pytest.param("heating.circuits.0", "heating.circuits.0", True, id="itself"),
+        pytest.param("heating.circuits.0", "heating.circuits.0.name", True, id="below"),
+        pytest.param("heating.circuits.0", "heating.circuits.01", False, id="sibling"),
+        pytest.param("heating.circuits", "heating.circuitsX", False, id="partial"),
+        pytest.param(
+            "*.outside", "heating.sensors.temperature.outside", True, id="glob"
+        ),
+        pytest.param("*.outside", "heating.outside.status", False, id="glob-whole"),
+        pytest.param(
+            "heating.circuits.?.name", "heating.circuits.1.name", True, id="any"
+        ),
+        pytest.param("Heating.*", "heating.x", False, id="case-sensitive"),
+    ],
+)
+def test_name_filter_selects_names_below_a_prefix_or_matching_a_pattern(
+    name_filter, feature_name, expected
+):
+    assert _matches_name_filter(feature_name, name_filter) is expected
+
+
+async def test_run_cli_list_features_filter_keeps_any_matching_name(run_cli):
+    # Act: Combine a prefix filter with a pattern filter.
+    exit_status, out, _ = await run_cli(
+        "list-features",
+        "--json",
+        "--fixture-device",
+        "Vitocal250A",
+        "--filter",
+        "heating.circuits.0.heating.curve",
+        "--filter",
+        "*.sensors.temperature.outside",
+    )
+
+    # Assert: Exactly the features matching either filter are listed.
+    assert exit_status == 0
+    assert json.loads(out) == [
+        "heating.circuits.0.heating.curve.slope",
+        "heating.circuits.0.heating.curve.shift",
+        "heating.sensors.temperature.outside",
+    ]

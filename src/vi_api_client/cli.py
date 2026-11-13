@@ -2,17 +2,27 @@
 
 import argparse
 import asyncio
+import difflib
+import fnmatch
 import json
 import logging
 import math
 import os
 import sys
 import textwrap
-from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC
 from functools import wraps
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +61,21 @@ from .utils import format_feature, parse_cli_params
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
 # Tokens and the OAuth client configuration are stored together in this file.
 DEFAULT_TOKEN_FILE = "tokens.json"  # noqa: S105 - a file name, not a secret
+
+# Similarity from difflib above which a known name counts as a likely typo
+# fix; sibling names such as circuits.0 and circuits.1 also pass it.
+_CLOSE_NAME_CUTOFF = 0.8
+
+_MAIN_EPILOG = """\
+examples:
+  vi-client login --client-id <your-client-id>
+  vi-client list-devices
+  vi-client list-features --available --values
+  vi-client set heating.circuits.0.heating.curve.slope 1.2
+  vi-client list-features --fixture-device Vitocal250A
+
+Run 'vi-client <command> --help' for the options of one command.
+"""
 # Default safety limit on pages fetched for one event history window.
 # diff-features sources besides file paths.
 _LIVE_SOURCE = "live"
@@ -311,6 +336,43 @@ async def cmd_list_devices(args: argparse.Namespace) -> bool:
     # Lists every installation, gateway, and device, so no target is needed.
     async with setup_client_context(args, discover=False) as context:
         installations = await context.client.get_installations()
+        if args.json:
+            gateways = await context.client.get_gateways()
+            gateway_documents = [
+                {
+                    "serial": gateway.serial,
+                    "installation_id": gateway.installation_id,
+                    "version": gateway.version,
+                    "status": gateway.status,
+                    "devices": [
+                        {
+                            "id": device.id,
+                            "model_id": device.model_id,
+                            "device_type": device.device_type,
+                            "status": device.status,
+                            "roles": list(device.roles),
+                        }
+                        for device in await context.client.get_devices(
+                            gateway.installation_id, gateway.serial
+                        )
+                    ],
+                }
+                for gateway in gateways
+            ]
+            _print_json(
+                {
+                    "installations": [
+                        {
+                            "id": installation.id,
+                            "description": installation.description,
+                            "alias": installation.alias,
+                        }
+                        for installation in installations
+                    ],
+                    "gateways": gateway_documents,
+                }
+            )
+            return True
         print(f"Found {len(installations)} installations:")
         for installation in installations:
             print(
@@ -349,14 +411,24 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     Supports filtering and formatting options.
 
     Args:
-        args: Parsed command line arguments including the enabled, deprecated,
-            values, and json flags.
+        args: Parsed command line arguments including the available,
+            deprecated, filter, values, and json options.
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
             device, only_available=args.available
         )
+    name_filters: list[str] = args.filter or []
+    if name_filters:
+        features = [
+            feature
+            for feature in features
+            if any(
+                _matches_name_filter(feature.name, name_filter)
+                for name_filter in name_filters
+            )
+        ]
     is_deprecated_listing: bool = args.deprecated
     if is_deprecated_listing:
         features = [feature for feature in features if feature.deprecation is not None]
@@ -413,6 +485,19 @@ def _removal_suffix(feature: Feature) -> str:
     return f" ({notice})"
 
 
+def _matches_name_filter(feature_name: str, name_filter: str) -> bool:
+    """Return whether a feature name matches one --filter value.
+
+    A filter with ``*``, ``?``, or ``[`` is a case-sensitive shell-style
+    pattern over the whole name. Any other filter selects the name itself
+    and every name below it, so ``heating.circuits.0`` keeps
+    ``heating.circuits.0.name`` but not ``heating.circuits.01``.
+    """
+    if any(character in name_filter for character in "*?["):
+        return fnmatch.fnmatchcase(feature_name, name_filter)
+    return feature_name == name_filter or feature_name.startswith(f"{name_filter}.")
+
+
 @_reports_errors("fetching feature")
 async def cmd_get_feature(args: argparse.Namespace) -> bool:
     """Get a specific feature.
@@ -433,23 +518,20 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             device, only_available=False, feature_names=[feature_name]
         )
         if not features:
-            print(f"Feature '{feature_name}' not found.")
+            # Only the miss pays for the extra read that finds similar names.
+            snapshot = await context.client.refresh_device(device, only_available=False)
+            known_names = [
+                *(feature.name for feature in snapshot.features),
+                *snapshot.commands_by_api_feature,
+            ]
+            print(
+                f"Feature '{feature_name}' not found."
+                f"{_close_name_hint(feature_name, known_names)}"
+            )
             return False
 
         if args.json:
-            documents = [
-                {
-                    "name": feature.name,
-                    "value": feature.value,
-                    "unit": feature.unit,
-                    "constraints": (
-                        asdict(feature.constraints) if feature.constraints else None
-                    ),
-                    "command": _command_document(feature.write_binding),
-                    "deprecation": _deprecation_document(feature.deprecation),
-                }
-                for feature in features
-            ]
+            documents = [_feature_document(feature) for feature in features]
             # One match keeps the single-object document; several matches
             # print one JSON array so the output stays one JSON document.
             _print_json(documents[0] if len(documents) == 1 else documents)
@@ -515,6 +597,18 @@ def _deprecation_text(deprecation: FeatureDeprecation) -> str:
         else "removal announced without a date"
     )
     return f"{removal} ({deprecation.info})" if deprecation.info else removal
+
+
+def _feature_document(feature: Feature) -> dict[str, Any]:
+    """Return the JSON document of one feature with its write rules."""
+    return {
+        "name": feature.name,
+        "value": feature.value,
+        "unit": feature.unit,
+        "constraints": asdict(feature.constraints) if feature.constraints else None,
+        "command": _command_document(feature.write_binding),
+        "deprecation": _deprecation_document(feature.deprecation),
+    }
 
 
 def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
@@ -719,18 +813,52 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
             device, only_available=False
         )
 
-        print(f"Executing '{command_name}' on {api_feature_name}...")
-        print(f"Using parameters: {parameters}")
+        if not args.json:
+            print(f"Executing '{command_name}' on {api_feature_name}...")
+            print(f"Using parameters: {parameters}")
         try:
             await context.client.run_command(
                 device_snapshot, api_feature_name, command_name, parameters
             )
         except ViCommandRejectedError as error:
-            _print_command_rejected(error)
+            if args.json:
+                _print_json(
+                    _exec_document(api_feature_name, command_name, parameters, error)
+                )
+            else:
+                _print_command_rejected(error)
             return False
 
-    print("✅ Success!")
+    if args.json:
+        _print_json(_exec_document(api_feature_name, command_name, parameters, None))
+    else:
+        print("✅ Success!")
     return True
+
+
+def _exec_document(
+    api_feature_name: str,
+    command_name: str,
+    parameters: dict[str, JsonValue],
+    rejection: ViCommandRejectedError | None,
+) -> dict[str, JsonValue]:
+    """Return the JSON result of one exec run, with the rejection if any."""
+    return {
+        "api_feature": api_feature_name,
+        "command": command_name,
+        "parameters": parameters,
+        "success": rejection is None,
+        "message": rejection.message if rejection else None,
+        "reason": rejection.reason if rejection else None,
+    }
+
+
+def _close_name_hint(name: str, known_names: Iterable[str]) -> str:
+    """Return a hint naming up to three known names close to a missing one."""
+    matches = difflib.get_close_matches(
+        name, sorted(set(known_names)), n=3, cutoff=_CLOSE_NAME_CUTOFF
+    )
+    return f" Did you mean: {', '.join(matches)}?" if matches else ""
 
 
 async def _fetch_writable_feature(
@@ -747,7 +875,10 @@ async def _fetch_writable_feature(
     device_snapshot = await context.client.refresh_device(device, only_available=False)
     feature = device_snapshot.get_feature(name)
     if feature is None:
-        print(f"Error: Feature '{name}' not found.")
+        known_names = [feature.name for feature in device_snapshot.features]
+        print(
+            f"Error: Feature '{name}' not found.{_close_name_hint(name, known_names)}"
+        )
         return None
     binding = feature.write_binding
     if binding is None:
@@ -814,6 +945,9 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
         for feature in device.features
         if (binding := feature.write_binding) is not None
     ]
+    if args.json:
+        _print_json([_feature_document(feature) for feature, _ in writable_features])
+        return True
     print(f"\nFound {len(writable_features)} writable features:\n")
     for feature, binding in writable_features:
         print(f"- {feature.name}")
@@ -1215,41 +1349,80 @@ async def cmd_list_fixture_devices(args: argparse.Namespace) -> bool:
     return True
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the command line parser with one handler per subcommand."""
-    # Parent parser for common arguments
+def _installed_version() -> str:
+    """Return the installed package version, or "unknown" without metadata."""
+    try:
+        return version("vi_api_client")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _shared_option_parsers() -> tuple[
+    argparse.ArgumentParser, argparse.ArgumentParser, argparse.ArgumentParser
+]:
+    """Return the parent parsers for common, installation, and device options.
+
+    The options are grouped so each command's help lists its own options
+    first.
+    """
     common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument(
-        "--client-id", help="OAuth Client ID (optional if saved)"
+    auth_group = common_parser.add_argument_group("authentication")
+    auth_group.add_argument("--client-id", help="OAuth client ID (optional if saved)")
+    auth_group.add_argument("--redirect-uri", help="OAuth redirect URI")
+    auth_group.add_argument(
+        "--token-file",
+        default=DEFAULT_TOKEN_FILE,
+        help=f"Path to save and load tokens (default: {DEFAULT_TOKEN_FILE})",
     )
-    common_parser.add_argument("--redirect-uri", help="OAuth Redirect URI")
-    common_parser.add_argument(
-        "--token-file", default=DEFAULT_TOKEN_FILE, help="Path to save/load tokens"
-    )
-    common_parser.add_argument(
+    auth_group.add_argument(
         "--insecure", action="store_true", help="Disable SSL verification"
     )
-    common_parser.add_argument(
-        "--fixture-device", help="Use a fixture device (e.g. Vitodens200W)"
+    general_group = common_parser.add_argument_group("general")
+    general_group.add_argument(
+        "--fixture-device",
+        metavar="NAME",
+        help="Use a bundled fixture device offline (see list-fixture-devices)",
     )
-    common_parser.add_argument(
+    general_group.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging for the CLI and the library",
     )
 
     # Parent parsers for the optional installation and device target
+    target_title = "target (the first one found is used when omitted)"
     installation_parser = argparse.ArgumentParser(add_help=False)
-    installation_parser.add_argument(
-        "--installation-id", help="Installation ID (optional)"
+    installation_parser.add_argument_group(target_title).add_argument(
+        "--installation-id", metavar="ID", help="Installation ID"
     )
-    device_parser = argparse.ArgumentParser(
-        add_help=False, parents=[installation_parser]
+    device_parser = argparse.ArgumentParser(add_help=False)
+    device_target_group = device_parser.add_argument_group(target_title)
+    device_target_group.add_argument(
+        "--installation-id", metavar="ID", help="Installation ID"
     )
-    device_parser.add_argument("--gateway-serial", help="Gateway Serial (optional)")
-    device_parser.add_argument("--device-id", help="Device ID (optional)")
+    device_target_group.add_argument(
+        "--gateway-serial", metavar="SERIAL", help="Gateway serial"
+    )
+    device_target_group.add_argument("--device-id", metavar="ID", help="Device ID")
 
-    parser = argparse.ArgumentParser(description="Viessmann API CLI")
+    return common_parser, installation_parser, device_parser
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the command line parser with one handler per subcommand."""
+    common_parser, installation_parser, device_parser = _shared_option_parsers()
+    parser = argparse.ArgumentParser(
+        prog="vi-client",
+        description="Read and control Viessmann devices through the Viessmann API.",
+        epilog=_MAIN_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_installed_version()}",
+        help="Show the installed vi_api_client version and exit",
+    )
     # Commands without a target or JSON option still read these attributes.
     parser.set_defaults(
         handler=None,
@@ -1259,23 +1432,58 @@ def build_parser() -> argparse.ArgumentParser:
         device_id=None,
         json=False,
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(
+        dest="command", title="commands", metavar="<command>"
+    )
 
-    # Login
-    subparsers.add_parser(
-        "login", help="Authenticate with Viessmann", parents=[common_parser]
+    def add_command(
+        name: str,
+        summary: str,
+        examples: Sequence[str],
+        parents: Sequence[argparse.ArgumentParser],
+    ) -> argparse.ArgumentParser:
+        """Add one subcommand whose help ends with usage examples."""
+        return subparsers.add_parser(
+            name,
+            help=summary,
+            description=summary,
+            epilog="examples:\n" + "\n".join(f"  {example}" for example in examples),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            parents=parents,
+        )
+
+    add_command(
+        "login",
+        "Sign in with the Viessmann account and save the tokens",
+        ["vi-client login --client-id <your-client-id>"],
+        [common_parser],
     ).set_defaults(handler=cmd_login)
 
-    # List Devices
-    subparsers.add_parser(
-        "list-devices", help="List installations and devices", parents=[common_parser]
-    ).set_defaults(handler=cmd_list_devices)
+    parser_devices = add_command(
+        "list-devices",
+        "List the installations, gateways, and devices of the account",
+        [
+            "vi-client list-devices",
+            "vi-client list-devices --fixture-device Vitocal200A",
+        ],
+        [common_parser],
+    )
+    parser_devices.add_argument(
+        "--json", action="store_true", help="Print the account's devices as JSON"
+    )
+    parser_devices.set_defaults(handler=cmd_list_devices)
 
-    # List Features
-    parser_features = subparsers.add_parser(
+    parser_features = add_command(
         "list-features",
-        help="List all features for a device",
-        parents=[common_parser, device_parser],
+        "List the features of a device",
+        [
+            "vi-client list-features --available --values",
+            "vi-client list-features --deprecated",
+            "vi-client list-features --filter heating.circuits.0 --values",
+            "vi-client list-features --filter '*.temperature.*'",
+            "vi-client list-features --json --fixture-device Vitocal250A",
+        ],
+        [common_parser, device_parser],
     )
     parser_features.add_argument(
         "--available",
@@ -1290,32 +1498,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="List only features with a removal notice, each with its notice",
     )
     parser_features.add_argument(
+        "--filter",
+        action="append",
+        metavar="NAME",
+        help=(
+            "List only features at or below this name, or matching a pattern "
+            "with * (repeatable)"
+        ),
+    )
+    parser_features.add_argument(
         "--values", action="store_true", help="Show feature values"
     )
     parser_features.add_argument(
-        "--json", action="store_true", help="Output JSON (for lists)"
+        "--json", action="store_true", help="Print the features as JSON"
     )
     parser_features.set_defaults(handler=cmd_list_features)
 
-    # Get Feature
-    parser_feature = subparsers.add_parser(
+    parser_feature = add_command(
         "get-feature",
-        help="Get a specific feature",
-        parents=[common_parser, device_parser],
+        "Show one feature, or every feature of an API feature, with its commands",
+        [
+            "vi-client get-feature heating.circuits.0.heating.curve.slope",
+            "vi-client get-feature heating.circuits.0.heating.curve --json",
+        ],
+        [common_parser, device_parser],
     )
     parser_feature.add_argument(
-        "feature_name", help="Feature Name (e.g. heating.circuits.0)"
+        "feature_name", help="Feature or API feature name, e.g. heating.circuits.0"
     )
     parser_feature.add_argument(
         "--json", action="store_true", help="Print the matching features as JSON"
     )
     parser_feature.set_defaults(handler=cmd_get_feature)
 
-    # List Installation Events
-    parser_events = subparsers.add_parser(
+    parser_events = add_command(
         "list-events",
-        help="List the installation event history for a lookback window",
-        parents=[common_parser, installation_parser],
+        "List the installation event history for a lookback window",
+        [
+            "vi-client list-events --days 7",
+            "vi-client list-events --days 30 --limit 100 --json",
+        ],
+        [common_parser, installation_parser],
     )
     parser_events.add_argument(
         "--days",
@@ -1344,18 +1567,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_events.set_defaults(handler=cmd_list_events)
 
-    # List available fixture devices
-    subparsers.add_parser(
+    add_command(
         "list-fixture-devices",
-        help="List available fixture devices",
-        parents=[common_parser],
+        "List the bundled fixture devices usable with --fixture-device",
+        ["vi-client list-fixture-devices"],
+        [common_parser],
     ).set_defaults(handler=cmd_list_fixture_devices)
 
-    # Diff Features
-    parser_diff = subparsers.add_parser(
+    parser_diff = add_command(
         "diff-features",
-        help="Compare the features of two fixtures, exports, or the live device",
-        parents=[common_parser, device_parser],
+        "Compare the features of two fixtures, exports, or the live device",
+        [
+            "vi-client diff-features fixture:Vitocal250A live",
+            "vi-client diff-features fixture:Vitocal222S fixture:Vitocal250A",
+        ],
+        [common_parser, device_parser],
     )
     for side in ("left", "right"):
         parser_diff.add_argument(
@@ -1363,45 +1589,61 @@ def build_parser() -> argparse.ArgumentParser:
         )
     parser_diff.set_defaults(handler=cmd_diff_features)
 
-    # Dump Device
-    subparsers.add_parser(
+    add_command(
         "dump-device",
-        help="Print a device's features as an anonymized fixture (JSON)",
-        parents=[common_parser, device_parser],
+        "Print a device's features as an anonymized fixture (JSON)",
+        ["vi-client dump-device > export.json"],
+        [common_parser, device_parser],
     ).set_defaults(handler=cmd_dump_device, json=True)
 
-    # List Writable Features
-    subparsers.add_parser(
+    parser_writable = add_command(
         "list-writable",
-        help="List all writable features (commands)",
-        parents=[common_parser, device_parser],
-    ).set_defaults(handler=cmd_list_writable)
+        "List the writable features of a device",
+        ["vi-client list-writable", "vi-client list-writable --json"],
+        [common_parser, device_parser],
+    )
+    parser_writable.add_argument(
+        "--json", action="store_true", help="Print the writable features as JSON"
+    )
+    parser_writable.set_defaults(handler=cmd_list_writable)
 
-    # Set Value
-    parser_set = subparsers.add_parser(
+    parser_set = add_command(
         "set",
-        help="Set a feature value",
-        parents=[common_parser, device_parser],
+        "Set the value of a writable feature",
+        [
+            "vi-client set heating.circuits.0.heating.curve.slope 1.2",
+            "vi-client set heating.dhw.temperature.main 50",
+        ],
+        [common_parser, device_parser],
     )
     parser_set.add_argument(
         "feature_name",
-        help="Feature Name (e.g. heating.circuits.0.heating.curve.slope)",
+        help="Feature name, e.g. heating.circuits.0.heating.curve.slope",
     )
     parser_set.add_argument("value", help="Value to set")
     parser_set.set_defaults(handler=cmd_set)
 
-    # Exec Command (Advanced)
-    parser_exec = subparsers.add_parser(
+    parser_exec = add_command(
         "exec",
-        help="Run a command of an API feature (Advanced)",
-        parents=[common_parser, device_parser],
+        "Run a command of an API feature (advanced)",
+        [
+            "vi-client exec heating.circuits.0.heating.curve setCurve "
+            "slope=1.2 shift=0",
+            "vi-client exec heating.operating.programs.holiday unschedule",
+        ],
+        [common_parser, device_parser],
     )
     parser_exec.add_argument(
         "feature_name",
-        help="API Feature Name (e.g. heating.circuits.0.heating.curve)",
+        help="API feature name, e.g. heating.circuits.0.heating.curve",
     )
-    parser_exec.add_argument("command_name", help="Command Name")
-    parser_exec.add_argument("params", nargs="*", help="Parameters (key=value)")
+    parser_exec.add_argument("command_name", help="Command name, e.g. setCurve")
+    parser_exec.add_argument(
+        "params", nargs="*", metavar="key=value", help="Command parameters"
+    )
+    parser_exec.add_argument(
+        "--json", action="store_true", help="Print the result as JSON"
+    )
     parser_exec.set_defaults(handler=cmd_exec)
 
     return parser
