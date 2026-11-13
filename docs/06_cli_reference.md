@@ -49,6 +49,10 @@ View all installations, gateways, and devices available to your account.
 
 ```bash
 vi-client list-devices
+
+# One JSON document with the installations and, per gateway, its devices
+# with their model IDs and roles
+vi-client list-devices --json
 ```
 
 ## 3. List Features
@@ -279,6 +283,9 @@ List all features that can be changed, including their parameters and constraint
 
 ```bash
 vi-client list-writable
+
+# One JSON array with the same feature documents as get-feature --json
+vi-client list-writable --json
 ```
 
 Example output:
@@ -354,6 +361,10 @@ If you need to run a command with multiple parameters at once (rare), you can us
 
 ```bash
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
+
+# Print the result as one JSON document: the command, its parameters,
+# success, and the message and reason of a rejection
+vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0 --json
 ```
 
 The first argument is an API feature name, and `<command-name>` is any command
@@ -361,7 +372,7 @@ that API feature reports — it does not have to be the command bound to a
 feature, and it does not have to be executable at the moment of the write;
 `exec` sends it and the API decides. A flat feature name such as
 `heating.circuits.0.heating.curve.slope` is not accepted: the error names the
-API features that report commands with a similar name.
+API features with commands whose names are close to it.
 
 Features that only a command without the `set` prefix takes as a parameter
 are read-only and are not listed by `list-writable`: the holiday dates, the

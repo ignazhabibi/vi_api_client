@@ -2710,3 +2710,78 @@ async def test_run_cli_exec_suggests_close_api_feature_names(run_cli):
 
 def test_close_name_hint_is_empty_without_a_close_name():
     assert _close_name_hint("heating.nothing.like.it", ["device.serial"]) == ""
+
+
+async def test_run_cli_list_devices_json_lists_every_device_with_roles(run_cli):
+    exit_status, out, err = await run_cli(
+        "list-devices", "--json", "--fixture-device", "Vitocal250A"
+    )
+
+    # Assert: stdout is one JSON document; setup output stays on stderr.
+    assert exit_status == 0
+    document = json.loads(out)
+    (gateway,) = document["gateways"]
+    (device,) = gateway["devices"]
+    assert device["model_id"] == "E3_Vitocal_16"
+    assert "type:product;Vitocal_250A" in device["roles"]
+    assert document["installations"][0]["id"] == "99999"
+    assert "Using Fixture Device" in err
+
+
+async def test_run_cli_list_writable_json_matches_the_feature_documents(run_cli):
+    exit_status, out, _ = await run_cli(
+        "list-writable", "--json", "--fixture-device", "Vitocal250A"
+    )
+
+    assert exit_status == 0
+    documents = json.loads(out)
+    slope = next(
+        document
+        for document in documents
+        if document["name"] == "heating.circuits.0.heating.curve.slope"
+    )
+    assert slope["command"] == {"name": "setCurve", "parameter": "slope"}
+    assert all(document["command"] is not None for document in documents)
+
+
+async def test_run_cli_exec_json_reports_the_result(run_cli):
+    exit_status, out, _ = await run_cli(
+        "exec",
+        "--json",
+        "--fixture-device",
+        "Vitocal250A",
+        "heating.circuits.0.heating.curve",
+        "setCurve",
+        "slope=1.2",
+        "shift=0",
+    )
+
+    assert exit_status == 0
+    assert json.loads(out) == {
+        "api_feature": "heating.circuits.0.heating.curve",
+        "command": "setCurve",
+        "parameters": {"slope": 1.2, "shift": 0},
+        "success": True,
+        "message": None,
+        "reason": None,
+    }
+
+
+async def test_cmd_exec_json_reports_a_rejected_command(mock_cli_context, capsys):
+    # Arrange: The device rejects the command.
+    args = _cli_args("exec", "--json", "x.y", "setMode", "mode=eco")
+    mock_cli_context.client.refresh_device.return_value = build_device("DEV1")
+    mock_cli_context.client.run_command.side_effect = ViCommandRejectedError(
+        "not allowed", "COMMAND_NOT_EXECUTABLE"
+    )
+
+    # Act: Run the command.
+    assert await cmd_exec(args) is False
+
+    # Assert: The JSON result names the rejection.
+    document = json.loads(capsys.readouterr().out)
+    assert document["success"] is False
+    assert (document["message"], document["reason"]) == (
+        "not allowed",
+        "COMMAND_NOT_EXECUTABLE",
+    )

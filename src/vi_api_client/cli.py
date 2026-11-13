@@ -335,6 +335,43 @@ async def cmd_list_devices(args: argparse.Namespace) -> bool:
     # Lists every installation, gateway, and device, so no target is needed.
     async with setup_client_context(args, discover=False) as context:
         installations = await context.client.get_installations()
+        if args.json:
+            gateways = await context.client.get_gateways()
+            gateway_documents = [
+                {
+                    "serial": gateway.serial,
+                    "installation_id": gateway.installation_id,
+                    "version": gateway.version,
+                    "status": gateway.status,
+                    "devices": [
+                        {
+                            "id": device.id,
+                            "model_id": device.model_id,
+                            "device_type": device.device_type,
+                            "status": device.status,
+                            "roles": list(device.roles),
+                        }
+                        for device in await context.client.get_devices(
+                            gateway.installation_id, gateway.serial
+                        )
+                    ],
+                }
+                for gateway in gateways
+            ]
+            _print_json(
+                {
+                    "installations": [
+                        {
+                            "id": installation.id,
+                            "description": installation.description,
+                            "alias": installation.alias,
+                        }
+                        for installation in installations
+                    ],
+                    "gateways": gateway_documents,
+                }
+            )
+            return True
         print(f"Found {len(installations)} installations:")
         for installation in installations:
             print(
@@ -470,19 +507,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             return False
 
         if args.json:
-            documents = [
-                {
-                    "name": feature.name,
-                    "value": feature.value,
-                    "unit": feature.unit,
-                    "constraints": (
-                        asdict(feature.constraints) if feature.constraints else None
-                    ),
-                    "command": _command_document(feature.write_binding),
-                    "deprecation": _deprecation_document(feature.deprecation),
-                }
-                for feature in features
-            ]
+            documents = [_feature_document(feature) for feature in features]
             # One match keeps the single-object document; several matches
             # print one JSON array so the output stays one JSON document.
             _print_json(documents[0] if len(documents) == 1 else documents)
@@ -548,6 +573,18 @@ def _deprecation_text(deprecation: FeatureDeprecation) -> str:
         else "removal announced without a date"
     )
     return f"{removal} ({deprecation.info})" if deprecation.info else removal
+
+
+def _feature_document(feature: Feature) -> dict[str, Any]:
+    """Return the JSON document of one feature with its write rules."""
+    return {
+        "name": feature.name,
+        "value": feature.value,
+        "unit": feature.unit,
+        "constraints": asdict(feature.constraints) if feature.constraints else None,
+        "command": _command_document(feature.write_binding),
+        "deprecation": _deprecation_document(feature.deprecation),
+    }
 
 
 def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
@@ -752,18 +789,44 @@ async def cmd_exec(args: argparse.Namespace) -> bool:
             device, only_available=False
         )
 
-        print(f"Executing '{command_name}' on {api_feature_name}...")
-        print(f"Using parameters: {parameters}")
+        if not args.json:
+            print(f"Executing '{command_name}' on {api_feature_name}...")
+            print(f"Using parameters: {parameters}")
         try:
             await context.client.run_command(
                 device_snapshot, api_feature_name, command_name, parameters
             )
         except ViCommandRejectedError as error:
-            _print_command_rejected(error)
+            if args.json:
+                _print_json(
+                    _exec_document(api_feature_name, command_name, parameters, error)
+                )
+            else:
+                _print_command_rejected(error)
             return False
 
-    print("✅ Success!")
+    if args.json:
+        _print_json(_exec_document(api_feature_name, command_name, parameters, None))
+    else:
+        print("✅ Success!")
     return True
+
+
+def _exec_document(
+    api_feature_name: str,
+    command_name: str,
+    parameters: dict[str, JsonValue],
+    rejection: ViCommandRejectedError | None,
+) -> dict[str, JsonValue]:
+    """Return the JSON result of one exec run, with the rejection if any."""
+    return {
+        "api_feature": api_feature_name,
+        "command": command_name,
+        "parameters": parameters,
+        "success": rejection is None,
+        "message": rejection.message if rejection else None,
+        "reason": rejection.reason if rejection else None,
+    }
 
 
 def _close_name_hint(name: str, known_names: Iterable[str]) -> str:
@@ -858,6 +921,9 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
         for feature in device.features
         if (binding := feature.write_binding) is not None
     ]
+    if args.json:
+        _print_json([_feature_document(feature) for feature, _ in writable_features])
+        return True
     print(f"\nFound {len(writable_features)} writable features:\n")
     for feature, binding in writable_features:
         print(f"- {feature.name}")
@@ -1369,7 +1435,7 @@ def build_parser() -> argparse.ArgumentParser:
         [common_parser],
     ).set_defaults(handler=cmd_login)
 
-    add_command(
+    parser_devices = add_command(
         "list-devices",
         "List the installations, gateways, and devices of the account",
         [
@@ -1377,7 +1443,11 @@ def build_parser() -> argparse.ArgumentParser:
             "vi-client list-devices --fixture-device Vitocal200A",
         ],
         [common_parser],
-    ).set_defaults(handler=cmd_list_devices)
+    )
+    parser_devices.add_argument(
+        "--json", action="store_true", help="Print the account's devices as JSON"
+    )
+    parser_devices.set_defaults(handler=cmd_list_devices)
 
     parser_features = add_command(
         "list-features",
@@ -1491,12 +1561,16 @@ def build_parser() -> argparse.ArgumentParser:
         [common_parser, device_parser],
     ).set_defaults(handler=cmd_dump_device, json=True)
 
-    add_command(
+    parser_writable = add_command(
         "list-writable",
         "List the writable features of a device",
-        ["vi-client list-writable"],
+        ["vi-client list-writable", "vi-client list-writable --json"],
         [common_parser, device_parser],
-    ).set_defaults(handler=cmd_list_writable)
+    )
+    parser_writable.add_argument(
+        "--json", action="store_true", help="Print the writable features as JSON"
+    )
+    parser_writable.set_defaults(handler=cmd_list_writable)
 
     parser_set = add_command(
         "set",
@@ -1531,6 +1605,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser_exec.add_argument("command_name", help="Command name, e.g. setCurve")
     parser_exec.add_argument(
         "params", nargs="*", metavar="key=value", help="Command parameters"
+    )
+    parser_exec.add_argument(
+        "--json", action="store_true", help="Print the result as JSON"
     )
     parser_exec.set_defaults(handler=cmd_exec)
 
