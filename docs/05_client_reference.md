@@ -41,10 +41,36 @@ catalog defines each selectable fixture name, model identity, device type, and,
 where known, the device roles.
 A fixture added from a device export reports the model ID that the exported
 device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
-without a known model ID report their fixture name. A fixture can model several
+without a known model ID report a placeholder. A fixture can model several
 devices on one gateway: `get_devices` then lists device `"0"` and every further
 catalogued device, each device reads its own features, and a gateway-scoped
 refresh reads the features of all of them.
+
+Fixture contents are recorded API data, not a compatibility contract. A
+fixture refresh or replacement can change its features, values, model ID, or
+devices in a minor release; the release notes name such changes. The fixture
+names that `get_available_fixture_devices()` lists stay stable within a major
+version.
+
+| Fixture | Device | Model ID | Real model ID |
+| :--- | :--- | :--- | :--- |
+| `VitoairFs300E` | `0` | `E3_ViAir_300F_13` | yes |
+| `Vitocal200A` | `0` | `Vitocal200A-SystemController` | no |
+| `Vitocal200A` | `1` | `Vitocal200A-OutdoorUnit` | no |
+| `Vitocal200S` | `0` | `Vitocal200S` | no |
+| `Vitocal222S` | `0` | `Vitocal222S` | no |
+| `Vitocal250A` | `0` | `E3_Vitocal_16` | yes |
+| `Vitocal250A-TwoCircuits` | `0` | `E3_Vitocal_17` | yes |
+| `Vitocal252A` | `0` | `Vitocal252A` | no |
+| `Vitocal262A-T2H-R290` | `0` | `E3_Vitocal_262_02` | yes |
+| `Vitocal300G-CU401B` | `0` | `CU401B_G` | yes |
+| `Vitocal333G-with-Vitovent300F` | `0` | `Vitocal333G-with-Vitovent300F` | no |
+| `Vitocharge03` | `0` | `Vitocharge03` | no |
+| `VitochargeEvolution08` | `0` | `E3_VitoCharge_Evolution_08` | yes |
+| `Vitodens100W` | `0` | `Vitodens100W` | no |
+| `Vitodens200W` | `0` | `Vitodens200W` | no |
+| `Vitodens300W-B3HF-19` | `0` | `E3_Vitodens_300_0419` | yes |
+| `Vitopure350` | `0` | `E3_VitoPure` | yes |
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 

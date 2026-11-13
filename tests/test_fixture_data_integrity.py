@@ -87,3 +87,28 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
                 pytest.fail(
                     f"{name}: pattern {pattern!r} is not a valid regex: {error}"
                 )
+
+
+def test_client_reference_lists_the_model_id_of_every_fixture_device():
+    """The documented model ID table matches the catalog, device by device."""
+    # Arrange: Read the model ID table from the client reference.
+    reference = (
+        BUNDLED_FIXTURES_DIR.parents[2] / "docs" / "05_client_reference.md"
+    ).read_text(encoding="utf-8")
+    rows = re.findall(
+        r"^\| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \| (yes|no) \|$",
+        reference,
+        flags=re.MULTILINE,
+    )
+
+    # Act: Collect every catalogued device identity.
+    catalogued = sorted(
+        (entry["fixtureName"], identity.get("id", "0"), identity["modelId"])
+        for entry in load_fixture_device("discovery")["devices"]
+        for identity in [entry, *entry.get("additionalDevices", [])]
+    )
+
+    # Assert: The table lists exactly these devices with their model IDs.
+    assert sorted((name, device, model) for name, device, model, _ in rows) == (
+        catalogued
+    )
