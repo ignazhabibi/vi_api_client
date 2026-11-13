@@ -72,10 +72,12 @@ def _parameter(
     value_type: str | None = None,
     constraints: FeatureConstraints | None = None,
 ) -> CommandParameter:
-    """Build one reported command parameter."""
-    return CommandParameter(
-        name=name, required=required, value_type=value_type, constraints=constraints
-    )
+    """Build one reported command parameter; its type goes into the constraints."""
+    if value_type is not None:
+        constraints = replace(
+            constraints or FeatureConstraints(), value_type=value_type
+        )
+    return CommandParameter(name=name, required=required, constraints=constraints)
 
 
 def _mode_command(

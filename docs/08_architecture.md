@@ -261,7 +261,7 @@ with Home Assistant's coordinator or another consumer's lifecycle.
 | `parsing.py` | Convert nested API features into flat features | Network and consumer state |
 | `models.py` | Immutable snapshots and command metadata | Polling and persistence |
 | `_types.py` | Public dynamic value contracts (`JsonValue`, `FeatureValue`, `ValidationDetail`) | Runtime validation |
-| `validation.py` | Trust-boundary validation of JSON values and response fields | Building domain models |
+| `validation.py` | Trust-boundary validation of JSON values and response fields; checks of written values against reported types and constraints | Building domain models |
 | `auth.py` | Authenticated requests, OAuth, session lifecycle | General retries |
 | `credentials.py` | Read, merge, safely replace credentials | OAuth decisions |
 | `exceptions.py` | Public exceptions | UI error presentation |

@@ -10,6 +10,7 @@ from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import (
     CommandParameter,
     Device,
+    FeatureConstraints,
     ParameterWriteBinding,
     ScheduleConstraints,
 )
@@ -1092,10 +1093,14 @@ def test_device_commands_carry_parameter_metadata_without_availability_flags():
     assert command.uri == "/commands/setCurve"
     assert command.parameters == (
         CommandParameter(
-            name="slope", required=True, value_type="number", constraints=None
+            name="slope",
+            required=True,
+            constraints=FeatureConstraints(value_type="number"),
         ),
         CommandParameter(
-            name="shift", required=False, value_type="number", constraints=None
+            name="shift",
+            required=False,
+            constraints=FeatureConstraints(value_type="number"),
         ),
     )
     assert "{isExecutable" not in str(command)

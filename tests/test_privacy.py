@@ -254,7 +254,7 @@ def test_redact_device_redacts_option_values_in_the_command_list():
     redacted = redact_device(device)
 
     # Assert: The command list options match the feature's own constraints,
-    # and the constraint-less parameter stays usable.
+    # and the parameter with only a type keeps it.
     feature = redacted.get_feature("x.y.mode")
     assert feature is not None
     assert feature.constraints is not None
@@ -263,7 +263,7 @@ def test_redact_device_redacts_option_values_in_the_command_list():
     mode_parameter, enabled_parameter = command.parameters
     assert mode_parameter.constraints is not None
     assert mode_parameter.constraints.options == feature.constraints.options
-    assert enabled_parameter.constraints is None
+    assert enabled_parameter.constraints == FeatureConstraints(value_type="boolean")
     assert enabled_parameter.name == "enabled"
     assert "1234567" not in command.uri
 

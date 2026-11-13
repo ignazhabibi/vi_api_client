@@ -44,9 +44,9 @@ _EMPTY_WRITABLE_FEATURES = [
         pytest.param(["list-devices"], "Found 1 installations:", id="list-devices"),
         pytest.param(["list-features"], "Features for device 0:", id="list-features"),
         pytest.param(
-            ["list-features", "--enabled"],
+            ["list-features", "--available"],
             "Features for device 0:",
-            id="list-features --enabled",
+            id="list-features --available",
         ),
         pytest.param(
             ["list-features", "--values"],

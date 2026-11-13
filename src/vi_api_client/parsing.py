@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import date
 from math import isfinite
 from typing import Any, NamedTuple, cast
@@ -220,20 +220,26 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
 
 
 def parse_api_features(
-    api_features: list[dict[str, Any]], *, only_available: bool
+    api_features: list[dict[str, Any]],
+    *,
+    only_available: bool,
+    feature_names: Collection[str] | None = None,
 ) -> tuple[list[Feature], dict[str, tuple[DeviceCommand, ...]]]:
     """Parse one device feature response into flat features and commands.
 
     Every API feature is validated once. The command list keeps commands the
     parser binds to no feature and commands of API features without
-    properties; when ``only_available`` is set, both features and commands
-    keep only enabled and ready API features. The commands store neither
+    properties; when ``only_available`` is set, the commands keep only
+    enabled and ready API features. The commands store neither
     ``isExecutable`` nor ``isDeprecated``.
 
     Args:
         api_features: The raw JSON objects of one device's API features.
-        only_available: Whether unavailable API features and commands are
+        only_available: Whether the commands of unavailable API features are
             filtered out locally, mirroring the read's skip hints.
+        feature_names: Optional names that select features by their own name
+            or by the name of the API feature they were parsed from. Without
+            names every feature is kept. The command list is not selected.
 
     Returns:
         The flat features and the reported commands keyed by API feature name.
@@ -245,9 +251,15 @@ def parse_api_features(
     features: list[Feature] = []
     commands_by_api_feature: dict[str, tuple[DeviceCommand, ...]] = {}
     available_api_features: set[str] = set()
+    requested_names = set(feature_names or ())
     for api_feature in api_features:
         entry = validate_feature_entry(api_feature)
-        features.extend(_entry_to_flat_features(entry))
+        entry_features = _entry_to_flat_features(entry)
+        if requested_names and entry.name not in requested_names:
+            entry_features = [
+                feature for feature in entry_features if feature.name in requested_names
+            ]
+        features.extend(entry_features)
         device_commands = _entry_commands(entry)
         if entry.name in commands_by_api_feature:
             existing = commands_by_api_feature[entry.name]
@@ -273,6 +285,25 @@ def parse_api_features(
     return features, commands_by_api_feature
 
 
+def owning_api_feature_name(device: Device, feature_name: str) -> str | None:
+    """Return the API feature of a device snapshot that one feature belongs to.
+
+    The longest API feature name the feature name equals or starts with,
+    followed by a dot, owns the feature. Only API features the snapshot's
+    command list records are candidates, and a snapshot without one owns
+    nothing.
+    """
+    return max(
+        (
+            name
+            for name in device.commands_by_api_feature
+            if feature_name == name or feature_name.startswith(f"{name}.")
+        ),
+        key=len,
+        default=None,
+    )
+
+
 def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
     """Return the internal metadata of every command of one API feature."""
     commands: list[DeviceCommand] = []
@@ -283,7 +314,6 @@ def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
             CommandParameter(
                 name=parameter_name,
                 required=parameter.get("required"),
-                value_type=parameter.get("type"),
                 constraints=_parameter_constraints(parameter),
             )
             for parameter_name, parameter in params.items()
@@ -297,10 +327,11 @@ def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
 
 
 def _parameter_constraints(parameter: dict[str, Any]) -> FeatureConstraints | None:
-    """Return the constraint rules of one command parameter, if any."""
+    """Return the type and constraint rules of one command parameter, if any."""
     # The constraint shapes were validated by validate_feature_entry.
     constraints = cast("dict[str, Any]", parameter.get("constraints", {}))
     built = FeatureConstraints(
+        value_type=parameter.get("type"),
         min=constraints.get("min"),
         max=constraints.get("max"),
         step=constraints.get("step", constraints.get("stepping")),

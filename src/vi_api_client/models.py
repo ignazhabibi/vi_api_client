@@ -122,15 +122,13 @@ class CommandParameter:
         name: The parameter name to pass to `run_command`, such as ``level``.
         required: Whether the API reports the parameter as required, or
             None when it reports nothing.
-        value_type: The parameter type the API reports, such as ``string``
-            or ``number``, or None.
-        constraints: The value rules the API reports, such as the allowed
-            ``options``, or None when it reports none.
+        constraints: The type and value rules the API reports, such as
+            ``value_type`` and the allowed ``options``, or None when it
+            reports neither.
     """
 
     name: str
     required: bool | None = None
-    value_type: str | None = None
     constraints: FeatureConstraints | None = None
 
 

@@ -358,8 +358,9 @@ async def test_get_command_parameters_returns_the_reported_parameters():
     # allowed values unchanged.
     assert parameters is not None
     (level,) = parameters
-    assert (level.name, level.required, level.value_type) == ("level", True, "string")
+    assert (level.name, level.required) == ("level", True)
     assert level.constraints is not None
+    assert level.constraints.value_type == "string"
     assert level.constraints.options == (
         "levelOne",
         "levelTwo",

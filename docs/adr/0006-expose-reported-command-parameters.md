@@ -18,8 +18,9 @@ interpret the API instead of passing it on.
 `Device.get_command_parameters(api_feature_name, command_name)` therefore
 returns the parameters of one reported command in API order as
 `CommandParameter` values: the name, whether the API reports it as required,
-its reported type, and its constraints in the same `FeatureConstraints` shape
-features use. It returns `None` when the API feature did not report the
+and its reported type and constraints in the same `FeatureConstraints` shape
+features use, with the type in `value_type`. The type lives only there, so a
+parameter and a feature describe a value the same way. It returns `None` when the API feature did not report the
 command, and an empty tuple for a command without parameters. The values are
 the API report without interpretation; `run_command` validates against the
 same data.

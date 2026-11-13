@@ -41,11 +41,11 @@ Feature names vary by device model (e.g., heat pumps vs gas boilers). Use this t
 # List all features (names only)
 vi-client list-features
 
-# List only enabled and ready features (names only)
-vi-client list-features --enabled
+# List only available (enabled and ready) features (names only)
+vi-client list-features --available
 
-# List enabled and ready features with values
-vi-client list-features --enabled --values
+# List available features with values
+vi-client list-features --available --values
 
 # Output as JSON
 vi-client list-features --json
@@ -53,12 +53,15 @@ vi-client list-features --json
 # List only features whose removal Viessmann has announced
 vi-client list-features --deprecated
 ```
+`--available` matches the library's `only_available` read; `--enabled` is an
+alias and keeps working.
+
 JSON output writes one parseable document to standard output; setup diagnostics
 and warnings are written to standard error.
 
 `--deprecated` lists only features that carry a removal notice and appends the
 notice to each line, the removal date first and the API's info text after it.
-The header counts the listed features. The option combines with `--enabled`,
+The header counts the listed features. The option combines with `--available`,
 `--values`, and `--json`:
 
 ```text

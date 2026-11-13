@@ -45,6 +45,7 @@ from .models import (
     WriteBinding,
     parse_instant,
 )
+from .parsing import owning_api_feature_name
 from .utils import format_feature, parse_cli_params
 
 DEFAULT_REDIRECT_URI = "http://localhost:4200/"
@@ -354,7 +355,7 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
-            device, only_available=args.enabled
+            device, only_available=args.available
         )
     is_deprecated_listing: bool = args.deprecated
     if is_deprecated_listing:
@@ -481,7 +482,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             if constraints.options:
                 print(f"  Options: {constraints.options}")
         else:
-            api_feature_name = _matching_api_feature_name(snapshot, feature.name)
+            api_feature_name = owning_api_feature_name(snapshot, feature.name)
         if api_feature_name is not None and (
             api_feature_name not in api_feature_sections
         ):
@@ -534,50 +535,35 @@ def _pair_commands_text(binding: CommandPairWriteBinding) -> str:
     return f"{binding.on_command_name} (on), {binding.off_command_name} (off)"
 
 
-def _matching_api_feature_name(device: Device, feature_name: str) -> str | None:
-    """Return the API feature with commands that one feature belongs to.
-
-    The longest API feature name the feature name starts with owns the
-    feature; API features without commands cannot own one for this purpose
-    because they have nothing to list.
-    """
-    candidates = [
-        name
-        for name in device.commands_by_api_feature
-        if feature_name == name or feature_name.startswith(f"{name}.")
-    ]
-    if not candidates:
-        return None
-    return max(candidates, key=len)
-
-
 def _print_command_list(device: Device, api_feature_name: str) -> None:
     """Print the commands of one API feature with their parameter rules.
 
     A ``*`` marks a required parameter.
     """
-    commands = device.commands_by_api_feature.get(api_feature_name, ())
-
-    if not commands:
+    command_names = device.get_command_names(api_feature_name)
+    if not command_names:
         return
     print(f"  Commands of {api_feature_name}:")
-    for command in commands:
+    for command_name in command_names:
+        parameters = device.get_command_parameters(api_feature_name, command_name)
+        # Every listed name is a reported command, so it has a parameter list.
+        assert parameters is not None  # noqa: S101
         parameter_labels = ", ".join(
             f"{parameter.name}{'*' if parameter.required is not False else ''}"
-            for parameter in command.parameters
+            for parameter in parameters
         )
-        print(f"  - {command.name}: {parameter_labels or 'none'}")
-        for parameter in command.parameters:
+        print(f"  - {command_name}: {parameter_labels or 'none'}")
+        for parameter in parameters:
             _print_parameter_rules(parameter)
 
 
 def _print_parameter_rules(parameter: CommandParameter) -> None:
     """Print a command parameter's reported type and constraint rules."""
     details: list[str] = []
-    if parameter.value_type is not None:
-        details.append(parameter.value_type)
     constraints = parameter.constraints
     if constraints is not None:
+        if constraints.value_type is not None:
+            details.append(constraints.value_type)
         details.extend(_constraint_rules_text(constraints))
         details.extend(_schedule_rules_text(constraints.schedule))
     if details:
@@ -765,7 +751,7 @@ async def _fetch_writable_feature(
         return None
     binding = feature.write_binding
     if binding is None:
-        api_feature_name = _matching_api_feature_name(device_snapshot, feature.name)
+        api_feature_name = owning_api_feature_name(device_snapshot, feature.name)
         command_names = (
             device_snapshot.get_command_names(api_feature_name)
             if api_feature_name
@@ -1292,9 +1278,11 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common_parser, device_parser],
     )
     parser_features.add_argument(
+        "--available",
         "--enabled",
+        dest="available",
         action="store_true",
-        help="List only enabled and ready features",
+        help="List only enabled and ready features (--enabled is an alias)",
     )
     parser_features.add_argument(
         "--deprecated",
