@@ -73,7 +73,19 @@ vi-client list-features --json
 
 # List only features whose removal Viessmann has announced
 vi-client list-features --deprecated
+
+# List only the features of heating circuit 0, with values
+vi-client list-features --filter heating.circuits.0 --values
+
+# List every outside temperature feature, wherever it sits
+vi-client list-features --filter '*.temperature.outside*'
 ```
+
+`--filter NAME` keeps the feature `NAME` and every feature below it, so
+`heating.circuits.0` does not select `heating.circuits.01`. A filter with `*`,
+`?`, or `[` is a case-sensitive pattern over the whole name; quote it so the
+shell does not expand it. The option can be repeated, and a feature that
+matches any filter is listed. It combines with the other options.
 `--available` matches the library's `only_available` read; `--enabled` is an
 alias and keeps working.
 

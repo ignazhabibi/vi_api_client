@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import difflib
+import fnmatch
 import json
 import logging
 import math
@@ -410,14 +411,24 @@ async def cmd_list_features(args: argparse.Namespace) -> bool:
     Supports filtering and formatting options.
 
     Args:
-        args: Parsed command line arguments including the enabled, deprecated,
-            values, and json flags.
+        args: Parsed command line arguments including the available,
+            deprecated, filter, values, and json options.
     """
     async with setup_client_context(args) as context:
         device = _transient_device(context)
         features = await context.client.get_features(
             device, only_available=args.available
         )
+    name_filters: list[str] = args.filter or []
+    if name_filters:
+        features = [
+            feature
+            for feature in features
+            if any(
+                _matches_name_filter(feature.name, name_filter)
+                for name_filter in name_filters
+            )
+        ]
     is_deprecated_listing: bool = args.deprecated
     if is_deprecated_listing:
         features = [feature for feature in features if feature.deprecation is not None]
@@ -472,6 +483,19 @@ def _removal_suffix(feature: Feature) -> str:
     if deprecation.info:
         notice += f": {deprecation.info}"
     return f" ({notice})"
+
+
+def _matches_name_filter(feature_name: str, name_filter: str) -> bool:
+    """Return whether a feature name matches one --filter value.
+
+    A filter with ``*``, ``?``, or ``[`` is a case-sensitive shell-style
+    pattern over the whole name. Any other filter selects the name itself
+    and every name below it, so ``heating.circuits.0`` keeps
+    ``heating.circuits.0.name`` but not ``heating.circuits.01``.
+    """
+    if any(character in name_filter for character in "*?["):
+        return fnmatch.fnmatchcase(feature_name, name_filter)
+    return feature_name == name_filter or feature_name.startswith(f"{name_filter}.")
 
 
 @_reports_errors("fetching feature")
@@ -1455,6 +1479,8 @@ def build_parser() -> argparse.ArgumentParser:
         [
             "vi-client list-features --available --values",
             "vi-client list-features --deprecated",
+            "vi-client list-features --filter heating.circuits.0 --values",
+            "vi-client list-features --filter '*.temperature.*'",
             "vi-client list-features --json --fixture-device Vitocal250A",
         ],
         [common_parser, device_parser],
@@ -1470,6 +1496,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--deprecated",
         action="store_true",
         help="List only features with a removal notice, each with its notice",
+    )
+    parser_features.add_argument(
+        "--filter",
+        action="append",
+        metavar="NAME",
+        help=(
+            "List only features at or below this name, or matching a pattern "
+            "with * (repeatable)"
+        ),
     )
     parser_features.add_argument(
         "--values", action="store_true", help="Show feature values"

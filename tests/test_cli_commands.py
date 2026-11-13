@@ -41,6 +41,7 @@ from vi_api_client.cli import (
     _dispatch_command,
     _event_detail_lines,
     _infer_feature_value_type,
+    _matches_name_filter,
     _print_event_summary,
     _removal_suffix,
     async_main,
@@ -2785,3 +2786,48 @@ async def test_cmd_exec_json_reports_a_rejected_command(mock_cli_context, capsys
         "not allowed",
         "COMMAND_NOT_EXECUTABLE",
     )
+
+
+@pytest.mark.parametrize(
+    ("name_filter", "feature_name", "expected"),
+    [
+        pytest.param("heating.circuits.0", "heating.circuits.0", True, id="itself"),
+        pytest.param("heating.circuits.0", "heating.circuits.0.name", True, id="below"),
+        pytest.param("heating.circuits.0", "heating.circuits.01", False, id="sibling"),
+        pytest.param("heating.circuits", "heating.circuitsX", False, id="partial"),
+        pytest.param(
+            "*.outside", "heating.sensors.temperature.outside", True, id="glob"
+        ),
+        pytest.param("*.outside", "heating.outside.status", False, id="glob-whole"),
+        pytest.param(
+            "heating.circuits.?.name", "heating.circuits.1.name", True, id="any"
+        ),
+        pytest.param("Heating.*", "heating.x", False, id="case-sensitive"),
+    ],
+)
+def test_name_filter_selects_names_below_a_prefix_or_matching_a_pattern(
+    name_filter, feature_name, expected
+):
+    assert _matches_name_filter(feature_name, name_filter) is expected
+
+
+async def test_run_cli_list_features_filter_keeps_any_matching_name(run_cli):
+    # Act: Combine a prefix filter with a pattern filter.
+    exit_status, out, _ = await run_cli(
+        "list-features",
+        "--json",
+        "--fixture-device",
+        "Vitocal250A",
+        "--filter",
+        "heating.circuits.0.heating.curve",
+        "--filter",
+        "*.sensors.temperature.outside",
+    )
+
+    # Assert: Exactly the features matching either filter are listed.
+    assert exit_status == 0
+    assert json.loads(out) == [
+        "heating.circuits.0.heating.curve.slope",
+        "heating.circuits.0.heating.curve.shift",
+        "heating.sensors.temperature.outside",
+    ]
