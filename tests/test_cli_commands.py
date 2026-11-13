@@ -99,12 +99,17 @@ def _curve_command() -> DeviceCommand:
         name="setCurve",
         uri="uri",
         parameters=(
-            CommandParameter(name="shift", required=True, value_type="number"),
+            CommandParameter(
+                name="shift",
+                required=True,
+                constraints=FeatureConstraints(value_type="number"),
+            ),
             CommandParameter(
                 name="slope",
                 required=True,
-                value_type="number",
-                constraints=FeatureConstraints(min=0.2, max=3.5, step=0.1),
+                constraints=FeatureConstraints(
+                    value_type="number", min=0.2, max=3.5, step=0.1
+                ),
             ),
         ),
     )

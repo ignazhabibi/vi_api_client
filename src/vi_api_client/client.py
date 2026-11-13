@@ -21,7 +21,6 @@ from .exceptions import (
 )
 from .models import (
     CommandPairWriteBinding,
-    CommandParameter,
     Device,
     DeviceCommand,
     EventHistoryPage,
@@ -750,21 +749,10 @@ class ViClient:
         for parameter_name, value in parameters.items():
             parameter = reported_by_name[parameter_name]
             self._validate_constraints(
-                self._command_parameter_constraints(parameter),
+                parameter.constraints or FeatureConstraints(),
                 command.name,
                 value,
             )
-
-    @staticmethod
-    def _command_parameter_constraints(
-        parameter: CommandParameter,
-    ) -> FeatureConstraints:
-        """Return the constraint rules of one reported command parameter."""
-        constraints = parameter.constraints or FeatureConstraints()
-        value_type = parameter.value_type or constraints.value_type
-        if value_type == constraints.value_type:
-            return constraints
-        return replace(constraints, value_type=value_type)
 
     # Reads: unpack API responses and parse API features into flat features.
 

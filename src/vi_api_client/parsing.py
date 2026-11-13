@@ -283,7 +283,6 @@ def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
             CommandParameter(
                 name=parameter_name,
                 required=parameter.get("required"),
-                value_type=parameter.get("type"),
                 constraints=_parameter_constraints(parameter),
             )
             for parameter_name, parameter in params.items()
@@ -297,10 +296,11 @@ def _entry_commands(entry: ValidatedApiFeature) -> tuple[DeviceCommand, ...]:
 
 
 def _parameter_constraints(parameter: dict[str, Any]) -> FeatureConstraints | None:
-    """Return the constraint rules of one command parameter, if any."""
+    """Return the type and constraint rules of one command parameter, if any."""
     # The constraint shapes were validated by validate_feature_entry.
     constraints = cast("dict[str, Any]", parameter.get("constraints", {}))
     built = FeatureConstraints(
+        value_type=parameter.get("type"),
         min=constraints.get("min"),
         max=constraints.get("max"),
         step=constraints.get("step", constraints.get("stepping")),

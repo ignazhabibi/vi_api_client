@@ -574,10 +574,10 @@ def _print_command_list(device: Device, api_feature_name: str) -> None:
 def _print_parameter_rules(parameter: CommandParameter) -> None:
     """Print a command parameter's reported type and constraint rules."""
     details: list[str] = []
-    if parameter.value_type is not None:
-        details.append(parameter.value_type)
     constraints = parameter.constraints
     if constraints is not None:
+        if constraints.value_type is not None:
+            details.append(constraints.value_type)
         details.extend(_constraint_rules_text(constraints))
         details.extend(_schedule_rules_text(constraints.schedule))
     if details:

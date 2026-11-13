@@ -124,8 +124,7 @@ interpretation:
 | :--- | :--- | :--- |
 | `name` | `str` | Parameter name to pass to `run_command`, such as `level`. |
 | `required` | `bool \| None` | Whether the API reports the parameter as required. |
-| `value_type` | `str \| None` | Parameter type the API reports, such as `string` or `number`. |
-| `constraints` | `FeatureConstraints \| None` | Reported value rules, such as the allowed `options`. |
+| `constraints` | `FeatureConstraints \| None` | Reported type and value rules, such as `value_type` and the allowed `options`; `None` when the API reports neither. |
 
 ```python
 (level,) = device.get_command_parameters(
