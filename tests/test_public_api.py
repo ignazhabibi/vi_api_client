@@ -19,6 +19,7 @@ def test_package_root_exposes_only_the_documented_consumer_api():
     # Arrange: List the names consumers are allowed to import from the root.
     expected_exports = {
         "AbstractAuth",
+        "CommandParameter",
         "DEFAULT_SCOPES",
         "Device",
         "ENDPOINT_AUTHORIZE",
@@ -89,7 +90,6 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "CommandPairWriteBinding",
         "ParameterWriteBinding",
         "DeviceCommand",
-        "CommandParameter",
         "FeatureControl",
     }
 

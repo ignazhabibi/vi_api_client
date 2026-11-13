@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, NotRequired, TypedDict, cast
 
 from ._adapter import CommandAdapter, DiscoveryAdapter
 from ._types import JsonValue
@@ -15,12 +15,28 @@ _LOGGER = logging.getLogger(__name__)
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+class _FixtureDeviceIdentity(TypedDict):
+    """The discovery identity of one device on a fixture's gateway."""
+
+    id: str
+    modelId: str
+    deviceType: str
+    roles: NotRequired[list[str]]
+
+
 class _FixtureMetadata(TypedDict):
-    """The discovery identity of one bundled feature fixture."""
+    """The discovery identity of one bundled feature fixture.
+
+    The top-level identity describes device "0", whose features are in
+    ``<fixtureName>.json``. Each further device on the same gateway has its
+    own features in ``<fixtureName>.<id>.json``.
+    """
 
     fixtureName: str
     modelId: str
     deviceType: str
+    roles: NotRequired[list[str]]
+    additionalDevices: NotRequired[list[_FixtureDeviceIdentity]]
 
 
 class _FixtureDiscoveryData(TypedDict):
@@ -63,6 +79,10 @@ class _FixtureDiscoveryAdapter:
                 f"Unknown fixture device {device_name!r}. Available: {available}"
             )
         self._device_metadata = catalog[device_name]
+        self._feature_files = {"0": f"{device_name}.json"} | {
+            device["id"]: f"{device_name}.{device['id']}.json"
+            for device in self._device_metadata.get("additionalDevices", [])
+        }
 
     async def get_installations(self) -> dict[str, Any]:
         """Return the fixture installation response named after the device."""
@@ -77,29 +97,43 @@ class _FixtureDiscoveryAdapter:
     async def get_devices(
         self, installation_id: str, gateway_serial: str
     ) -> dict[str, Any]:
-        """Return the selected fixture as one deterministic device."""
+        """Return the selected fixture's catalogued devices.
+
+        Device "0" comes first, followed by any further catalogued devices.
+        A device carries the catalogued roles when the fixture has them.
+        """
+        main_device: _FixtureDeviceIdentity = {
+            "id": "0",
+            "modelId": self._device_metadata["modelId"],
+            "deviceType": self._device_metadata["deviceType"],
+        }
+        if "roles" in self._device_metadata:
+            main_device["roles"] = self._device_metadata["roles"]
+        identities = [main_device, *self._device_metadata.get("additionalDevices", [])]
         return {
-            "data": [
-                {
-                    "id": "0",
-                    "modelId": self._device_metadata["modelId"],
-                    "deviceType": self._device_metadata["deviceType"],
-                    "status": "connected",
-                }
-            ]
+            "data": [{**identity, "status": "connected"} for identity in identities]
         }
 
     async def get_features(
         self, device: Device, payload: dict[str, bool]
     ) -> dict[str, Any]:
-        """Return the selected fixture's raw feature response."""
-        return _read_fixture_file(f"{self._device_name}.json")
+        """Return the raw feature response of one fixture device.
+
+        An ID the catalog does not list reads device "0", so callers that only
+        know a placeholder device ID still read the fixture.
+        """
+        return _read_fixture_file(
+            self._feature_files.get(device.id, self._feature_files["0"])
+        )
 
     async def get_gateway_features(
         self, installation_id: str, gateway_serial: str, payload: dict[str, bool]
     ) -> dict[str, Any]:
-        """Return the selected fixture's raw gateway-scoped feature response."""
-        return _read_fixture_file(f"{self._device_name}.json")
+        """Return the raw gateway-scoped features of every fixture device."""
+        responses = [_read_fixture_file(name) for name in self._feature_files.values()]
+        if len(responses) == 1:
+            return responses[0]
+        return {"data": [item for response in responses for item in response["data"]]}
 
     async def get_event_history(
         self, installation_id: str, params: dict[str, int | str]

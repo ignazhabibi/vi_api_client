@@ -37,7 +37,40 @@ availability.
 workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
 responses without authentication or network requests. Its bundled fixture
-catalog defines each selectable fixture name, model identity, and device type;
+catalog defines each selectable fixture name, model identity, device type, and,
+where known, the device roles.
+A fixture added from a device export reports the model ID that the exported
+device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
+without a known model ID report a placeholder. A fixture can model several
+devices on one gateway: `get_devices` then lists device `"0"` and every further
+catalogued device, each device reads its own features, and a gateway-scoped
+refresh reads the features of all of them.
+
+Fixture contents are recorded API data, not a compatibility contract. A
+fixture refresh or replacement can change its features, values, model ID, or
+devices in a minor release; the release notes name such changes. The fixture
+names that `get_available_fixture_devices()` lists stay stable within a major
+version.
+
+| Fixture | Device | Model ID | Real model ID |
+| :--- | :--- | :--- | :--- |
+| `VitoairFs300E` | `0` | `E3_ViAir_300F_13` | yes |
+| `Vitocal200A` | `0` | `Vitocal200A-SystemController` | no |
+| `Vitocal200A` | `1` | `Vitocal200A-OutdoorUnit` | no |
+| `Vitocal200S` | `0` | `Vitocal200S` | no |
+| `Vitocal222S` | `0` | `Vitocal222S` | no |
+| `Vitocal250A` | `0` | `E3_Vitocal_16` | yes |
+| `Vitocal250A-TwoCircuits` | `0` | `E3_Vitocal_17` | yes |
+| `Vitocal252A` | `0` | `Vitocal252A` | no |
+| `Vitocal262A-T2H-R290` | `0` | `E3_Vitocal_262_02` | yes |
+| `Vitocal300G-CU401B` | `0` | `CU401B_G` | yes |
+| `Vitocal333G-with-Vitovent300F` | `0` | `Vitocal333G-with-Vitovent300F` | no |
+| `Vitocharge03` | `0` | `Vitocharge03` | no |
+| `VitochargeEvolution08` | `0` | `E3_VitoCharge_Evolution_08` | yes |
+| `Vitodens100W` | `0` | `Vitodens100W` | no |
+| `Vitodens200W` | `0` | `Vitodens200W` | no |
+| `Vitodens300W-B3HF-19` | `0` | `E3_Vitodens_300_0419` | yes |
+| `Vitopure350` | `0` | `E3_VitoPure` | yes |
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 
@@ -212,7 +245,7 @@ contribute a new fixture.
 
 *   **Parameters**:
     *   `device`: The `Device` to export. It only identifies the device; features already on it are not used.
-*   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
+*   **Returns**: `{"device": {"modelId": ..., "deviceType": ..., "roles": [...], "capturedAt": "YYYY-MM-DD"}, "data": [...]}`. `data` holds the device's raw API features, read fresh and including disabled and not-ready features. `capturedAt` is the UTC date of the export.
 *   **Anonymization**: The whole document is redacted with `redact_sensitive` (see [Redacting Sensitive Data](#redacting-sensitive-data)), so it contains no installation IDs, gateway or device serials, or coordinates. Free text, such as user-chosen circuit names, stays.
 *   **Raises**: `ViResponseError` for a malformed response, and the applicable `ViError` subclass for API failures.
 
@@ -370,8 +403,9 @@ not need to be the one bound to a feature, and reported executability and
 deprecation are not checked: a command the API reported as non-executable is
 sent like any other, and the API decides. No snapshot is changed.
 
-Every required parameter must be supplied; a parameter name the command does not
-report raises `ValueError`, and so does a missing required parameter. Each
+`Device.get_command_parameters` lists the parameters a command reports, with
+their requirement, type, and allowed values. Every required parameter must be
+supplied; a parameter name the command does not report raises `ValueError`, and so does a missing required parameter. Each
 supplied value is checked against the parameter's reported type and constraints
 with the same rules `set_feature` applies to its value (type, options, range,
 step, text length, pattern, schedule rules), and every value must satisfy the

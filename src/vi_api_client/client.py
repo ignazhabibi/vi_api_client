@@ -426,8 +426,8 @@ class ViClient:
 
         Returns:
             ``{"device": {...}, "data": [...]}``: the device's ``modelId``,
-            ``deviceType``, and the UTC ``capturedAt`` date, and the redacted
-            raw API features.
+            ``deviceType``, ``roles``, and the UTC ``capturedAt`` date, and
+            the redacted raw API features.
 
         Raises:
             ViResponseError: If the API response is malformed.
@@ -440,6 +440,7 @@ class ViClient:
             "device": {
                 "modelId": device.model_id,
                 "deviceType": device.device_type,
+                "roles": list(device.roles),
                 "capturedAt": datetime.now(UTC).date().isoformat(),
             },
             "data": validate_json_value(api_features, path="features"),

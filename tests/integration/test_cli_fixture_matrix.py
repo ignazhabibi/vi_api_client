@@ -124,7 +124,7 @@ async def test_dump_device_prints_the_fixture_as_one_document(
     assert exit_status == 0
     document = json.loads(out)
     assert document["data"] == load_fixture_device(fixture_device)["data"]
-    assert set(document["device"]) == {"modelId", "deviceType", "capturedAt"}
+    assert set(document["device"]) == {"modelId", "deviceType", "roles", "capturedAt"}
     assert f"Using Fixture Device: {fixture_device}" in err
 
 

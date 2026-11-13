@@ -118,8 +118,9 @@ _Avoid_: Control metadata, command constraints bundle
 
 **Device command list**:
 The per-API-feature record of every reported command and its parameter
-metadata a device snapshot carries; `Device.get_command_names` reads it. It
-stores neither executability nor deprecation.
+metadata a device snapshot carries; `Device.get_command_names` and
+`Device.get_command_parameters` read it. It stores neither executability nor
+deprecation.
 _Avoid_: Command registry
 
 **API command**:

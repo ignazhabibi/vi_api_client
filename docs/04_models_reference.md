@@ -95,6 +95,7 @@ feature response can validly be empty.
 | `device_type` | `str` | Device type (e.g., "heating", "tcu"). | `'heating'` |
 | `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
 | `features` | `Sequence[Feature]` | Read-only features supported by this device. | `(Feature(...),)` |
+| `roles` | `tuple[str, ...]` | Role strings exactly as the API reports them, in API order; empty when the API reports none. The library does not interpret them. | `('type:heatpump', 'type:product;Vitocal_250A')` |
 
 ### `get_command_names(api_feature_name: str) -> tuple[str, ...]`
 
@@ -109,6 +110,32 @@ decide.
 ```python
 device.get_command_names("heating.operating.programs.holiday")
 # ("changeEndDate", "schedule", "unschedule")
+```
+
+### `get_command_parameters(api_feature_name: str, command_name: str) -> tuple[CommandParameter, ...] | None`
+
+Returns the parameters one reported command takes, in API order, so a caller
+of `run_command` can offer valid values. It returns `None` when the API
+feature did not report the command, and `()` for a command without
+parameters. Each `CommandParameter` repeats the API report without
+interpretation:
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `str` | Parameter name to pass to `run_command`, such as `level`. |
+| `required` | `bool \| None` | Whether the API reports the parameter as required. |
+| `value_type` | `str \| None` | Parameter type the API reports, such as `string` or `number`. |
+| `constraints` | `FeatureConstraints \| None` | Reported value rules, such as the allowed `options`. |
+
+```python
+(level,) = device.get_command_parameters(
+    "ventilation.operating.modes.permanent", "setLevel"
+)
+level.constraints.options
+# ("levelOne", "levelTwo", "levelThree", "levelFour")
+await client.run_command(
+    device, "ventilation.operating.modes.permanent", "setLevel", {"level": "levelTwo"}
+)
 ```
 
 The command list travels with each snapshot-building read: `refresh_device`,

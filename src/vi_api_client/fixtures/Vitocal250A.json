@@ -4,7 +4,7 @@
       "feature": "device.actorSensorTest",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -25,7 +25,7 @@
       "feature": "device.brand",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -42,7 +42,7 @@
       "feature": "device.configuration.houseLocation",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -60,7 +60,7 @@
       "feature": "device.demand.external",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -72,7 +72,7 @@
       "feature": "device.lock.external",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -89,7 +89,7 @@
       "feature": "device.lock.malfunction",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -106,7 +106,7 @@
       "feature": "device.messages.info.raw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T05:45:57.600Z",
+      "timestamp": "2026-11-13T08:53:06.958Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -160,7 +160,7 @@
       "feature": "device.messages.service.raw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -177,7 +177,7 @@
       "feature": "device.messages.status.raw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:00.814Z",
+      "timestamp": "2026-11-13T08:41:03.513Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -187,8 +187,8 @@
           "type": "array",
           "value": [
             {
-              "errorCode": "S.134",
-              "timestamp": "2026-10-11T10:03:07.000Z",
+              "errorCode": "S.125",
+              "timestamp": "2026-11-13T09:41:44.000Z",
               "busAddress": "1",
               "busType": "OwnBus",
               "accessLevel": "customer",
@@ -205,8 +205,8 @@
               ]
             },
             {
-              "errorCode": "S.123",
-              "timestamp": "2026-10-11T10:03:04.000Z",
+              "errorCode": "S.118",
+              "timestamp": "2026-11-13T09:41:40.000Z",
               "busAddress": "1",
               "busType": "OwnBus",
               "accessLevel": "customer",
@@ -224,7 +224,7 @@
             },
             {
               "errorCode": "S.165",
-              "timestamp": "2026-05-17T09:01:28.000Z",
+              "timestamp": "2026-11-13T09:41:40.000Z",
               "busAddress": "54",
               "busType": "CanInternal",
               "accessLevel": "customer",
@@ -241,26 +241,8 @@
               ]
             },
             {
-              "errorCode": "S.219",
-              "timestamp": "2026-05-11T15:02:43.000Z",
-              "busAddress": "1",
-              "busType": "OwnBus",
-              "accessLevel": "customer",
-              "priority": "status",
-              "audiences": [
-                "IS-SUPPLIER",
-                "IS-DEVELOPMENT",
-                "IS-MANUFACTURING",
-                "IS-AFTERSALES",
-                "IS-AFTERMARKET",
-                "IS-DEVELOPER-VEG",
-                "IS-BIG-DATA",
-                "IS-MANUFACTURING-VEG"
-              ]
-            },
-            {
               "errorCode": "S.218",
-              "timestamp": "2026-05-11T15:02:13.000Z",
+              "timestamp": "2026-11-12T14:46:24.000Z",
               "busAddress": "1",
               "busType": "OwnBus",
               "accessLevel": "customer",
@@ -278,7 +260,25 @@
             },
             {
               "errorCode": "S.217",
-              "timestamp": "2026-05-11T15:01:32.000Z",
+              "timestamp": "2026-11-12T14:45:54.000Z",
+              "busAddress": "1",
+              "busType": "OwnBus",
+              "accessLevel": "customer",
+              "priority": "status",
+              "audiences": [
+                "IS-SUPPLIER",
+                "IS-DEVELOPMENT",
+                "IS-MANUFACTURING",
+                "IS-AFTERSALES",
+                "IS-AFTERMARKET",
+                "IS-DEVELOPER-VEG",
+                "IS-BIG-DATA",
+                "IS-MANUFACTURING-VEG"
+              ]
+            },
+            {
+              "errorCode": "S.219",
+              "timestamp": "2026-11-12T14:45:13.000Z",
               "busAddress": "1",
               "busType": "OwnBus",
               "accessLevel": "customer",
@@ -339,7 +339,7 @@
       "feature": "device.parameterIdentification.version",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -356,7 +356,7 @@
       "feature": "device.power.consumption.limitation",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -373,7 +373,7 @@
       "feature": "device.power.statusReport.consumption",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -395,7 +395,7 @@
       "feature": "device.power.statusReport.production",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -417,7 +417,7 @@
       "feature": "device.productIdentification",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -439,7 +439,7 @@
       "feature": "device.productMatrix",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -463,7 +463,7 @@
       "feature": "device.remoteReset",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -475,7 +475,7 @@
       "feature": "device.serial",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -484,15 +484,74 @@
         "value": {
           "type": "string",
           "value": "################"
+        },
+        "vin": {
+          "type": "VinEntry",
+          "value": {
+            "uid": null,
+            "profile": null
+          }
+        },
+        "materialId": {
+          "type": "MaterialIdEntry",
+          "value": {
+            "uid": null,
+            "profile": null
+          }
         }
       },
-      "commands": {}
+      "commands": {
+        "setPrin": {
+          "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/device.serial/commands/setPrin",
+          "name": "setPrin",
+          "isExecutable": false,
+          "params": {
+            "vin": {
+              "type": "string",
+              "required": true,
+              "constraints": {}
+            },
+            "vinProfile": {
+              "type": "string",
+              "required": true,
+              "constraints": {
+                "enum": [
+                  "empty",
+                  "unspecified",
+                  "viessmannProfileOne",
+                  "viessmannProfileOneThousandAndFive",
+                  "viessmannProfileTwoThousand",
+                  "viessmannProfileThreeThousand",
+                  "viessmannProfileFourThousand",
+                  "viessmannProfileSevenThousand",
+                  "viessmannProfileNineThousand",
+                  "carrierProfileEightPlusEleven",
+                  "toshibaProfileThirty",
+                  "carrierProfileTwentyTwo"
+                ]
+              }
+            },
+            "materialIdProfile": {
+              "type": "string",
+              "required": true,
+              "constraints": {
+                "enum": [
+                  "empty",
+                  "unspecified",
+                  "pSeven",
+                  "pEight"
+                ]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "feature": "device.setDefaultValues",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -504,7 +563,7 @@
       "feature": "device.time.daylightSaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -585,7 +644,7 @@
       "feature": "device.type",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -602,7 +661,7 @@
       "feature": "device.variant",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -619,7 +678,7 @@
       "feature": "device.zigbee.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -636,7 +695,7 @@
       "feature": "device.zigbee.status",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -653,7 +712,7 @@
       "feature": "heating.boiler.pumps.internal",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:32:59.736Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -661,7 +720,7 @@
       "properties": {
         "status": {
           "type": "string",
-          "value": "off"
+          "value": "on"
         }
       },
       "commands": {}
@@ -670,7 +729,7 @@
       "feature": "heating.boiler.pumps.internal.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:05.412Z",
+      "timestamp": "2026-11-13T08:54:12.186Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -678,7 +737,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 69,
           "unit": "percent"
         }
       },
@@ -688,7 +747,7 @@
       "feature": "heating.boiler.pumps.internal.target",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:33:15.028Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -696,7 +755,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 55,
           "unit": "percent"
         }
       },
@@ -706,7 +765,7 @@
       "feature": "heating.boiler.sensors.temperature.commonSupply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:06:05.752Z",
+      "timestamp": "2026-11-13T08:51:14.438Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -714,7 +773,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.2,
+          "value": 40.4,
           "unit": "celsius"
         },
         "status": {
@@ -728,7 +787,7 @@
       "feature": "heating.boiler.serial",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -745,7 +804,7 @@
       "feature": "heating.boiler.temperature.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:42.816Z",
+      "timestamp": "2026-11-13T08:52:40.168Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -753,7 +812,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 37.7,
           "unit": "celsius"
         }
       },
@@ -763,7 +822,7 @@
       "feature": "heating.buffer.sensors.temperature.main",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:07:47.443Z",
+      "timestamp": "2026-11-13T08:56:44.508Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -771,7 +830,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.1,
+          "value": 36.9,
           "unit": "celsius"
         },
         "status": {
@@ -789,7 +848,7 @@
       "feature": "heating.bufferCylinder.sensors.temperature.main",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:07:47.443Z",
+      "timestamp": "2026-11-13T08:56:44.508Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -797,7 +856,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.1,
+          "value": 36.9,
           "unit": "celsius"
         },
         "status": {
@@ -811,7 +870,7 @@
       "feature": "heating.circuits",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -836,7 +895,7 @@
       "feature": "heating.circuits.0",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -877,7 +936,7 @@
       "feature": "heating.circuits.0.circulation.pump",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:32:59.736Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -894,7 +953,7 @@
       "feature": "heating.circuits.0.configuration.summerEco.absolute",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -916,7 +975,7 @@
       "feature": "heating.circuits.0.cooling.hysteresis",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -928,7 +987,7 @@
       "feature": "heating.circuits.0.cooling.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -940,7 +999,7 @@
       "feature": "heating.circuits.0.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -957,7 +1016,7 @@
       "feature": "heating.circuits.0.heating.curve",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1006,7 +1065,7 @@
       "feature": "heating.circuits.0.heating.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1018,7 +1077,7 @@
       "feature": "heating.circuits.0.heating.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1146,7 +1205,7 @@
       "feature": "heating.circuits.0.operating.modes.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1181,7 +1240,7 @@
       "feature": "heating.circuits.0.operating.modes.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1193,7 +1252,7 @@
       "feature": "heating.circuits.0.operating.modes.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1210,7 +1269,7 @@
       "feature": "heating.circuits.0.operating.modes.heatingCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1222,7 +1281,7 @@
       "feature": "heating.circuits.0.operating.modes.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1239,7 +1298,7 @@
       "feature": "heating.circuits.0.operating.programs.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1256,7 +1315,7 @@
       "feature": "heating.circuits.0.operating.programs.comfortCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1268,7 +1327,7 @@
       "feature": "heating.circuits.0.operating.programs.comfortCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1293,7 +1352,7 @@
       "feature": "heating.circuits.0.operating.programs.comfortEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1318,7 +1377,7 @@
       "feature": "heating.circuits.0.operating.programs.comfortHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1383,7 +1442,7 @@
       "feature": "heating.circuits.0.operating.programs.fixed",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1400,7 +1459,7 @@
       "feature": "heating.circuits.0.operating.programs.forcedLastFromSchedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T06:37:49.231Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1430,7 +1489,7 @@
       "feature": "heating.circuits.0.operating.programs.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1447,7 +1506,7 @@
       "feature": "heating.circuits.0.operating.programs.normalCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1459,7 +1518,7 @@
       "feature": "heating.circuits.0.operating.programs.normalCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1484,7 +1543,7 @@
       "feature": "heating.circuits.0.operating.programs.normalEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1509,7 +1568,7 @@
       "feature": "heating.circuits.0.operating.programs.normalHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1574,7 +1633,7 @@
       "feature": "heating.circuits.0.operating.programs.reducedCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1586,7 +1645,7 @@
       "feature": "heating.circuits.0.operating.programs.reducedCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1611,7 +1670,7 @@
       "feature": "heating.circuits.0.operating.programs.reducedEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1636,7 +1695,7 @@
       "feature": "heating.circuits.0.operating.programs.reducedHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1701,7 +1760,7 @@
       "feature": "heating.circuits.0.operating.programs.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1718,7 +1777,7 @@
       "feature": "heating.circuits.0.operating.programs.summerEco",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1735,7 +1794,7 @@
       "feature": "heating.circuits.0.sensors.humidity.dewpoint",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1747,7 +1806,7 @@
       "feature": "heating.circuits.0.sensors.temperature.room",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1759,7 +1818,7 @@
       "feature": "heating.circuits.0.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:59:54.627Z",
+      "timestamp": "2026-11-13T08:55:52.598Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1767,7 +1826,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.5,
+          "value": 36.8,
           "unit": "celsius"
         },
         "status": {
@@ -1781,7 +1840,7 @@
       "feature": "heating.circuits.0.temperature",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:04:01.044Z",
+      "timestamp": "2026-11-13T08:52:42.939Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1789,7 +1848,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 32.8,
+          "value": 37.7,
           "unit": "celsius"
         }
       },
@@ -1799,7 +1858,7 @@
       "feature": "heating.circuits.0.temperature.levels",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1880,7 +1939,7 @@
       "feature": "heating.circuits.0.zone.demand",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1892,7 +1951,7 @@
       "feature": "heating.circuits.0.zone.mode",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -1909,7 +1968,7 @@
       "feature": "heating.circuits.1",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1921,7 +1980,7 @@
       "feature": "heating.circuits.1.circulation.pump",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:32:59.736Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1933,7 +1992,7 @@
       "feature": "heating.circuits.1.configuration.summerEco.absolute",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1945,7 +2004,7 @@
       "feature": "heating.circuits.1.cooling.hysteresis",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1957,7 +2016,7 @@
       "feature": "heating.circuits.1.cooling.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1969,7 +2028,7 @@
       "feature": "heating.circuits.1.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1981,7 +2040,7 @@
       "feature": "heating.circuits.1.heating.curve",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -1993,7 +2052,7 @@
       "feature": "heating.circuits.1.heating.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2005,7 +2064,7 @@
       "feature": "heating.circuits.1.heating.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2017,7 +2076,7 @@
       "feature": "heating.circuits.1.operating.modes.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2029,7 +2088,7 @@
       "feature": "heating.circuits.1.operating.modes.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2041,7 +2100,7 @@
       "feature": "heating.circuits.1.operating.modes.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2053,7 +2112,7 @@
       "feature": "heating.circuits.1.operating.modes.heatingCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2065,7 +2124,7 @@
       "feature": "heating.circuits.1.operating.modes.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2077,7 +2136,7 @@
       "feature": "heating.circuits.1.operating.programs.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2089,7 +2148,7 @@
       "feature": "heating.circuits.1.operating.programs.comfortCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2101,7 +2160,7 @@
       "feature": "heating.circuits.1.operating.programs.comfortCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2113,7 +2172,7 @@
       "feature": "heating.circuits.1.operating.programs.comfortEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2125,7 +2184,7 @@
       "feature": "heating.circuits.1.operating.programs.comfortHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2137,7 +2196,7 @@
       "feature": "heating.circuits.1.operating.programs.fixed",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2149,7 +2208,7 @@
       "feature": "heating.circuits.1.operating.programs.forcedLastFromSchedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2161,7 +2220,7 @@
       "feature": "heating.circuits.1.operating.programs.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2173,7 +2232,7 @@
       "feature": "heating.circuits.1.operating.programs.normalCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2185,7 +2244,7 @@
       "feature": "heating.circuits.1.operating.programs.normalCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2197,7 +2256,7 @@
       "feature": "heating.circuits.1.operating.programs.normalEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2209,7 +2268,7 @@
       "feature": "heating.circuits.1.operating.programs.normalHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2221,7 +2280,7 @@
       "feature": "heating.circuits.1.operating.programs.reducedCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2233,7 +2292,7 @@
       "feature": "heating.circuits.1.operating.programs.reducedCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2245,7 +2304,7 @@
       "feature": "heating.circuits.1.operating.programs.reducedEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2257,7 +2316,7 @@
       "feature": "heating.circuits.1.operating.programs.reducedHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2269,7 +2328,7 @@
       "feature": "heating.circuits.1.operating.programs.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2281,7 +2340,7 @@
       "feature": "heating.circuits.1.operating.programs.summerEco",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2293,7 +2352,7 @@
       "feature": "heating.circuits.1.sensors.humidity.dewpoint",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2305,7 +2364,7 @@
       "feature": "heating.circuits.1.sensors.temperature.room",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2317,7 +2376,7 @@
       "feature": "heating.circuits.1.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2329,7 +2388,7 @@
       "feature": "heating.circuits.1.temperature",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2341,7 +2400,7 @@
       "feature": "heating.circuits.1.temperature.levels",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2353,7 +2412,7 @@
       "feature": "heating.circuits.1.zone.demand",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2365,7 +2424,7 @@
       "feature": "heating.circuits.1.zone.mode",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2377,7 +2436,7 @@
       "feature": "heating.circuits.2",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2389,7 +2448,7 @@
       "feature": "heating.circuits.2.circulation.pump",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:32:59.736Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2401,7 +2460,7 @@
       "feature": "heating.circuits.2.configuration.summerEco.absolute",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2413,7 +2472,7 @@
       "feature": "heating.circuits.2.cooling.hysteresis",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2425,7 +2484,7 @@
       "feature": "heating.circuits.2.cooling.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2437,7 +2496,7 @@
       "feature": "heating.circuits.2.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2449,7 +2508,7 @@
       "feature": "heating.circuits.2.heating.curve",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2461,7 +2520,7 @@
       "feature": "heating.circuits.2.heating.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2473,7 +2532,7 @@
       "feature": "heating.circuits.2.heating.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2485,7 +2544,7 @@
       "feature": "heating.circuits.2.operating.modes.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2497,7 +2556,7 @@
       "feature": "heating.circuits.2.operating.modes.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2509,7 +2568,7 @@
       "feature": "heating.circuits.2.operating.modes.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2521,7 +2580,7 @@
       "feature": "heating.circuits.2.operating.modes.heatingCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2533,7 +2592,7 @@
       "feature": "heating.circuits.2.operating.modes.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2545,7 +2604,7 @@
       "feature": "heating.circuits.2.operating.programs.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2557,7 +2616,7 @@
       "feature": "heating.circuits.2.operating.programs.comfortCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2569,7 +2628,7 @@
       "feature": "heating.circuits.2.operating.programs.comfortCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2581,7 +2640,7 @@
       "feature": "heating.circuits.2.operating.programs.comfortEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2593,7 +2652,7 @@
       "feature": "heating.circuits.2.operating.programs.comfortHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2605,7 +2664,7 @@
       "feature": "heating.circuits.2.operating.programs.fixed",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2617,7 +2676,7 @@
       "feature": "heating.circuits.2.operating.programs.forcedLastFromSchedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2629,7 +2688,7 @@
       "feature": "heating.circuits.2.operating.programs.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2641,7 +2700,7 @@
       "feature": "heating.circuits.2.operating.programs.normalCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2653,7 +2712,7 @@
       "feature": "heating.circuits.2.operating.programs.normalCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2665,7 +2724,7 @@
       "feature": "heating.circuits.2.operating.programs.normalEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2677,7 +2736,7 @@
       "feature": "heating.circuits.2.operating.programs.normalHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2689,7 +2748,7 @@
       "feature": "heating.circuits.2.operating.programs.reducedCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2701,7 +2760,7 @@
       "feature": "heating.circuits.2.operating.programs.reducedCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2713,7 +2772,7 @@
       "feature": "heating.circuits.2.operating.programs.reducedEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2725,7 +2784,7 @@
       "feature": "heating.circuits.2.operating.programs.reducedHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2737,7 +2796,7 @@
       "feature": "heating.circuits.2.operating.programs.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2749,7 +2808,7 @@
       "feature": "heating.circuits.2.operating.programs.summerEco",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2761,7 +2820,7 @@
       "feature": "heating.circuits.2.sensors.temperature.room",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2773,7 +2832,7 @@
       "feature": "heating.circuits.2.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2785,7 +2844,7 @@
       "feature": "heating.circuits.2.temperature",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2797,7 +2856,7 @@
       "feature": "heating.circuits.2.temperature.levels",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2809,7 +2868,7 @@
       "feature": "heating.circuits.2.zone.demand",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2821,7 +2880,7 @@
       "feature": "heating.circuits.2.zone.mode",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2833,7 +2892,7 @@
       "feature": "heating.circuits.3",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2845,7 +2904,7 @@
       "feature": "heating.circuits.3.circulation.pump",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:48.601Z",
+      "timestamp": "2026-11-13T01:32:59.736Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2857,7 +2916,7 @@
       "feature": "heating.circuits.3.configuration.summerEco.absolute",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2869,7 +2928,7 @@
       "feature": "heating.circuits.3.cooling.hysteresis",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2881,7 +2940,7 @@
       "feature": "heating.circuits.3.cooling.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2893,7 +2952,7 @@
       "feature": "heating.circuits.3.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2905,7 +2964,7 @@
       "feature": "heating.circuits.3.heating.curve",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2917,7 +2976,7 @@
       "feature": "heating.circuits.3.heating.hysteresis.switch",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2929,7 +2988,7 @@
       "feature": "heating.circuits.3.heating.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2941,7 +3000,7 @@
       "feature": "heating.circuits.3.operating.modes.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2953,7 +3012,7 @@
       "feature": "heating.circuits.3.operating.modes.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2965,7 +3024,7 @@
       "feature": "heating.circuits.3.operating.modes.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2977,7 +3036,7 @@
       "feature": "heating.circuits.3.operating.modes.heatingCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -2989,7 +3048,7 @@
       "feature": "heating.circuits.3.operating.modes.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3001,7 +3060,7 @@
       "feature": "heating.circuits.3.operating.programs.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3013,7 +3072,7 @@
       "feature": "heating.circuits.3.operating.programs.comfortCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3025,7 +3084,7 @@
       "feature": "heating.circuits.3.operating.programs.comfortCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3037,7 +3096,7 @@
       "feature": "heating.circuits.3.operating.programs.comfortEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3049,7 +3108,7 @@
       "feature": "heating.circuits.3.operating.programs.comfortHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3061,7 +3120,7 @@
       "feature": "heating.circuits.3.operating.programs.fixed",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3073,7 +3132,7 @@
       "feature": "heating.circuits.3.operating.programs.forcedLastFromSchedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3085,7 +3144,7 @@
       "feature": "heating.circuits.3.operating.programs.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3097,7 +3156,7 @@
       "feature": "heating.circuits.3.operating.programs.normalCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3109,7 +3168,7 @@
       "feature": "heating.circuits.3.operating.programs.normalCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3121,7 +3180,7 @@
       "feature": "heating.circuits.3.operating.programs.normalEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3133,7 +3192,7 @@
       "feature": "heating.circuits.3.operating.programs.normalHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3145,7 +3204,7 @@
       "feature": "heating.circuits.3.operating.programs.reducedCooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3157,7 +3216,7 @@
       "feature": "heating.circuits.3.operating.programs.reducedCoolingEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3169,7 +3228,7 @@
       "feature": "heating.circuits.3.operating.programs.reducedEnergySaving",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3181,7 +3240,7 @@
       "feature": "heating.circuits.3.operating.programs.reducedHeating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3193,7 +3252,7 @@
       "feature": "heating.circuits.3.operating.programs.standby",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3205,7 +3264,7 @@
       "feature": "heating.circuits.3.operating.programs.summerEco",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3217,7 +3276,7 @@
       "feature": "heating.circuits.3.sensors.temperature.room",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3229,7 +3288,7 @@
       "feature": "heating.circuits.3.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3241,7 +3300,7 @@
       "feature": "heating.circuits.3.temperature",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3253,7 +3312,7 @@
       "feature": "heating.circuits.3.temperature.levels",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3265,7 +3324,7 @@
       "feature": "heating.circuits.3.zone.demand",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3277,7 +3336,7 @@
       "feature": "heating.circuits.3.zone.mode",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3289,7 +3348,7 @@
       "feature": "heating.compressors",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3308,7 +3367,7 @@
       "feature": "heating.compressors.0",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T01:35:18.220Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3316,7 +3375,7 @@
       "properties": {
         "active": {
           "type": "boolean",
-          "value": false
+          "value": true
         },
         "phase": {
           "type": "string",
@@ -3361,7 +3420,7 @@
       "feature": "heating.compressors.0.heater.crankcase",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T01:50:46.869Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3378,7 +3437,7 @@
       "feature": "heating.compressors.0.sensors.pressure.inlet",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:28.699Z",
+      "timestamp": "2026-11-13T08:56:04.597Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3386,7 +3445,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 6.59,
+          "value": 4.18,
           "unit": "bar"
         },
         "status": {
@@ -3400,7 +3459,7 @@
       "feature": "heating.compressors.0.sensors.temperature.inlet",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:55:45.118Z",
+      "timestamp": "2026-11-13T08:54:22.197Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3412,7 +3471,7 @@
         },
         "value": {
           "type": "number",
-          "value": 22.2,
+          "value": 9.2,
           "unit": "celsius"
         }
       },
@@ -3422,7 +3481,7 @@
       "feature": "heating.compressors.0.sensors.temperature.motorChamber",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:58:47.581Z",
+      "timestamp": "2026-11-13T08:56:56.273Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3434,7 +3493,7 @@
         },
         "value": {
           "type": "number",
-          "value": 25.2,
+          "value": 20,
           "unit": "celsius"
         }
       },
@@ -3444,7 +3503,7 @@
       "feature": "heating.compressors.0.sensors.temperature.oil",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:53.716Z",
+      "timestamp": "2026-11-13T08:57:38.440Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3452,7 +3511,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 50.7,
+          "value": 62.2,
           "unit": "celsius"
         },
         "status": {
@@ -3466,7 +3525,7 @@
       "feature": "heating.compressors.0.sensors.temperature.outlet",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:53.716Z",
+      "timestamp": "2026-11-13T08:57:38.440Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3478,7 +3537,7 @@
         },
         "value": {
           "type": "number",
-          "value": 33.1,
+          "value": 65.5,
           "unit": "celsius"
         }
       },
@@ -3488,7 +3547,7 @@
       "feature": "heating.compressors.0.speed.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:59.640Z",
+      "timestamp": "2026-11-13T08:58:39.160Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3496,7 +3555,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 41,
           "unit": "revolutionsPerSecond"
         }
       },
@@ -3506,7 +3565,7 @@
       "feature": "heating.compressors.0.speed.setpoint",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:47.907Z",
+      "timestamp": "2026-11-13T08:57:46.355Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3514,7 +3573,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 41.1,
           "unit": "revolutionsPerSecond"
         }
       },
@@ -3524,7 +3583,7 @@
       "feature": "heating.compressors.0.statistics",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:31:27.941Z",
+      "timestamp": "2026-11-13T08:25:09.714Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3532,12 +3591,12 @@
       "properties": {
         "starts": {
           "type": "number",
-          "value": 3142,
+          "value": 3417,
           "unit": ""
         },
         "hours": {
           "type": "number",
-          "value": 11755,
+          "value": 12275,
           "unit": "hour"
         }
       },
@@ -3547,7 +3606,7 @@
       "feature": "heating.condensors.0.sensors.temperature.liquid",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:07:47.443Z",
+      "timestamp": "2026-11-13T08:55:23.429Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3555,7 +3614,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 27.6,
+          "value": 36.3,
           "unit": "celsius"
         },
         "status": {
@@ -3569,7 +3628,7 @@
       "feature": "heating.configuration.bufferCylinderSize",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3587,7 +3646,7 @@
       "feature": "heating.configuration.centralHeatingCylinderSize",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3605,7 +3664,7 @@
       "feature": "heating.configuration.dhw.highDemand.threshold",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3621,7 +3680,7 @@
       "feature": "heating.configuration.dhw.highDemand.timeframe",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3637,7 +3696,7 @@
       "feature": "heating.configuration.dhw.temperature.comfortCharging",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3653,7 +3712,7 @@
       "feature": "heating.configuration.dhwCylinderSize",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3671,7 +3730,7 @@
       "feature": "heating.configuration.heatingRod.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3692,7 +3751,7 @@
       "feature": "heating.configuration.heatingRod.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3713,7 +3772,7 @@
       "feature": "heating.configuration.houseHeatingLoad",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3731,7 +3790,7 @@
       "feature": "heating.configuration.houseLocation",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3763,7 +3822,7 @@
       "feature": "heating.configuration.houseOrientation",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3786,7 +3845,7 @@
       "feature": "heating.configuration.internalPumpOne",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3814,7 +3873,7 @@
       "feature": "heating.configuration.internalPumps",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3842,7 +3901,7 @@
       "feature": "heating.configuration.internalPumpTwo",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3870,7 +3929,7 @@
       "feature": "heating.configuration.pressure.total",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3903,7 +3962,7 @@
       "feature": "heating.configuration.temperature.outside.DampingFactor",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3925,7 +3984,7 @@
       "feature": "heating.device.time",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:58.953Z",
+      "timestamp": "2026-11-13T08:58:18.698Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3937,7 +3996,7 @@
       "feature": "heating.device.variant",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3958,7 +4017,7 @@
       "feature": "heating.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -3979,7 +4038,7 @@
       "feature": "heating.dhw.actuator",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -3991,7 +4050,7 @@
       "feature": "heating.dhw.configuration.highDemand.threshold",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4003,7 +4062,7 @@
       "feature": "heating.dhw.configuration.highDemand.timeframe",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4015,7 +4074,7 @@
       "feature": "heating.dhw.configuration.temperature.comfortCharging",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4027,7 +4086,7 @@
       "feature": "heating.dhw.hygiene",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4090,7 +4149,7 @@
       "feature": "heating.dhw.hygiene.trigger",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:38:37.794Z",
+      "timestamp": "2026-11-12T05:24:42.732Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4102,7 +4161,7 @@
       "feature": "heating.dhw.oneTimeCharge",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-09T12:00:56.342Z",
+      "timestamp": "2026-11-12T13:29:03.864Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4144,7 +4203,7 @@
       "feature": "heating.dhw.operating.modes.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4180,7 +4239,7 @@
       "feature": "heating.dhw.operating.modes.balanced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4192,7 +4251,7 @@
       "feature": "heating.dhw.operating.modes.efficient",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4209,7 +4268,7 @@
       "feature": "heating.dhw.operating.modes.efficientWithMinComfort",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4226,7 +4285,7 @@
       "feature": "heating.dhw.operating.modes.off",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4243,7 +4302,7 @@
       "feature": "heating.dhw.pumps.circulation",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T06:54:42.690Z",
+      "timestamp": "2026-11-13T07:54:15.638Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4260,7 +4319,7 @@
       "feature": "heating.dhw.pumps.circulation.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4429,7 +4488,7 @@
       "feature": "heating.dhw.pumps.secondary",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4441,7 +4500,7 @@
       "feature": "heating.dhw.scaldProtection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4458,7 +4517,7 @@
       "feature": "heating.dhw.schedule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4627,7 +4686,7 @@
       "feature": "heating.dhw.sensors.temperature.dhwCylinder",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:55:06.006Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4635,7 +4694,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 48.8,
+          "value": 46.3,
           "unit": "celsius"
         },
         "status": {
@@ -4649,7 +4708,7 @@
       "feature": "heating.dhw.sensors.temperature.dhwCylinder.middle",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4661,7 +4720,7 @@
       "feature": "heating.dhw.sensors.temperature.dhwCylinder.top",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:55:06.006Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4673,7 +4732,7 @@
       "feature": "heating.dhw.sensors.temperature.hotWaterStorage",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:55:06.006Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4681,7 +4740,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 48.8,
+          "value": 46.3,
           "unit": "celsius"
         },
         "status": {
@@ -4699,7 +4758,7 @@
       "feature": "heating.dhw.sensors.temperature.hotWaterStorage.middle",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4715,7 +4774,7 @@
       "feature": "heating.dhw.sensors.temperature.hotWaterStorage.top",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:55:06.006Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4731,7 +4790,7 @@
       "feature": "heating.dhw.sensors.temperature.tankLoadSystem.return",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4743,7 +4802,7 @@
       "feature": "heating.dhw.sensors.temperature.tankLoadSystem.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4755,7 +4814,7 @@
       "feature": "heating.dhw.temperature.hygiene",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -4767,7 +4826,7 @@
       "feature": "heating.dhw.temperature.hysteresis",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4844,7 +4903,7 @@
       "feature": "heating.dhw.temperature.levels",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4876,7 +4935,7 @@
       "feature": "heating.dhw.temperature.main",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T15:02:05.249Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4913,7 +4972,7 @@
       "feature": "heating.economizers.0.sensors.temperature.liquid",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:09.332Z",
+      "timestamp": "2026-11-13T08:56:37.478Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4921,7 +4980,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 24.5,
+          "value": 10.4,
           "unit": "celsius"
         },
         "status": {
@@ -4935,7 +4994,7 @@
       "feature": "heating.evaporators.0.heater.base",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4952,7 +5011,7 @@
       "feature": "heating.evaporators.0.sensors.temperature.liquid",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:41.174Z",
+      "timestamp": "2026-11-13T08:58:26.478Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4960,7 +5019,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 16.9,
+          "value": -0.9,
           "unit": "celsius"
         },
         "status": {
@@ -4974,7 +5033,7 @@
       "feature": "heating.evaporators.0.sensors.temperature.overheat",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:28.699Z",
+      "timestamp": "2026-11-13T08:55:48.122Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -4982,7 +5041,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 16,
+          "value": -2.3,
           "unit": "celsius"
         },
         "status": {
@@ -4996,7 +5055,7 @@
       "feature": "heating.external.lock",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5017,7 +5076,7 @@
       "feature": "heating.heat.production.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:01:12.212Z",
+      "timestamp": "2026-11-13T08:58:26.478Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5025,7 +5084,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 6.689,
           "unit": "kilowatt"
         },
         "status": {
@@ -5039,7 +5098,7 @@
       "feature": "heating.heat.production.summary.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5082,7 +5141,7 @@
       "feature": "heating.heat.production.summary.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-10T23:01:58.281Z",
+      "timestamp": "2026-11-13T00:21:35.813Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5090,27 +5149,27 @@
       "properties": {
         "currentDay": {
           "type": "number",
-          "value": 6.3,
+          "value": 9.6,
           "unit": "kilowattHour"
         },
         "lastSevenDays": {
           "type": "number",
-          "value": 59.1,
+          "value": 137.5,
           "unit": "kilowattHour"
         },
         "currentMonth": {
           "type": "number",
-          "value": 99.9,
+          "value": 244.6,
           "unit": "kilowattHour"
         },
         "lastMonth": {
           "type": "number",
-          "value": 255.3,
+          "value": 448.8,
           "unit": "kilowattHour"
         },
         "currentYear": {
           "type": "number",
-          "value": 3064,
+          "value": 3657.5,
           "unit": "kilowattHour"
         },
         "lastYear": {
@@ -5125,7 +5184,7 @@
       "feature": "heating.heat.production.summary.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:22.588Z",
+      "timestamp": "2026-11-13T08:57:00.169Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5133,27 +5192,27 @@
       "properties": {
         "currentDay": {
           "type": "number",
-          "value": 25.7,
+          "value": 47.1,
           "unit": "kilowattHour"
         },
         "lastSevenDays": {
           "type": "number",
-          "value": 125,
+          "value": 554.4,
           "unit": "kilowattHour"
         },
         "currentMonth": {
           "type": "number",
-          "value": 125,
+          "value": 1040.2,
           "unit": "kilowattHour"
         },
         "lastMonth": {
           "type": "number",
-          "value": 0,
+          "value": 1187.7,
           "unit": "kilowattHour"
         },
         "currentYear": {
           "type": "number",
-          "value": 10252.7,
+          "value": 12355.6,
           "unit": "kilowattHour"
         },
         "lastYear": {
@@ -5168,7 +5227,7 @@
       "feature": "heating.heater.condensatePan",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5185,7 +5244,7 @@
       "feature": "heating.heater.fanRing",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5202,7 +5261,7 @@
       "feature": "heating.heatingRod",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5223,7 +5282,7 @@
       "feature": "heating.heatingRod.maximumOutsideTemperature",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -5239,7 +5298,7 @@
       "feature": "heating.heatingRod.power.consumption.summary.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:36.376Z",
+      "timestamp": "2026-11-12T05:20:44.491Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5282,7 +5341,7 @@
       "feature": "heating.heatingRod.power.consumption.summary.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:36.376Z",
+      "timestamp": "2026-11-12T23:01:33.174Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5295,22 +5354,22 @@
         },
         "lastSevenDays": {
           "type": "number",
-          "value": 0,
+          "value": 3.8,
           "unit": "kilowattHour"
         },
         "currentMonth": {
           "type": "number",
-          "value": 0,
+          "value": 6.3,
           "unit": "kilowattHour"
         },
         "lastMonth": {
           "type": "number",
-          "value": 0,
+          "value": 3.2,
           "unit": "kilowattHour"
         },
         "currentYear": {
           "type": "number",
-          "value": 43.6,
+          "value": 53.1,
           "unit": "kilowattHour"
         },
         "lastYear": {
@@ -5325,7 +5384,7 @@
       "feature": "heating.heatingRod.statistics",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T13:39:57.823Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5333,12 +5392,12 @@
       "properties": {
         "starts": {
           "type": "number",
-          "value": 480,
+          "value": 500,
           "unit": ""
         },
         "hours": {
           "type": "number",
-          "value": 79,
+          "value": 81,
           "unit": "hour"
         }
       },
@@ -5352,7 +5411,7 @@
       "feature": "heating.inverters.0.sensors.power.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:59.640Z",
+      "timestamp": "2026-11-13T08:54:55.544Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5360,7 +5419,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 8,
           "unit": "ampere"
         },
         "status": {
@@ -5374,7 +5433,7 @@
       "feature": "heating.inverters.0.sensors.power.output",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:59.640Z",
+      "timestamp": "2026-11-13T08:58:32.765Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5382,7 +5441,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 1550,
           "unit": "watt"
         },
         "status": {
@@ -5396,7 +5455,7 @@
       "feature": "heating.inverters.0.sensors.temperature.powerModule",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:09:33.906Z",
+      "timestamp": "2026-11-13T08:58:20.729Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5404,7 +5463,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 25.7,
+          "value": 31.6,
           "unit": "celsius"
         },
         "status": {
@@ -5418,7 +5477,7 @@
       "feature": "heating.noise.reduction.levels.maxReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-09T18:20:42.245Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5435,7 +5494,7 @@
       "feature": "heating.noise.reduction.levels.notReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:59:58.653Z",
+      "timestamp": "2026-11-13T01:59:21.820Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5452,7 +5511,7 @@
       "feature": "heating.noise.reduction.levels.slightlyReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:59:58.653Z",
+      "timestamp": "2026-11-13T01:59:21.820Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5469,7 +5528,7 @@
       "feature": "heating.noise.reduction.operating.programs.active",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:59:58.653Z",
+      "timestamp": "2026-11-13T01:59:21.820Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5490,7 +5549,7 @@
       "feature": "heating.noise.reduction.operating.programs.maxReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-09T18:20:42.245Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5511,7 +5570,7 @@
       "feature": "heating.noise.reduction.operating.programs.notReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:59:58.653Z",
+      "timestamp": "2026-11-13T01:59:21.820Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5532,7 +5591,7 @@
       "feature": "heating.noise.reduction.operating.programs.slightlyReduced",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:59:58.653Z",
+      "timestamp": "2026-11-13T01:59:21.820Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5553,7 +5612,7 @@
       "feature": "heating.operating.programs.holiday",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5565,11 +5624,11 @@
         },
         "start": {
           "type": "string",
-          "value": "2000-01-01"
+          "value": ""
         },
         "end": {
           "type": "string",
-          "value": "2000-01-01"
+          "value": ""
         }
       },
       "commands": {
@@ -5622,7 +5681,7 @@
       "feature": "heating.operating.programs.holidayAtHome",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5634,11 +5693,11 @@
         },
         "start": {
           "type": "string",
-          "value": "2000-01-01"
+          "value": ""
         },
         "end": {
           "type": "string",
-          "value": "2000-01-01"
+          "value": ""
         }
       },
       "commands": {
@@ -5691,7 +5750,7 @@
       "feature": "heating.outdoor.defrosting",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-13T08:40:39.291Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5708,7 +5767,7 @@
       "feature": "heating.outdoor.defrosting.thermalEnergy",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:10:03.151Z",
+      "timestamp": "2026-11-13T08:58:08.945Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -5720,7 +5779,7 @@
       "feature": "heating.power.consumption.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:36.376Z",
+      "timestamp": "2026-11-12T05:20:44.106Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -5732,7 +5791,7 @@
       "feature": "heating.power.consumption.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:57.332Z",
+      "timestamp": "2026-11-13T08:58:23.815Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5740,7 +5799,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 1.69,
           "unit": "kilowatt"
         },
         "status": {
@@ -5754,7 +5813,7 @@
       "feature": "heating.power.consumption.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T00:10:54.389Z",
+      "timestamp": "2026-11-13T01:04:34.589Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5763,32 +5822,34 @@
         "day": {
           "type": "array",
           "value": [
-            1.8,
-            3.9,
-            4.2,
-            3.6,
-            0,
-            0,
-            2.3,
-            0
+            3.3,
+            5.5,
+            5.7,
+            6.5,
+            4.9,
+            9.8,
+            7,
+            4.9
           ],
           "unit": "kilowattHour"
         },
         "week": {
           "type": "array",
           "value": [
-            15.8,
-            11.8,
-            15.8,
-            14.9,
-            13.5
+            25.9,
+            44.6,
+            35.699999999999996,
+            33.9,
+            28.7,
+            18.400000000000002
           ],
           "unit": "kilowattHour"
         },
         "month": {
           "type": "array",
           "value": [
-            16.3,
+            74.7,
+            120,
             57.2,
             21.4,
             18.7,
@@ -5799,34 +5860,33 @@
             207.89999999999998,
             350.3,
             205.9,
-            180.2,
-            151.4
+            180.2
           ],
           "unit": "kilowattHour"
         },
         "year": {
           "type": "array",
           "value": [
-            994.1999999999999,
+            1165.6000000000001,
             1396.6
           ],
           "unit": "kilowattHour"
         },
         "dayValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T05:20:41.985Z"
         },
         "weekValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T05:20:41.985Z"
         },
         "monthValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T05:20:41.985Z"
         },
         "yearValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T05:20:41.985Z"
         }
       },
       "commands": {}
@@ -5835,7 +5895,7 @@
       "feature": "heating.power.consumption.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:57:21.068Z",
+      "timestamp": "2026-11-13T08:57:00.169Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5844,32 +5904,34 @@
         "day": {
           "type": "array",
           "value": [
-            4.5,
-            8.6,
-            5.2,
-            3,
             0,
-            0,
-            0,
-            0
+            16.400000000000002,
+            17.400000000000002,
+            18,
+            17,
+            20.700000000000003,
+            26.2,
+            22.4
           ],
           "unit": "kilowattHour"
         },
         "week": {
           "type": "array",
           "value": [
-            21.3,
-            0,
-            0,
-            0,
-            0
+            68.8,
+            143,
+            93,
+            70.50000000000001,
+            50.4,
+            25.599999999999998
           ],
           "unit": "kilowattHour"
         },
         "month": {
           "type": "array",
           "value": [
-            3.4,
+            228.60000000000002,
+            222.7,
             0,
             0,
             0,
@@ -5880,34 +5942,33 @@
             707.5,
             1171.8,
             736.3000000000001,
-            590.4,
-            243.8
+            590.4
           ],
           "unit": "kilowattHour"
         },
         "year": {
           "type": "array",
           "value": [
-            2642.7999999999997,
+            3085.9,
             4103.9
           ],
           "unit": "kilowattHour"
         },
         "dayValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T13:45:57.263Z"
         },
         "weekValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T13:45:57.263Z"
         },
         "monthValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T13:45:57.329Z"
         },
         "yearValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.782Z"
+          "value": "2026-11-12T22:59:22.284Z"
         }
       },
       "commands": {}
@@ -5916,7 +5977,7 @@
       "feature": "heating.power.consumption.summary.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5959,7 +6020,7 @@
       "feature": "heating.power.consumption.summary.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-10T22:56:56.395Z",
+      "timestamp": "2026-11-13T00:21:35.813Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -5967,27 +6028,27 @@
       "properties": {
         "currentDay": {
           "type": "number",
-          "value": 1.9,
+          "value": 2.3,
           "unit": "kilowattHour"
         },
         "lastSevenDays": {
           "type": "number",
-          "value": 10.2,
+          "value": 41.7,
           "unit": "kilowattHour"
         },
         "currentMonth": {
           "type": "number",
-          "value": 16.3,
+          "value": 74.7,
           "unit": "kilowattHour"
         },
         "lastMonth": {
           "type": "number",
-          "value": 57.2,
+          "value": 120,
           "unit": "kilowattHour"
         },
         "currentYear": {
           "type": "number",
-          "value": 986.1999999999999,
+          "value": 1164.6000000000001,
           "unit": "kilowattHour"
         },
         "lastYear": {
@@ -6002,7 +6063,7 @@
       "feature": "heating.power.consumption.summary.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:57:21.068Z",
+      "timestamp": "2026-11-13T08:57:00.169Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6010,27 +6071,27 @@
       "properties": {
         "currentDay": {
           "type": "number",
-          "value": 0.4,
+          "value": 0,
           "unit": "kilowattHour"
         },
         "lastSevenDays": {
           "type": "number",
-          "value": 3.4,
+          "value": 115.7,
           "unit": "kilowattHour"
         },
         "currentMonth": {
           "type": "number",
-          "value": 3.4,
+          "value": 228.60000000000002,
           "unit": "kilowattHour"
         },
         "lastMonth": {
           "type": "number",
-          "value": 0,
+          "value": 222.7,
           "unit": "kilowattHour"
         },
         "currentYear": {
           "type": "number",
-          "value": 2624.9,
+          "value": 3072.7999999999997,
           "unit": "kilowattHour"
         },
         "lastYear": {
@@ -6045,7 +6106,7 @@
       "feature": "heating.power.consumption.total",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:57:21.068Z",
+      "timestamp": "2026-11-13T08:57:00.169Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6054,32 +6115,34 @@
         "day": {
           "type": "array",
           "value": [
-            2.1,
-            12.5,
-            9.4,
-            6.6,
-            0,
-            0,
             2.3,
-            0
+            21.900000000000002,
+            23.1,
+            24.5,
+            21.9,
+            30.500000000000004,
+            33.2,
+            27.299999999999997
           ],
           "unit": "kilowattHour"
         },
         "week": {
           "type": "array",
           "value": [
-            32.900000000000006,
-            11.8,
-            15.8,
-            14.9,
-            13.5
+            93.69999999999999,
+            187.6,
+            128.7,
+            104.4,
+            79.1,
+            44
           ],
           "unit": "kilowattHour"
         },
         "month": {
           "type": "array",
           "value": [
-            19.7,
+            303.3,
+            342.7,
             57.2,
             21.4,
             18.7,
@@ -6090,34 +6153,33 @@
             915.4000000000001,
             1522.1,
             942.2,
-            770.5999999999999,
-            395.20000000000005
+            770.5999999999999
           ],
           "unit": "kilowattHour"
         },
         "year": {
           "type": "array",
           "value": [
-            3637,
+            4251.5,
             5500.5
           ],
           "unit": "kilowattHour"
         },
         "dayValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.772Z"
+          "value": "2026-11-12T05:20:41.966Z"
         },
         "weekValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.772Z"
+          "value": "2026-11-12T05:20:41.966Z"
         },
         "monthValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.772Z"
+          "value": "2026-11-12T05:20:41.966Z"
         },
         "yearValueReadAt": {
           "type": "string",
-          "value": "2026-10-08T21:34:34.772Z"
+          "value": "2026-11-12T05:20:41.966Z"
         }
       },
       "commands": {}
@@ -6126,7 +6188,7 @@
       "feature": "heating.primaryCircuit.fans.0.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:51.297Z",
+      "timestamp": "2026-11-13T08:57:46.355Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6134,7 +6196,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 41,
           "unit": "percent"
         },
         "status": {
@@ -6148,7 +6210,7 @@
       "feature": "heating.primaryCircuit.fans.1.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:51.297Z",
+      "timestamp": "2026-11-13T08:57:46.355Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6156,7 +6218,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 46,
           "unit": "percent"
         },
         "status": {
@@ -6170,7 +6232,7 @@
       "feature": "heating.primaryCircuit.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:07:43.074Z",
+      "timestamp": "2026-11-13T08:58:39.160Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6178,7 +6240,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 14.7,
+          "value": 2.7,
           "unit": "celsius"
         },
         "status": {
@@ -6192,7 +6254,7 @@
       "feature": "heating.primaryCircuit.valves.fourThreeWay",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-13T08:40:51.274Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6209,7 +6271,7 @@
       "feature": "heating.scop.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6231,7 +6293,7 @@
       "feature": "heating.scop.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6253,7 +6315,7 @@
       "feature": "heating.scop.total",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6275,7 +6337,7 @@
       "feature": "heating.secondaryCircuit.operation.state",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:40:55.485Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6283,11 +6345,11 @@
       "properties": {
         "currentValue": {
           "type": "string",
-          "value": "standby"
+          "value": "heating"
         },
         "targetValue": {
           "type": "string",
-          "value": "standby"
+          "value": "heating"
         }
       },
       "commands": {}
@@ -6296,7 +6358,7 @@
       "feature": "heating.secondaryCircuit.sensors.temperature.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:01:24.582Z",
+      "timestamp": "2026-11-13T08:50:05.654Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6304,7 +6366,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.2,
+          "value": 40.4,
           "unit": "celsius"
         },
         "status": {
@@ -6318,7 +6380,7 @@
       "feature": "heating.secondaryCircuit.temperature.return.minimum",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-13T08:40:51.274Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6336,7 +6398,7 @@
       "feature": "heating.secondaryCircuit.valves.fourThreeWay",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:16.653Z",
+      "timestamp": "2026-11-13T08:41:18.990Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6344,12 +6406,12 @@
       "properties": {
         "target": {
           "type": "number",
-          "value": 50,
+          "value": 0,
           "unit": "percent"
         },
         "current": {
           "type": "number",
-          "value": 52,
+          "value": 0,
           "unit": "percent"
         }
       },
@@ -6359,7 +6421,7 @@
       "feature": "heating.secondaryHeatGenerator",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6380,7 +6442,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.defrosting",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6392,7 +6454,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6404,7 +6466,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.dhw.comfortEnsuring",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6416,7 +6478,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.frostprotection",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6428,7 +6490,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6440,7 +6502,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.heating.comfortEnsuring",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6452,7 +6514,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.hygiene",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6464,7 +6526,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.refrigerationCircuitExceeded",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6476,7 +6538,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.runtime",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6488,7 +6550,7 @@
       "feature": "heating.secondaryHeatGenerator.configuration.screedDrying",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6500,7 +6562,7 @@
       "feature": "heating.secondaryHeatGenerator.electricity.energyFactor",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6512,7 +6574,7 @@
       "feature": "heating.secondaryHeatGenerator.electricity.price.low",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6524,7 +6586,7 @@
       "feature": "heating.secondaryHeatGenerator.electricity.price.normal",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6536,7 +6598,7 @@
       "feature": "heating.secondaryHeatGenerator.fossil.energyFactor",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6548,7 +6610,7 @@
       "feature": "heating.secondaryHeatGenerator.fossil.price.normal",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6560,7 +6622,7 @@
       "feature": "heating.secondaryHeatGenerator.state",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6572,7 +6634,7 @@
       "feature": "heating.secondaryHeatGenerator.status",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6584,7 +6646,7 @@
       "feature": "heating.secondaryHeatGenerator.temperature.current",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6596,7 +6658,7 @@
       "feature": "heating.secondaryHeatGenerator.valves.threeWay",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6608,7 +6670,7 @@
       "feature": "heating.seer.cooling",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6620,7 +6682,7 @@
       "feature": "heating.sensors.pressure.supply",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:36.228Z",
+      "timestamp": "2026-11-12T05:20:42.924Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6628,7 +6690,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 1.6,
+          "value": 1.7,
           "unit": "bar"
         },
         "status": {
@@ -6642,7 +6704,7 @@
       "feature": "heating.sensors.temperature.allengra",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:53.571Z",
+      "timestamp": "2026-11-13T08:58:14.612Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6654,7 +6716,7 @@
         },
         "value": {
           "type": "number",
-          "value": 35.9,
+          "value": 37.3,
           "unit": "celsius"
         }
       },
@@ -6668,7 +6730,7 @@
       "feature": "heating.sensors.temperature.hydraulicSeparator",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:07:47.443Z",
+      "timestamp": "2026-11-13T08:56:44.508Z",
       "isEnabled": false,
       "isReady": true,
       "apiVersion": 1,
@@ -6680,7 +6742,7 @@
       "feature": "heating.sensors.temperature.outside",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:57:19.034Z",
+      "timestamp": "2026-11-13T08:52:52.228Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6688,7 +6750,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 11.1,
+          "value": 3.1,
           "unit": "celsius"
         },
         "status": {
@@ -6702,7 +6764,7 @@
       "feature": "heating.sensors.temperature.return",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T07:57:35.574Z",
+      "timestamp": "2026-11-13T08:58:30.954Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6710,7 +6772,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 35.3,
+          "value": 36.9,
           "unit": "celsius"
         },
         "status": {
@@ -6724,7 +6786,7 @@
       "feature": "heating.sensors.valve.0.expansion.target",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:00:52.096Z",
+      "timestamp": "2026-11-13T08:56:52.590Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6732,7 +6794,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 50,
+          "value": 35,
           "unit": "percent"
         }
       },
@@ -6742,7 +6804,7 @@
       "feature": "heating.sensors.valve.1.expansion.target",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:01:27.798Z",
+      "timestamp": "2026-11-13T08:56:04.597Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6750,7 +6812,7 @@
       "properties": {
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 43,
           "unit": "percent"
         }
       },
@@ -6760,7 +6822,7 @@
       "feature": "heating.sensors.volumetricFlow.allengra",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:02:53.571Z",
+      "timestamp": "2026-11-13T08:54:22.197Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6772,7 +6834,7 @@
         },
         "value": {
           "type": "number",
-          "value": 0,
+          "value": 1330,
           "unit": "liter/hour"
         }
       },
@@ -6786,7 +6848,7 @@
       "feature": "heating.spf.dhw",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6804,7 +6866,7 @@
       "feature": "heating.spf.heating",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6822,7 +6884,7 @@
       "feature": "heating.spf.total",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T05:20:41.604Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6840,7 +6902,7 @@
       "feature": "heating.valves.fourThreeWay.position",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-11T08:03:00.814Z",
+      "timestamp": "2026-11-13T08:41:08.133Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6848,7 +6910,7 @@
       "properties": {
         "value": {
           "type": "string",
-          "value": "climatCircuitTwoDefrost"
+          "value": "climateCircuitOne"
         }
       },
       "commands": {}
@@ -6857,7 +6919,7 @@
       "feature": "tcu.wifi",
       "gatewayId": "################",
       "deviceId": "0",
-      "timestamp": "2026-10-08T23:57:47.781Z",
+      "timestamp": "2026-11-12T05:20:43.670Z",
       "isEnabled": true,
       "isReady": true,
       "apiVersion": 1,
@@ -6865,7 +6927,7 @@
       "properties": {
         "strength": {
           "type": "number",
-          "value": -34,
+          "value": -27,
           "unit": ""
         }
       },
@@ -6875,7 +6937,7 @@
       "apiVersion": 1,
       "isEnabled": true,
       "isReady": true,
-      "timestamp": "2026-10-08T21:34:34.407Z",
+      "timestamp": "2026-11-12T02:50:51.804Z",
       "uri": "https://api.viessmann-climatesolutions.com/iot/v2/features/installations/#######/gateways/################/devices/0/features/heating.circuits.0.name",
       "feature": "heating.circuits.0.name",
       "deviceId": "0",

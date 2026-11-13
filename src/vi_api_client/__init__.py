@@ -20,6 +20,7 @@ from .exceptions import (
 )
 from .fixture_client import FixtureViClient
 from .models import (
+    CommandParameter,
     Device,
     EventHistoryPage,
     EventHistoryWindow,
@@ -45,6 +46,7 @@ __all__ = [
     "ENDPOINT_AUTHORIZE",
     "ENDPOINT_TOKEN",
     "AbstractAuth",
+    "CommandParameter",
     "Device",
     "EventHistoryPage",
     "EventHistoryWindow",

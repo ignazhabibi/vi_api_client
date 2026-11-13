@@ -15,7 +15,12 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from builders import build_device, load_fixture_device, load_fixture_json
+from builders import (
+    build_device,
+    bundled_feature_files,
+    load_fixture_device,
+    load_fixture_json,
+)
 
 from vi_api_client import (
     Feature,
@@ -37,7 +42,7 @@ SCRIPT_PATH = (
     / "scripts"
     / "update_command_knowledge_baseline.py"
 )
-FIXTURE_DEVICES = FixtureViClient.get_available_fixture_devices()
+FEATURE_FILES = bundled_feature_files()
 
 
 def _load_script() -> ModuleType:
@@ -55,7 +60,7 @@ def _load_script() -> ModuleType:
 baseline_script = _load_script()
 
 
-@pytest.mark.parametrize("fixture_device", FIXTURE_DEVICES, ids=FIXTURE_DEVICES)
+@pytest.mark.parametrize("fixture_device", FEATURE_FILES, ids=FEATURE_FILES)
 def test_every_fixture_matches_the_command_knowledge_baseline(fixture_device):
     """An unintended change of bindings or reported commands shows as a diff."""
     # Arrange: Load the recorded command knowledge of every bundled fixture.
@@ -75,7 +80,7 @@ def test_baseline_covers_exactly_the_bundled_fixtures():
     """A removed fixture leaves no stale record behind."""
     baseline = load_fixture_json("command_knowledge_baseline.json")
 
-    assert sorted(baseline) == sorted(FIXTURE_DEVICES)
+    assert sorted(baseline) == FEATURE_FILES
 
 
 def test_baseline_script_writes_the_current_command_knowledge(tmp_path, monkeypatch):
@@ -335,3 +340,40 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         {"access_token": "<redacted>"},
     )
     assert redacted_parameter.name == "serial"
+
+
+async def test_get_command_parameters_returns_the_reported_parameters():
+    # Arrange: Refresh the Vitoair fixture, whose ventilation level is set
+    # through a command of an API feature without a level property.
+    client = FixtureViClient("VitoairFs300E")
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device, only_available=False)
+
+    # Act: Read the parameters of the level command.
+    parameters = device.get_command_parameters(
+        "ventilation.operating.modes.permanent", "setLevel"
+    )
+
+    # Assert: The parameter carries the reported name, requirement, type, and
+    # allowed values unchanged.
+    assert parameters is not None
+    (level,) = parameters
+    assert (level.name, level.required, level.value_type) == ("level", True, "string")
+    assert level.constraints is not None
+    assert level.constraints.options == (
+        "levelOne",
+        "levelTwo",
+        "levelThree",
+        "levelFour",
+    )
+
+
+async def test_get_command_parameters_distinguishes_missing_and_parameterless_commands():
+    client = FixtureViClient("Vitocal250A")
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    device = await client.refresh_device(device, only_available=False)
+
+    holiday = "heating.operating.programs.holiday"
+    assert device.get_command_parameters(holiday, "unschedule") == ()
+    assert device.get_command_parameters(holiday, "noSuchCommand") is None
+    assert device.get_command_parameters("no.such.api.feature", "setLevel") is None

@@ -370,7 +370,15 @@ vi-client list-fixture-devices
 
 # Use a fixture device to list its features
 vi-client list-features --fixture-device Vitocal250A --values
+
+# Select a further device of a fixture with several gateway devices
+vi-client list-features --fixture-device Vitocal200A --device-id 1 --values
 ```
+
+Most fixtures have one device with the ID `0`. A fixture can also model
+several devices on one gateway, such as the system controller (`0`) and the
+outdoor unit (`1`) of `Vitocal200A`; commands select device `0` unless
+`--device-id` names another one.
 
 ### Export a Device as a Fixture
 

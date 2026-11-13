@@ -2,23 +2,34 @@
 
 import logging
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
+from builders import load_fixture_device
 
 from vi_api_client import FixtureViClient, fixture_client
 from vi_api_client.exceptions import ViResponseError
 from vi_api_client.models import ParameterWriteBinding
 from vi_api_client.utils import format_feature
 
-# The bundled fixture devices and the device types their catalog entries declare.
-EXPECTED_DEVICE_TYPES = {
-    "Vitocal200S": "heating",
-    "Vitocal222S": "heating",
-    "Vitocal250A": "heating",
-    "Vitocal333G-with-Vitovent300F": "heating",
-    "Vitocharge03": "battery",
-    "Vitodens200W": "heating",
-    "Vitopure350": "ventilation",
+# The bundled fixture devices and the model IDs and device types their catalog
+# entries declare. Fixtures added from a device export carry the real model ID.
+EXPECTED_DEVICE_IDENTITIES = {
+    "VitoairFs300E": ("E3_ViAir_300F_13", "ventilation"),
+    "Vitocal200S": ("Vitocal200S", "heating"),
+    "Vitocal222S": ("Vitocal222S", "heating"),
+    "Vitocal250A": ("E3_Vitocal_16", "heating"),
+    "Vitocal250A-TwoCircuits": ("E3_Vitocal_17", "heating"),
+    "Vitocal252A": ("Vitocal252A", "heating"),
+    "Vitocal262A-T2H-R290": ("E3_Vitocal_262_02", "heating"),
+    "Vitocal300G-CU401B": ("CU401B_G", "heating"),
+    "Vitocal333G-with-Vitovent300F": ("Vitocal333G-with-Vitovent300F", "heating"),
+    "Vitocharge03": ("Vitocharge03", "battery"),
+    "VitochargeEvolution08": ("E3_VitoCharge_Evolution_08", "electricityStorage"),
+    "Vitodens100W": ("Vitodens100W", "heating"),
+    "Vitodens200W": ("Vitodens200W", "heating"),
+    "Vitodens300W-B3HF-19": ("E3_Vitodens_300_0419", "heating"),
+    "Vitopure350": ("E3_VitoPure", "ventilation"),
 }
 
 
@@ -31,12 +42,12 @@ def test_fixture_client_rejects_unknown_device_with_available_names():
 
 
 @pytest.mark.parametrize(
-    ("fixture_name", "device_type"),
-    EXPECTED_DEVICE_TYPES.items(),
-    ids=list(EXPECTED_DEVICE_TYPES),
+    ("fixture_name", "identity"),
+    EXPECTED_DEVICE_IDENTITIES.items(),
+    ids=list(EXPECTED_DEVICE_IDENTITIES),
 )
 async def test_fixture_discovery_uses_each_fixture_metadata_definition(
-    fixture_name, device_type
+    fixture_name, identity
 ):
     """Fixture discovery should expose each catalogued model as one device."""
     # Arrange: Select one bundled fixture from the public fixture catalog.
@@ -47,8 +58,79 @@ async def test_fixture_discovery_uses_each_fixture_metadata_definition(
 
     # Assert: One device carries the identity from the fixture metadata definition.
     assert [(device.id, device.model_id, device.device_type) for device in devices] == [
-        ("0", fixture_name, device_type)
+        ("0", *identity)
     ]
+
+
+async def test_fixture_discovery_lists_every_device_of_a_multi_device_fixture():
+    client = FixtureViClient("Vitocal200A")
+
+    devices = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    assert [(device.id, device.model_id) for device in devices] == [
+        ("0", "Vitocal200A-SystemController"),
+        ("1", "Vitocal200A-OutdoorUnit"),
+    ]
+
+
+@pytest.mark.usefixtures("no_http_requests")
+async def test_fixture_refreshes_read_the_features_of_each_device():
+    # Arrange: Discover both devices of the Vitocal 200-A fixture.
+    client = FixtureViClient("Vitocal200A")
+    controller, outdoor_unit = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+    compressor_speed = "heating.compressors.0.speed.current"
+
+    # Act: Refresh the devices one by one and together through their gateway.
+    single_refreshes = [
+        await client.refresh_device(device) for device in (controller, outdoor_unit)
+    ]
+    gateway_result = await client.refresh_gateway_devices([controller, outdoor_unit])
+
+    # Assert: Both paths give each device its own features: only the outdoor
+    # unit reports the compressor, and both report a serial.
+    assert gateway_result.errors_by_device_id == {}
+    for refreshed_controller, refreshed_outdoor_unit in (
+        single_refreshes,
+        gateway_result.refreshed_devices,
+    ):
+        assert refreshed_controller.get_feature(compressor_speed) is None
+        assert refreshed_outdoor_unit.get_feature(compressor_speed) is not None
+        assert refreshed_controller.get_feature("device.serial") is not None
+        assert refreshed_outdoor_unit.get_feature("device.serial") is not None
+    assert list(gateway_result.refreshed_devices) == single_refreshes
+
+
+async def test_fixture_export_of_a_further_device_holds_only_its_features():
+    client = FixtureViClient("Vitocal200A")
+    _, outdoor_unit = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    document = await client.export_device_fixture(outdoor_unit)
+
+    assert document["data"] == load_fixture_device("Vitocal200A.1")["data"]
+    assert document["device"] == {
+        "modelId": "Vitocal200A-OutdoorUnit",
+        "deviceType": "heating",
+        "roles": [],
+        "capturedAt": ANY,
+    }
+
+
+async def test_fixture_discovery_reports_catalogued_roles(monkeypatch):
+    # Arrange: Catalog roles for the Vitocal250A fixture.
+    discovery_data = fixture_client._load_fixture_discovery_data()
+    for metadata in discovery_data["devices"]:
+        if metadata["fixtureName"] == "Vitocal250A":
+            metadata["roles"] = ["type:product;Vitocal_250A", "type:heatpump"]
+    monkeypatch.setattr(
+        fixture_client, "_load_fixture_discovery_data", lambda: discovery_data
+    )
+    client = FixtureViClient("Vitocal250A")
+
+    # Act: Discover the fixture device.
+    (device,) = await client.get_devices("99999", "MOCK_GATEWAY_SERIAL")
+
+    # Assert: The device reports the catalogued roles unchanged and in order.
+    assert device.roles == ("type:product;Vitocal_250A", "type:heatpump")
 
 
 async def test_fixture_refresh_device_returns_hydrated_copy_without_mutating_input():

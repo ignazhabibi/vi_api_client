@@ -48,6 +48,25 @@ def load_fixture_device(name: str) -> Any:
     )
 
 
+def bundled_feature_files() -> list[str]:
+    """Return the sorted names of every catalogued device feature file.
+
+    Device "0" of a fixture has the fixture's name; a further gateway device
+    has ``<fixtureName>.<id>``, such as ``Vitocal200A.1``.
+    """
+    return sorted(
+        file_name
+        for entry in load_fixture_device("discovery")["devices"]
+        for file_name in [
+            entry["fixtureName"],
+            *(
+                f"{entry['fixtureName']}.{device['id']}"
+                for device in entry.get("additionalDevices", [])
+            ),
+        ]
+    )
+
+
 def load_fixture_features(name: str) -> list[Feature]:
     """Parse every feature of a bundled fixture device, as the client does."""
     return [

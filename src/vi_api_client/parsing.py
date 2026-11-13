@@ -941,6 +941,28 @@ def _optional_text(
     return value
 
 
+def _optional_string_list(
+    data: Mapping[str, object], field_name: str, resource: str
+) -> tuple[str, ...]:
+    """Return an optional list of strings unchanged and in order.
+
+    An absent or null field is empty.
+
+    Raises:
+        ViResponseError: If a supplied value is not a list of strings.
+    """
+    value = data.get(field_name)
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ViResponseError(f"{resource} {field_name} must be a list of strings")
+    items = cast("list[object]", value)
+    strings = tuple(item for item in items if isinstance(item, str))
+    if len(strings) != len(items):
+        raise ViResponseError(f"{resource} {field_name} must be a list of strings")
+    return strings
+
+
 def _parse_address(data: dict[str, Any]) -> dict[str, JsonValue]:
     """Return an optional installation address as a validated JSON object."""
     address = validate_json_value(data.get("address", {}), path="Installation address")
@@ -1012,6 +1034,7 @@ def parse_device(
         model_id=_require_string(data, "modelId", "Device"),
         device_type=_require_string(data, "deviceType", "Device"),
         status=_optional_string(data, "status", "Device"),
+        roles=_optional_string_list(data, "roles", "Device"),
     )
 
 

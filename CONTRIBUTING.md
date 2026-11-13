@@ -38,17 +38,31 @@ python scripts/add_fixture.py export.json --name Vitocal250A
 The script redacts sensitive data the export still contains, checks that the name is
 free and that the library parses the features, writes
 `src/vi_api_client/fixtures/<name>.json`, and adds a sorted `discovery.json`
-catalog entry with the model, device type, and capture date. To refresh an
+catalog entry with the model, device type, roles, and capture date. To refresh an
 existing fixture, for example after a firmware update, add `--replace`; the
-script then replaces the fixture file and its catalog entry, keeps the entry's
-model ID, and refuses names that are not in the catalog.
+script then replaces the fixture file and its catalog entry, takes the model
+ID from the export, and refuses names that are not in the catalog. The catalog
+entry always carries the model ID the exported device reported.
+
+Some products report several devices on one gateway. Export each device with
+`vi-client dump-device --device-id <id>`, add device `0` as above, then add
+every further device to that fixture:
+
+```bash
+python scripts/add_fixture.py outdoor-unit.json --name Vitocal200A --device-id 1
+```
+
+The script writes the device's features to `<name>.<id>.json` and lists the
+device under `additionalDevices` in the fixture's catalog entry. `--replace`
+with `--device-id` replaces that device; replacing device `0` keeps the
+further devices.
 
 The script also regenerates the command knowledge baseline, so adding or
 refreshing a fixture needs no further step. Review the fixture diff and the
 baseline diff, then run the quality gate.
 
 `tests/fixtures/command_knowledge_baseline.json` records how the library
-writes every writable feature of every bundled fixture and which commands
+writes every writable feature of every bundled device feature file and which commands
 every API feature reports. A test compares it with the current parser, so an
 unintended parser change shows up as a diff. After an intended parser change,
 regenerate the baseline yourself and review its diff:
