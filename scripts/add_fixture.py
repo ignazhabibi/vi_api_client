@@ -111,7 +111,8 @@ def add_fixture(
     """Add an export as a fixture file and a discovery catalog entry.
 
     With `replace`, the export replaces a catalogued fixture of that name and
-    its catalog entry instead; the entry keeps its model ID.
+    its catalog entry instead. The entry always takes the model ID the
+    exported device reported, so consumers see the real model.
 
     Returns:
         A summary of the added or replaced fixture.
@@ -146,11 +147,9 @@ def add_fixture(
     feature_count = _check_parses(redacted_export["data"])
 
     device = redacted_export["device"]
-    # A replaced fixture keeps the model ID that consumers already see.
-    model_id = catalogued[name]["modelId"] if replace else device["modelId"]
     entry = {
         "fixtureName": name,
-        "modelId": model_id,
+        "modelId": device["modelId"],
         "deviceType": device["deviceType"],
     }
     if isinstance(device.get("capturedAt"), str):

@@ -37,7 +37,10 @@ availability.
 workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
 fixture-backed client: it runs those public workflows against bundled fixture
 responses without authentication or network requests. Its bundled fixture
-catalog defines each selectable fixture name, model identity, and device type;
+catalog defines each selectable fixture name, model identity, and device type.
+A fixture added from a device export reports the model ID that the exported
+device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
+without a known model ID report their fixture name.
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 

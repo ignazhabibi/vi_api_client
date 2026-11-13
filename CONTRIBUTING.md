@@ -40,8 +40,9 @@ free and that the library parses the features, writes
 `src/vi_api_client/fixtures/<name>.json`, and adds a sorted `discovery.json`
 catalog entry with the model, device type, and capture date. To refresh an
 existing fixture, for example after a firmware update, add `--replace`; the
-script then replaces the fixture file and its catalog entry, keeps the entry's
-model ID, and refuses names that are not in the catalog.
+script then replaces the fixture file and its catalog entry, takes the model
+ID from the export, and refuses names that are not in the catalog. The catalog
+entry always carries the model ID the exported device reported.
 
 The script also regenerates the command knowledge baseline, so adding or
 refreshing a fixture needs no further step. Review the fixture diff and the
