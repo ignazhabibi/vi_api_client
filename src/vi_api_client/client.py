@@ -36,7 +36,6 @@ from .models import (
     WriteBinding,
 )
 from .parsing import (
-    api_feature_to_flat_features,
     parse_api_features,
     parse_command_outcome,
     parse_device,
@@ -183,7 +182,9 @@ class ViClient:
                 features contain duplicate names.
         """
         api_features = await self._read_api_features(device, only_available)
-        features = self._api_features_to_flat_features(api_features, feature_names)
+        features, _ = parse_api_features(
+            api_features, only_available=only_available, feature_names=feature_names
+        )
         self._reject_duplicate_feature_names(features)
         if only_available:
             features = [feature for feature in features if feature.is_available]
@@ -790,31 +791,6 @@ class ViClient:
         if not all(isinstance(item, dict) for item in items):
             raise ViResponseError(f"{resource} response data entries must be objects")
         return cast("list[dict[str, Any]]", data)
-
-    @staticmethod
-    def _api_features_to_flat_features(
-        api_features: list[dict[str, Any]], feature_names: list[str] | None = None
-    ) -> list[Feature]:
-        """Parse one device's API features into flat features.
-
-        A name selects a feature by its own name or by the name of the API
-        feature it was parsed from; without names every feature is kept.
-
-        Raises:
-            ViResponseError: If an API feature is malformed.
-        """
-        requested_names = set(feature_names or ())
-        selected_features: list[Feature] = []
-        for api_feature in api_features:
-            features = api_feature_to_flat_features(api_feature)
-            # api_feature_to_flat_features validated the entry's API feature name.
-            if not requested_names or api_feature["feature"] in requested_names:
-                selected_features.extend(features)
-            else:
-                selected_features.extend(
-                    feature for feature in features if feature.name in requested_names
-                )
-        return selected_features
 
     @staticmethod
     def _reject_duplicate_feature_names(features: list[Feature]) -> None:
