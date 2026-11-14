@@ -78,6 +78,8 @@ device = await client.refresh_device(device)
 
 ## 5. Use your real heating
 
+You need a client ID from the
+[Viessmann Developer Portal](https://developer.viessmann-climatesolutions.com/start.html).
 Log in once with the CLI; it saves your tokens to `tokens.json`:
 
 ```bash
@@ -87,19 +89,26 @@ vi-client login --client-id <YOUR_CLIENT_ID>
 Then replace the fixture client with `ViClient`:
 
 ```python
+import asyncio
+
 import aiohttp
 
 from vi_api_client import OAuth, ViClient
 
-async with aiohttp.ClientSession() as session:
-    auth = OAuth(
-        client_id="YOUR_CLIENT_ID",
-        redirect_uri="http://localhost:4200/",
-        token_file="tokens.json",
-        websession=session,
-    )
-    client = ViClient(auth)
-    # ... everything else as above
+
+async def main():
+    async with aiohttp.ClientSession() as session:
+        auth = OAuth(
+            client_id="YOUR_CLIENT_ID",
+            redirect_uri="http://localhost:4200/",
+            token_file="tokens.json",
+            websession=session,
+        )
+        client = ViClient(auth)
+        # ... everything else as above
+
+
+asyncio.run(main())
 ```
 
 ## Next Steps

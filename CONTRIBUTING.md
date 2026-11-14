@@ -88,13 +88,19 @@ proposing a commit or push. The gate covers, in order:
   which checks that the wheel and source distribution ship `py.typed` and pass
   `pyright --verifytypes vi_api_client --ignoreexternal`
 
-Install development dependencies with the CI constraints
-(`python -m pip install -c constraints-ci.txt '.[dev]'`) to reproduce the
-tested HTTP client and mock combination. CI additionally runs the test suite
-against the lowest supported runtime dependencies from
-`constraints-ci-lowest.txt`; raise those pins together with the lower bounds in
-`pyproject.toml`. See [README.md](README.md#development-and-tests) for the full
-walkthrough.
+Set up a development environment from a clone with the CI constraints, which
+pin the tested HTTP client and mock combination:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install -c constraints-ci.txt -e '.[dev]'
+pre-commit install
+```
+
+CI additionally runs the test suite against the lowest supported runtime
+dependencies from `constraints-ci-lowest.txt`; raise those pins together with
+the lower bounds in `pyproject.toml`.
 
 ## Publishing to PyPI
 

@@ -183,5 +183,7 @@ identifiers, and coordinates in log text, API documents, and model objects.
 CLI helpers, transport details, persistence, and parsing remain available from
 their dedicated modules.
 
+## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and the local quality gate.
+See [CONTRIBUTING.md](https://github.com/ignazhabibi/vi_api_client/blob/main/CONTRIBUTING.md)
+for the development setup and the local quality gate.
