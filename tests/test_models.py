@@ -154,7 +154,7 @@ def test_other_model_collections_are_immutable_snapshots():
     # Arrange: Create models from caller-owned mutable collections.
     required_parameters = ["target"]
     options = ["eco"]
-    binding = ParameterWriteCommand(
+    write_command = ParameterWriteCommand(
         api_feature_name="parent",
         command_name="set",
         parameter_name="target",
@@ -176,7 +176,7 @@ def test_other_model_collections_are_immutable_snapshots():
     address["street"] = "Example Street"
 
     # Assert: Each public collection is an immutable defensive copy.
-    assert binding.required_parameters == ("target",)
+    assert write_command.required_parameters == ("target",)
     assert constraints.options == ("eco",)
     assert result.refreshed_devices == ()
     assert list(result.errors_by_device_id) == ["device-1"]

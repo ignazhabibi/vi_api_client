@@ -68,13 +68,13 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
         for feature in all_features
         if feature._write_command is not None
     ]
-    for name, binding, constraints in write_features:
+    for name, write_command, constraints in write_features:
         assert constraints is not None
         # Curve settings without bounds would let consumers send invalid values.
         if (
             "heating.curve" in name
-            and isinstance(binding, ParameterWriteCommand)
-            and binding.parameter_name in ("slope", "shift")
+            and isinstance(write_command, ParameterWriteCommand)
+            and write_command.parameter_name in ("slope", "shift")
         ):
             assert constraints.min is not None, f"{name}: missing min constraint"
             assert constraints.max is not None, f"{name}: missing max constraint"

@@ -90,10 +90,10 @@ _Avoid_: Validation error payload
 
 **Writable feature**:
 A feature that reports `is_writable=True` because the parser attached an
-internal write binding recording how its command writes the value: a parameter
+internal write command recording how its command writes the value: a parameter
 command, or an on/off command pair for a boolean without a parameter setter.
-The binding travels with the feature, so copies stay writable and hand-built
-features are read-only.
+The write command travels with the feature, so copies stay writable and
+hand-built features are read-only.
 _Avoid_: Control block, command metadata object
 
 **On/off command pair** (short: command pair):

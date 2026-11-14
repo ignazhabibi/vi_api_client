@@ -62,7 +62,7 @@ baseline_script = _load_script()
 
 @pytest.mark.parametrize("fixture_device", FEATURE_FILES, ids=FEATURE_FILES)
 def test_every_fixture_matches_the_command_knowledge_baseline(fixture_device):
-    """An unintended change of bindings or reported commands shows as a diff."""
+    """An unintended change of write_commands or reported commands shows as a diff."""
     # Arrange: Load the recorded command knowledge of every bundled fixture.
     baseline = load_fixture_json("command_knowledge_baseline.json")
 
@@ -269,10 +269,10 @@ async def test_copied_features_stay_writable_with_the_same_command():
     assert copied._write_command == feature._write_command
 
 
-def test_redaction_leaves_no_identifier_in_bindings_or_commands():
-    """redact_device masks identifiers in bindings, constraints, and commands."""
+def test_redaction_leaves_no_identifier_in_write_commands_or_commands():
+    """redact_device masks identifiers in write_commands, constraints, and commands."""
     # Arrange: A device whose every command surface carries real identifiers.
-    binding = ParameterWriteCommand(
+    write_command = ParameterWriteCommand(
         api_feature_name="device.serial",
         command_name="setSerial",
         parameter_name="serial",
@@ -289,7 +289,7 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         constraints=FeatureConstraints(
             options=["7630175843100101", {"access_token": "secret"}]
         ),
-        _write_command=binding,
+        _write_command=write_command,
     )
     command = DeviceCommand(
         name="setSerial",

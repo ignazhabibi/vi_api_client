@@ -134,7 +134,7 @@ def build_write_command(
 def build_feature(
     name: str = "heating.curve.slope",
     value: FeatureValue = 1.4,
-    binding: ParameterWriteCommand | None = None,
+    write_command: ParameterWriteCommand | None = None,
     *,
     unit: str | None = None,
     is_enabled: bool = True,
@@ -145,7 +145,7 @@ def build_feature(
 
     A writable feature defaults to empty constraint rules, like the parser.
     """
-    if constraints is None and binding is not None:
+    if constraints is None and write_command is not None:
         constraints = FeatureConstraints()
     return Feature(
         name=name,
@@ -154,7 +154,7 @@ def build_feature(
         is_enabled=is_enabled,
         is_ready=is_ready,
         constraints=constraints,
-        _write_command=binding,
+        _write_command=write_command,
     )
 
 

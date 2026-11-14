@@ -514,12 +514,15 @@ def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
     )
 
     # Act: Parse the API feature.
-    binding = api_feature_to_flat_features(raw_feature)[0]._write_command
+    write_command = api_feature_to_flat_features(raw_feature)[0]._write_command
 
     # Assert: The control writes through the executable command.
-    assert isinstance(binding, ParameterWriteCommand)
-    assert (binding.command_name, binding.parameter_name) == ("setCurve", "slope")
-    assert binding.uri == "/commands/setCurve"
+    assert isinstance(write_command, ParameterWriteCommand)
+    assert (write_command.command_name, write_command.parameter_name) == (
+        "setCurve",
+        "slope",
+    )
+    assert write_command.uri == "/commands/setCurve"
 
 
 def test_command_parameter_constraints_win_over_property_metadata():
@@ -605,12 +608,12 @@ def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
     assert schedule.value == {"mon": []}
     assert active.value is True
     assert active._write_command is None
-    binding = schedule._write_command
+    write_command = schedule._write_command
     constraints = schedule.constraints
-    assert isinstance(binding, ParameterWriteCommand)
+    assert isinstance(write_command, ParameterWriteCommand)
     assert constraints is not None
-    assert binding.command_name == "setSchedule"
-    assert binding.parameter_name == "newSchedule"
+    assert write_command.command_name == "setSchedule"
+    assert write_command.parameter_name == "newSchedule"
     assert constraints.value_type == "Schedule"
     assert (
         constraints.min,
@@ -730,10 +733,10 @@ def test_setter_binds_the_value_whatever_the_command_order(command_names):
 
     # Assert: Both values are written through the setter.
     for feature in features:
-        binding = feature._write_command
-        assert isinstance(binding, ParameterWriteCommand)
-        assert binding.command_name == "setActive"
-        assert binding.uri == "/commands/setActive"
+        write_command = feature._write_command
+        assert isinstance(write_command, ParameterWriteCommand)
+        assert write_command.command_name == "setActive"
+        assert write_command.uri == "/commands/setActive"
 
 
 @pytest.mark.parametrize(
@@ -846,15 +849,15 @@ def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
     )
 
     # Act: Parse the API feature.
-    binding = api_feature_to_flat_features(raw_feature)[0]._write_command
+    write_command = api_feature_to_flat_features(raw_feature)[0]._write_command
 
     # Assert: The schedule control writes through the executable command.
-    assert isinstance(binding, ParameterWriteCommand)
-    assert (binding.command_name, binding.parameter_name) == (
+    assert isinstance(write_command, ParameterWriteCommand)
+    assert (write_command.command_name, write_command.parameter_name) == (
         "setSchedule",
         "newSchedule",
     )
-    assert binding.uri == "/commands/setSchedule"
+    assert write_command.uri == "/commands/setSchedule"
 
 
 def test_parse_device_maps_fields_and_converts_integer_ids_to_text():

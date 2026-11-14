@@ -133,7 +133,7 @@ class ValidatedApiFeature(NamedTuple):
 class _CommandWrite(NamedTuple):
     """The internal write command and public rules of one writable feature."""
 
-    binding: WriteCommand
+    write_command: WriteCommand
     constraints: FeatureConstraints
 
 
@@ -185,7 +185,7 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
             is_enabled=entry.is_enabled,
             is_ready=entry.is_ready,
             constraints=schedule_write.constraints if schedule_write else None,
-            _write_command=schedule_write.binding if schedule_write else None,
+            _write_command=schedule_write.write_command if schedule_write else None,
             deprecation=entry.deprecation,
         )
         other_properties = {
@@ -203,7 +203,7 @@ def _entry_to_flat_features(entry: ValidatedApiFeature) -> list[Feature]:
                 is_enabled=entry.is_enabled,
                 is_ready=entry.is_ready,
                 constraints=write.constraints if write else None,
-                _write_command=write.binding if write else None,
+                _write_command=write.write_command if write else None,
                 deprecation=entry.deprecation,
             )
         ]
@@ -226,7 +226,7 @@ def parse_api_features(
     *,
     only_available: bool,
     feature_names: Collection[str] | None = None,
-) -> tuple[list[Feature], dict[str, tuple[DeviceCommand, ...]]]:
+) -> tuple[list[Feature], CommandMap]:
     """Parse one device feature response into flat features and commands.
 
     Every API feature is validated once. The command list keeps commands the
@@ -373,7 +373,7 @@ def _flat_property_features(
                 is_enabled=entry.is_enabled,
                 is_ready=entry.is_ready,
                 constraints=write.constraints if write else None,
-                _write_command=write.binding if write else None,
+                _write_command=write.write_command if write else None,
                 deprecation=entry.deprecation,
             )
         )
@@ -746,14 +746,14 @@ def _find_pair_write(
             on_command.get("params", {})
         ) or _get_required_parameters(off_command.get("params", {})):
             return None
-        binding = OnOffWriteCommand(
+        write_command = OnOffWriteCommand(
             api_feature_name=entry.name,
             on_command_name=pair.on_command_name,
             off_command_name=pair.off_command_name,
             on_uri=on_command.get("uri", ""),
             off_uri=off_command.get("uri", ""),
         )
-        return _CommandWrite(binding, FeatureConstraints(value_type="boolean"))
+        return _CommandWrite(write_command, FeatureConstraints(value_type="boolean"))
     return None
 
 
@@ -786,7 +786,7 @@ def _build_write(
         property_constraints,
     ]
 
-    binding = ParameterWriteCommand(
+    write_command = ParameterWriteCommand(
         api_feature_name=api_feature_name,
         command_name=command_name,
         parameter_name=target_param,
@@ -803,7 +803,7 @@ def _build_write(
         max_length=_resolve_constraint(["maxLength"], sources),
         pattern=_resolve_constraint(["pattern", "regEx"], sources),
     )
-    return _CommandWrite(binding, constraints)
+    return _CommandWrite(write_command, constraints)
 
 
 def _get_required_parameters(params: dict[str, Any]) -> list[str]:
@@ -895,7 +895,7 @@ def _find_complex_write(
         )
         if target_param:
             parameter = params[target_param]
-            binding = ParameterWriteCommand(
+            write_command = ParameterWriteCommand(
                 api_feature_name=api_feature_name,
                 command_name=command_name,
                 parameter_name=target_param,
@@ -908,7 +908,7 @@ def _find_complex_write(
                 # constraints (min, max, step, options) do not apply.
                 schedule=_build_schedule_constraints(parameter.get("constraints", {})),
             )
-            return _CommandWrite(binding, constraints)
+            return _CommandWrite(write_command, constraints)
     return None
 
 

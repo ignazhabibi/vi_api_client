@@ -3,7 +3,6 @@
 import difflib
 import logging
 import re
-from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -20,6 +19,7 @@ from .exceptions import (
     ViResponseError,
 )
 from .models import (
+    CommandMap,
     Device,
     DeviceCommand,
     EventHistoryPage,
@@ -374,7 +374,7 @@ class ViClient:
 
     async def _parse_device_features(
         self, device: Device, only_available: bool
-    ) -> tuple[list[Feature], dict[str, tuple[DeviceCommand, ...]]]:
+    ) -> tuple[list[Feature], CommandMap]:
         """Return one feature read's flat features and reported commands.
 
         Raises:
@@ -569,27 +569,29 @@ class ViClient:
         if current_feature is None:
             raise ValueError(f"Feature '{feature_name}' is not present on the device.")
 
-        binding = self._require_command_binding(device, current_feature)
+        write_command = self._require_write_command(device, current_feature)
         constraints = self._require_constraints(current_feature)
-        if isinstance(binding, OnOffWriteCommand):
+        if isinstance(write_command, OnOffWriteCommand):
             # The boolean type check is the pair's whole validation; which
             # direction the device allows right now is the API's decision.
             validate_value_constraints(
                 constraints,
-                f"{binding.on_command_name}/{binding.off_command_name}",
+                f"{write_command.on_command_name}/{write_command.off_command_name}",
                 target_value,
             )
             is_on = target_value is True
             command_name = (
-                binding.on_command_name if is_on else binding.off_command_name
+                write_command.on_command_name
+                if is_on
+                else write_command.off_command_name
             )
-            uri = binding.on_uri if is_on else binding.off_uri
+            uri = write_command.on_uri if is_on else write_command.off_uri
             # A pair command is sent without parameters; an optional
             # parameter of the on command is deliberately left out.
             payload: dict[str, JsonValue] = {}
         else:
-            command_name, uri = binding.command_name, binding.uri
-            payload = self._resolve_command_payload(device, binding, target_value)
+            command_name, uri = write_command.command_name, write_command.uri
+            payload = self._resolve_command_payload(device, write_command, target_value)
             reject_non_json_parameters(payload)
             validate_value_constraints(constraints, command_name, target_value)
         _LOGGER.debug(
@@ -681,7 +683,7 @@ class ViClient:
     def _unknown_command_error(
         api_feature_name: str,
         command_name: str,
-        command_map: Mapping[str, tuple[DeviceCommand, ...]],
+        command_map: CommandMap,
     ) -> ValueError:
         """Return the error for a name the snapshot does not resolve.
 
@@ -913,7 +915,7 @@ class ViClient:
     # Feature commands: check availability, build and validate the payload, send it.
 
     @staticmethod
-    def _require_command_binding(device: Device, feature: Feature) -> WriteCommand:
+    def _require_write_command(device: Device, feature: Feature) -> WriteCommand:
         """Validate a feature's command availability and return its write command.
 
         A hand-built feature has no write command, so it is read-only. So is
@@ -940,14 +942,14 @@ class ViClient:
         if not feature.is_ready:
             raise ValueError(f"Feature '{feature.name}' is not ready.")
 
-        binding = write_command_of(feature)
+        write_command = write_command_of(feature)
         # is_writable means a write command exists; the assert only narrows the type.
-        assert binding is not None  # noqa: S101
-        return binding
+        assert write_command is not None  # noqa: S101
+        return write_command
 
     @staticmethod
     def _resolve_command_payload(
-        device: Device, binding: ParameterWriteCommand, target_value: FeatureValue
+        device: Device, write_command: ParameterWriteCommand, target_value: FeatureValue
     ) -> dict[str, JsonValue]:
         """Resolve all parameters required for a command.
 
@@ -955,7 +957,7 @@ class ViClient:
 
         Args:
             device: The device object for dependency lookup.
-            binding: The internal write command of the feature being set.
+            write_command: The internal write command of the feature being set.
             target_value: The main value to set.
 
         Returns:
@@ -965,19 +967,19 @@ class ViClient:
             ValueError: If a required sibling feature is absent, disabled, not
                 ready, or has no value.
         """
-        payload = {binding.parameter_name: target_value}
+        payload = {write_command.parameter_name: target_value}
 
-        for parameter in binding.required_parameters:
-            if parameter == binding.parameter_name:
+        for parameter in write_command.required_parameters:
+            if parameter == write_command.parameter_name:
                 continue
 
             # Other required parameters come from sibling features, e.g. the
             # current 'shift' when setting a heating curve's 'slope'.
-            sibling_name = f"{binding.api_feature_name}.{parameter}"
+            sibling_name = f"{write_command.api_feature_name}.{parameter}"
             sibling = device.get_feature(sibling_name)
             dependency_label = (
                 f"Required dependency '{sibling_name}' for command "
-                f"'{binding.command_name}'"
+                f"'{write_command.command_name}'"
             )
             if sibling is None:
                 raise ValueError(f"{dependency_label} is not present on the device.")
