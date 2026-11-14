@@ -141,7 +141,9 @@ class DeviceCommand:
     parameters: tuple[CommandParameter, ...] = ()
 
 
-# Mutable command index a parser builds before it is frozen into a Device.
+# Read-only command index of a device snapshot: API feature name to its
+# reported commands. The parser builds it as a mutable dict before it is
+# frozen into a Device.
 type CommandMap = Mapping[str, tuple[DeviceCommand, ...]]
 
 

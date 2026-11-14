@@ -251,7 +251,7 @@ def parse_api_features(
             name is reported twice for one API feature.
     """
     features: list[Feature] = []
-    command_map: CommandMap = {}
+    command_map: dict[str, tuple[DeviceCommand, ...]] = {}
     available_api_features: set[str] = set()
     requested_names = set(feature_names or ())
     for api_feature in api_features:
