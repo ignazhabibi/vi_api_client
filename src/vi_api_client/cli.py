@@ -42,7 +42,6 @@ from ._types import JsonValue
 from .const import DEFAULT_EVENT_HISTORY_MAX_PAGES
 from .credentials import CredentialDocument
 from .models import (
-    CommandPairWriteBinding,
     CommandParameter,
     Device,
     EventHistoryWindow,
@@ -51,9 +50,12 @@ from .models import (
     FeatureDeprecation,
     Gateway,
     InstallationEvent,
+    OnOffWriteCommand,
     ScheduleConstraints,
-    WriteBinding,
+    WriteCommand,
+    command_map_of,
     parse_instant,
+    write_command_of,
 )
 from .parsing import owning_api_feature_name
 from .utils import format_feature, parse_cli_params
@@ -522,7 +524,7 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
             snapshot = await context.client.refresh_device(device, only_available=False)
             known_names = [
                 *(feature.name for feature in snapshot.features),
-                *snapshot.commands_by_api_feature,
+                *command_map_of(snapshot),
             ]
             print(
                 f"Feature '{feature_name}' not found."
@@ -547,11 +549,11 @@ async def cmd_get_feature(args: argparse.Namespace) -> bool:
         print(f"- {feature.name}: {format_feature(feature)}")
         if feature.deprecation is not None:
             print(f"  Deprecated: {_deprecation_text(feature.deprecation)}")
-        binding = feature.write_binding
+        binding = write_command_of(feature)
         if binding is not None:
             api_feature_name: str | None = binding.api_feature_name
             constraints = feature.constraints or FeatureConstraints()
-            if isinstance(binding, CommandPairWriteBinding):
+            if isinstance(binding, OnOffWriteCommand):
                 print(f"  Writable via commands: {_pair_commands_text(binding)}")
             else:
                 print(f"  Writable via command: {binding.command_name}")
@@ -606,25 +608,25 @@ def _feature_document(feature: Feature) -> dict[str, Any]:
         "value": feature.value,
         "unit": feature.unit,
         "constraints": asdict(feature.constraints) if feature.constraints else None,
-        "command": _command_document(feature.write_binding),
+        "command": _command_document(write_command_of(feature)),
         "deprecation": _deprecation_document(feature.deprecation),
     }
 
 
-def _command_document(binding: WriteBinding | None) -> dict[str, str] | None:
-    """Return the JSON ``command`` entry of a feature's write binding.
+def _command_document(binding: WriteCommand | None) -> dict[str, str] | None:
+    """Return the JSON ``command`` entry of a feature's write command.
 
     A parameter command prints its name and parameter; an on/off command
     pair prints both command names.
     """
     if binding is None:
         return None
-    if isinstance(binding, CommandPairWriteBinding):
+    if isinstance(binding, OnOffWriteCommand):
         return {"on": binding.on_command_name, "off": binding.off_command_name}
     return {"name": binding.command_name, "parameter": binding.parameter_name}
 
 
-def _pair_commands_text(binding: CommandPairWriteBinding) -> str:
+def _pair_commands_text(binding: OnOffWriteCommand) -> str:
     """Return both commands of an on/off pair for text output."""
     return f"{binding.on_command_name} (on), {binding.off_command_name} (off)"
 
@@ -682,7 +684,7 @@ async def cmd_set(args: argparse.Namespace) -> bool:
         device, feature, binding = target
 
         print(f"Setting '{feature.name}' to '{raw_value}'...")
-        if isinstance(binding, CommandPairWriteBinding):
+        if isinstance(binding, OnOffWriteCommand):
             print(f"  (Commands: {_pair_commands_text(binding)})")
         else:
             print(
@@ -863,7 +865,7 @@ def _close_name_hint(name: str, known_names: Iterable[str]) -> str:
 
 async def _fetch_writable_feature(
     context: CLIContext, name: str
-) -> tuple[Device, Feature, WriteBinding] | None:
+) -> tuple[Device, Feature, WriteCommand] | None:
     """Fetch a writable feature together with its complete device snapshot.
 
     Prints the reason and returns None when the feature is missing or
@@ -880,7 +882,7 @@ async def _fetch_writable_feature(
             f"Error: Feature '{name}' not found.{_close_name_hint(name, known_names)}"
         )
         return None
-    binding = feature.write_binding
+    binding = write_command_of(feature)
     if binding is None:
         api_feature_name = owning_api_feature_name(device_snapshot, feature.name)
         command_names = (
@@ -943,7 +945,7 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     writable_features = [
         (feature, binding)
         for feature in device.features
-        if (binding := feature.write_binding) is not None
+        if (binding := write_command_of(feature)) is not None
     ]
     if args.json:
         _print_json([_feature_document(feature) for feature, _ in writable_features])
@@ -951,7 +953,7 @@ async def cmd_list_writable(args: argparse.Namespace) -> bool:
     print(f"\nFound {len(writable_features)} writable features:\n")
     for feature, binding in writable_features:
         print(f"- {feature.name}")
-        if isinstance(binding, CommandPairWriteBinding):
+        if isinstance(binding, OnOffWriteCommand):
             print(f"    Commands: {_pair_commands_text(binding)}")
         else:
             print(f"    Param:   {binding.parameter_name} (via {binding.command_name})")

@@ -15,7 +15,7 @@ from vi_api_client.models import (
     DeviceCommand,
     Feature,
     FeatureConstraints,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
     ScheduleConstraints,
 )
 
@@ -61,7 +61,7 @@ def _device(
         device_type="heating",
         status="connected",
         features=features,
-        commands_by_api_feature=commands or {},
+        _commands_by_api_feature=commands or {},
     )
 
 
@@ -108,9 +108,9 @@ def _mode_device(
 
 def _control(
     *, required_parameters: list[str] | None = None, parameter_name: str = "target"
-) -> ParameterWriteBinding:
-    """Build an internal write binding for a target under ``heating.mode``."""
-    return ParameterWriteBinding(
+) -> ParameterWriteCommand:
+    """Build an internal write command for a target under ``heating.mode``."""
+    return ParameterWriteCommand(
         api_feature_name="heating.mode",
         command_name="setMode",
         parameter_name=parameter_name,
@@ -370,8 +370,8 @@ async def test_set_feature_omits_optional_siblings_and_raises_on_rejection():
 
 
 async def test_set_feature_rejects_hand_built_features_without_adapter_io():
-    """A hand-built feature has no write binding, so it rejects as read-only."""
-    # Arrange: Only the parser attaches write bindings; builders leave the
+    """A hand-built feature has no write command, so it rejects as read-only."""
+    # Arrange: Only the parser attaches write commands; builders leave the
     # feature read-only.
     adapter = _RecordingCommandAdapter()
     client = _create_client(adapter)
@@ -611,11 +611,11 @@ _SCHEDULE_RULES = ScheduleConstraints(
 
 
 def _schedule_control(rules: ScheduleConstraints | None = _SCHEDULE_RULES):
-    """Build the feature of a schedule written through one binding."""
+    """Build the feature of a schedule written through one write command."""
     return build_feature(
         "heating.dhw.schedule",
         {"mon": []},
-        ParameterWriteBinding(
+        ParameterWriteCommand(
             api_feature_name="heating.dhw.schedule",
             command_name="setSchedule",
             parameter_name="newSchedule",
@@ -653,8 +653,8 @@ async def test_set_feature_writes_a_valid_schedule_and_keeps_the_plan_shape():
     updated_device = await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent and read back in the same shape.
-    binding = schedule.write_binding
-    assert isinstance(binding, ParameterWriteBinding)
+    binding = schedule._write_command
+    assert isinstance(binding, ParameterWriteCommand)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
     updated_schedule = updated_device.get_feature("heating.dhw.schedule")
     assert updated_schedule is not None
@@ -735,8 +735,8 @@ async def test_set_feature_allows_overlaps_and_any_mode_without_reported_rules()
     await client.set_feature(device, schedule, plan)
 
     # Assert: The plan is sent unchanged.
-    binding = schedule.write_binding
-    assert isinstance(binding, ParameterWriteBinding)
+    binding = schedule._write_command
+    assert isinstance(binding, ParameterWriteCommand)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 
@@ -749,8 +749,8 @@ async def test_set_feature_allows_touching_slots_when_overlaps_are_forbidden():
 
     await client.set_feature(device, schedule, plan)
 
-    binding = schedule.write_binding
-    assert isinstance(binding, ParameterWriteBinding)
+    binding = schedule._write_command
+    assert isinstance(binding, ParameterWriteCommand)
     assert adapter.calls == [(binding.uri, {"newSchedule": plan})]
 
 

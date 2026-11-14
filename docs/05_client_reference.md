@@ -276,7 +276,7 @@ and the type of numbers, so a redacted feature document still parses as a
 fixture.
 
 *   `redact_sensitive(value, *, placeholder="<redacted>")`: returns redacted log text for a `str` and a redacted copy for any other JSON value.
-*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, the option values in constraints, and the URIs of its internal write binding (both URIs of an on/off command pair) are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
+*   `redact_feature(feature, *, placeholder=...)`: returns a `Feature` whose value, the option values in constraints, and the URIs of its internal write command (both URIs of an on/off command pair) are redacted. The last part of the feature name acts as the value's key, so `....houseLocation.latitude` becomes `0`.
 *   `redact_device(device, *, placeholder=...)`: returns a `Device` whose ID, gateway serial, installation ID, and features are redacted.
 
 ```python

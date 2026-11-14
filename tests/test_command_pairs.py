@@ -11,10 +11,10 @@ from vi_api_client import FixtureViClient, redact_device
 from vi_api_client.const import API_BASE_URL, ENDPOINT_FEATURES
 from vi_api_client.exceptions import ViCommandRejectedError
 from vi_api_client.models import (
-    CommandPairWriteBinding,
     Feature,
     FeatureConstraints,
-    ParameterWriteBinding,
+    OnOffWriteCommand,
+    ParameterWriteCommand,
 )
 from vi_api_client.parsing import api_feature_to_flat_features, parse_api_features
 
@@ -122,7 +122,7 @@ def test_pair_written_fixture_features_are_boolean(fixture_device):
     pair_written = [
         feature
         for feature in load_fixture_features(fixture_device)
-        if isinstance(feature.write_binding, CommandPairWriteBinding)
+        if isinstance(feature._write_command, OnOffWriteCommand)
     ]
 
     # Assert: Every pair-written feature is a boolean with the boolean rule.
@@ -131,13 +131,13 @@ def test_pair_written_fixture_features_are_boolean(fixture_device):
         assert feature.constraints == FeatureConstraints(value_type="boolean")
 
 
-def test_pair_binding_knows_both_commands_and_their_uris():
+def test_pair_command_knows_both_commands_and_their_uris():
     # Act: Parse a hygiene API feature that offers only the command pair.
     feature = _feature(_hygiene_api_feature(), "heating.dhw.hygiene.enabled")
 
     # Assert: The feature is writable through both commands.
     assert feature.is_writable
-    assert feature.write_binding == CommandPairWriteBinding(
+    assert feature._write_command == OnOffWriteCommand(
         api_feature_name="heating.dhw.hygiene",
         on_command_name="enable",
         off_command_name="disable",
@@ -168,8 +168,8 @@ def test_parameter_setter_wins_over_the_command_pair():
     feature = _feature(api_feature, "heating.dhw.hygiene.enabled")
 
     # Assert: The setter writes the feature.
-    binding = feature.write_binding
-    assert isinstance(binding, ParameterWriteBinding)
+    binding = feature._write_command
+    assert isinstance(binding, ParameterWriteCommand)
     assert binding.command_name == "setEnabled"
 
 
@@ -203,7 +203,7 @@ def test_optional_parameter_keeps_the_command_pair():
     )
 
     # Assert: The optional parameter does not exclude the pair.
-    assert isinstance(feature.write_binding, CommandPairWriteBinding)
+    assert isinstance(feature._write_command, OnOffWriteCommand)
 
 
 def test_property_without_a_table_row_stays_read_only():
@@ -288,7 +288,7 @@ def test_reported_executability_does_not_decide_pair_writability(
 
     # Act and assert: The feature is pair-written whatever the flags say.
     feature = _feature(api_feature, "heating.circuits.0.operating.programs.eco.active")
-    assert isinstance(feature.write_binding, CommandPairWriteBinding)
+    assert isinstance(feature._write_command, OnOffWriteCommand)
 
 
 def test_one_time_charge_without_a_setter_is_pair_written():
@@ -306,7 +306,7 @@ def test_one_time_charge_without_a_setter_is_pair_written():
     feature = _feature(api_feature, f"{name}.active")
 
     # Assert: The pair writes the feature.
-    assert feature.write_binding == CommandPairWriteBinding(
+    assert feature._write_command == OnOffWriteCommand(
         api_feature_name=name,
         on_command_name="activate",
         off_command_name="deactivate",
@@ -462,7 +462,7 @@ async def test_fixture_client_accepts_pair_writes(fixture_device):
     pair_written = [
         feature
         for feature in device.features
-        if isinstance(feature.write_binding, CommandPairWriteBinding)
+        if isinstance(feature._write_command, OnOffWriteCommand)
     ]
     for feature in pair_written:
         # Act: Write the opposite of the reported value.
@@ -474,7 +474,7 @@ async def test_fixture_client_accepts_pair_writes(fixture_device):
         assert updated_feature.value is (not feature.value)
 
 
-def test_redaction_covers_both_uris_of_a_pair_binding():
+def test_redaction_covers_both_uris_of_a_pair_command():
     # Arrange: A device whose pair command URIs carry real identifiers.
     api_feature = _hygiene_api_feature()
     for command in api_feature["commands"].values():
@@ -487,7 +487,7 @@ def test_redaction_covers_both_uris_of_a_pair_binding():
     device = replace(
         build_device("0", "1234567", "7630175843100101"),
         features=features,
-        commands_by_api_feature=commands,
+        _commands_by_api_feature=commands,
     )
 
     # Act: Redact the device.
@@ -496,8 +496,8 @@ def test_redaction_covers_both_uris_of_a_pair_binding():
     # Assert: Neither URI of the pair binding keeps an identifier.
     redacted_feature = redacted.get_feature("heating.dhw.hygiene.enabled")
     assert redacted_feature is not None
-    binding = redacted_feature.write_binding
-    assert isinstance(binding, CommandPairWriteBinding)
+    binding = redacted_feature._write_command
+    assert isinstance(binding, OnOffWriteCommand)
     for uri in (binding.on_uri, binding.off_uri):
         assert "1234567" not in uri
         assert "7630175843100101" not in uri

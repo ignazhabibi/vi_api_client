@@ -68,7 +68,7 @@ from vi_api_client.models import (
     DeviceCommand,
     Feature,
     FeatureConstraints,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
     ScheduleConstraints,
 )
 from vi_api_client.parsing import api_feature_to_flat_features
@@ -79,8 +79,8 @@ def _cli_args(*argv: str) -> Namespace:
     return build_parser().parse_args(argv)
 
 
-def _binding(**overrides: Any) -> ParameterWriteBinding:
-    """Build one internal write binding for a ``heating.curve.slope`` target."""
+def _binding(**overrides: Any) -> ParameterWriteCommand:
+    """Build one internal write command for a ``heating.curve.slope`` target."""
     fields: dict[str, Any] = {
         "command_name": "setCurve",
         "parameter_name": "slope",
@@ -89,7 +89,7 @@ def _binding(**overrides: Any) -> ParameterWriteBinding:
         "uri": "uri",
     }
     fields.update(overrides)
-    return ParameterWriteBinding(**fields)
+    return ParameterWriteCommand(**fields)
 
 
 def _constraints(**overrides: Any) -> FeatureConstraints:
@@ -127,7 +127,7 @@ def _snapshot_device(
     return replace(
         build_device("DEV1"),
         features=features,
-        commands_by_api_feature=commands
+        _commands_by_api_feature=commands
         if commands is not None
         else {"heating.curve": (_curve_command(),)},
     )
@@ -1006,7 +1006,7 @@ async def test_run_cli_get_feature_lists_the_reported_commands(run_cli):
         "heating.circuits.0.heating.curve.slope",
     )
 
-    # Assert: The output shows the value, the write binding, and one command
+    # Assert: The output shows the value, the write command, and one command
     # list with parameter names, required markers, and constraints.
     assert exit_status == 0
     lines = out.splitlines()

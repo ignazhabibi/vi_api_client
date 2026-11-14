@@ -13,7 +13,7 @@ from vi_api_client.models import (
     FeatureConstraints,
     Gateway,
     Installation,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
 )
 from vi_api_client.parsing import api_feature_to_flat_features
 
@@ -109,20 +109,20 @@ def build_device(
     )
 
 
-def build_write_binding(
+def build_write_command(
     *,
     api_feature_name: str = "heating.curve",
     command_name: str = "setValue",
     parameter_name: str = "value",
     required_parameters: tuple[str, ...] = ("value",),
     uri: str = "/features/heating.curve/commands/setValue",
-) -> ParameterWriteBinding:
-    """Build an internal write binding for a writable feature.
+) -> ParameterWriteCommand:
+    """Build an internal write command for a writable feature.
 
-    The binding type is internal; this helper lets repository tests build
+    The write command type is internal; this helper lets repository tests build
     writable features the way the parser does.
     """
-    return ParameterWriteBinding(
+    return ParameterWriteCommand(
         api_feature_name=api_feature_name,
         command_name=command_name,
         parameter_name=parameter_name,
@@ -134,7 +134,7 @@ def build_write_binding(
 def build_feature(
     name: str = "heating.curve.slope",
     value: FeatureValue = 1.4,
-    binding: ParameterWriteBinding | None = None,
+    binding: ParameterWriteCommand | None = None,
     *,
     unit: str | None = None,
     is_enabled: bool = True,
@@ -154,7 +154,7 @@ def build_feature(
         is_enabled=is_enabled,
         is_ready=is_ready,
         constraints=constraints,
-        write_binding=binding,
+        _write_command=binding,
     )
 
 

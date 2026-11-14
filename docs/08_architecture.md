@@ -97,7 +97,7 @@ API features can often be used without adding a dedicated client method.
 
 - `FeatureConstraints`, the public rules for writing its value: allowed ranges
   or option values, lengths, pattern, value type, and schedule rules, and
-- an internal, undocumented write binding that records how the library sends
+- an internal, undocumented write command that records how the library sends
   the command. It is either a parameter command (API feature, command,
   parameter, required parameters, and URI) or, for a boolean feature without
   a parameter setter, an on/off command pair (API feature, both command names,
@@ -124,9 +124,9 @@ and commands of API features without properties, and stores neither
 API decide (ADR 0005). A duplicate `(API feature name, command name)` pair in
 one response raises `ViResponseError`.
 
-The binding travels with the feature, so copying a feature with
+The write command travels with the feature, so copying a feature with
 `dataclasses.replace` keeps it writable, and a hand-built feature is read-only
-because only the parser attaches bindings.
+because only the parser attaches write commands.
 
 **Why?** Command rules come from API responses and vary by device and feature.
 The public model exposes what a consumer needs to offer a value; how the

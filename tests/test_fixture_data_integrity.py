@@ -15,7 +15,7 @@ from builders import (
 )
 
 from vi_api_client import FixtureViClient
-from vi_api_client.models import ParameterWriteBinding
+from vi_api_client.models import ParameterWriteCommand
 
 FEATURE_FILES = bundled_feature_files()
 
@@ -64,16 +64,16 @@ def test_fixture_data_parses_and_keeps_constraint_quality(device_name):
     # Assert: The fixture yields features whose write constraints are usable.
     assert all_features
     write_features = [
-        (feature.name, feature.write_binding, feature.constraints)
+        (feature.name, feature._write_command, feature.constraints)
         for feature in all_features
-        if feature.write_binding is not None
+        if feature._write_command is not None
     ]
     for name, binding, constraints in write_features:
         assert constraints is not None
         # Curve settings without bounds would let consumers send invalid values.
         if (
             "heating.curve" in name
-            and isinstance(binding, ParameterWriteBinding)
+            and isinstance(binding, ParameterWriteCommand)
             and binding.parameter_name in ("slope", "shift")
         ):
             assert constraints.min is not None, f"{name}: missing min constraint"

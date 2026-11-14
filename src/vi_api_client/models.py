@@ -70,7 +70,7 @@ class FeatureConstraints:
 
 
 @dataclass(frozen=True)
-class ParameterWriteBinding:
+class ParameterWriteCommand:
     """Internal knowledge of the command that writes one feature.
 
     Not part of the public API and not exported from the package root: it
@@ -91,7 +91,7 @@ class ParameterWriteBinding:
 
 
 @dataclass(frozen=True)
-class CommandPairWriteBinding:
+class OnOffWriteCommand:
     """Internal knowledge of the on/off command pair that writes one feature.
 
     Not part of the public API. A boolean feature without a parameter setter
@@ -106,8 +106,8 @@ class CommandPairWriteBinding:
     off_uri: str
 
 
-# The write bindings a feature can carry.
-type WriteBinding = ParameterWriteBinding | CommandPairWriteBinding
+# The write commands a feature can carry.
+type WriteCommand = ParameterWriteCommand | OnOffWriteCommand
 
 
 @dataclass(frozen=True)
@@ -139,6 +139,10 @@ class DeviceCommand:
     name: str
     uri: str
     parameters: tuple[CommandParameter, ...] = ()
+
+
+# Mutable command index a parser builds before it is frozen into a Device.
+type CommandMap = dict[str, tuple[DeviceCommand, ...]]
 
 
 @dataclass(frozen=True)
@@ -183,18 +187,17 @@ class Feature:
     is_ready: bool
     constraints: FeatureConstraints | None = None
     # Internal command knowledge: how the library sends the value's command.
-    # The name carries no underscore so package modules can read and maintain
-    # the binding under pyright strict, but the field is deliberately internal
-    # and not exported from the package root; only the parser attaches it, so
-    # hand-built features are read-only. It is kept out of the repr because
-    # the URI carries installation, gateway, and device identifiers.
-    write_binding: WriteBinding | None = field(default=None, repr=False)
+    # The underscore marks it internal; package modules read it through
+    # `write_command_of`. Only the parser attaches it, so hand-built features
+    # are read-only. It is kept out of the repr because the URI carries
+    # installation, gateway, and device identifiers.
+    _write_command: WriteCommand | None = field(default=None, repr=False)
     deprecation: FeatureDeprecation | None = None
 
     @property
     def is_writable(self) -> bool:
-        """Return whether the feature carries an internal write binding."""
-        return self.write_binding is not None
+        """Return whether the feature carries an internal write command."""
+        return self._write_command is not None
 
     @property
     def is_available(self) -> bool:
@@ -238,11 +241,11 @@ class Device:
     status: str
     features: Sequence[Feature] = field(default_factory=tuple)
     roles: tuple[str, ...] = ()
-    # Internal command knowledge: the name carries no underscore so package
-    # modules can maintain it under pyright strict, but the field is not part
-    # of the public compatibility contract. It is kept out of the repr because
-    # command URIs carry installation, gateway, and device IDs.
-    commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]] = field(
+    # Internal command knowledge: not part of the public compatibility
+    # contract; package modules read it through `command_map_of`. It is kept
+    # out of the repr because command URIs carry installation, gateway, and
+    # device IDs.
+    _commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]] = field(
         default_factory=dict[str, tuple[DeviceCommand, ...]],
         repr=False,
     )
@@ -272,8 +275,8 @@ class Device:
         object.__setattr__(self, "_features_by_name", MappingProxyType(feature_map))
         object.__setattr__(
             self,
-            "commands_by_api_feature",
-            MappingProxyType(dict(self.commands_by_api_feature)),
+            "_commands_by_api_feature",
+            MappingProxyType(dict(self._commands_by_api_feature)),
         )
 
     def get_feature(self, name: str) -> Feature | None:
@@ -303,7 +306,7 @@ class Device:
             or None when the API feature did not report the command in the
             snapshot this device was built from.
         """
-        for command in self.commands_by_api_feature.get(api_feature_name, ()):
+        for command in self._commands_by_api_feature.get(api_feature_name, ()):
             if command.name == command_name:
                 return command.parameters
         return None
@@ -319,8 +322,26 @@ class Device:
             The names of every command the API feature reported in the
             snapshot this device was built from, in sorted order.
         """
-        commands = self.commands_by_api_feature.get(api_feature_name, ())
+        commands = self._commands_by_api_feature.get(api_feature_name, ())
         return tuple(sorted(command.name for command in commands))
+
+
+def write_command_of(feature: Feature) -> WriteCommand | None:
+    """Return the internal write command of a parser-built feature.
+
+    Package-internal accessor for `Feature._write_command`; the single place
+    outside the class that reads the protected field.
+    """
+    return feature._write_command  # pyright: ignore[reportPrivateUsage]
+
+
+def command_map_of(device: Device) -> Mapping[str, tuple[DeviceCommand, ...]]:
+    """Return the internal command knowledge of a device snapshot.
+
+    Package-internal accessor for `Device._commands_by_api_feature`; the
+    single place outside the class that reads the protected field.
+    """
+    return device._commands_by_api_feature  # pyright: ignore[reportPrivateUsage]
 
 
 @dataclass(frozen=True)

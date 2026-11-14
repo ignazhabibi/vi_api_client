@@ -11,7 +11,7 @@ from vi_api_client.models import (
     CommandParameter,
     Device,
     FeatureConstraints,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
     ScheduleConstraints,
 )
 from vi_api_client.parsing import (
@@ -83,8 +83,8 @@ def test_control_requires_parameters_unless_marked_optional():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: Explicit false is optional while missing markers remain conservative.
-    assert isinstance(feature.write_binding, ParameterWriteBinding)
-    assert feature.write_binding.required_parameters == (
+    assert isinstance(feature._write_command, ParameterWriteCommand)
+    assert feature._write_command.required_parameters == (
         "requiredSibling",
         "unspecifiedSibling",
     )
@@ -213,7 +213,7 @@ def test_consumption_series_expose_current_day_and_year_aliases(
         alias_feature = features_by_name[f"{base_name}.{alias_name}"]
         assert alias_feature.value == source_values[0]
         assert alias_feature.unit == "kilowattHour"
-        assert alias_feature.write_binding is None
+        assert alias_feature._write_command is None
 
 
 def test_bundled_fixture_exposes_current_day_aliases():
@@ -265,19 +265,19 @@ def test_commands_become_controls_of_the_properties_they_write():
     feature_slope = next(
         feature for feature in features if feature.name.endswith(".slope")
     )
-    assert isinstance(feature_slope.write_binding, ParameterWriteBinding)
-    assert feature_slope.write_binding.command_name == "setCurve"
-    assert feature_slope.write_binding.parameter_name == "slope"
+    assert isinstance(feature_slope._write_command, ParameterWriteCommand)
+    assert feature_slope._write_command.command_name == "setCurve"
+    assert feature_slope._write_command.parameter_name == "slope"
     assert feature_slope.constraints is not None
     assert feature_slope.constraints.value_type == "number"
-    assert "shift" in feature_slope.write_binding.required_parameters
+    assert "shift" in feature_slope._write_command.required_parameters
 
     feature_shift = next(
         feature for feature in features if feature.name.endswith(".shift")
     )
-    assert isinstance(feature_shift.write_binding, ParameterWriteBinding)
-    assert feature_shift.write_binding.command_name == "setCurve"
-    assert feature_shift.write_binding.parameter_name == "shift"
+    assert isinstance(feature_shift._write_command, ParameterWriteCommand)
+    assert feature_shift._write_command.command_name == "setCurve"
+    assert feature_shift._write_command.parameter_name == "shift"
 
 
 def test_hysteresis_commands_create_writable_switch_point_features():
@@ -291,8 +291,8 @@ def test_hysteresis_commands_create_writable_switch_point_features():
     # Assert: The base value and both switch points are writable with their commands.
     assert {
         feature.name: (
-            feature.write_binding.command_name
-            if isinstance(feature.write_binding, ParameterWriteBinding)
+            feature._write_command.command_name
+            if isinstance(feature._write_command, ParameterWriteCommand)
             else None
         )
         for feature in features
@@ -419,9 +419,9 @@ def test_temperature_property_binds_target_temperature_command():
     assert len(features) == 1
     feature = features[0]
     assert feature.name == "heating.dhw.temperature.main.temperature"
-    assert isinstance(feature.write_binding, ParameterWriteBinding)
-    assert feature.write_binding.command_name == "setTargetTemperature"
-    assert feature.write_binding.parameter_name == "targetTemperature"
+    assert isinstance(feature._write_command, ParameterWriteCommand)
+    assert feature._write_command.command_name == "setTargetTemperature"
+    assert feature._write_command.parameter_name == "targetTemperature"
 
 
 def test_command_enum_becomes_the_control_options():
@@ -496,7 +496,7 @@ def test_non_executable_commands_do_not_make_features_writable():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: The feature stays read-only.
-    assert feature.write_binding is None
+    assert feature._write_command is None
     assert feature.is_writable is False
 
 
@@ -514,10 +514,10 @@ def test_executable_command_is_chosen_over_an_earlier_non_executable_one():
     )
 
     # Act: Parse the API feature.
-    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
+    binding = api_feature_to_flat_features(raw_feature)[0]._write_command
 
     # Assert: The control writes through the executable command.
-    assert isinstance(binding, ParameterWriteBinding)
+    assert isinstance(binding, ParameterWriteCommand)
     assert (binding.command_name, binding.parameter_name) == ("setCurve", "slope")
     assert binding.uri == "/commands/setCurve"
 
@@ -604,10 +604,10 @@ def test_schedule_value_is_the_plan_and_its_status_is_a_flat_feature():
     schedule, active = features
     assert schedule.value == {"mon": []}
     assert active.value is True
-    assert active.write_binding is None
-    binding = schedule.write_binding
+    assert active._write_command is None
+    binding = schedule._write_command
     constraints = schedule.constraints
-    assert isinstance(binding, ParameterWriteBinding)
+    assert isinstance(binding, ParameterWriteCommand)
     assert constraints is not None
     assert binding.command_name == "setSchedule"
     assert binding.parameter_name == "newSchedule"
@@ -730,8 +730,8 @@ def test_setter_binds_the_value_whatever_the_command_order(command_names):
 
     # Assert: Both values are written through the setter.
     for feature in features:
-        binding = feature.write_binding
-        assert isinstance(binding, ParameterWriteBinding)
+        binding = feature._write_command
+        assert isinstance(binding, ParameterWriteCommand)
         assert binding.command_name == "setActive"
         assert binding.uri == "/commands/setActive"
 
@@ -826,7 +826,7 @@ def test_non_executable_schedule_commands_do_not_make_schedules_writable():
     feature = api_feature_to_flat_features(raw_feature)[0]
 
     # Assert: The schedule stays read-only.
-    assert feature.write_binding is None
+    assert feature._write_command is None
 
 
 def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
@@ -846,10 +846,10 @@ def test_executable_schedule_command_is_chosen_over_an_earlier_blocked_one():
     )
 
     # Act: Parse the API feature.
-    binding = api_feature_to_flat_features(raw_feature)[0].write_binding
+    binding = api_feature_to_flat_features(raw_feature)[0]._write_command
 
     # Assert: The schedule control writes through the executable command.
-    assert isinstance(binding, ParameterWriteBinding)
+    assert isinstance(binding, ParameterWriteCommand)
     assert (binding.command_name, binding.parameter_name) == (
         "setSchedule",
         "newSchedule",
@@ -1105,4 +1105,4 @@ def test_device_commands_carry_parameter_metadata_without_availability_flags():
     )
     assert "{isExecutable" not in str(command)
     assert "isDeprecated" not in str(command)
-    assert all(feature.write_binding is None for feature in features)
+    assert all(feature._write_command is None for feature in features)

@@ -49,7 +49,7 @@ representations and are normalized to strings; malformed known fields raise
 Feature reads apply the same boundary rule before flattening: each response
 entry needs a non-empty feature name, JSON-object properties, object-shaped
 commands, and boolean enabled/ready flags. Known command and parameter metadata
-is validated before the write binding and command list are built; unknown additional fields
+is validated before the write command and command list are built; unknown additional fields
 remain allowed. This behavior is identical for live and fixture-backed reads.
 
 Feature commands apply the same contract to their inputs: `set_feature`
@@ -154,7 +154,7 @@ stable capability, not a promise that a write succeeds right now. Check
 `ValueError` otherwise.
 
 Which command the library sends for a writable feature is internal command
-knowledge, not public API: the feature carries an internal write binding.
+knowledge, not public API: the feature carries an internal write command.
 Its classes are not exported from `vi_api_client` and are not part of the
 compatibility contract, so do not construct one by hand; this is a convention
 the library does not enforce. Consumers get writable features from a client
