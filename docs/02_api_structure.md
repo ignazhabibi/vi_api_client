@@ -34,14 +34,48 @@ Instead of hardcoded logic, the client:
 
 Complex device capabilities are exposed as individual, addressable Features.
 
-For example, a "Heating Curve" is not a nested object you have to parse, but rather two independent features you can interact with directly:
+For example, a "Heating Curve" is not a nested object you have to parse, but rather two independent features you can interact with directly.
 
+**Before** — this is what the Viessmann API returns for the heating curve of a Vitocal 250-A:
+
+```json
+{
+  "feature": "heating.circuits.0.heating.curve",
+  "properties": {
+    "slope": { "type": "number", "value": 0.6, "unit": "" },
+    "shift": { "type": "number", "value": 6, "unit": "" }
+  },
+  "commands": {
+    "setCurve": {
+      "uri": "https://api.viessmann-climatesolutions.com/.../commands/setCurve",
+      "params": {
+        "slope": { "type": "number", "required": true, "constraints": { "min": 0.2, "max": 3.5, "stepping": 0.1 } },
+        "shift": { "type": "number", "required": true, "constraints": { "min": -13, "max": 40, "stepping": 1 } }
+      }
+    }
+  }
+}
+```
+
+**After** — the library flattens this into two features and writes them with one call each:
+
+```python
+device.get_feature("heating.circuits.0.heating.curve.slope").value  # 0.6
+
+device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
+```
+
+The API requires both `slope` and `shift` on every write. The library resolves
+the required sibling parameter itself (the current `shift` stays `6`) and
+validates the value against the reported constraints before sending. That is
+the benefit of the library's internal complexity: you only ever see flat
+features and one `set_feature` call.
 
 ### Example: Outside Temperature
 
 A simple sensor becomes a single Feature:
 *   **Name**: `heating.sensors.temperature.outside`
-*   **Value**: `12.5`
+*   **Value**: `3.1`
 *   **Type**: Read-only sensor
 
 ### Example: Heating Curve (Complex became Simple)
@@ -50,24 +84,27 @@ The complex "Heating Curve" object is split into independent features:
 
 1.  **Slope Feature**:
     *   **Name**: `heating.circuits.0.heating.curve.slope`
-    *   **Value**: `1.4`
+    *   **Value**: `0.6`
     *   **Control**: Writable (Command: `setCurve`, Param: `slope`)
 
 2.  **Shift Feature**:
     *   **Name**: `heating.circuits.0.heating.curve.shift`
-    *   **Value**: `0`
+    *   **Value**: `6`
     *   **Control**: Writable (Command: `setCurve`, Param: `shift`)
 
 **Benefit**: You don't need to know that "Slope" and "Shift" belong to the same parent object. You just set the slope, and the library handles the underlying complexity (finding the parent command, resolving parameters) for you.
 
 ## 4. Anatomy of a Feature
 
-A `Feature` object in this library represents a single property.
+A `Feature` object in this library represents a single property. The table
+below lists the attributes you use every day; the subsections that follow cover
+the details (deprecations, constraints, command rules), and the
+[Models Reference](04_models_reference.md) documents the same model in full.
 
 | Attribute | Description |
 | :--- | :--- |
 | `name` | Unique identifier (e.g., `heating.sensors.temperature.outside`) |
-| `value` | The current value as a `FeatureValue` (e.g., `12.5` or `"on"`), following the recursive `JsonValue` contract |
+| `value` | The current value as a `FeatureValue` (e.g., `3.1` or `"on"`), following the recursive `JsonValue` contract |
 | `unit` | Unit of measurement, if any (`celsius`, `bar`, `percent`) |
 | `is_writable` | `True` if the API offers a command that changes this value; writing also needs `is_enabled` and `is_ready` |
 | `constraints` | (Optional) `FeatureConstraints` rules for writing this feature's value |
@@ -213,19 +250,19 @@ features = await client.get_features(
     feature_names=["heating.circuits.0.heating.curve.slope"],
 )
 print(features[0].value)
-# Output: 1.4
+# Output: 0.6
 ```
 
 **2. Writing (Set Feature)**
 ```python
 # Set a feature value directly
 feature = features[0]
-device = await client.set_feature(device, feature, 1.6)
+device = await client.set_feature(device, feature, 0.7)
 # No exception means the API accepted the write; use the updated device for
 # the next operation.
 ```
 
-The library handles the "magic" of mapping your simple `1.6` value back to the complex JSON structure required by the API.
+The library handles the "magic" of mapping your simple `0.7` value back to the complex JSON structure required by the API.
 
 ## 6. Gateway-Scoped Device Refresh
 

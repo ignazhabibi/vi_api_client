@@ -14,67 +14,21 @@ from vi_api_client import ViClient
 | :--- | :--- | :--- |
 | `auth` | `AbstractAuth` | An authenticated `Auth` instance (e.g., `OAuth`). |
 
-## Client contract
+## The methods you need
 
-`ViClient` exposes typed discovery, refresh, and write operations rather than a
-generic HTTP interface. Use `set_feature(device, feature, value)` for a safe
-single-feature write with dependency resolution, or
-`run_command(device, api_feature_name, command_name, parameters)` for any command
-an API feature reports. Both operations report a rejected command through
-`ViCommandRejectedError`, so success always means that no exception was raised.
+| You want | Method |
+| :--- | :--- |
+| All devices of an installation, with their values | `get_full_installation_status(installation_id)` |
+| Current values of one device | `refresh_device(device)` |
+| Change one value | `set_feature(device, name, value)` |
+| Try it without an account | `FixtureViClient("Vitocal250A")` |
 
-An application that supplies `OAuth(websession=session)` owns and closes that
-session. An `AbstractAuth` provider closes only a session it created itself.
+Use `set_feature(device, feature, value)` for a safe single-feature write with
+dependency resolution, or `run_command(device, api_feature_name, command_name,
+parameters)` for any other command an API feature reports. A rejected command
+raises `ViCommandRejectedError`, so no exception means the write was accepted.
 
-Applications own request concurrency, retry, backoff, polling, and stale-state
-policy. `ViClient` does not automatically retry authentication, rate-limit,
-server, or connection failures, and does not provide a client-wide rate limiter
-or concurrency control. A gateway-scoped device refresh keeps its existing
-partial-result behavior; consumers decide how to use stale state and partial
-availability.
-
-`ViClient` is the live client when configured with authentication: its public
-workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
-fixture-backed client: it runs those public workflows against bundled fixture
-responses without authentication or network requests. Its bundled fixture
-catalog defines each selectable fixture name, model identity, device type, and,
-where known, the device roles.
-A fixture added from a device export reports the model ID that the exported
-device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
-without a known model ID report a placeholder. A fixture can model several
-devices on one gateway: `get_devices` then lists device `"0"` and every further
-catalogued device, each device reads its own features, and a gateway-scoped
-refresh reads the features of all of them.
-
-Fixture contents are recorded API data, not a compatibility contract. A
-fixture refresh or replacement can change its features, values, model ID, or
-devices in a minor release; the release notes name such changes. The fixture
-names that `get_available_fixture_devices()` lists stay stable within a major
-version.
-
-| Fixture | Device | Model ID | Real model ID |
-| :--- | :--- | :--- | :--- |
-| `VitoairFs300E` | `0` | `E3_ViAir_300F_13` | yes |
-| `Vitocal200A` | `0` | `Vitocal200A-SystemController` | no |
-| `Vitocal200A` | `1` | `Vitocal200A-OutdoorUnit` | no |
-| `Vitocal200S` | `0` | `Vitocal200S` | no |
-| `Vitocal222S` | `0` | `Vitocal222S` | no |
-| `Vitocal250A` | `0` | `E3_Vitocal_16` | yes |
-| `Vitocal250A-TwoCircuits` | `0` | `E3_Vitocal_17` | yes |
-| `Vitocal252A` | `0` | `Vitocal252A` | no |
-| `Vitocal262A-T2H-R290` | `0` | `E3_Vitocal_262_02` | yes |
-| `Vitocal300G-CU401B` | `0` | `CU401B_G` | yes |
-| `Vitocal333G-with-Vitovent300F` | `0` | `Vitocal333G-with-Vitovent300F` | no |
-| `Vitocharge03` | `0` | `Vitocharge03` | no |
-| `VitochargeEvolution08` | `0` | `E3_VitoCharge_Evolution_08` | yes |
-| `Vitodens100W` | `0` | `Vitodens100W` | no |
-| `Vitodens200W` | `0` | `Vitodens200W` | no |
-| `Vitodens300W-B3HF-19` | `0` | `E3_Vitodens_300_0419` | yes |
-| `Vitopure350` | `0` | `E3_VitoPure` | yes |
-`FixtureViClient.get_available_fixture_devices()` lists those selectable names,
-and an unknown name raises `ValueError`.
-
-### Which read method when
+## Which read method when
 
 Every read fetches device identity or features from the API; none works from a
 stored snapshot alone.
@@ -86,6 +40,7 @@ stored snapshot alone.
 | `refresh_device(device)` | Read one device's features as a new device snapshot; the workhorse for polling. | 1: the device's feature read |
 | `get_full_installation_status(installation_id)` | Scan a whole installation: gateways, their devices, and each device's features. | 1 gateways read, plus 1 device list per matching gateway, plus 1 feature read per device |
 | `refresh_gateway_devices(devices)` | Refresh the features of several devices on one gateway with one bulk read. | 1 bulk feature read; a fallback adds up to 1 individual feature read per device |
+
 
 ## Discovery Methods
 
@@ -411,6 +366,61 @@ await client.run_command(
 # Cancel a holiday program without parameters
 await client.run_command(device, "heating.operating.programs.holiday", "unschedule")
 ```
+
+## What the library deliberately does not do
+
+An application that supplies `OAuth(websession=session)` owns and closes that
+session. An `AbstractAuth` provider closes only a session it created itself.
+
+Applications own request concurrency, retry, backoff, polling, and stale-state
+policy. `ViClient` does not automatically retry authentication, rate-limit,
+server, or connection failures, and does not provide a client-wide rate limiter
+or concurrency control. A gateway-scoped device refresh keeps its existing
+partial-result behavior; consumers decide how to use stale state and partial
+availability.
+
+## Fixtures
+
+`ViClient` is the live client when configured with authentication: its public
+workflows read from the Viessmann API. `FixtureViClient(device_name)` is the
+fixture-backed client: it runs those public workflows against bundled fixture
+responses without authentication or network requests. Its bundled fixture
+catalog defines each selectable fixture name, model identity, device type, and,
+where known, the device roles.
+A fixture added from a device export reports the model ID that the exported
+device reported, for example `E3_Vitocal_16` for `Vitocal250A`; older fixtures
+without a known model ID report a placeholder. A fixture can model several
+devices on one gateway: `get_devices` then lists device `"0"` and every further
+catalogued device, each device reads its own features, and a gateway-scoped
+refresh reads the features of all of them.
+
+Fixture contents are recorded API data, not a compatibility contract. A
+fixture refresh or replacement can change its features, values, model ID, or
+devices in a minor release; the release notes name such changes. The fixture
+names that `get_available_fixture_devices()` lists stay stable within a major
+version.
+
+| Fixture | Device | Model ID | Real model ID |
+| :--- | :--- | :--- | :--- |
+| `VitoairFs300E` | `0` | `E3_ViAir_300F_13` | yes |
+| `Vitocal200A` | `0` | `Vitocal200A-SystemController` | no |
+| `Vitocal200A` | `1` | `Vitocal200A-OutdoorUnit` | no |
+| `Vitocal200S` | `0` | `Vitocal200S` | no |
+| `Vitocal222S` | `0` | `Vitocal222S` | no |
+| `Vitocal250A` | `0` | `E3_Vitocal_16` | yes |
+| `Vitocal250A-TwoCircuits` | `0` | `E3_Vitocal_17` | yes |
+| `Vitocal252A` | `0` | `Vitocal252A` | no |
+| `Vitocal262A-T2H-R290` | `0` | `E3_Vitocal_262_02` | yes |
+| `Vitocal300G-CU401B` | `0` | `CU401B_G` | yes |
+| `Vitocal333G-with-Vitovent300F` | `0` | `Vitocal333G-with-Vitovent300F` | no |
+| `Vitocharge03` | `0` | `Vitocharge03` | no |
+| `VitochargeEvolution08` | `0` | `E3_VitoCharge_Evolution_08` | yes |
+| `Vitodens100W` | `0` | `Vitodens100W` | no |
+| `Vitodens200W` | `0` | `Vitodens200W` | no |
+| `Vitodens300W-B3HF-19` | `0` | `E3_Vitodens_300_0419` | yes |
+| `Vitopure350` | `0` | `E3_VitoPure` | yes |
+`FixtureViClient.get_available_fixture_devices()` lists those selectable names,
+and an unknown name raises `ValueError`.
 
 ## Next Steps
 

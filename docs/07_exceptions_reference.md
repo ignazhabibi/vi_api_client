@@ -4,22 +4,24 @@ The library simplifies Viessmann API error handling by mapping HTTP status codes
 
 All exceptions inherit from `ViError` (and `Exception`).
 
-Import exception classes from the package root:
+## The three you catch in everyday use
+
+*   `ValueError`: The value violates the feature's rules and was **not sent**
+    (e.g. `Value 70 > max (60)`).
+*   `ViCommandRejectedError`: The device **rejected** the change.
+*   `ViConnectionError` / `ViDeviceCommunicationError`: Network trouble, or the
+    device/gateway was not reachable.
 
 ```python
-from vi_api_client import (
-    ViAuthError,
-    ViCommandRejectedError,
-    ViConnectionError,
-    ViDeviceCommunicationError,
-    ViError,
-    ViNotFoundError,
-    ViRateLimitError,
-    ViResponseError,
-    ViServerInternalError,
-    ViValidationError,
-)
+try:
+    device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
+except ValueError as error:
+    print(f"Not sent: {error}")
+except ViCommandRejectedError as error:
+    print(f"The device rejected the change: {error}")
 ```
+
+The full hierarchy and details follow below.
 
 ## Exception Hierarchy
 
@@ -163,3 +165,22 @@ except ViRateLimitError as error:
 - **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
+
+## Import Reference
+
+Import exception classes from the package root:
+
+```python
+from vi_api_client import (
+    ViAuthError,
+    ViCommandRejectedError,
+    ViConnectionError,
+    ViDeviceCommunicationError,
+    ViError,
+    ViNotFoundError,
+    ViRateLimitError,
+    ViResponseError,
+    ViServerInternalError,
+    ViValidationError,
+)
+```
