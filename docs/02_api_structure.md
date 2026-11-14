@@ -78,22 +78,6 @@ A simple sensor becomes a single Feature:
 *   **Value**: `3.1`
 *   **Type**: Read-only sensor
 
-### Example: Heating Curve (Complex became Simple)
-
-The complex "Heating Curve" object is split into independent features:
-
-1.  **Slope Feature**:
-    *   **Name**: `heating.circuits.0.heating.curve.slope`
-    *   **Value**: `0.6`
-    *   **Control**: Writable (Command: `setCurve`, Param: `slope`)
-
-2.  **Shift Feature**:
-    *   **Name**: `heating.circuits.0.heating.curve.shift`
-    *   **Value**: `6`
-    *   **Control**: Writable (Command: `setCurve`, Param: `shift`)
-
-**Benefit**: You don't need to know that "Slope" and "Shift" belong to the same parent object. You just set the slope, and the library handles the underlying complexity (finding the parent command, resolving parameters) for you.
-
 ## 4. Anatomy of a Feature
 
 A `Feature` object in this library represents a single property. The table

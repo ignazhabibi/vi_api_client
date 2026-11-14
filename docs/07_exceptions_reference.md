@@ -4,21 +4,31 @@ The library simplifies Viessmann API error handling by mapping HTTP status codes
 
 All exceptions inherit from `ViError` (and `Exception`).
 
-## The three you catch in everyday use
+## The ones you catch in everyday use
 
 *   `ValueError`: The value violates the feature's rules and was **not sent**
     (e.g. `Value 70 > max (60)`).
 *   `ViCommandRejectedError`: The device **rejected** the change.
+*   `ViValidationError`: The API refused the request as invalid (400/422).
 *   `ViConnectionError` / `ViDeviceCommunicationError`: Network trouble, or the
     device/gateway was not reachable.
 
 ```python
+from vi_api_client import (
+    ViCommandRejectedError,
+    ViConnectionError,
+    ViDeviceCommunicationError,
+    ViValidationError,
+)
+
 try:
     device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 except ValueError as error:
     print(f"Not sent: {error}")
-except ViCommandRejectedError as error:
-    print(f"The device rejected the change: {error}")
+except (ViCommandRejectedError, ViValidationError) as error:
+    print(f"The change was refused: {error}")
+except (ViConnectionError, ViDeviceCommunicationError) as error:
+    print(f"Heating not reachable, try again later: {error}")
 ```
 
 The full hierarchy and details follow below.

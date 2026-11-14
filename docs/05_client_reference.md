@@ -41,7 +41,6 @@ stored snapshot alone.
 | `get_full_installation_status(installation_id)` | Scan a whole installation: gateways, their devices, and each device's features. | 1 gateways read, plus 1 device list per matching gateway, plus 1 feature read per device |
 | `refresh_gateway_devices(devices)` | Refresh the features of several devices on one gateway with one bulk read. | 1 bulk feature read; a fallback adds up to 1 individual feature read per device |
 
-
 ## Discovery Methods
 
 Methods to discover the structure of your heating system.
@@ -419,6 +418,7 @@ version.
 | `Vitodens200W` | `0` | `Vitodens200W` | no |
 | `Vitodens300W-B3HF-19` | `0` | `E3_Vitodens_300_0419` | yes |
 | `Vitopure350` | `0` | `E3_VitoPure` | yes |
+
 `FixtureViClient.get_available_fixture_devices()` lists those selectable names,
 and an unknown name raises `ValueError`.
 
