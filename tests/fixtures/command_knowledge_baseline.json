@@ -120,7 +120,7 @@
       "ventilation.volumeFlow.current.input": [],
       "ventilation.volumeFlow.current.output": []
     },
-    "write_bindings": {
+    "write_commands": {
       "ventilation.operating.modes.active": {
         "api_feature": "ventilation.operating.modes.active",
         "command": "setMode",
@@ -505,7 +505,7 @@
       "tcu.features.wirelessRemoteController": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "device.time.daylightSaving.active": {
         "api_feature": "device.time.daylightSaving",
         "command": "setActive",
@@ -715,7 +715,7 @@
       "heating.sensors.valve.1.expansion.target": [],
       "heating.sensors.volumetricFlow.allengra": []
     },
-    "write_bindings": {}
+    "write_commands": {}
   },
   "Vitocal200S": {
     "api_feature_commands": {
@@ -972,7 +972,7 @@
       "ventilation.volumeFlow.current.input": [],
       "ventilation.volumeFlow.current.output": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -1560,7 +1560,7 @@
       "heating.valves.fourThreeWay.position": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -2126,7 +2126,7 @@
       "heating.valves.fourThreeWay.position": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "device.time.daylightSaving.active": {
         "api_feature": "device.time.daylightSaving",
         "command": "setActive",
@@ -2768,7 +2768,7 @@
       "heating.valves.fourThreeWay.position": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "device.time.daylightSaving.active": {
         "api_feature": "device.time.daylightSaving",
         "command": "setActive",
@@ -3473,7 +3473,7 @@
       "heating.valves.fourThreeWay.position": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -3784,7 +3784,7 @@
       "ventilation.operating.state": [],
       "ventilation.schedule": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.dhw.hygiene.active": {
         "api_feature": "heating.dhw.hygiene",
         "command": "setActive",
@@ -4109,7 +4109,7 @@
       "ventilation.volumeFlow.current.input": [],
       "ventilation.volumeFlow.current.output": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.1.heating.curve.shift": {
         "api_feature": "heating.circuits.1.heating.curve",
         "command": "setCurve",
@@ -4570,7 +4570,7 @@
       "ventilation.volumeFlow.current.input": [],
       "ventilation.volumeFlow.current.output": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -4901,7 +4901,7 @@
       "photovoltaic.string.current": [],
       "photovoltaic.string.voltage": []
     },
-    "write_bindings": {}
+    "write_commands": {}
   },
   "VitochargeEvolution08": {
     "api_feature_commands": {
@@ -4988,7 +4988,7 @@
       "tcu.ethernet.0.config": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "device.time.daylightSaving.active": {
         "api_feature": "device.time.daylightSaving",
         "command": "setActive",
@@ -5151,7 +5151,7 @@
       "heating.solar.summary.power.production": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.name": {
         "api_feature": "heating.circuits.0",
         "command": "setName",
@@ -5455,7 +5455,7 @@
       "heating.solar.sensors.temperature.dhw": [],
       "heating.solar.summary.power.production": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -5834,7 +5834,7 @@
       "heating.solar.summary.power.production": [],
       "tcu.wifi": []
     },
-    "write_bindings": {
+    "write_commands": {
       "heating.circuits.0.heating.curve.shift": {
         "api_feature": "heating.circuits.0.heating.curve",
         "command": "setCurve",
@@ -6123,7 +6123,7 @@
       "ventilation.sensors.temperature.supply": [],
       "ventilation.sensors.volatileOrganicCompounds": []
     },
-    "write_bindings": {
+    "write_commands": {
       "ventilation.operating.modes.active": {
         "api_feature": "ventilation.operating.modes.active",
         "command": "setMode",

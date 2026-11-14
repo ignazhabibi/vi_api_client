@@ -18,7 +18,7 @@ from vi_api_client import (
     redact_feature,
     redact_sensitive,
 )
-from vi_api_client.models import ParameterWriteBinding
+from vi_api_client.models import ParameterWriteCommand
 from vi_api_client.parsing import parse_api_features
 
 FEATURE_FILES = bundled_feature_files()
@@ -166,8 +166,8 @@ def test_redact_sensitive_restores_every_bundled_fixture_from_unmasked_data(
 
 
 def test_redact_feature_redacts_the_value_and_control():
-    # Arrange: A writable feature whose value and binding carry identifiers.
-    binding = ParameterWriteBinding(
+    # Arrange: A writable feature whose value and write_command carry identifiers.
+    write_command = ParameterWriteCommand(
         api_feature_name="device.serial",
         command_name="setSerial",
         parameter_name="serial",
@@ -177,7 +177,7 @@ def test_redact_feature_redacts_the_value_and_control():
     feature = build_feature(
         name="device.serial",
         value="7630175843100101",
-        binding=binding,
+        write_command=write_command,
         constraints=FeatureConstraints(
             options=["7630175843100101", {"access_token": "secret"}, "short"]
         ),
@@ -188,8 +188,8 @@ def test_redact_feature_redacts_the_value_and_control():
 
     # Assert: The value, URI, and options are redacted; the input is unchanged.
     assert redacted.value == "################"
-    assert isinstance(redacted.write_binding, ParameterWriteBinding)
-    assert redacted.write_binding.uri == (
+    assert isinstance(redacted._write_command, ParameterWriteCommand)
+    assert redacted._write_command.uri == (
         "https://api.example/installations/#######/commands/setSerial"
     )
     assert redacted.constraints is not None
@@ -198,7 +198,7 @@ def test_redact_feature_redacts_the_value_and_control():
         {"access_token": "**REDACTED**"},
         "short",
     )
-    assert redacted.write_binding.command_name == "setSerial"
+    assert redacted._write_command.command_name == "setSerial"
     assert feature.value == "7630175843100101"
 
 
@@ -218,7 +218,7 @@ def test_redact_feature_applies_the_rules_to_the_feature_name(name, value, expec
     redacted = redact_feature(build_feature(name=name, value=value))
 
     assert redacted.value == expected
-    assert redacted.write_binding is None
+    assert redacted._write_command is None
 
 
 def test_redact_device_redacts_option_values_in_the_command_list():
@@ -247,7 +247,7 @@ def test_redact_device_redacts_option_values_in_the_command_list():
     ]
     features, commands = parse_api_features(payload, only_available=False)
     device = replace(
-        build_device("0"), features=features, commands_by_api_feature=commands
+        build_device("0"), features=features, _commands_by_api_feature=commands
     )
 
     # Act: Redact the device.
@@ -259,7 +259,7 @@ def test_redact_device_redacts_option_values_in_the_command_list():
     assert feature is not None
     assert feature.constraints is not None
     assert feature.constraints.options == ("################", "b")
-    (command,) = redacted.commands_by_api_feature["x.y"]
+    (command,) = redacted._commands_by_api_feature["x.y"]
     mode_parameter, enabled_parameter = command.parameters
     assert mode_parameter.constraints is not None
     assert mode_parameter.constraints.options == feature.constraints.options

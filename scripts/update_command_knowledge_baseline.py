@@ -25,29 +25,30 @@ BASELINE_PATH = PROJECT_ROOT / "tests" / "fixtures" / "command_knowledge_baselin
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from vi_api_client.models import (  # noqa: E402
-    CommandPairWriteBinding,
-    WriteBinding,
+    OnOffWriteCommand,
+    WriteCommand,
+    write_command_of,
 )
 from vi_api_client.parsing import parse_api_features  # noqa: E402
 
 
-def _binding_document(binding: WriteBinding) -> dict[str, Any]:
-    """Return one write binding as a JSON document.
+def _write_command_document(write_command: WriteCommand) -> dict[str, Any]:
+    """Return one write command as a JSON document.
 
     The command URIs are left out: they repeat the fixture's own data, so
     they would only enlarge the diff after a fixture refresh.
     """
-    if isinstance(binding, CommandPairWriteBinding):
+    if isinstance(write_command, OnOffWriteCommand):
         return {
-            "api_feature": binding.api_feature_name,
-            "on_command": binding.on_command_name,
-            "off_command": binding.off_command_name,
+            "api_feature": write_command.api_feature_name,
+            "on_command": write_command.on_command_name,
+            "off_command": write_command.off_command_name,
         }
     return {
-        "api_feature": binding.api_feature_name,
-        "command": binding.command_name,
-        "parameter": binding.parameter_name,
-        "required": list(binding.required_parameters),
+        "api_feature": write_command.api_feature_name,
+        "command": write_command.command_name,
+        "parameter": write_command.parameter_name,
+        "required": list(write_command.required_parameters),
     }
 
 
@@ -80,18 +81,16 @@ def build_fixture_baseline(fixture_device: str) -> dict[str, Any]:
     response = json.loads(
         (FIXTURES_DIR / f"{fixture_device}.json").read_text(encoding="utf-8")
     )
-    features, commands_by_api_feature = parse_api_features(
-        response["data"], only_available=False
-    )
+    features, command_map = parse_api_features(response["data"], only_available=False)
     return {
         "api_feature_commands": {
             api_feature_name: sorted(command.name for command in commands)
-            for api_feature_name, commands in sorted(commands_by_api_feature.items())
+            for api_feature_name, commands in sorted(command_map.items())
         },
-        "write_bindings": {
-            feature.name: _binding_document(feature.write_binding)
+        "write_commands": {
+            feature.name: _write_command_document(command)
             for feature in sorted(features, key=lambda feature: feature.name)
-            if feature.write_binding is not None
+            if (command := write_command_of(feature)) is not None
         },
     }
 

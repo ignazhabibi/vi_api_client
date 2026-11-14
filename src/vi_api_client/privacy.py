@@ -22,7 +22,14 @@ from dataclasses import replace
 from typing import overload
 
 from ._types import JsonValue
-from .models import CommandPairWriteBinding, CommandParameter, Device, Feature
+from .models import (
+    CommandParameter,
+    Device,
+    Feature,
+    OnOffWriteCommand,
+    command_map_of,
+    write_command_of,
+)
 
 _DEFAULT_PLACEHOLDER = "<redacted>"
 
@@ -85,7 +92,7 @@ def redact_feature(
     The value follows `redact_sensitive`, with the last part of the feature
     name as its key: the value of ``....houseLocation.latitude`` becomes 0.
     The option values in constraints and the URI of the internal write
-    binding are redacted the same way.
+    write command is redacted the same way.
 
     Args:
         feature: The feature to redact.
@@ -108,20 +115,22 @@ def redact_feature(
                 ]
             ),
         )
-    binding = feature.write_binding
-    if isinstance(binding, CommandPairWriteBinding):
-        binding = replace(
-            binding,
-            on_uri=_redact_text(binding.on_uri, placeholder),
-            off_uri=_redact_text(binding.off_uri, placeholder),
+    write_command = write_command_of(feature)
+    if isinstance(write_command, OnOffWriteCommand):
+        write_command = replace(
+            write_command,
+            on_uri=_redact_text(write_command.on_uri, placeholder),
+            off_uri=_redact_text(write_command.off_uri, placeholder),
         )
-    elif binding is not None:
-        binding = replace(binding, uri=_redact_text(binding.uri, placeholder))
+    elif write_command is not None:
+        write_command = replace(
+            write_command, uri=_redact_text(write_command.uri, placeholder)
+        )
     return replace(
         feature,
         value=_redact_entry(value_key, feature.value, placeholder),
         constraints=constraints,
-        write_binding=binding,
+        _write_command=write_command,
     )
 
 
@@ -152,7 +161,7 @@ def redact_device(device: Device, *, placeholder: str = _DEFAULT_PLACEHOLDER) ->
             )
             for command in device_commands
         )
-        for api_feature_name, device_commands in device.commands_by_api_feature.items()
+        for api_feature_name, device_commands in command_map_of(device).items()
     }
     return replace(
         device,
@@ -163,7 +172,7 @@ def redact_device(device: Device, *, placeholder: str = _DEFAULT_PLACEHOLDER) ->
             redact_feature(feature, placeholder=placeholder)
             for feature in device.features
         ],
-        commands_by_api_feature=commands,
+        _commands_by_api_feature=commands,
     )
 
 

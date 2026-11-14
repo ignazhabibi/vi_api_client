@@ -12,26 +12,32 @@ from vi_api_client.models import (
     FeatureConstraints,
     GatewayDeviceRefreshResult,
     Installation,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
 )
 
 
-def test_built_feature_without_write_binding_is_read_only():
+def test_built_feature_without_write_command_is_read_only():
     """A hand-built feature reports that it cannot be written."""
-    # Act: Create a feature without a write binding.
+    # Act: Create a feature without a write command.
     feature = Feature(
         name="test.feature", value=10, unit="C", is_enabled=True, is_ready=True
     )
 
-    # Assert: Without a binding the feature cannot be written and carries
+    # Assert: Without a write command the feature cannot be written and carries
     # no command knowledge on its public model.
     assert feature.constraints is None
     assert feature.is_writable is False
-    assert feature.write_binding is None
+    assert feature._write_command is None
 
 
 @pytest.mark.parametrize(
-    ("is_enabled", "is_ready", "has_binding", "expect_available", "expect_settable"),
+    (
+        "is_enabled",
+        "is_ready",
+        "has_write_command",
+        "expect_available",
+        "expect_settable",
+    ),
     [
         pytest.param(False, False, False, False, False, id="disabled-not-ready"),
         pytest.param(False, True, False, False, False, id="disabled-ready"),
@@ -46,7 +52,7 @@ def test_built_feature_without_write_binding_is_read_only():
 def test_feature_reports_availability_and_settability(
     is_enabled: bool,
     is_ready: bool,
-    has_binding: bool,
+    has_write_command: bool,
     expect_available: bool,
     expect_settable: bool,
 ):
@@ -58,14 +64,14 @@ def test_feature_reports_availability_and_settability(
         unit=None,
         is_enabled=is_enabled,
         is_ready=is_ready,
-        write_binding=ParameterWriteBinding(
+        _write_command=ParameterWriteCommand(
             api_feature_name="test.api.feature",
             command_name="setValue",
             parameter_name="value",
             required_parameters=[],
             uri="/features/test.api.feature/commands/setValue",
         )
-        if has_binding
+        if has_write_command
         else None,
     )
 
@@ -144,11 +150,11 @@ def test_device_rejects_duplicate_feature_names():
 
 
 def test_other_model_collections_are_immutable_snapshots():
-    """Bindings, refresh results, and installations copy caller collections."""
+    """Write commands, refresh results, and installations copy caller collections."""
     # Arrange: Create models from caller-owned mutable collections.
     required_parameters = ["target"]
     options = ["eco"]
-    binding = ParameterWriteBinding(
+    write_command = ParameterWriteCommand(
         api_feature_name="parent",
         command_name="set",
         parameter_name="target",
@@ -170,7 +176,7 @@ def test_other_model_collections_are_immutable_snapshots():
     address["street"] = "Example Street"
 
     # Assert: Each public collection is an immutable defensive copy.
-    assert binding.required_parameters == ("target",)
+    assert write_command.required_parameters == ("target",)
     assert constraints.options == ("eco",)
     assert result.refreshed_devices == ()
     assert list(result.errors_by_device_id) == ["device-1"]

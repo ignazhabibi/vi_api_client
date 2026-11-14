@@ -81,8 +81,8 @@ def test_package_root_hides_technical_helpers_but_preserves_utility_imports():
         "parse_installation",
         "parse_installation_event",
         "api_feature_to_flat_features",
-        "CommandPairWriteBinding",
-        "ParameterWriteBinding",
+        "OnOffWriteCommand",
+        "ParameterWriteCommand",
         "DeviceCommand",
     }
 

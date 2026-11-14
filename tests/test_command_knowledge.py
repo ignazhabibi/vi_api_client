@@ -34,7 +34,7 @@ from vi_api_client.models import (
     CommandParameter,
     Device,
     DeviceCommand,
-    ParameterWriteBinding,
+    ParameterWriteCommand,
 )
 
 SCRIPT_PATH = (
@@ -62,14 +62,14 @@ baseline_script = _load_script()
 
 @pytest.mark.parametrize("fixture_device", FEATURE_FILES, ids=FEATURE_FILES)
 def test_every_fixture_matches_the_command_knowledge_baseline(fixture_device):
-    """An unintended change of bindings or reported commands shows as a diff."""
+    """An unintended change of write_commands or reported commands shows as a diff."""
     # Arrange: Load the recorded command knowledge of every bundled fixture.
     baseline = load_fixture_json("command_knowledge_baseline.json")
 
     # Act: Build the command knowledge of one fixture from the current parser.
     actual = baseline_script.build_fixture_baseline(fixture_device)
 
-    # Assert: The write bindings and reported commands match the record.
+    # Assert: The write commands and reported commands match the record.
     assert actual == baseline.get(fixture_device), (
         "The command knowledge changed. If that is intended, run "
         "'python scripts/update_command_knowledge_baseline.py' and review the diff."
@@ -248,11 +248,11 @@ async def test_is_executable_only_differences_keep_snapshots_equal(monkeypatch):
 
     # The command list itself is part of the snapshot, so a stale snapshot
     # without it no longer compares equal.
-    assert replace(unchanged, commands_by_api_feature={}) != unchanged
+    assert replace(unchanged, _commands_by_api_feature={}) != unchanged
 
 
 async def test_copied_features_stay_writable_with_the_same_command():
-    """replace keeps the write binding, so copies stay writable."""
+    """replace keeps the write command, so copies stay writable."""
     # Arrange: One fixture-parsed writable feature.
     client = FixtureViClient("Vitodens200W")
     device = (await client.get_devices("99999", "MOCK_GATEWAY_SERIAL"))[0]
@@ -266,13 +266,13 @@ async def test_copied_features_stay_writable_with_the_same_command():
 
     # Assert: The copy stays writable through the same command.
     assert copied.is_writable
-    assert copied.write_binding == feature.write_binding
+    assert copied._write_command == feature._write_command
 
 
-def test_redaction_leaves_no_identifier_in_bindings_or_commands():
-    """redact_device masks identifiers in bindings, constraints, and commands."""
+def test_redaction_leaves_no_identifier_in_write_commands_or_commands():
+    """redact_device masks identifiers in write_commands, constraints, and commands."""
     # Arrange: A device whose every command surface carries real identifiers.
-    binding = ParameterWriteBinding(
+    write_command = ParameterWriteCommand(
         api_feature_name="device.serial",
         command_name="setSerial",
         parameter_name="serial",
@@ -289,7 +289,7 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         constraints=FeatureConstraints(
             options=["7630175843100101", {"access_token": "secret"}]
         ),
-        write_binding=binding,
+        _write_command=write_command,
     )
     command = DeviceCommand(
         name="setSerial",
@@ -313,7 +313,7 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
         device_type="heating",
         status="connected",
         features=[feature],
-        commands_by_api_feature={"device.serial": (command,)},
+        _commands_by_api_feature={"device.serial": (command,)},
     )
 
     # Act: Redact the device.
@@ -322,15 +322,15 @@ def test_redaction_leaves_no_identifier_in_bindings_or_commands():
     # Assert: No identifier survives in any command surface.
     redacted_feature = redacted.get_feature("device.serial")
     assert redacted_feature is not None
-    assert isinstance(redacted_feature.write_binding, ParameterWriteBinding)
-    assert "1234567" not in redacted_feature.write_binding.uri
-    assert "#" in redacted_feature.write_binding.uri
+    assert isinstance(redacted_feature._write_command, ParameterWriteCommand)
+    assert "1234567" not in redacted_feature._write_command.uri
+    assert "#" in redacted_feature._write_command.uri
     assert redacted_feature.constraints is not None
     assert redacted_feature.constraints.options == (
         "################",
         {"access_token": "<redacted>"},
     )
-    (redacted_command,) = redacted.commands_by_api_feature["device.serial"]
+    (redacted_command,) = redacted._commands_by_api_feature["device.serial"]
     assert "7654321" not in redacted_command.uri
     assert "#" in redacted_command.uri
     (redacted_parameter,) = redacted_command.parameters
