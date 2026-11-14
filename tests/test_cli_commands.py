@@ -79,7 +79,7 @@ def _cli_args(*argv: str) -> Namespace:
     return build_parser().parse_args(argv)
 
 
-def _binding(**overrides: Any) -> ParameterWriteCommand:
+def _write_command(**overrides: Any) -> ParameterWriteCommand:
     """Build one internal write command for a ``heating.curve.slope`` target."""
     fields: dict[str, Any] = {
         "command_name": "setCurve",
@@ -147,7 +147,8 @@ async def test_cmd_set_writes_the_parsed_value(mock_cli_context, capsys):
     # Arrange: Provide a writable numeric feature and a successful write.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="number"),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
@@ -184,7 +185,8 @@ async def test_cmd_set_converts_typed_command_values(
     # Arrange: Provide a writable feature of the parameter's declared type.
     args = _cli_args("set", "heating.curve.slope", raw_value)
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type=value_type)
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type=value_type),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
@@ -211,7 +213,8 @@ async def test_cmd_set_rejects_malformed_typed_values(
     # Arrange: Provide a writable feature whose declared type rejects the value.
     args = _cli_args("set", "heating.curve.slope", raw_value)
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type=value_type)
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type=value_type),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
@@ -230,7 +233,8 @@ async def test_cmd_set_rejects_schedules_that_are_not_json(mock_cli_context, cap
     # Arrange: Provide a writable schedule feature.
     args = _cli_args("set", "heating.curve.slope", "mon 06:00-22:00")
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="Schedule")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="Schedule"),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
@@ -246,7 +250,7 @@ async def test_cmd_set_infers_legacy_feature_types(mock_cli_context):
     """Legacy features without metadata should infer their write type."""
     # Arrange: Provide a valueless-type control whose value hints the type.
     args = _cli_args("set", "heating.curve.slope", "1.4")
-    feature = build_feature(value=1.0, binding=_binding())
+    feature = build_feature(value=1.0, write_command=_write_command())
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: Set a numeric current value through the CLI.
@@ -261,7 +265,8 @@ async def test_cmd_set_reports_failed_command_results(mock_cli_context, capsys):
     # Arrange: Make the API reject the command with its details.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="number"),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
     mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError(
@@ -283,7 +288,8 @@ async def test_cmd_set_reports_failed_results_without_details(mock_cli_context, 
     # Arrange: Make the API reject the command without a message or reason.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="number"),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
     mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError()
@@ -359,7 +365,8 @@ async def test_commands_log_unexpected_client_errors_and_fail(
     # Arrange: Offer one writable feature and make one client call fail.
     failing_method, action = failure
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="number"),
     )
     mock_cli_context.client.get_features.return_value = [feature]
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
@@ -409,7 +416,8 @@ async def test_cmd_set_reports_not_found_errors(mock_cli_context, capsys):
     # Arrange: Make the write fail with a not-found API error.
     args = _cli_args("set", "heating.curve.slope", "1.4")
     feature = build_feature(
-        binding=_binding(), constraints=FeatureConstraints(value_type="number")
+        write_command=_write_command(),
+        constraints=FeatureConstraints(value_type="number"),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
     mock_cli_context.client.set_feature.side_effect = ViNotFoundError("device gone")
@@ -440,7 +448,7 @@ def test_infer_feature_value_type_uses_value_shape_and_constraints(
     if numeric_constraints:
         constraints = FeatureConstraints(min=0.2, max=3.5, step=0.1)
     feature = build_feature(
-        value=feature_value, binding=_binding(), constraints=constraints
+        value=feature_value, write_command=_write_command(), constraints=constraints
     )
 
     # Act and assert: The value shape and constraints determine the type
@@ -458,7 +466,7 @@ async def test_cmd_get_feature_prints_value_control_details_and_commands(
     feature = build_feature(
         "heating.curve.slope",
         1.4,
-        _binding(),
+        _write_command(),
         constraints=FeatureConstraints(
             min=0.2, max=3.5, step=0.1, options=["low", "high"]
         ),
@@ -543,7 +551,7 @@ async def test_cmd_get_feature_prints_only_present_control_details(
     feature = build_feature(
         "heating.curve.slope",
         1.4,
-        _binding(),
+        _write_command(),
         constraints=_constraints(**constraint_overrides),
         unit="celsius",
     )
@@ -565,7 +573,9 @@ async def test_cmd_get_feature_json_prints_machine_readable_document(
     """The JSON flag should print the feature with its constraints and command."""
     # Arrange: Return one writable feature with a unit for the requested name.
     args = _cli_args("get-feature", "heating.curve.slope", "--json")
-    feature = build_feature("heating.curve.slope", 1.4, _binding(), unit="celsius")
+    feature = build_feature(
+        "heating.curve.slope", 1.4, _write_command(), unit="celsius"
+    )
     mock_cli_context.client.get_features.return_value = [feature]
 
     # Act: Read the feature in JSON mode.
@@ -810,7 +820,7 @@ async def test_cmd_exec_runs_any_reported_command_of_an_api_feature(
     """CLI exec runs any command the API feature reports through run_command."""
     # Arrange: Provide a refreshed snapshot that reports the setCurve command.
     args = _cli_args("exec", "heating.curve", "setCurve", "slope=1.4", "shift=0")
-    feature = build_feature(binding=_binding())
+    feature = build_feature(write_command=_write_command())
     snapshot = _snapshot_device(feature)
     mock_cli_context.client.refresh_device.return_value = snapshot
 
@@ -936,7 +946,8 @@ async def test_run_cli_set_fails_on_a_rejected_command(run_cli, mock_cli_context
     # Arrange: Offer a writable slope and reject the write with details.
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(
         build_feature(
-            binding=_binding(), constraints=FeatureConstraints(value_type="number")
+            write_command=_write_command(),
+            constraints=FeatureConstraints(value_type="number"),
         )
     )
     mock_cli_context.client.set_feature.side_effect = ViCommandRejectedError(
@@ -1025,9 +1036,11 @@ async def test_cmd_set_hydrates_required_command_dependencies(mock_cli_context):
     """CLI writes should provide sibling values required by a command."""
     # Arrange: Provide heating-curve features that share the setCurve command.
     args = _cli_args("set", "heating.curve.slope", "1.4")
-    binding = _binding(required_parameters=["shift", "slope"])
-    slope = build_feature(binding=binding)
-    shift = build_feature(name="heating.curve.shift", value=4.0, binding=binding)
+    write_command = _write_command(required_parameters=["shift", "slope"])
+    slope = build_feature(write_command=write_command)
+    shift = build_feature(
+        name="heating.curve.shift", value=4.0, write_command=write_command
+    )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(slope, shift)
 
     # Act: Set the slope through the CLI command.
@@ -1065,7 +1078,7 @@ async def test_cmd_list_features_json_values_print_value_documents(
     # Arrange: Provide one writable feature and request JSON value output.
     args = _cli_args("list-features", "--values", "--json")
     mock_cli_context.client.get_features.return_value = [
-        build_feature(name="f1", value=1.4, binding=_binding())
+        build_feature(name="f1", value=1.4, write_command=_write_command())
     ]
 
     # Act: List the feature values with JSON output.
@@ -1113,7 +1126,9 @@ async def test_cmd_list_features_values_prints_table_with_writable_marks(
     args = _cli_args("list-features", "--values")
     long_value = "x" * 90
     mock_cli_context.client.get_features.return_value = [
-        build_feature(name="writable.feature", value=1.4, binding=_binding()),
+        build_feature(
+            name="writable.feature", value=1.4, write_command=_write_command()
+        ),
         build_feature(name="long.feature", value=long_value),
     ]
 
@@ -1232,7 +1247,7 @@ async def test_cmd_list_writable_prints_constraints(mock_cli_context, capsys):
     args = _cli_args("list-writable")
     feature = build_feature(
         name="heating.circuits.0.heating.curve.slope",
-        binding=_binding(),
+        write_command=_write_command(),
         constraints=FeatureConstraints(min=0.2, max=3.5, step=0.1),
     )
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
@@ -1255,7 +1270,7 @@ async def test_cmd_list_writable_prints_string_and_enum_constraints(
     args = _cli_args("list-writable")
     feature = build_feature(
         name="heating.program",
-        binding=_binding(),
+        write_command=_write_command(),
         constraints=FeatureConstraints(
             options=["auto", "manual"],
             min_length=1,
@@ -1280,7 +1295,7 @@ async def test_cmd_list_writable_omits_absent_constraints(mock_cli_context, caps
     """Writable features without constraints should print without the line."""
     # Arrange: Provide a writable feature whose command declares no constraints.
     args = _cli_args("list-writable")
-    feature = build_feature(name="heating.program", binding=_binding())
+    feature = build_feature(name="heating.program", write_command=_write_command())
     mock_cli_context.client.refresh_device.return_value = _snapshot_device(feature)
 
     # Act: List the writable features.
@@ -1301,7 +1316,9 @@ async def test_cmd_list_writable_prints_reported_schedule_rules(
     args = _cli_args("list-writable")
     feature = build_feature(
         name="heating.dhw.schedule",
-        binding=_binding(command_name="setSchedule", parameter_name="newSchedule"),
+        write_command=_write_command(
+            command_name="setSchedule", parameter_name="newSchedule"
+        ),
         constraints=FeatureConstraints(
             schedule=ScheduleConstraints(max_entries=4, modes=["on"], resolution=10),
         ),

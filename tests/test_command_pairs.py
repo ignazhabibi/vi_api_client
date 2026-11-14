@@ -168,9 +168,9 @@ def test_parameter_setter_wins_over_the_command_pair():
     feature = _feature(api_feature, "heating.dhw.hygiene.enabled")
 
     # Assert: The setter writes the feature.
-    binding = feature._write_command
-    assert isinstance(binding, ParameterWriteCommand)
-    assert binding.command_name == "setEnabled"
+    write_command = feature._write_command
+    assert isinstance(write_command, ParameterWriteCommand)
+    assert write_command.command_name == "setEnabled"
 
 
 def test_required_parameter_excludes_the_command_pair():
@@ -493,14 +493,14 @@ def test_redaction_covers_both_uris_of_a_pair_command():
     # Act: Redact the device.
     redacted = redact_device(device)
 
-    # Assert: Neither URI of the pair binding keeps an identifier.
+    # Assert: Neither URI of the pair write_command keeps an identifier.
     redacted_feature = redacted.get_feature("heating.dhw.hygiene.enabled")
     assert redacted_feature is not None
-    binding = redacted_feature._write_command
-    assert isinstance(binding, OnOffWriteCommand)
-    for uri in (binding.on_uri, binding.off_uri):
+    write_command = redacted_feature._write_command
+    assert isinstance(write_command, OnOffWriteCommand)
+    for uri in (write_command.on_uri, write_command.off_uri):
         assert "1234567" not in uri
         assert "7630175843100101" not in uri
         assert "#" in uri
-    assert binding.on_uri.endswith("/commands/enable")
-    assert binding.off_uri.endswith("/commands/disable")
+    assert write_command.on_uri.endswith("/commands/enable")
+    assert write_command.off_uri.endswith("/commands/disable")

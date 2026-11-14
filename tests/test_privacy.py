@@ -166,8 +166,8 @@ def test_redact_sensitive_restores_every_bundled_fixture_from_unmasked_data(
 
 
 def test_redact_feature_redacts_the_value_and_control():
-    # Arrange: A writable feature whose value and binding carry identifiers.
-    binding = ParameterWriteCommand(
+    # Arrange: A writable feature whose value and write_command carry identifiers.
+    write_command = ParameterWriteCommand(
         api_feature_name="device.serial",
         command_name="setSerial",
         parameter_name="serial",
@@ -177,7 +177,7 @@ def test_redact_feature_redacts_the_value_and_control():
     feature = build_feature(
         name="device.serial",
         value="7630175843100101",
-        binding=binding,
+        write_command=write_command,
         constraints=FeatureConstraints(
             options=["7630175843100101", {"access_token": "secret"}, "short"]
         ),

@@ -32,23 +32,23 @@ from vi_api_client.models import (  # noqa: E402
 from vi_api_client.parsing import parse_api_features  # noqa: E402
 
 
-def _binding_document(binding: WriteCommand) -> dict[str, Any]:
+def _write_command_document(write_command: WriteCommand) -> dict[str, Any]:
     """Return one write command as a JSON document.
 
     The command URIs are left out: they repeat the fixture's own data, so
     they would only enlarge the diff after a fixture refresh.
     """
-    if isinstance(binding, OnOffWriteCommand):
+    if isinstance(write_command, OnOffWriteCommand):
         return {
-            "api_feature": binding.api_feature_name,
-            "on_command": binding.on_command_name,
-            "off_command": binding.off_command_name,
+            "api_feature": write_command.api_feature_name,
+            "on_command": write_command.on_command_name,
+            "off_command": write_command.off_command_name,
         }
     return {
-        "api_feature": binding.api_feature_name,
-        "command": binding.command_name,
-        "parameter": binding.parameter_name,
-        "required": list(binding.required_parameters),
+        "api_feature": write_command.api_feature_name,
+        "command": write_command.command_name,
+        "parameter": write_command.parameter_name,
+        "required": list(write_command.required_parameters),
     }
 
 
@@ -87,10 +87,10 @@ def build_fixture_baseline(fixture_device: str) -> dict[str, Any]:
             api_feature_name: sorted(command.name for command in commands)
             for api_feature_name, commands in sorted(command_map.items())
         },
-        "write_bindings": {
-            feature.name: _binding_document(write_command_of(feature))
+        "write_commands": {
+            feature.name: _write_command_document(command)
             for feature in sorted(features, key=lambda feature: feature.name)
-            if write_command_of(feature) is not None
+            if (command := write_command_of(feature)) is not None
         },
     }
 

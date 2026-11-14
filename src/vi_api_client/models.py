@@ -141,8 +141,10 @@ class DeviceCommand:
     parameters: tuple[CommandParameter, ...] = ()
 
 
-# Mutable command index a parser builds before it is frozen into a Device.
-type CommandMap = dict[str, tuple[DeviceCommand, ...]]
+# Read-only command index of a device snapshot: API feature name to its
+# reported commands. The parser builds it as a mutable dict before it is
+# frozen into a Device.
+type CommandMap = Mapping[str, tuple[DeviceCommand, ...]]
 
 
 @dataclass(frozen=True)
@@ -245,7 +247,7 @@ class Device:
     # contract; package modules read it through `command_map_of`. It is kept
     # out of the repr because command URIs carry installation, gateway, and
     # device IDs.
-    _commands_by_api_feature: Mapping[str, tuple[DeviceCommand, ...]] = field(
+    _commands_by_api_feature: CommandMap = field(
         default_factory=dict[str, tuple[DeviceCommand, ...]],
         repr=False,
     )
@@ -330,16 +332,18 @@ def write_command_of(feature: Feature) -> WriteCommand | None:
     """Return the internal write command of a parser-built feature.
 
     Package-internal accessor for `Feature._write_command`; the single place
-    outside the class that reads the protected field.
+    within the shipped package that reads the protected field (tests read it
+    directly under standard type checking).
     """
     return feature._write_command  # pyright: ignore[reportPrivateUsage]
 
 
-def command_map_of(device: Device) -> Mapping[str, tuple[DeviceCommand, ...]]:
+def command_map_of(device: Device) -> CommandMap:
     """Return the internal command knowledge of a device snapshot.
 
     Package-internal accessor for `Device._commands_by_api_feature`; the
-    single place outside the class that reads the protected field.
+    single place within the shipped package that reads the protected field
+    (tests read it directly under standard type checking).
     """
     return device._commands_by_api_feature  # pyright: ignore[reportPrivateUsage]
 

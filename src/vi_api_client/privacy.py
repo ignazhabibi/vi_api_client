@@ -115,20 +115,22 @@ def redact_feature(
                 ]
             ),
         )
-    binding = write_command_of(feature)
-    if isinstance(binding, OnOffWriteCommand):
-        binding = replace(
-            binding,
-            on_uri=_redact_text(binding.on_uri, placeholder),
-            off_uri=_redact_text(binding.off_uri, placeholder),
+    write_command = write_command_of(feature)
+    if isinstance(write_command, OnOffWriteCommand):
+        write_command = replace(
+            write_command,
+            on_uri=_redact_text(write_command.on_uri, placeholder),
+            off_uri=_redact_text(write_command.off_uri, placeholder),
         )
-    elif binding is not None:
-        binding = replace(binding, uri=_redact_text(binding.uri, placeholder))
+    elif write_command is not None:
+        write_command = replace(
+            write_command, uri=_redact_text(write_command.uri, placeholder)
+        )
     return replace(
         feature,
         value=_redact_entry(value_key, feature.value, placeholder),
         constraints=constraints,
-        _write_command=binding,
+        _write_command=write_command,
     )
 
 
