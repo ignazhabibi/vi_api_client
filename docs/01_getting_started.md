@@ -1,146 +1,121 @@
 # Getting Started
 
-This guide covers the first steps to get up and running with the `vi_api_client` library. It assumes you have a valid Viessmann Developer Account and `CLIENT_ID`.
-
-## Installation
-
 **Requires Python 3.14+.** Install the released package from PyPI with
 `pip install vi_api_client`, ideally inside a virtual environment.
 
-The package is strictly typed and PEP 561 complete: it ships a `py.typed`
-marker, so type checkers such as Pyright verify your usage of the client API
-automatically, including the dynamic JSON value contract behind feature values.
+## 1. Try it without an account
 
-To work on the library itself, install it from a clone in editable mode:
-
-```bash
-git clone https://github.com/ignazhabibi/vi_api_client.git
-cd vi_api_client
-
-python3.14 -m venv .venv
-source .venv/bin/activate
-
-pip install -e .
-```
-
-## First Steps
-
-### 1. Simple Authentication & Device List
-
-The easiest way to start is using the CLI to generate a token, or using the `ViClient` with an existing token.
+`FixtureViClient` works like the real client, but uses device data bundled
+with the library: no login, no network. Changes are simulated, nothing is sent.
 
 ```python
 import asyncio
-import os
+
+from vi_api_client import FixtureViClient
+
+
+async def main():
+    client = FixtureViClient("Vitocal250A")
+
+    installation = (await client.get_installations())[0]
+    device = (await client.get_full_installation_status(installation.id))[0]
+
+    print(f"{device.model_id}: {len(device.features)} features")
+
+
+asyncio.run(main())
+```
+
+The library models four things: an **installation** (your home), its
+**gateway**, the **devices** behind it, and the **features** of each device.
+`get_full_installation_status` returns all devices of an installation with
+their features already loaded.
+
+## 2. Read values
+
+Every feature has a dot-separated name, a `value`, and an optional `unit`.
+
+```python
+for feature in device.features:
+    print(f"{feature.name}: {feature.value} {feature.unit or ''}")
+
+outside = device.get_feature("heating.sensors.temperature.outside")
+if outside:
+    print(f"Outside temperature: {outside.value} {outside.unit}")
+```
+
+`get_feature` returns `None` if the device does not have that feature.
+
+The feature list above contains only enabled and ready features
+(`only_available=True`, the default). Pass `only_available=False` to
+`get_full_installation_status` or `refresh_device` to also see disabled ones.
+
+## 3. Change a setting
+
+```python
+device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
+```
+
+`set_feature` takes the feature name directly, checks the value against the
+device's rules before sending it, and returns an updated `device`. Keep using
+the returned one.
+
+- A value outside the rules raises `ValueError` and is not sent,
+  e.g. `Value 70 > max (60)`.
+- If the device refuses the change, `ViCommandRejectedError` is raised.
+
+`feature.is_settable` tells you whether a feature can be changed right now, and
+`feature.constraints` holds its rules (`min`, `max`, `step`, `options`).
+`vi-client list-writable` shows all of them for your device.
+
+## 4. Get fresh values
+
+A `Device` is a snapshot. Ask for a new one when you need current values:
+
+```python
+device = await client.refresh_device(device)
+```
+
+## 5. Use your real heating
+
+You need a client ID from the
+[Viessmann Developer Portal](https://developer.viessmann-climatesolutions.com/start.html).
+Log in once with the CLI; it saves your tokens to `tokens.json`:
+
+```bash
+vi-client login --client-id <YOUR_CLIENT_ID>
+```
+
+Then replace the fixture client with `ViClient`:
+
+```python
+import asyncio
 
 import aiohttp
 
 from vi_api_client import OAuth, ViClient
 
-# Configuration
-CLIENT_ID = os.environ["VIESSMANN_CLIENT_ID"]
-REDIRECT_URI = "http://localhost:4200/"
-TOKEN_FILE = "tokens.json"
-
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        # 1. Setup Authentication (auto-handles token refresh)
         auth = OAuth(
-            client_id=CLIENT_ID,
-            redirect_uri=REDIRECT_URI,
-            token_file=TOKEN_FILE,
+            client_id="YOUR_CLIENT_ID",
+            redirect_uri="http://localhost:4200/",
+            token_file="tokens.json",
             websession=session,
         )
-
-        # 2. Initialize Client
         client = ViClient(auth)
-
-        # 3. Discovery: Installation -> Gateway -> Device
-        installations = await client.get_installations()
-        if not installations:
-            print("No installations found.")
-            return
-
-        installation = installations[0]
-        print(f"Using Installation: {installation.id}")
-
-        gateways = await client.get_gateways()
-        gateway = next(
-            (
-                gateway
-                for gateway in gateways
-                if gateway.installation_id == installation.id
-            ),
-            None,
-        )
-        if gateway is None:
-            print("No gateway found for the selected installation.")
-            return
-
-        print(f"Using Gateway: {gateway.serial}")
-
-        # Pick the heating device (usually id="0")
-        # refresh_device loads the features into a new device snapshot
-        devices = await client.get_devices(installation.id, gateway.serial)
-
-        if not devices:
-            print("No devices found.")
-            return
-
-        device = next((d for d in devices if d.id == "0"), devices[0])
-        device = await client.refresh_device(device)
-        print(f"Using Device: {device.id} ({device.model_id})")
-        print(f"Features: {len(device.features)}")
-
-        # A) Iterate over all features
-        for feature in device.features:
-            print(f"- {feature.name}: {feature.value}")
-
-        # B) Access a specific feature directly (O(1))
-        outside_temp = device.get_feature("heating.sensors.temperature.outside")
-        if outside_temp:
-            print(f"Outside Temp: {outside_temp.value}")
+        # ... everything else as above
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-### 2. Executing Commands
-
-To change settings (e.g., set heating mode), you use the high-level `set_feature` method.
-
-```python
-async def set_heating_mode(client, device):
-    feature_name = "heating.circuits.0.operating.modes.active"
-
-    # 1. Refresh the device snapshot so command dependencies are current.
-    device = await client.refresh_device(device)
-    feature = device.get_feature(feature_name)
-    if feature is None:
-        print("Feature not found")
-        return
-
-    # 2. Check that it can be set in this snapshot
-    if not feature.is_settable:
-        print(f"Feature '{feature.name}' is read-only.")
-        return
-
-    # 3. Execute High-Level Set
-    # This handles validations, parameter resolving, and API calls automatically
-    # and returns the command-updated device snapshot.
-    print("Setting mode to 'heating'...")
-    device = await client.set_feature(device, feature, "heating")
-    print("Command executed successfully!")
-    # Use the updated device for subsequent calls; a rejected command raises
-    # ViCommandRejectedError, so reaching this line means the write was accepted.
+asyncio.run(main())
 ```
 
 ## Next Steps
 
-- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
-- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
-- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
-- **[CLI Reference](06_cli_reference.md)**: terminal usage.
-- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
+- [Client Reference](05_client_reference.md): all methods, including
+  gateway-wide refresh and `run_command` for multi-parameter commands.
+- [Models Reference](04_models_reference.md): `Device`, `Feature`, and
+  `FeatureConstraints` in detail.
+- [Authentication](03_auth_reference.md): logging in from Python and token handling.
+- [CLI Reference](06_cli_reference.md) and [Exceptions](07_exceptions_reference.md).
