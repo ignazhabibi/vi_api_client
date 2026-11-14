@@ -4,22 +4,34 @@ The library simplifies Viessmann API error handling by mapping HTTP status codes
 
 All exceptions inherit from `ViError` (and `Exception`).
 
-Import exception classes from the package root:
+## The ones you catch in everyday use
+
+*   `ValueError`: The value violates the feature's rules and was **not sent**
+    (e.g. `Value 70 > max (60)`).
+*   `ViCommandRejectedError`: The device **rejected** the change.
+*   `ViValidationError`: The API refused the request as invalid (400/422).
+*   `ViConnectionError` / `ViDeviceCommunicationError`: Network trouble, or the
+    device/gateway was not reachable.
 
 ```python
 from vi_api_client import (
-    ViAuthError,
     ViCommandRejectedError,
     ViConnectionError,
     ViDeviceCommunicationError,
-    ViError,
-    ViNotFoundError,
-    ViRateLimitError,
-    ViResponseError,
-    ViServerInternalError,
     ViValidationError,
 )
+
+try:
+    device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
+except ValueError as error:
+    print(f"Not sent: {error}")
+except (ViCommandRejectedError, ViValidationError) as error:
+    print(f"The change was refused: {error}")
+except (ViConnectionError, ViDeviceCommunicationError) as error:
+    print(f"Heating not reachable, try again later: {error}")
 ```
+
+The full hierarchy and details follow below.
 
 ## Exception Hierarchy
 
@@ -163,3 +175,22 @@ except ViRateLimitError as error:
 - **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
+
+## Import Reference
+
+Import exception classes from the package root:
+
+```python
+from vi_api_client import (
+    ViAuthError,
+    ViCommandRejectedError,
+    ViConnectionError,
+    ViDeviceCommunicationError,
+    ViError,
+    ViNotFoundError,
+    ViRateLimitError,
+    ViResponseError,
+    ViServerInternalError,
+    ViValidationError,
+)
+```

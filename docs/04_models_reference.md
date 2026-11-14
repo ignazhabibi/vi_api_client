@@ -2,31 +2,17 @@
 
 This section details the core data models used in the `vi_api_client` library.
 
-Import public models and helpers from the package root:
+The four models you work with every day:
 
-```python
-from vi_api_client import (
-    Device,
-    EventHistoryPage,
-    EventHistoryWindow,
-    Feature,
-    FeatureConstraints,
-    FeatureDeprecation,
-    FeatureValue,
-    Gateway,
-    GatewayDeviceRefreshResult,
-    Installation,
-    InstallationEvent,
-    JsonValue,
-    ScheduleConstraints,
-    ValidationDetail,
-    format_feature,
-    redact_device,
-    redact_feature,
-    redact_sensitive,
-    validate_json_value,
-)
 ```
+Installation  id, description
+ └─ Gateway   serial, status
+     └─ Device   id, model_id, features, get_feature(name)
+         └─ Feature   name, value, unit, is_settable, constraints
+```
+
+Everything else on this page is detail and advanced models. The full import
+list is at the bottom of this page.
 
 ## Dynamic JSON values
 
@@ -365,3 +351,31 @@ provider retention of the requested lookback.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
 - **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
+
+## Import Reference
+
+All public models and helpers, imported from the package root:
+
+```python
+from vi_api_client import (
+    Device,
+    EventHistoryPage,
+    EventHistoryWindow,
+    Feature,
+    FeatureConstraints,
+    FeatureDeprecation,
+    FeatureValue,
+    Gateway,
+    GatewayDeviceRefreshResult,
+    Installation,
+    InstallationEvent,
+    JsonValue,
+    ScheduleConstraints,
+    ValidationDetail,
+    format_feature,
+    redact_device,
+    redact_feature,
+    redact_sensitive,
+    validate_json_value,
+)
+```
