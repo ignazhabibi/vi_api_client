@@ -8,6 +8,8 @@
 `FixtureViClient` works like the real client, but uses device data bundled
 with the library: no login, no network. Changes are simulated, nothing is sent.
 
+**Step by step**, from installation to feature:
+
 ```python
 import asyncio
 
@@ -41,8 +43,31 @@ Each step returns a plain list, and you pick the entry you need.
 `get_devices` lists the devices without their features; `refresh_device` loads
 them.
 
-To get every device of an installation with its features in one call, use
-`get_full_installation_status(installation.id)`.
+**The shortcut** you will usually write: `get_full_installation_status` walks
+the gateways and devices for you and returns every device of the installation
+with its features already loaded.
+
+```python
+import asyncio
+
+from vi_api_client import FixtureViClient
+
+
+async def main():
+    client = FixtureViClient("Vitocal250A")
+
+    installations = await client.get_installations()
+    installation = installations[0]
+
+    devices = await client.get_full_installation_status(installation.id)
+    device = devices[0]
+
+    for feature in device.features:
+        print(feature.name, feature.value)
+
+
+asyncio.run(main())
+```
 
 ## 2. Read values
 

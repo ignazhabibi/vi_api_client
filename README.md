@@ -40,7 +40,9 @@ pip install -e .
 
 ### Try it without an account
 
-The library ships real device data, so you can run this right away:
+The library ships real device data, so you can run this right away.
+
+**Step by step**, from installation to feature:
 
 ```python
 import asyncio
@@ -75,6 +77,34 @@ Each step returns plain objects: installations, gateways, devices, and the
 features of a device, each with a `name` and a `value`. `refresh_device` loads
 the features, and `set_feature` changes one value and returns the updated
 device.
+
+**The shortcut** you will usually write: `get_full_installation_status` walks
+the gateways and devices for you and returns every device of the installation
+with its features already loaded.
+
+```python
+import asyncio
+
+from vi_api_client import FixtureViClient
+
+
+async def main():
+    client = FixtureViClient("Vitocal250A")
+
+    installations = await client.get_installations()
+    installation = installations[0]
+
+    devices = await client.get_full_installation_status(installation.id)
+    device = devices[0]
+
+    for feature in device.features:
+        print(feature.name, feature.value)
+
+    device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
+
+
+asyncio.run(main())
+```
 
 ### With your Viessmann account
 
