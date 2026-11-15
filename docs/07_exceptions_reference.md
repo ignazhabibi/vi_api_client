@@ -55,7 +55,7 @@ structured Viessmann error responses. `ViValidationError` additionally exposes
 
 ```python
 try:
-    device = await client.set_feature(device, feature, 50.0)
+    device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
     # No exception means the API accepted the command.
 except ViCommandRejectedError as e:
     print(f"Command rejected: {e}")

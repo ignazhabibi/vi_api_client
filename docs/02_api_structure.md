@@ -60,7 +60,9 @@ For example, a "Heating Curve" is not a nested object you have to parse, but rat
 **After** — the library flattens this into two features and writes them with one call each:
 
 ```python
-device.get_feature("heating.circuits.0.heating.curve.slope").value  # 0.6
+slope = device.get_feature("heating.circuits.0.heating.curve.slope")
+if slope:
+    print(slope.value)  # 0.6
 
 device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
 ```
@@ -117,7 +119,7 @@ other features carry `None`:
 
 ```python
 feature = device.get_feature("heating.dhw.sensors.temperature.hotWaterStorage")
-if feature.deprecation is not None:
+if feature and feature.deprecation:
     print(feature.deprecation.removal_date)  # datetime.date(2024, 9, 15)
     print(feature.deprecation.info)  # "replaced by heating.dhw.sensors..."
 ```
@@ -222,33 +224,7 @@ requested direction right now: the API decides, and a command it does not
 allow raises `ViCommandRejectedError`. A device can report a pair it never
 allows; writing such a feature then fails on every attempt.
 
-## 5. Usage Pattern
-
-Because of this flat design, usage is consistent:
-
-**1. Reading (Get Features)**
-```python
-# Get a specific feature by name (e.g. heating curve slope)
-features = await client.get_features(
-    device,
-    feature_names=["heating.circuits.0.heating.curve.slope"],
-)
-print(features[0].value)
-# Output: 0.6
-```
-
-**2. Writing (Set Feature)**
-```python
-# Set a feature value directly
-feature = features[0]
-device = await client.set_feature(device, feature, 0.7)
-# No exception means the API accepted the write; use the updated device for
-# the next operation.
-```
-
-The library handles the "magic" of mapping your simple `0.7` value back to the complex JSON structure required by the API.
-
-## 6. Gateway-Scoped Device Refresh
+## 5. Gateway-Scoped Device Refresh
 
 When several known devices belong to the same installation and gateway,
 `refresh_gateway_devices(devices)` refreshes their available features
@@ -267,7 +243,7 @@ consumer owns polling cadence and stale-state policy.
 
 *   **Everything is a Feature**: Scalar properties are exposed as addressable `Feature` objects.
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
-*   **Simple Set**: Use `set_feature(device, feature, value)`.
+*   **Simple Set**: Use `set_feature(device, name, value)`.
 *   **Explicit Multi-Device Refresh**: Use `refresh_gateway_devices` for known devices behind one gateway.
 
 ## Next Steps

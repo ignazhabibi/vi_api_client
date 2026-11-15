@@ -324,8 +324,8 @@ both commands instead of a parameter.
 Set a new value for a specific feature.
 
 ```bash
-# Set heating curve slope to 1.4
-vi-client set heating.circuits.0.heating.curve.slope 1.4
+# Set heating curve slope to 0.7
+vi-client set heating.circuits.0.heating.curve.slope 0.7
 
 # Set operating mode
 vi-client set heating.circuits.0.operating.modes.active heating
@@ -372,11 +372,11 @@ Reason: COMMAND_NOT_EXECUTABLE
 If you need to run a command with multiple parameters at once (rare), you can use `exec`.
 
 ```bash
-vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
+vi-client exec heating.circuits.0.heating.curve setCurve slope=0.7 shift=6
 
 # Print the result as one JSON document: the command, its parameters,
 # success, and the message and reason of a rejection
-vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0 --json
+vi-client exec heating.circuits.0.heating.curve setCurve slope=0.7 shift=6 --json
 ```
 
 The first argument is an API feature name, and `<command-name>` is any command
