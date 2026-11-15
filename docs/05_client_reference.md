@@ -18,12 +18,14 @@ from vi_api_client import ViClient
 
 | You want | Method |
 | :--- | :--- |
+| Your installations | `get_installations()` |
 | All devices of an installation, with their values | `get_full_installation_status(installation_id)` |
+| Step by step: the gateways, then the devices behind one | `get_gateways(installation_id)`, `get_devices(installation_id, gateway_serial)` |
 | Current values of one device | `refresh_device(device)` |
 | Change one value | `set_feature(device, name, value)` |
 | Try it without an account | `FixtureViClient("Vitocal250A")` |
 
-Use `set_feature(device, feature, value)` for a safe single-feature write with
+Use `set_feature(device, name, value)` for a safe single-feature write with
 dependency resolution, or `run_command(device, api_feature_name, command_name,
 parameters)` for any other command an API feature reports. A rejected command
 raises `ViCommandRejectedError`, so no exception means the write was accepted.
@@ -35,6 +37,8 @@ stored snapshot alone.
 
 | Method | Purpose | API requests |
 | :--- | :--- | :--- |
+| `get_installations()` | List the installations of the account. | 1: the installation list |
+| `get_gateways(installation_id)` | List the gateways of one installation, or of all without an argument. | 1: the gateway list of the account |
 | `get_devices(installation_id, gateway_serial)` | Discover the devices of one gateway, without features. | 1: the device list |
 | `get_features(device)` or `get_features(device, feature_names=...)` | Read (selected) features of one device. | 1: the device's feature read |
 | `refresh_device(device)` | Read one device's features as a new device snapshot; the workhorse for polling. | 1: the device's feature read |
@@ -49,8 +53,12 @@ Methods to discover the structure of your heating system.
 Fetches all available installations.
 *   **Returns**: List of `Installation` objects.
 
-### `get_gateways() -> list[Gateway]`
-Fetches all gateways (automatically linked to installations).
+### `get_gateways(installation_id: str | None = None) -> list[Gateway]`
+Fetches the gateways of the account, or of one installation.
+
+*   **Parameters**:
+    *   `installation_id`: Return only the gateways of this installation.
+        Without it, the gateways of all installations are returned.
 *   **Returns**: List of `Gateway` objects.
 
 ### `get_devices(installation_id: str, gateway_serial: str) -> list[Device]`
@@ -275,18 +283,18 @@ semantics rather than this gateway-scoped partial-result contract.
 ### Writing a value end to end
 
 ```python
-device = await client.refresh_device(device)
-slope = device.get_feature("heating.circuits.0.heating.curve.slope")
-if slope is not None and slope.is_settable:
-    try:
-        device = await client.set_feature(device, slope, 0.7)
-    except ValueError as error:
-        ...  # rejected locally, nothing was sent
-    except ViCommandRejectedError as error:
-        ...  # the device refused; keep the previous snapshot
+try:
+    device = await client.set_feature(
+        device, "heating.circuits.0.heating.curve.slope", 0.7
+    )
+except ValueError as error:
+    ...  # missing, read-only, or out of range: nothing was sent
+except ViCommandRejectedError as error:
+    ...  # the device refused; keep the previous snapshot
 ```
 
-Read `slope.constraints` to offer valid values first. Keep the returned
+`set_feature` checks the feature itself, so no lookup or `is_settable` check is
+needed first. Read the feature's `constraints` to offer valid values. Keep the returned
 snapshot for the next write, and refresh when you need the device's own state.
 
 ### `set_feature(device: Device, feature: Feature | str, target_value: FeatureValue) -> Device`
@@ -320,10 +328,9 @@ a snapshot with the value set locally, without reading it back from the API.
 
 **Example**:
 ```python
-# Set heating curve slope
-device = await client.set_feature(device, slope_feature, 0.7)
-# Use the same updated snapshot for the next operation
-device = await client.set_feature(device, shift_feature, 7.0)
+device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
+# Use the returned snapshot for the next write
+device = await client.set_feature(device, "heating.circuits.0.heating.curve.shift", 7)
 ```
 
 ### `run_command(device: Device, api_feature_name: str, command_name: str, parameters: dict[str, JsonValue] | None = None) -> None`
@@ -352,7 +359,7 @@ await client.run_command(
     device,
     "heating.circuits.0.heating.curve",
     "setCurve",
-    {"slope": 0.7, "shift": 7.0},
+    {"slope": 0.7, "shift": 7},
 )
 # Plan a holiday: its dates are read-only features, because `schedule`
 # does more than store a value

@@ -3,20 +3,35 @@
 A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann-climatesolutions.com/start.html).
 Designed for integration with Home Assistant and other async Python applications.
 
-## Features
+## Why this library
 
-- **Asynchronous**: Built on `aiohttp` and `asyncio`.
-- **OAuth2 Authentication**: Handles token retrieval and automatic renewal.
-- **Auto-Discovery**: Automatically finds installations, gateways, and devices.
-- **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
-- **Gateway-Scoped Refresh**: Refreshes multiple known devices with one normal-case request while preserving partial successes.
-- **Command Execution**: Supports safe single-feature writes with automatic
-  parameter resolution and explicit multi-parameter commands.
-- **Fixture-backed Client**: Runs the same client workflows against bundled real-device
-  responses without authentication, sessions, or network requests.
-- **Strictly Typed**: Ships as a PEP 561 complete package with `py.typed`; the
-  shipped code passes strict Pyright and dynamic values follow a typed JSON
-  value contract.
+- **Your heating system as Python objects.** Installation, gateway, device,
+  feature: typed, immutable classes that mirror the real world.
+- **Flat features instead of nested JSON.** Every value is one feature with a
+  name and a `value`, e.g. `heating.circuits.0.heating.curve.slope`, whatever
+  device you have.
+- **One call to change a setting.** `set_feature(device, name, value)` checks
+  the value against the device's rules and fills in the other parameters the
+  API requires.
+- **Try everything offline.** `FixtureViClient` runs the same code against real
+  device data, without an account.
+
+The API returns the heating curve as one nested object whose `setCurve`
+command needs both `slope` and `shift`. With this library:
+
+```python
+device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
+# shift is filled in from its current value; 0.7 is checked against min 0.2 / max 3.5
+```
+
+The [API structure guide](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/02_api_structure.md#3-the-flat-architecture)
+shows the raw API response next to this call.
+
+Under the hood: async (`aiohttp`), OAuth2 with automatic token renewal,
+gateway-wide refresh of several devices, any reported command through
+`run_command`, and a strictly typed, PEP 561 complete package. Feature values
+follow a typed JSON value contract (`FeatureValue`), because the library reads
+whatever features a device reports instead of hardcoding them.
 
 ## Installation
 
@@ -40,7 +55,9 @@ pip install -e .
 
 ### Try it without an account
 
-The library ships real device data, so you can run this right away:
+The library ships real device data, so you can run this right away.
+
+**Step by step**, from installation to feature:
 
 ```python
 import asyncio
@@ -51,12 +68,52 @@ from vi_api_client import FixtureViClient
 async def main():
     client = FixtureViClient("Vitocal250A")
 
-    installation = (await client.get_installations())[0]
-    device = (await client.get_full_installation_status(installation.id))[0]
+    installations = await client.get_installations()
+    installation = installations[0]
 
-    outside = device.get_feature("heating.sensors.temperature.outside")
-    if outside:
-        print(f"Outside temperature: {outside.value} {outside.unit}")
+    gateways = await client.get_gateways(installation.id)
+    gateway = gateways[0]
+
+    devices = await client.get_devices(installation.id, gateway.serial)
+    device = devices[0]
+
+    device = await client.refresh_device(device)
+
+    for feature in device.features:
+        print(feature.name, feature.value)
+
+    device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
+
+
+asyncio.run(main())
+```
+
+Each step returns plain objects: installations, gateways, devices, and the
+features of a device, each with a `name` and a `value`. `refresh_device` loads
+the features, and `set_feature` changes one value and returns the updated
+device.
+
+**The shortcut** you will usually write: `get_full_installation_status` walks
+the gateways and devices for you and returns every device of the installation
+with its features already loaded.
+
+```python
+import asyncio
+
+from vi_api_client import FixtureViClient
+
+
+async def main():
+    client = FixtureViClient("Vitocal250A")
+
+    installations = await client.get_installations()
+    installation = installations[0]
+
+    devices = await client.get_full_installation_status(installation.id)
+    device = devices[0]
+
+    for feature in device.features:
+        print(feature.name, feature.value)
 
     device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 
@@ -92,12 +149,14 @@ async def main():
         )
         client = ViClient(auth)
 
-        installation = (await client.get_installations())[0]
-        device = (await client.get_full_installation_status(installation.id))[0]
+        installations = await client.get_installations()
+        installation = installations[0]
 
-        outside = device.get_feature("heating.sensors.temperature.outside")
-        if outside:
-            print(f"Outside temperature: {outside.value} {outside.unit}")
+        devices = await client.get_full_installation_status(installation.id)
+        device = devices[0]
+
+        for feature in device.features:
+            print(feature.name, feature.value)
 
         device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 

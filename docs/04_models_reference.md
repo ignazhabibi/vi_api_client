@@ -160,7 +160,7 @@ for the table and its rules.
 | Property | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
-| `value` | `FeatureValue` | Primary value of the feature; scalar, null, list, or object. | `1.4` |
+| `value` | `FeatureValue` | Primary value of the feature; scalar, null, list, or object. | `0.6` |
 | `unit` | `str \| None` | Unit of measurement, when supplied. | `None` |
 | `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
 | `is_enabled` | `bool` | Whether this feature is supported. | `True` |
@@ -177,7 +177,9 @@ To format a feature value for display with units:
 ```python
 from vi_api_client import format_feature
 
-print(format_feature(feature))  # "25.5 celsius"
+outside = device.get_feature("heating.sensors.temperature.outside")
+if outside:
+    print(format_feature(outside))  # "3.1 celsius"
 ```
 
 ## FeatureDeprecation
@@ -266,7 +268,7 @@ root object or wrapped in a `data` object.
 
 **Usage**:
 ```python
-device = await client.set_feature(device, feature, value)
+device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 # Reaching this line means the API accepted the command.
 ```
 

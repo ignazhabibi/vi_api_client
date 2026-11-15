@@ -8,6 +8,8 @@
 `FixtureViClient` works like the real client, but uses device data bundled
 with the library: no login, no network. Changes are simulated, nothing is sent.
 
+**Step by step**, from installation to feature:
+
 ```python
 import asyncio
 
@@ -17,10 +19,19 @@ from vi_api_client import FixtureViClient
 async def main():
     client = FixtureViClient("Vitocal250A")
 
-    installation = (await client.get_installations())[0]
-    device = (await client.get_full_installation_status(installation.id))[0]
+    installations = await client.get_installations()
+    installation = installations[0]
 
-    print(f"{device.model_id}: {len(device.features)} features")
+    gateways = await client.get_gateways(installation.id)
+    gateway = gateways[0]
+
+    devices = await client.get_devices(installation.id, gateway.serial)
+    device = devices[0]
+
+    device = await client.refresh_device(device)
+
+    for feature in device.features:
+        print(feature.name, feature.value)
 
 
 asyncio.run(main())
@@ -28,17 +39,42 @@ asyncio.run(main())
 
 The library models four things: an **installation** (your home), its
 **gateway**, the **devices** behind it, and the **features** of each device.
-`get_full_installation_status` returns all devices of an installation with
-their features already loaded.
+Each step returns a plain list, and you pick the entry you need.
+`get_devices` lists the devices without their features; `refresh_device` loads
+them.
+
+**The shortcut** you will usually write: `get_full_installation_status` walks
+the gateways and devices for you and returns every device of the installation
+with its features already loaded.
+
+```python
+import asyncio
+
+from vi_api_client import FixtureViClient
+
+
+async def main():
+    client = FixtureViClient("Vitocal250A")
+
+    installations = await client.get_installations()
+    installation = installations[0]
+
+    devices = await client.get_full_installation_status(installation.id)
+    device = devices[0]
+
+    for feature in device.features:
+        print(feature.name, feature.value)
+
+
+asyncio.run(main())
+```
 
 ## 2. Read values
 
 Every feature has a dot-separated name, a `value`, and an optional `unit`.
+To read one feature, ask the device for it by name:
 
 ```python
-for feature in device.features:
-    print(f"{feature.name}: {feature.value} {feature.unit or ''}")
-
 outside = device.get_feature("heating.sensors.temperature.outside")
 if outside:
     print(f"Outside temperature: {outside.value} {outside.unit}")
@@ -46,7 +82,7 @@ if outside:
 
 `get_feature` returns `None` if the device does not have that feature.
 
-The feature list above contains only enabled and ready features
+The feature list in step 1 contains only enabled and ready features
 (`only_available=True`, the default). Pass `only_available=False` to
 `get_full_installation_status` or `refresh_device` to also see disabled ones.
 

@@ -1,6 +1,18 @@
 # API Structure & Design Concepts
 
-This document explains the underlying structure of the Viessmann API and how `vi_api_client` simplifies it using the **Flat Architecture**.
+This document explains the underlying structure of the Viessmann API and the
+three ideas `vi_api_client` builds on:
+
+1.  **Your heating system as Python objects**
+    ([The Viessmann Hierarchy](#1-the-viessmann-hierarchy)): installation,
+    gateway, device, and feature as typed, immutable classes.
+2.  **Flat features instead of nested JSON**
+    ([The Flat Architecture](#3-the-flat-architecture)): every value is one
+    feature with a name and a `value`, whatever device you have.
+3.  **One call to change a setting**
+    ([The Power of Flat Features](#the-power-of-flat-features)):
+    `set_feature` checks the value and fills in the other parameters the
+    command requires.
 
 ## 1. The Viessmann Hierarchy
 
@@ -10,6 +22,10 @@ The API groups data into a strict hierarchy:
 2.  **Gateway**: The bridge between your boiler and the cloud.
 3.  **Device**: The actual components (Heating System, Fuel Cell, Ventilation).
 4.  **Feature**: A single data point or control capability (e.g., "Outside Temperature").
+
+The library returns each level as its own class: `Installation`, `Gateway`,
+`Device`, and `Feature`. The [Models Reference](04_models_reference.md)
+documents them.
 
 ## 2. The "Data-Driven" Approach
 
@@ -60,7 +76,9 @@ For example, a "Heating Curve" is not a nested object you have to parse, but rat
 **After** — the library flattens this into two features and writes them with one call each:
 
 ```python
-device.get_feature("heating.circuits.0.heating.curve.slope").value  # 0.6
+slope = device.get_feature("heating.circuits.0.heating.curve.slope")
+if slope:
+    print(slope.value)  # 0.6
 
 device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
 ```
@@ -117,7 +135,7 @@ other features carry `None`:
 
 ```python
 feature = device.get_feature("heating.dhw.sensors.temperature.hotWaterStorage")
-if feature.deprecation is not None:
+if feature and feature.deprecation:
     print(feature.deprecation.removal_date)  # datetime.date(2024, 9, 15)
     print(feature.deprecation.info)  # "replaced by heating.dhw.sensors..."
 ```
@@ -222,33 +240,7 @@ requested direction right now: the API decides, and a command it does not
 allow raises `ViCommandRejectedError`. A device can report a pair it never
 allows; writing such a feature then fails on every attempt.
 
-## 5. Usage Pattern
-
-Because of this flat design, usage is consistent:
-
-**1. Reading (Get Features)**
-```python
-# Get a specific feature by name (e.g. heating curve slope)
-features = await client.get_features(
-    device,
-    feature_names=["heating.circuits.0.heating.curve.slope"],
-)
-print(features[0].value)
-# Output: 0.6
-```
-
-**2. Writing (Set Feature)**
-```python
-# Set a feature value directly
-feature = features[0]
-device = await client.set_feature(device, feature, 0.7)
-# No exception means the API accepted the write; use the updated device for
-# the next operation.
-```
-
-The library handles the "magic" of mapping your simple `0.7` value back to the complex JSON structure required by the API.
-
-## 6. Gateway-Scoped Device Refresh
+## 5. Gateway-Scoped Device Refresh
 
 When several known devices belong to the same installation and gateway,
 `refresh_gateway_devices(devices)` refreshes their available features
@@ -267,7 +259,7 @@ consumer owns polling cadence and stale-state policy.
 
 *   **Everything is a Feature**: Scalar properties are exposed as addressable `Feature` objects.
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
-*   **Simple Set**: Use `set_feature(device, feature, value)`.
+*   **Simple Set**: Use `set_feature(device, name, value)`.
 *   **Explicit Multi-Device Refresh**: Use `refresh_gateway_devices` for known devices behind one gateway.
 
 ## Next Steps
