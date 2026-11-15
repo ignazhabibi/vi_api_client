@@ -137,13 +137,8 @@ async def main():
         installations = await client.get_installations()
         installation = installations[0]
 
-        gateways = await client.get_gateways(installation.id)
-        gateway = gateways[0]
-
-        devices = await client.get_devices(installation.id, gateway.serial)
+        devices = await client.get_full_installation_status(installation.id)
         device = devices[0]
-
-        device = await client.refresh_device(device)
 
         for feature in device.features:
             print(feature.name, feature.value)
