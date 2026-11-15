@@ -103,11 +103,18 @@ class ViClient:
         _LOGGER.debug("Found %s installations", len(installations))
         return installations
 
-    async def get_gateways(self) -> list[Gateway]:
-        """Return the gateways of all installations.
+    async def get_gateways(self, installation_id: str | None = None) -> list[Gateway]:
+        """Return the gateways of the account, or of one installation.
+
+        The API lists the gateways of all installations in one response; an
+        ``installation_id`` selects the gateways of that installation from it.
+
+        Args:
+            installation_id: Return only the gateways of this installation.
+                Without it, the gateways of all installations are returned.
 
         Returns:
-            List of Gateway objects found (across all installations).
+            List of Gateway objects found.
 
         Raises:
             ViResponseError: If a successful response violates the API contract.
@@ -118,6 +125,12 @@ class ViClient:
             parse_gateway(gateway_data)
             for gateway_data in self._response_items(response, resource="Gateway")
         ]
+        if installation_id is not None:
+            gateways = [
+                gateway
+                for gateway in gateways
+                if gateway.installation_id == installation_id
+            ]
         _LOGGER.debug("Found %s gateways", len(gateways))
         return gateways
 
@@ -209,13 +222,10 @@ class ViClient:
         Raises:
             ViResponseError: If a successful response violates the API contract.
         """
-        gateways = await self.get_gateways()
+        gateways = await self.get_gateways(installation_id)
         all_devices: list[Device] = []
 
         for gateway in gateways:
-            if gateway.installation_id != installation_id:
-                continue
-
             devices = await self.get_devices(installation_id, gateway.serial)
             for device in devices:
                 all_devices.append(

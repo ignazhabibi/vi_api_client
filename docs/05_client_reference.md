@@ -49,8 +49,12 @@ Methods to discover the structure of your heating system.
 Fetches all available installations.
 *   **Returns**: List of `Installation` objects.
 
-### `get_gateways() -> list[Gateway]`
-Fetches all gateways (automatically linked to installations).
+### `get_gateways(installation_id: str | None = None) -> list[Gateway]`
+Fetches the gateways of the account, or of one installation.
+
+*   **Parameters**:
+    *   `installation_id`: Return only the gateways of this installation.
+        Without it, the gateways of all installations are returned.
 *   **Returns**: List of `Gateway` objects.
 
 ### `get_devices(installation_id: str, gateway_serial: str) -> list[Device]`

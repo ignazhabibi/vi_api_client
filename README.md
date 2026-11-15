@@ -51,18 +51,30 @@ from vi_api_client import FixtureViClient
 async def main():
     client = FixtureViClient("Vitocal250A")
 
-    installation = (await client.get_installations())[0]
-    device = (await client.get_full_installation_status(installation.id))[0]
+    installations = await client.get_installations()
+    installation = installations[0]
 
-    outside = device.get_feature("heating.sensors.temperature.outside")
-    if outside:
-        print(f"Outside temperature: {outside.value} {outside.unit}")
+    gateways = await client.get_gateways(installation.id)
+    gateway = gateways[0]
+
+    devices = await client.get_devices(installation.id, gateway.serial)
+    device = devices[0]
+
+    device = await client.refresh_device(device)
+
+    for feature in device.features:
+        print(feature.name, feature.value)
 
     device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 
 
 asyncio.run(main())
 ```
+
+Each step returns plain objects: installations, gateways, devices, and the
+features of a device, each with a `name` and a `value`. `refresh_device` loads
+the features, and `set_feature` changes one value and returns the updated
+device.
 
 ### With your Viessmann account
 
@@ -92,12 +104,19 @@ async def main():
         )
         client = ViClient(auth)
 
-        installation = (await client.get_installations())[0]
-        device = (await client.get_full_installation_status(installation.id))[0]
+        installations = await client.get_installations()
+        installation = installations[0]
 
-        outside = device.get_feature("heating.sensors.temperature.outside")
-        if outside:
-            print(f"Outside temperature: {outside.value} {outside.unit}")
+        gateways = await client.get_gateways(installation.id)
+        gateway = gateways[0]
+
+        devices = await client.get_devices(installation.id, gateway.serial)
+        device = devices[0]
+
+        device = await client.refresh_device(device)
+
+        for feature in device.features:
+            print(feature.name, feature.value)
 
         device = await client.set_feature(device, "heating.dhw.temperature.main", 50)
 

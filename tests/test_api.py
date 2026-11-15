@@ -561,6 +561,35 @@ async def test_get_gateways_returns_the_listed_gateway(vi_client, mock_responses
 
 
 @pytest.mark.parametrize(
+    ("installation_id", "expected_serials"),
+    [
+        pytest.param("installation-a", ["gateway-a"], id="one-installation"),
+        pytest.param("installation-c", [], id="unknown-installation"),
+        pytest.param(None, ["gateway-a", "gateway-b"], id="all-installations"),
+    ],
+)
+async def test_get_gateways_selects_the_gateways_of_one_installation(
+    vi_client, mock_responses, installation_id, expected_serials
+):
+    # Arrange: List one gateway for each of two installations.
+    mock_responses.get(
+        f"{API_BASE_URL}{ENDPOINT_GATEWAYS}",
+        payload={
+            "data": [
+                {"installationId": "installation-a", "serial": "gateway-a"},
+                {"installationId": "installation-b", "serial": "gateway-b"},
+            ]
+        },
+    )
+
+    # Act: Request the gateways, optionally of one installation.
+    gateways = await vi_client.get_gateways(installation_id)
+
+    # Assert: Only the gateways of the requested installation are returned.
+    assert [gateway.serial for gateway in gateways] == expected_serials
+
+
+@pytest.mark.parametrize(
     ("url", "request_method", "operation", "arguments"),
     [
         pytest.param(
