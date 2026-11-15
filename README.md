@@ -3,20 +3,35 @@
 A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann-climatesolutions.com/start.html).
 Designed for integration with Home Assistant and other async Python applications.
 
-## Features
+## Why this library
 
-- **Asynchronous**: Built on `aiohttp` and `asyncio`.
-- **OAuth2 Authentication**: Handles token retrieval and automatic renewal.
-- **Auto-Discovery**: Automatically finds installations, gateways, and devices.
-- **Recursive Feature Flattening**: Converts complex nested API responses into a simple, flat list of features (e.g., `heating.circuits.0.heating.curve.shift`).
-- **Gateway-Scoped Refresh**: Refreshes multiple known devices with one normal-case request while preserving partial successes.
-- **Command Execution**: Supports safe single-feature writes with automatic
-  parameter resolution and explicit multi-parameter commands.
-- **Fixture-backed Client**: Runs the same client workflows against bundled real-device
-  responses without authentication, sessions, or network requests.
-- **Strictly Typed**: Ships as a PEP 561 complete package with `py.typed`; the
-  shipped code passes strict Pyright and dynamic values follow a typed JSON
-  value contract.
+- **Your heating system as Python objects.** Installation, gateway, device,
+  feature: typed, immutable classes that mirror the real world.
+- **Flat features instead of nested JSON.** Every value is one feature with a
+  name and a `value`, e.g. `heating.circuits.0.heating.curve.slope`, whatever
+  device you have.
+- **One call to change a setting.** `set_feature(device, name, value)` checks
+  the value against the device's rules and fills in the other parameters the
+  API requires.
+- **Try everything offline.** `FixtureViClient` runs the same code against real
+  device data, without an account.
+
+The API returns the heating curve as one nested object whose `setCurve`
+command needs both `slope` and `shift`. With this library:
+
+```python
+device = await client.set_feature(device, "heating.circuits.0.heating.curve.slope", 0.7)
+# shift is filled in from its current value; 0.7 is checked against min 0.2 / max 3.5
+```
+
+The [API structure guide](https://github.com/ignazhabibi/vi_api_client/blob/main/docs/02_api_structure.md#3-the-flat-architecture)
+shows the raw API response next to this call.
+
+Under the hood: async (`aiohttp`), OAuth2 with automatic token renewal,
+gateway-wide refresh of several devices, any reported command through
+`run_command`, and a strictly typed, PEP 561 complete package. Feature values
+follow a typed JSON value contract (`FeatureValue`), because the library reads
+whatever features a device reports instead of hardcoding them.
 
 ## Installation
 
