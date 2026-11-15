@@ -167,15 +167,6 @@ except ViRateLimitError as error:
     await sleep(delay)
 ```
 
-## Next Steps
-
-- **[Getting Started](01_getting_started.md)**: installation and basic usage.
-- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
-- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
-- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
-- **[CLI Reference](06_cli_reference.md)**: terminal usage.
-
 ## Import Reference
 
 Import exception classes from the package root:
@@ -194,3 +185,12 @@ from vi_api_client import (
     ViValidationError,
 )
 ```
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: try it offline, read values, change a setting.
+- **[API Structure & Concepts](02_api_structure.md)**: the object model, flat features, and one-call writes.
+- **[Authentication](03_auth_reference.md)**: logging in, tokens, and sessions.
+- **[Models Reference](04_models_reference.md)**: `Device`, `Feature`, `FeatureConstraints`, and command outcomes.
+- **[Client Reference](05_client_reference.md)**: every `ViClient` method, including `run_command`.
+- **[CLI Reference](06_cli_reference.md)**: the `vi-client` terminal tool.

@@ -157,9 +157,9 @@ Tokens are stored in `token_file` as:
 
 ## Next Steps
 
-- **[Getting Started](01_getting_started.md)**: installation and basic usage.
-- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
-- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `FeatureConstraints`, `Device`, and command outcomes.
-- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
-- **[CLI Reference](06_cli_reference.md)**: terminal usage.
-- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
+- **[Getting Started](01_getting_started.md)**: try it offline, read values, change a setting.
+- **[API Structure & Concepts](02_api_structure.md)**: the object model, flat features, and one-call writes.
+- **[Models Reference](04_models_reference.md)**: `Device`, `Feature`, `FeatureConstraints`, and command outcomes.
+- **[Client Reference](05_client_reference.md)**: every `ViClient` method, including `run_command`.
+- **[CLI Reference](06_cli_reference.md)**: the `vi-client` terminal tool.
+- **[Exceptions Reference](07_exceptions_reference.md)**: which errors to catch.

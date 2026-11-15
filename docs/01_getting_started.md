@@ -149,9 +149,9 @@ asyncio.run(main())
 
 ## Next Steps
 
-- [Client Reference](05_client_reference.md): all methods, including
-  gateway-wide refresh and `run_command` for multi-parameter commands.
-- [Models Reference](04_models_reference.md): `Device`, `Feature`, and
-  `FeatureConstraints` in detail.
-- [Authentication](03_auth_reference.md): logging in from Python and token handling.
-- [CLI Reference](06_cli_reference.md) and [Exceptions](07_exceptions_reference.md).
+- **[API Structure & Concepts](02_api_structure.md)**: the object model, flat features, and one-call writes.
+- **[Authentication](03_auth_reference.md)**: logging in, tokens, and sessions.
+- **[Models Reference](04_models_reference.md)**: `Device`, `Feature`, `FeatureConstraints`, and command outcomes.
+- **[Client Reference](05_client_reference.md)**: every `ViClient` method, including `run_command`.
+- **[CLI Reference](06_cli_reference.md)**: the `vi-client` terminal tool.
+- **[Exceptions Reference](07_exceptions_reference.md)**: which errors to catch.
