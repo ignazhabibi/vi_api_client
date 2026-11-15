@@ -345,15 +345,6 @@ provider timestamp cannot be parsed, the whole window falls back to a lexical
 comparison. A complete window reports exhausted pagination, not proven
 provider retention of the requested lookback.
 
-## Next Steps
-
-- **[Getting Started](01_getting_started.md)**: installation and basic usage.
-- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
-- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
-- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
-- **[CLI Reference](06_cli_reference.md)**: terminal usage.
-- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
-
 ## Import Reference
 
 All public models and helpers, imported from the package root:
@@ -381,3 +372,12 @@ from vi_api_client import (
     validate_json_value,
 )
 ```
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: try it offline, read values, change a setting.
+- **[API Structure & Concepts](02_api_structure.md)**: the object model, flat features, and one-call writes.
+- **[Authentication](03_auth_reference.md)**: logging in, tokens, and sessions.
+- **[Client Reference](05_client_reference.md)**: every `ViClient` method, including `run_command`.
+- **[CLI Reference](06_cli_reference.md)**: the `vi-client` terminal tool.
+- **[Exceptions Reference](07_exceptions_reference.md)**: which errors to catch.
